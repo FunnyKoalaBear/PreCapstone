@@ -5,6 +5,6 @@ idf_component_register(SRCS "main.cpp"
                     REQUIRES led_strip
                     rfid
                     button
-                    
+                    buzzer
                     
                     )
