@@ -7,14 +7,14 @@
 #include "pn532_driver_i2c.h"
 #include "pn532.h"
 #include "rfid.hpp"
+#include "configuration.hpp"
 
 namespace {
-    constexpr gpio_num_t SCL_PIN = GPIO_NUM_10;
-    constexpr gpio_num_t SDA_PIN = GPIO_NUM_11;
-    constexpr gpio_num_t RESET_PIN = GPIO_NUM_NC;
-    constexpr gpio_num_t IRQ_PIN = GPIO_NUM_NC;
+    // constexpr gpio_num_t SCL_PIN = GPIO_NUM_10;
+    // constexpr gpio_num_t SDA_PIN = GPIO_NUM_11;
+    // constexpr gpio_num_t RESET_PIN = GPIO_NUM_NC;
+    // constexpr gpio_num_t IRQ_PIN = GPIO_NUM_NC;
     static const char *TAG = "ntag_read";
-
     pn532_io_t pn532_io;
 }
 
@@ -34,7 +34,7 @@ bool RFID::init()
 	ESP_LOGI(TAG, "init PN532 in I2C mode");
 
     //halts execution if pin execution fails 
-	ESP_ERROR_CHECK(pn532_new_driver_i2c(SDA_PIN, SCL_PIN, RESET_PIN, IRQ_PIN, 0, &pn532_io));
+	ESP_ERROR_CHECK(pn532_new_driver_i2c(config::RFID_SDA_PIN, config::RFID_SCL_PIN, config::RFID_RESET_PIN, config::RFID_IRQ_PIN, 0, &pn532_io));
 
     //pn532 setup repeatedly until complete 
 	do {

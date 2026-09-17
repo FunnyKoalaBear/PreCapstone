@@ -11,4 +11,5 @@ idf_component_register(
         esp-idf-pn532
         freertos
         log
+        configuration
 )
