@@ -5,12 +5,26 @@
 
 #include "rfid.hpp"
 #include "button.hpp"
+#include "buzzer.hpp"
+
+
+struct button_task_args_t {
+    BUTTON *button;
+    BUZZER *buzzer;
+};
 
 static void button_task(void *argument)
 {
-    auto *button = static_cast<BUTTON *>(argument);
+    auto *args = static_cast<button_task_args_t *>(argument);
+
     while (true) {
-        button->clicked();
+        
+        if (args->button->clicked()) {
+            args->buzzer->on();
+        }
+        else args->buzzer->off();
+
+        
         vTaskDelay(pdMS_TO_TICKS(50));
     }
     
@@ -34,14 +48,16 @@ extern "C" void app_main()
     printf("APP MAIN\n");
     RFID rfid;
     BUTTON button;
+    BUZZER buzzer;
 
     //initializing classes
     button.init();
     rfid.init();
+    buzzer.init();
 
     //creating tasks 
-    int button_param = 42;
-    xTaskCreate(button_task, "Button Click", 2048 , &button_param, 5, nullptr); 
+    static button_task_args_t button_args{ &button, &buzzer };
+    xTaskCreate(button_task, "Button Click", 2048 , &button_args, 5, nullptr); 
 
     int rfid_param = 43;
     xTaskCreate(rfid_task, "RFID Scan", 4096 , &rfid_param, 5, nullptr); 

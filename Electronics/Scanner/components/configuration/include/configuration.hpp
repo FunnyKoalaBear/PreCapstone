@@ -14,8 +14,8 @@ namespace config {
     constexpr gpio_num_t RFID_RESET_PIN = GPIO_NUM_NC;
     constexpr gpio_num_t RFID_IRQ_PIN   = GPIO_NUM_NC;
 
-    // Buzzer (TODO: set to actual wired pin)
-    constexpr gpio_num_t BUZZER_PIN = GPIO_NUM_NC;
+    // Buzzer
+    constexpr gpio_num_t BUZZER_PIN = GPIO_NUM_5;
 
     // Shared timing
     constexpr TickType_t INIT_RETRY_DELAY = pdMS_TO_TICKS(1000);
