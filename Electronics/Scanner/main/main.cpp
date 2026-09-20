@@ -6,6 +6,7 @@
 #include "rfid.hpp"
 #include "button.hpp"
 #include "buzzer.hpp"
+#include "display.hpp"
 
 
 struct button_task_args_t {
@@ -51,6 +52,12 @@ extern "C" void app_main()
     RFID rfid;
     BUTTON button;
     BUZZER buzzer;
+    DISPLAY display;
+
+    //display first: rfid.init() retries forever if the PN532 isn't connected
+    if (display.init()) {
+        display.draw_text_centered("hello mithun", 4, DISPLAY::BLACK, DISPLAY::WHITE);
+    }
 
     //initializing classes
     button.init();
@@ -69,4 +76,5 @@ extern "C" void app_main()
         rfid.scan();
         button.clicked();
     }
+    
 }
