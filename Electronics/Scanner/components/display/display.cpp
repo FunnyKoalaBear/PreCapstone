@@ -47,6 +47,10 @@ namespace {
 
     const uint8_t *glyph_for(char c)
     {
+        if (c == FONT_HEART_CHAR) {
+            return FONT_HEART;
+        }
+
         int code = static_cast<unsigned char>(c);
         if (code < FONT_FIRST_CHAR || code > FONT_LAST_CHAR) {
             code = '?';

@@ -56,7 +56,7 @@ extern "C" void app_main()
 
     //display first: rfid.init() retries forever if the PN532 isn't connected
     if (display.init()) {
-        display.draw_text_centered("hello mithun", 4, DISPLAY::BLACK, DISPLAY::WHITE);
+        display.draw_text_centered("helluz \x03", 4, DISPLAY::BLACK, DISPLAY::WHITE);
     }
 
     //initializing classes
