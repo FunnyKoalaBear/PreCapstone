@@ -143,3 +143,17 @@ bool RFID::scan()
 		vTaskDelay(1000 / portTICK_PERIOD_MS);
 	}
 }
+
+bool RFID:set()
+{
+	printf("Setting RFID card information to.. ");
+
+	05int main(int argc, char const *argv[])
+	{
+		/* code */
+		return 0;
+	}
+	
+
+	//Update info to database 
+}
