@@ -56,7 +56,7 @@ extern "C" void app_main()
 
     //display first: rfid.init() retries forever if the PN532 isn't connected
     if (display.init()) {
-        display.draw_text_centered("helluz \x03", 4, DISPLAY::BLACK, DISPLAY::WHITE);
+        display.draw_text_centered("hello", 4, DISPLAY::BLACK, DISPLAY::WHITE);
     }
 
     //initializing classes
@@ -72,9 +72,11 @@ extern "C" void app_main()
     xTaskCreate(rfid_task, "RFID Scan", 4096 , &rfid_param, 5, nullptr); 
 
 
-    while (1) {
-        rfid.scan();
-        button.clicked();
-    }
-    
+    static const char *const menu_items[] = {
+        "Item 01", "Item 02", "Item 03", "Item 04", "Item 05",
+        "Item 06", "Item 07", "Item 08", "Item 09", "Item 10",
+        "Item 11", "Item 12", "Item 13", "Item 14", "Item 15",
+        "Item 16", "Item 17", "Item 18", "Item 19", "Item 20",
+    };
+    display.run_scrollable_list(menu_items, sizeof(menu_items) / sizeof(menu_items[0]), 2);
 }

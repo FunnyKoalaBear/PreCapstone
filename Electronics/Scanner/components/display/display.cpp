@@ -9,6 +9,7 @@
 #include "driver/spi_master.h"
 #include "esp_lcd_io_spi.h"
 #include "esp_lcd_st7796.h"
+#include "esp_lcd_touch_xpt2046.h"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -22,7 +23,7 @@ namespace {
     static const char *TAG = "display";
 
     constexpr spi_host_device_t TFT_SPI_HOST = SPI2_HOST;
-    constexpr int SPI_CLOCK_HZ = 20 * 1000 * 1000;   // conservative, jumper wires on a breadboard are noisy
+    constexpr int SPI_CLOCK_HZ = 40 * 1000 * 1000;   // was 20MHz; try this first, drop back down if the screen glitches/tears
     constexpr int BAND_LINES = 16;                   // pixel rows sent per SPI transfer
     constexpr int GLYPH_SIZE = 8;
 
@@ -134,9 +135,45 @@ bool DISPLAY::init()
     TRY(esp_lcd_panel_disp_on_off(panel_, true));
     output_high(config::TFT_BACKLIGHT_PIN);
 
+    if (!init_touch()) {
+        ESP_LOGW(TAG, "touch controller not available, continuing without touch");
+    }
+
     ESP_LOGI(TAG, "initialized display!");
     return true;
 }
+
+bool DISPLAY::init_touch()
+{
+    // Built by hand rather than with ESP_LCD_TOUCH_IO_SPI_XPT2046_CONFIG: that macro
+    // doesn't set every field, which this project's -Werror=missing-field-initializers rejects.
+    esp_lcd_panel_io_spi_config_t tp_io_cfg = {};
+    tp_io_cfg.cs_gpio_num = config::TOUCH_CS_PIN;
+    tp_io_cfg.dc_gpio_num = GPIO_NUM_NC;
+    tp_io_cfg.spi_mode = 0;
+    tp_io_cfg.pclk_hz = ESP_LCD_TOUCH_SPI_CLOCK_HZ;
+    tp_io_cfg.trans_queue_depth = 3;
+    tp_io_cfg.lcd_cmd_bits = 8;
+    tp_io_cfg.lcd_param_bits = 8;
+    esp_lcd_panel_io_handle_t tp_io = nullptr;
+    TRY(esp_lcd_new_panel_io_spi(static_cast<esp_lcd_spi_bus_handle_t>(TFT_SPI_HOST), &tp_io_cfg, &tp_io));
+
+    esp_lcd_touch_config_t tp_cfg = {};
+    // x_max/y_max are the panel's *native* (pre-swap) resolution: it's wired the same
+    // portrait orientation as the LCD, so this is HEIGHT x WIDTH, not WIDTH x HEIGHT.
+    tp_cfg.x_max = HEIGHT;
+    tp_cfg.y_max = WIDTH;
+    tp_cfg.rst_gpio_num = GPIO_NUM_NC;
+    tp_cfg.int_gpio_num = GPIO_NUM_NC;   // polled, not interrupt-driven
+    tp_cfg.flags.swap_xy = 1;            // matches DISPLAY's SWAP_XY
+    // If a drag moves the wrong way once this is on hardware, flip mirror_x / mirror_y below.
+    tp_cfg.flags.mirror_x = 0;
+    tp_cfg.flags.mirror_y = 0;
+    TRY(esp_lcd_touch_new_spi_xpt2046(tp_io, &tp_cfg, &touch_));
+
+    return true;
+}
+
 
 bool DISPLAY::fill_screen(uint16_t color)
 {
@@ -159,16 +196,35 @@ bool DISPLAY::draw_text_centered(const char *text, int scale, uint16_t fg, uint1
 
     const int w = len * GLYPH_SIZE * scale;
     const int h = GLYPH_SIZE * scale;
-    ESP_RETURN_ON_FALSE(scale >= 1 && scale <= BAND_LINES && w <= WIDTH && h <= HEIGHT,
-                        false, TAG, "text does not fit on screen");
+    ESP_RETURN_ON_FALSE(h <= HEIGHT, false, TAG, "text does not fit vertically");
+    return draw_text_at(text, (WIDTH - w) / 2, (HEIGHT - h) / 2, scale, fg, bg);
+}
 
-    const int x = (WIDTH - w) / 2;
-    const int y = (HEIGHT - h) / 2;
+bool DISPLAY::draw_text_at(const char *text, int x, int y, int scale, uint16_t fg, uint16_t bg)
+{
+    const int len = static_cast<int>(strlen(text));
+    if (len == 0) {
+        return true;
+    }
+
+    const int w = len * GLYPH_SIZE * scale;
+    ESP_RETURN_ON_FALSE(scale >= 1 && scale <= BAND_LINES && x >= 0 && w <= WIDTH - x,
+                        false, TAG, "text does not fit horizontally");
+
     const uint16_t fg_px = swap_bytes(fg);
     const uint16_t bg_px = swap_bytes(bg);
 
-    // one font row at a time: build a single pixel line, copy it `scale` times, send the strip
+    // one font row at a time: build a single pixel line, copy it `scale` times, send the strip.
+    // every one of those `scale` copies is identical, so a row that's partly off the top or
+    // bottom of the screen just needs fewer copies sent, not different ones.
     for (int row = 0; row < GLYPH_SIZE; row++) {
+        const int row_top = y + row * scale;
+        const int visible_top = std::max(row_top, 0);
+        const int visible_h = std::min(row_top + scale, HEIGHT) - visible_top;
+        if (visible_h <= 0) {
+            continue;
+        }
+
         uint16_t *out = band_;
         for (int c = 0; c < len; c++) {
             const uint8_t bits = glyph_for(text[c])[row];
@@ -178,15 +234,91 @@ bool DISPLAY::draw_text_centered(const char *text, int scale, uint16_t fg, uint1
                 out += scale;
             }
         }
-        for (int i = 1; i < scale; i++) {
+        for (int i = 1; i < visible_h; i++) {
             memcpy(band_ + i * w, band_, w * sizeof(uint16_t));
         }
 
-        if (!blit(x, y + row * scale, w, scale)) {
+        if (!blit(x, visible_top, w, visible_h)) {
             return false;
         }
     }
     return true;
+}
+
+bool DISPLAY::poll_touch(int &x, int &y)
+{
+    if (!touch_ || esp_lcd_touch_read_data(touch_) != ESP_OK) {
+        return false;
+    }
+
+    esp_lcd_touch_point_data_t point;
+    uint8_t count = 0;
+    if (esp_lcd_touch_get_data(touch_, &point, &count, 1) != ESP_OK || count == 0) {
+        return false;
+    }
+
+    x = std::clamp<int>(point.x, 0, WIDTH - 1);
+    y = std::clamp<int>(point.y, 0, HEIGHT - 1);
+    return true;
+}
+
+bool DISPLAY::run_scrollable_list(const char *const *items, int item_count, int scale)
+{
+    ESP_RETURN_ON_FALSE(item_count > 0, false, TAG, "item list is empty");
+
+    const bool can_scroll = (touch_ != nullptr);
+    if (!can_scroll) {
+        ESP_LOGW(TAG, "touch not available, showing list without scrolling");
+    }
+
+    constexpr int MARGIN = 8;
+    constexpr int ROW_PADDING = 12;   // extra vertical space per row, split above/below the text
+    const int row_height = GLYPH_SIZE * scale + ROW_PADDING;
+    const int content_height = item_count * row_height;
+    const int max_scroll = std::max(0, content_height - HEIGHT);
+
+    int scroll_y = 0;
+    bool dragging = false;
+    int drag_start_touch_y = 0;
+    int drag_start_scroll_y = 0;
+    int last_drawn_scroll_y = -1;   // forces the first draw
+
+    while (true) {
+        int touch_x = 0, touch_y = 0;
+        const bool touched = can_scroll && poll_touch(touch_x, touch_y);
+
+        if (touched && !dragging) {
+            dragging = true;
+            drag_start_touch_y = touch_y;
+            drag_start_scroll_y = scroll_y;
+        } else if (touched && dragging) {
+            // finger moves up (touch_y decreases) -> content scrolls up, revealing what's below
+            const int delta = drag_start_touch_y - touch_y;
+            scroll_y = std::clamp(drag_start_scroll_y + delta, 0, max_scroll);
+        } else {
+            dragging = false;
+        }
+
+        // redrawing means a full-screen refill (see NOTES.md / conversation: no framebuffer,
+        // no PSRAM, so there's no way to shift existing pixels), so skip it unless something moved
+        if (scroll_y != last_drawn_scroll_y) {
+            if (!fill_screen(WHITE)) {
+                return false;
+            }
+            for (int i = 0; i < item_count; i++) {
+                const int item_top = i * row_height - scroll_y;
+                if (item_top + row_height <= 0 || item_top >= HEIGHT) {
+                    continue;   // fully off-screen
+                }
+                if (!draw_text_at(items[i], MARGIN, item_top + ROW_PADDING / 2, scale, BLACK, WHITE)) {
+                    return false;
+                }
+            }
+            last_drawn_scroll_y = scroll_y;
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(20));
+    }
 }
 
 bool DISPLAY::blit(int x, int y, int w, int h)

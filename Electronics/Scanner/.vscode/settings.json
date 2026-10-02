@@ -33,5 +33,5 @@
     "--compile-commands-dir=c:\\Users\\sbmit\\OneDrive\\Codine\\PreCapstone\\Electronics\\Scanner\\build"
   ],
   "idf.flashType": "JTAG",
-  "idf.port": "COM5"
+  "idf.port": "COM4"
 }

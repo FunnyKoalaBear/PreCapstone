@@ -144,16 +144,16 @@ bool RFID::scan()
 	}
 }
 
-bool RFID:set()
-{
-	printf("Setting RFID card information to.. ");
+// bool RFID::set()
+// {
+// 	printf("Setting RFID card information to.. ");
 
-	05int main(int argc, char const *argv[])
-	{
-		/* code */
-		return 0;
-	}
+// 	int main(int argc, char const *argv[])
+// 	{
+// 		/* code */
+// 		return 0;
+// 	}
 	
 
-	//Update info to database 
-}
+// 	//Update info to database 
+// }
