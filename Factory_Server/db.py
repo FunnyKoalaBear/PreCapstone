@@ -18,26 +18,66 @@ def print_rows(cur):
         print(" | ".join(v.ljust(w) for v, w in zip(row, widths)))
     print(f"({len(rows)} rows)")
 
-conn = postgres.connect(
-    host=os.getenv("DB_HOST"),
-    port=os.getenv("DB_PORT"),
-    dbname=os.getenv("DB_NAME"),
-    user=os.getenv("DB_USER"),
-    password=os.getenv("DB_PASSWORD"),
-)
-cur = conn.cursor() #cursor performs operations on db 
-
-cur.execute("SELECT * FROM scans")
-print_rows(cur)
-
-print("NEW LINE")
+    print("                     ")
+    print("                     ")
 
 
-cur.execute("INSERT INTO scans (uid) VALUES (%s)", ("NEW ID",))
-conn.commit()
+def main(): 
+    conn = postgres.connect(
+        host=os.getenv("DB_HOST"),
+        port=os.getenv("DB_PORT"),
+        dbname=os.getenv("DB_NAME"),
+        user=os.getenv("DB_USER"),
+        password=os.getenv("DB_PASSWORD"),
+    )
+    cur = conn.cursor() #cursor performs operations on db 
+
+    cur.execute("SELECT * FROM scans")
+    print_rows(cur)
+
+    print("NEW LINE")
 
 
-print("NEW LINE") 
+    cur.execute("INSERT INTO scans (uid) VALUES (%s)", ("NEW ID",))
+    conn.commit()
 
-cur.execute("SELECT * FROM scans")
-print_rows(cur)
+
+    print("NEW LINE") 
+
+    cur.execute("SELECT * FROM scans")
+    print_rows(cur)
+
+    cur.close()
+    conn.close()
+
+
+def open_connection():
+    conn = postgres.connect(
+        host=os.getenv("DB_HOST"),
+        port=os.getenv("DB_PORT"),
+        dbname=os.getenv("DB_NAME"),
+        user=os.getenv("DB_USER"),
+        password=os.getenv("DB_PASSWORD"),
+    )
+    cur = conn.cursor() #cursor performs operations on db
+    return conn, conn.cursor() 
+
+def add_query(conn, cur): 
+    cur.execute("INSERT INTO scans (uid) VALUES (%s)", ("NEW ID",))
+    conn.commit()
+
+
+def close_connection(conn, cur):
+    cur.close()
+    conn.close()
+
+
+def custom_query(conn, cur): 
+    pass
+
+def print_table(cur):
+    cur.execute("SELECT * FROM scans")
+    print_rows(cur)
+
+if __name__ == "__main__":
+    main()
