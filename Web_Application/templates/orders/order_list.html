@@ -48,7 +48,7 @@
       <tbody>
         {% for row in rows %}
           <tr>
-            <td>{{ row.order.job_number }}</td>
+            <td><a href="{% url 'order_detail' row.order.job_number %}">{{ row.order.job_number }}</a></td>
             <td>{{ row.order.customer }}</td>
             <td>{{ row.order.customer_order_number }}</td>
             <td>

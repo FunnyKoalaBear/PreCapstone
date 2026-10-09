@@ -121,3 +121,14 @@ body {
 .badge-in_progress { color: var(--status-in-progress); }
 .badge-complete { color: var(--status-done); }
 .badge-overdue { color: var(--status-late); }
+
+.badge-waiting { color: var(--status-waiting); }
+.badge-at_vendor { color: var(--status-at-vendor); }
+.badge-pending { color: var(--color-muted); }
+.badge-done { color: var(--status-done); }
+
+.card-wide { max-width: none; }
+.info { display: flex; flex-wrap: wrap; gap: 0.5rem 2rem; margin: 0 0 1rem; }
+.info dt { font-size: 0.875rem; color: var(--color-muted); }
+.info dd { margin: 0; }
+.warnings { margin: 0 0 0.75rem; padding-left: 1.25rem; color: var(--status-waiting); }

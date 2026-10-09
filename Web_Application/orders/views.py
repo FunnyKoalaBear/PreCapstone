@@ -2,12 +2,14 @@ from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.db import transaction
 from django.db.models import Q
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.translation import gettext as _
 from django.utils.translation import gettext_lazy
 
-from tracking.status import COMPLETE, IN_PROGRESS, LABELS, NOT_STARTED, order_summary
+from tracking.status import (
+    COMPLETE, IN_PROGRESS, LABELS, NOT_STARTED, STEP_LABELS, events_for_item, item_status, order_summary,
+)
 
 from .forms import OrderForm, OrderItemFormSet
 from .models import Order
@@ -57,4 +59,23 @@ def order_list(request):
     return render(request, 'orders/order_list.html', {
         'rows': rows, 'q': q, 'status': status, 'sort': sort, 'late': late,
         'status_choices': [(c, LABELS[c]) for c in STATUS_CODES], 'sort_choices': SORT_LABELS,
+    })
+
+
+@staff_member_required
+def order_detail(request, job_number):
+    order = get_object_or_404(Order.objects.select_related('customer'), job_number=job_number)
+    code, label = order_summary(order)
+    items = []
+    for item in order.items.all():
+        st = item_status(item)
+        items.append({
+            'item': item, 'status': st,
+            'steps': [{'row': r, 'label': STEP_LABELS[r.state]} for r in st.rows],
+            'events': events_for_item(item).select_related('process', 'device'),
+            'assignment': item.tagassignment_set.filter(end_at__isnull=True).select_related('tag', 'box').first(),
+        })
+    return render(request, 'orders/order_detail.html', {
+        'order': order, 'code': code, 'label': label, 'items': items,
+        'late': order.due_date < timezone.localdate() and code != COMPLETE,
     })

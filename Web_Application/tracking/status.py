@@ -19,6 +19,13 @@ LABELS = {
 
 PENDING, STEP_IN_PROGRESS, STEP_AT_VENDOR, DONE = 'pending', 'in_progress', 'at_vendor', 'done'
 
+STEP_LABELS = {
+    PENDING: _('Pending'),
+    STEP_IN_PROGRESS: _('In progress'),
+    STEP_AT_VENDOR: _('At vendor'),
+    DONE: _('Done'),
+}
+
 
 @dataclass
 class StepRow:

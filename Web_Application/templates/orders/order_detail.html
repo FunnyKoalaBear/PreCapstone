@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{{ order.job_number }} - {% trans "Factory Tracker" %}{% endblock %}
+
+{% block content %}
+  <p><a href="{% url 'order_list' %}">&larr; {% trans "Back to Orders" %}</a></p>
+  <h1>{{ order.job_number }} <span class="badge badge-{{ code|lower }}">{{ label }}</span></h1>
+
+  <dl class="info">
+    <div><dt>{% trans "Customer" %}</dt><dd>{{ order.customer }}</dd></div>
+    <div><dt>{% trans "Customer order number" %}</dt><dd>{{ order.customer_order_number|default:"-" }}</dd></div>
+    <div>
+      <dt>{% trans "Due date" %}</dt>
+      <dd>
+        {{ order.due_date|date:"Y-m-d" }}
+        {% if late %}<span class="badge badge-overdue">{% trans "Overdue" %}</span>{% endif %}
+      </dd>
+    </div>
+    {% if order.notes %}<div><dt>{% trans "Notes" %}</dt><dd>{{ order.notes|linebreaksbr }}</dd></div>{% endif %}
+  </dl>
+
+  {% for entry in items %}
+    <div class="card card-wide">
+      <h2>
+        {{ entry.item.item_code }} - {{ entry.item.part_name }} &times; {{ entry.item.quantity }}
+        <span class="badge badge-{{ entry.status.code|lower }}">{{ entry.status.label }}</span>
+      </h2>
+
+      <p>
+        {% if entry.assignment %}
+          {% blocktrans with box=entry.assignment.box tag=entry.assignment.tag %}Box {{ box }}, tag {{ tag }}{% endblocktrans %}
+        {% else %}
+          {% trans "No tag assigned." %}
+        {% endif %}
+        {% if entry.item.drawing_file %}
+          &middot; <a href="{{ entry.item.drawing_file.url }}" target="_blank" rel="noopener">{% trans "Drawing" %}</a>
+        {% endif %}
+      </p>
+
+      {% if entry.status.warnings %}
+        <ul class="warnings">{% for w in entry.status.warnings %}<li>{{ w }}</li>{% endfor %}</ul>
+      {% endif %}
+
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>{% trans "Process" %}</th>
+              <th>{% trans "State" %}</th>
+              <th>{% trans "Started" %}</th>
+              <th>{% trans "Finished" %}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in entry.steps %}
+              <tr>
+                <td>{{ s.row.step.sequence }}</td>
+                <td>{{ s.row.step.process }}{% if s.row.step.process.vendor_name %} ({{ s.row.step.process.vendor_name }}){% endif %}</td>
+                <td><span class="badge badge-{{ s.row.state }}">{{ s.label }}</span></td>
+                <td>{{ s.row.started_at|date:"Y-m-d H:i"|default:"-" }}</td>
+                <td>{{ s.row.finished_at|date:"Y-m-d H:i"|default:"-" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <h3>{% trans "Event history" %}</h3>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{% trans "Time (JST)" %}</th>
+              <th>{% trans "Action" %}</th>
+              <th>{% trans "Process" %}</th>
+              <th>{% trans "Device" %}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for e in entry.events %}
+              <tr>
+                <td>{{ e.occurred_at|date:"Y-m-d H:i:s" }}</td>
+                <td>{{ e.get_event_type_display }}</td>
+                <td>{{ e.process|default_if_none:"-" }}</td>
+                <td>{{ e.device }}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="4">{% trans "No events yet." %}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% endfor %}
+{% endblock %}

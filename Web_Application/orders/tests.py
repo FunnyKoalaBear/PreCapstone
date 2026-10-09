@@ -120,3 +120,36 @@ class OrderListTests(TestCase):
         self.a.due_date = self.today - timedelta(days=1)
         self.a.save()
         self.assertNotIn(self.a.job_number, self.jobs(late='1'))
+
+
+class OrderDetailTests(TestCase):
+    def setUp(self):
+        self.client.force_login(User.objects.create_user('s', password='x', is_staff=True))
+        self.order = Order.objects.create(customer=Customer.objects.create(name='Acme'), due_date=timezone.localdate())
+        self.item = OrderItem.objects.create(order=self.order, part_name='Shaft', quantity=3)
+        self.proc = Process.objects.create(name='Mat', kind=K.MATERIAL)
+        RouteStep.objects.create(item=self.item, sequence=1, process=self.proc)
+        TagAssignment.objects.create(tag=Tag.objects.create(uid='AB'), box=Box.objects.create(label='B1'), item=self.item)
+        self.url = f'/orders/{self.order.job_number}/'
+
+    def test_staff_only(self):
+        self.client.logout()
+        self.assertEqual(self.client.get(self.url).status_code, 302)
+
+    def test_shows_job_number_and_part_name(self):
+        r = self.client.get(self.url)
+        self.assertContains(r, self.order.job_number)
+        self.assertContains(r, 'Shaft')
+        self.assertContains(r, 'Box B1, tag AB')
+
+    def test_unknown_job_number_is_404(self):
+        self.assertEqual(self.client.get('/orders/0000-999/').status_code, 404)
+
+    def test_scan_marks_step_done_and_shows_event(self):
+        record_event(ScannerDevice.objects.create(name='D'), 'AB', self.proc, 'ARRIVED')
+        r = self.client.get(self.url)
+        entry = r.context['items'][0]
+        self.assertEqual(entry['steps'][0]['row'].state, 'done')
+        self.assertEqual(len(entry['events']), 1)
+        self.assertContains(r, 'Arrived')
+        self.assertContains(r, 'Done')

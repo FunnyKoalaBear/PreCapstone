@@ -9,5 +9,6 @@
   --status-waiting: #d97706;
   --status-in-progress: #2563eb;
   --status-done: #16a34a;
+  --status-at-vendor: #7c3aed;
   --status-late: #dc2626;
 }
