@@ -18,3 +18,11 @@ Windows 11, Python 3.13, VS Code. The developer is learning: explain each step b
 - Colors only through CSS variables in static/css/theme.css; no hard-coded colors elsewhere.
 - Every user-visible string uses {% trans %} (templates) or gettext (Python).
 - Templates in Web_Application/templates/, static files in Web_Application/static/.
+
+## Data model decisions (confirmed)
+- Status is never stored; it is derived from Events.
+- Job number (seiban) format YYMM-NNN, auto-generated in JST, unique, never edited. Item code = job number + "-NN".
+- One box holds one OrderItem. Route (RouteStep) belongs to the OrderItem.
+- Event types: ARRIVED, STARTED, FINISHED, SENT_OUT, RETURNED, CORRECTION. Events are append-only.
+- All times shown in JST (TIME_ZONE Asia/Tokyo, USE_TZ True).
+- Verbose names use gettext_lazy.
