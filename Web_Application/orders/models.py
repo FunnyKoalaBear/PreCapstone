@@ -29,6 +29,7 @@ class Process(models.Model):
     name_ja = models.CharField(_('Japanese name'), max_length=100, blank=True)
     kind = models.CharField(_('kind'), max_length=20, choices=Kind.choices)
     vendor_name = models.CharField(_('vendor name'), max_length=200, blank=True)
+    vendor_lead_days = models.PositiveIntegerField(_('vendor lead days'), null=True, blank=True)
 
     class Meta:
         verbose_name = _('process')

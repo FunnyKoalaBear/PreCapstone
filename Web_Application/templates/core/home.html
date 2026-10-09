@@ -15,6 +15,7 @@
       <div class="card counter counter-at_vendor"><strong>{{ counters.at_vendor }}</strong> {% trans "At vendor" %}</div>
       <div class="card counter counter-not_started"><strong>{{ counters.not_started }}</strong> {% trans "Not started" %}</div>
       <div class="card counter counter-overdue"><strong>{{ counters.overdue }}</strong> {% trans "Overdue orders" %}</div>
+      <div class="card counter counter-vendor{% if counters.vendor_overdue %} counter-overdue counter-late{% endif %}"><strong>{{ counters.vendor_overdue }}</strong> {% trans "Vendor overdue" %}</div>
     </div>
 
     <h2>{% trans "In-house now" %}</h2>
@@ -63,6 +64,8 @@
             <th>{% trans "Process" %}</th>
             <th>{% trans "Out since (JST)" %}</th>
             <th>{% trans "Days out" %}</th>
+            <th>{% trans "Due back" %}</th>
+            <th>{% trans "Late by" %}</th>
           </tr>
         </thead>
         <tbody>
@@ -74,9 +77,11 @@
               <td>{{ e.process }}</td>
               <td>{{ e.out_since|date:"Y-m-d H:i"|default:"-" }}</td>
               <td>{{ e.days_out|default_if_none:"-" }}</td>
+              <td>{% if e.due_back %}{{ e.due_back|date:"Y-m-d" }}{% else %}{% trans "No due date" %}{% endif %}</td>
+              <td>{% if e.late_days %}{% include "includes/late_by.html" with n=e.late_days %}{% endif %}</td>
             </tr>
           {% empty %}
-            <tr><td colspan="6">{% trans "Nothing is out at vendors." %}</td></tr>
+            <tr><td colspan="8">{% trans "Nothing is out at vendors." %}</td></tr>
           {% endfor %}
         </tbody>
       </table>

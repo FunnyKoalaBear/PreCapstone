@@ -8,7 +8,8 @@ from django.utils.translation import gettext as _
 from django.utils.translation import gettext_lazy
 
 from tracking.status import (
-    COMPLETE, IN_PROGRESS, LABELS, NOT_STARTED, STEP_LABELS, events_for_item, item_status, order_summary,
+    COMPLETE, IN_PROGRESS, LABELS, NOT_STARTED, STEP_LABELS, days_late, due_back, events_for_item, item_status,
+    order_summary,
 )
 
 from .forms import OrderForm, OrderItemFormSet
@@ -62,16 +63,24 @@ def order_list(request):
     })
 
 
+def _step_entry(row, today):
+    entry = {'row': row, 'label': STEP_LABELS[row.state], 'due_back': None, 'late_days': 0}
+    if row.state == 'at_vendor':
+        entry['due_back'] = due_back(row.started_at, row.step.process.vendor_lead_days)
+        entry['late_days'] = days_late(entry['due_back'], today)
+    return entry
+
+
 @staff_member_required
 def order_detail(request, job_number):
     order = get_object_or_404(Order.objects.select_related('customer'), job_number=job_number)
     code, label = order_summary(order)
-    items = []
+    today, items = timezone.localdate(), []
     for item in order.items.all():
         st = item_status(item)
         items.append({
             'item': item, 'status': st,
-            'steps': [{'row': r, 'label': STEP_LABELS[r.state]} for r in st.rows],
+            'steps': [_step_entry(r, today) for r in st.rows],
             'events': events_for_item(item).select_related('process', 'device'),
             'assignment': item.tagassignment_set.filter(end_at__isnull=True).select_related('tag', 'box').first(),
         })

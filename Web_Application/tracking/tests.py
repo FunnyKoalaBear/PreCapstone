@@ -1,4 +1,5 @@
-from datetime import timedelta
+from datetime import date, datetime, timedelta
+from datetime import timezone as dt_timezone
 
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
@@ -9,7 +10,7 @@ from orders.models import Customer, Order, OrderItem, Process, RouteStep
 
 from .models import Box, Event, ScannerDevice, Tag, TagAssignment
 from .services import assign_tag, record_event, release_assignment
-from .status import AT_VENDOR, COMPLETE, IN_PROGRESS, NOT_STARTED, WAITING, item_status
+from .status import AT_VENDOR, COMPLETE, IN_PROGRESS, NOT_STARTED, WAITING, days_late, due_back, item_status
 
 E = Event.Type
 K = Process.Kind
@@ -170,3 +171,17 @@ class TagManageTests(TestCase):
         self.assertIsNotNone(a.end_at)
         self.assertEqual(self.client.post('/tags/', {'action': 'release', 'assignment': a.pk}).status_code, 404)
 
+
+
+class DueBackTests(TestCase):
+    def test_due_back_adds_lead_days_in_jst(self):
+        # 20:00 UTC on Jan 1 is 05:00 JST on Jan 2
+        out = datetime(2030, 1, 1, 20, 0, tzinfo=dt_timezone.utc)
+        self.assertEqual(due_back(out, 7), date(2030, 1, 9))
+
+    def test_due_back_without_lead_days_is_none(self):
+        self.assertIsNone(due_back(timezone.now(), None))
+
+    def test_days_late_only_when_positive(self):
+        today = date(2030, 1, 10)
+        self.assertEqual((days_late(date(2030, 1, 7), today), days_late(today, today), days_late(None, today)), (3, 0, 0))

@@ -1,7 +1,8 @@
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from django.db.models import Q
+from django.utils import timezone
 from django.utils.text import format_lazy
 from django.utils.translation import gettext_lazy as _
 
@@ -138,3 +139,17 @@ def order_status(order):
 def current_row(status):
     """The route row of the step an item is on now, or None."""
     return _current(status.rows)
+
+
+def due_back(out_since, lead_days):
+    """JST date an outsourced item should return, or None without lead days."""
+    if out_since is None or lead_days is None:
+        return None
+    return timezone.localtime(out_since).date() + timedelta(days=lead_days)
+
+
+def days_late(due_date, today=None):
+    """Whole days past the due-back date; 0 when on time or no date."""
+    if due_date is None:
+        return 0
+    return max(((today or timezone.localdate()) - due_date).days, 0)

@@ -20,7 +20,7 @@ class HomeDashboardTests(TestCase):
         self.customer = Customer.objects.create(name='Cust')
         self.n = 0
 
-    def make_item(self, route, due_days=10, order=None):
+    def make_item(self, route, due_days=10, order=None, since=None):
         """An item with its route and a tag assigned to it; returns (item, uid)."""
         self.n += 1
         order = order or Order.objects.create(customer=self.customer, due_date=timezone.localdate() + timedelta(days=due_days))
@@ -28,8 +28,19 @@ class HomeDashboardTests(TestCase):
         for i, proc in enumerate(route, 1):
             RouteStep.objects.create(item=item, sequence=i, process=proc)
         uid = f'T{self.n}'
-        TagAssignment.objects.create(tag=Tag.objects.create(uid=uid), box=Box.objects.create(label=f'B{self.n}'), item=item)
+        TagAssignment.objects.create(
+            tag=Tag.objects.create(uid=uid), box=Box.objects.create(label=f'B{self.n}'), item=item,
+            start_at=since or timezone.now(),
+        )
         return item, uid
+
+    def send_out(self, days_ago, lead_days, name='Vendor process'):
+        """Send an item out to a new outsourced process `days_ago` days ago."""
+        proc = Process.objects.create(name=name, kind=K.OUTSOURCED, vendor_name='V', vendor_lead_days=lead_days)
+        now = timezone.now()
+        item, uid = self.make_item([proc], since=now - timedelta(days=days_ago + 5))
+        record_event(self.device, uid, proc, 'SENT_OUT', occurred_at=now - timedelta(days=days_ago))
+        return item
 
     def home(self):
         self.client.force_login(User.objects.create_user('s', password='x', is_staff=True))
@@ -87,3 +98,36 @@ class HomeDashboardTests(TestCase):
         r = self.home()
         self.assertEqual(r.context['counters']['in_progress'], 1)
         self.assertEqual(r.context['in_house'][0]['code'], 'IN_PROGRESS')
+
+    def test_sent_out_past_lead_time_is_late_and_counted(self):
+        item = self.send_out(10, 7)
+        r = self.home()
+        e = r.context['at_vendor'][0]
+        self.assertEqual((e['late_days'], r.context['counters']['vendor_overdue']), (3, 1))
+        self.assertEqual(e['due_back'], timezone.localdate() - timedelta(days=3))
+        self.assertContains(r, '3 days')
+        detail = self.client.get(f'/orders/{item.order.job_number}/')
+        self.assertContains(detail, 'Late by 3 days')
+        self.assertContains(detail, 'due back')
+
+    def test_sent_out_today_is_not_late(self):
+        self.send_out(0, 7)
+        r = self.home()
+        e = r.context['at_vendor'][0]
+        self.assertEqual((e['late_days'], r.context['counters']['vendor_overdue']), (0, 0))
+        self.assertEqual(e['due_back'], timezone.localdate() + timedelta(days=7))
+
+    def test_no_lead_days_is_never_late(self):
+        self.send_out(60, None)
+        r = self.home()
+        e = r.context['at_vendor'][0]
+        self.assertEqual((e['due_back'], e['late_days'], r.context['counters']['vendor_overdue']), (None, 0, 0))
+        self.assertContains(r, 'No due date')
+
+    def test_late_items_sort_first(self):
+        oldest = self.send_out(20, None, 'P1')   # oldest but no due date
+        late3 = self.send_out(10, 7, 'P2')
+        late5 = self.send_out(12, 7, 'P3')
+        r = self.home()
+        self.assertEqual([e['item'] for e in r.context['at_vendor']], [late5, late3, oldest])
+        self.assertEqual(r.context['counters']['vendor_overdue'], 2)

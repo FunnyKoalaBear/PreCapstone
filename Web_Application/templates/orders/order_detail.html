@@ -58,7 +58,12 @@
               <tr>
                 <td>{{ s.row.step.sequence }}</td>
                 <td>{{ s.row.step.process }}{% if s.row.step.process.vendor_name %} ({{ s.row.step.process.vendor_name }}){% endif %}</td>
-                <td><span class="badge badge-{{ s.row.state }}">{{ s.label }}</span></td>
+                <td><span class="badge badge-{{ s.row.state }}">{{ s.label }}</span>
+                  {% if s.due_back %}
+                    <small>{% blocktrans with d=s.due_back|date:"Y-m-d" %}due back {{ d }}{% endblocktrans %}</small>
+                    {% if s.late_days %}<span class="badge badge-overdue">{% blocktrans count counter=s.late_days %}Late by {{ counter }} day{% plural %}Late by {{ counter }} days{% endblocktrans %}</span>{% endif %}
+                  {% endif %}
+                </td>
                 <td>{{ s.row.started_at|date:"Y-m-d H:i"|default:"-" }}</td>
                 <td>{{ s.row.finished_at|date:"Y-m-d H:i"|default:"-" }}</td>
               </tr>

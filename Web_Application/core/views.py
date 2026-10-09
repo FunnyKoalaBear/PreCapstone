@@ -2,7 +2,9 @@ from django.shortcuts import render
 from django.utils import timezone
 
 from orders.models import OrderItem
-from tracking.status import AT_VENDOR, COMPLETE, IN_PROGRESS, NOT_STARTED, WAITING, current_row, item_status
+from tracking.status import (
+    AT_VENDOR, COMPLETE, IN_PROGRESS, NOT_STARTED, WAITING, current_row, days_late, due_back, item_status,
+)
 
 
 def home(request):
@@ -34,13 +36,20 @@ def home(request):
             'late': late, 'out_since': row.started_at,
             'days_out': (now - row.started_at).days if row.started_at else None,
         }
-        (at_vendor if st.code == AT_VENDOR else in_house).append(entry)
+        if st.code == AT_VENDOR:
+            entry['due_back'] = due_back(row.started_at, process.vendor_lead_days)
+            entry['late_days'] = days_late(entry['due_back'], today)
+            at_vendor.append(entry)
+        else:
+            in_house.append(entry)
     in_house.sort(key=lambda e: (e['due_date'], e['order'].job_number, e['item'].item_no))
-    at_vendor.sort(key=lambda e: (e['out_since'] is None, e['out_since']))
+    # Late first (most days late first), then oldest out-since
+    at_vendor.sort(key=lambda e: (-e['late_days'], e['out_since'] is None, e['out_since']))
     return render(request, 'core/home.html', {
         'in_house': in_house, 'at_vendor': at_vendor,
         'counters': {
             'in_progress': counts[IN_PROGRESS], 'waiting': counts[WAITING], 'at_vendor': counts[AT_VENDOR],
             'not_started': counts[NOT_STARTED], 'overdue': len(overdue),
+            'vendor_overdue': sum(1 for e in at_vendor if e['late_days']),
         },
     })

@@ -141,3 +141,4 @@ body {
 .info dt { font-size: 0.875rem; color: var(--color-muted); }
 .info dd { margin: 0; }
 .warnings { margin: 0 0 0.75rem; padding-left: 1.25rem; color: var(--status-waiting); }
+.counter-late strong { color: var(--status-late); }
