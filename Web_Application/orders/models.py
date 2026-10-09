@@ -3,6 +3,8 @@ from django.db.models import Max, Q
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
+from .validators import drawing_upload_to, validate_drawing_extension, validate_drawing_size
+
 
 class Customer(models.Model):
     name = models.CharField(_('name'), max_length=200, unique=True)
@@ -78,6 +80,10 @@ class OrderItem(models.Model):
     part_name = models.CharField(_('part name'), max_length=200)
     quantity = models.PositiveIntegerField(_('quantity'))
     drawing_ref = models.TextField(_('drawing reference'), blank=True)
+    drawing_file = models.FileField(
+        _('drawing file'), upload_to=drawing_upload_to, blank=True,
+        validators=[validate_drawing_extension, validate_drawing_size],
+    )
 
     class Meta:
         verbose_name = _('order item')
