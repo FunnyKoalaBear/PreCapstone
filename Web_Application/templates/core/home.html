@@ -1,8 +1,9 @@
 {% extends "base.html" %}
+{% load i18n %}
 
-{% block title %}Home - Factory Tracker{% endblock %}
+{% block title %}{% trans "Home" %} - {% trans "Factory Tracker" %}{% endblock %}
 
 {% block content %}
-  <h1>Home</h1>
-  <p>Dashboard coming soon.</p>
+  <h1>{% trans "Home" %}</h1>
+  <p>{% trans "Dashboard coming soon." %}</p>
 {% endblock %}
