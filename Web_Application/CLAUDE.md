@@ -13,3 +13,8 @@ Windows 11, Python 3.13, VS Code. The developer is learning: explain each step b
 - Append-only Event log. Order status is derived from events, never stored or overwritten.
 - Tag-box-order links are dated records (TagAssignment), because boxes get reused.
 - Store time in UTC, display JST. English UI first, Japanese via Django translation.
+
+## Frontend rules
+- Colors only through CSS variables in static/css/theme.css; no hard-coded colors elsewhere.
+- Every user-visible string uses {% trans %} (templates) or gettext (Python).
+- Templates in Web_Application/templates/, static files in Web_Application/static/.
