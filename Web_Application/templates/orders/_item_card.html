@@ -1,0 +1,14 @@
+{% load i18n %}
+<div class="card item-card">
+  <button type="button" class="remove-item">{% trans "Remove" %}</button>
+  <h2>{% trans "Item" %} <span class="item-number">{{ n }}</span></h2>
+  {{ f.non_field_errors }}
+  {% for field in f.hidden_fields %}{{ field }}{% endfor %}
+  {% for field in f.visible_fields %}
+    {% if field.name == "DELETE" %}
+      <div class="delete-field">{{ field }}</div>
+    {% else %}
+      <div>{{ field.label_tag }}{{ field.errors }}{{ field }}</div>
+    {% endif %}
+  {% endfor %}
+</div>

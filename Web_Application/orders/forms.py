@@ -1,6 +1,7 @@
 from django import forms
+from django.forms import inlineformset_factory
 
-from .models import Order
+from .models import Order, OrderItem
 
 
 class OrderForm(forms.ModelForm):
@@ -11,3 +12,10 @@ class OrderForm(forms.ModelForm):
             'due_date': forms.DateInput(attrs={'type': 'date'}),
             'notes': forms.Textarea(attrs={'rows': 3}),
         }
+
+
+OrderItemFormSet = inlineformset_factory(
+    Order, OrderItem, fields=['part_name', 'quantity', 'drawing_ref', 'drawing_file'],
+    extra=0, can_delete=True, min_num=1, validate_min=True,
+    widgets={'drawing_ref': forms.Textarea(attrs={'rows': 2})},
+)

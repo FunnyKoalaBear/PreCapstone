@@ -75,3 +75,27 @@ body {
 .table { width: 100%; border-collapse: collapse; background: var(--color-surface); }
 .table th, .table td { padding: 0.5rem; text-align: left; border-bottom: 1px solid var(--color-border); }
 .table th { color: var(--color-muted); font-weight: 600; }
+
+.card + .card { margin-top: 1rem; }
+
+.form-actions { margin-top: 1rem; display: flex; gap: 0.75rem; flex-wrap: wrap; }
+.button-secondary {
+  padding: 0.5rem 1rem;
+  background: var(--color-surface);
+  color: var(--color-primary);
+  border: 1px solid var(--color-primary);
+  cursor: pointer;
+}
+
+.item-card { position: relative; }
+.remove-item {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  padding: 0.25rem 0.6rem;
+  background: var(--color-surface);
+  color: var(--status-late);
+  border: 1px solid var(--status-late);
+  cursor: pointer;
+}
+.is-removed, .delete-field { display: none; }

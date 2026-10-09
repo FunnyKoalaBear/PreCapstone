@@ -1,14 +1,30 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n static %}
 
 {% block title %}{% trans "New order" %} - {% trans "Factory Tracker" %}{% endblock %}
 
 {% block content %}
   <h1>{% trans "New order" %}</h1>
 
-  <form method="post" class="card">
+  <form method="post" enctype="multipart/form-data">
     {% csrf_token %}
-    {{ form }}
-    <button type="submit" class="button">{% trans "Create order" %}</button>
+    <div class="card">{{ form }}</div>
+
+    {{ formset.management_form }}
+    {{ formset.non_form_errors }}
+    {% for f in formset %}
+      {% include "orders/_item_card.html" with n=forloop.counter %}
+    {% endfor %}
+
+    <template id="item-template">
+      {% include "orders/_item_card.html" with f=formset.empty_form n="" %}
+    </template>
+
+    <div class="form-actions">
+      <button type="button" id="add-item" class="button-secondary">{% trans "Add another item" %}</button>
+      <button type="submit" class="button">{% trans "Create order" %}</button>
+    </div>
   </form>
+
+  <script src="{% static 'js/formset.js' %}"></script>
 {% endblock %}
