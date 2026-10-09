@@ -26,3 +26,6 @@ Windows 11, Python 3.13, VS Code. The developer is learning: explain each step b
 - Event types: ARRIVED, STARTED, FINISHED, SENT_OUT, RETURNED, CORRECTION. Events are append-only.
 - All times shown in JST (TIME_ZONE Asia/Tokyo, USE_TZ True).
 - Verbose names use gettext_lazy.
+
+- TagAssignment history is never deleted or rewritten; end an assignment (end_at) and create a new one.
+
