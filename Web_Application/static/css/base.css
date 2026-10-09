@@ -110,3 +110,14 @@ body {
   cursor: pointer;
 }
 .errorlist { margin: 0 0 0.5rem; padding: 0; list-style: none; color: var(--status-late); }
+
+.filters { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: end; margin-bottom: 1rem; }
+.filters label { display: block; font-size: 0.875rem; color: var(--color-muted); }
+.filters input[type="search"], .filters select { padding: 0.4rem; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text); }
+.filters .check { display: flex; align-items: center; gap: 0.35rem; color: var(--color-text); }
+
+.badge { display: inline-block; padding: 0.05rem 0.5rem; border: 1px solid currentColor; border-radius: 999px; font-size: 0.8rem; white-space: nowrap; }
+.badge-not_started { color: var(--color-muted); }
+.badge-in_progress { color: var(--status-in-progress); }
+.badge-complete { color: var(--status-done); }
+.badge-overdue { color: var(--status-late); }

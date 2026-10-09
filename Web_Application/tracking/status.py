@@ -105,11 +105,16 @@ def item_status(item):
     return ItemStatus(code, LABELS[code], current.step if current else None, rows, list(dict.fromkeys(map(str, warnings))), last)
 
 
-def order_status(order):
+def order_summary(order):
+    """(code, label): NOT_STARTED, IN_PROGRESS or COMPLETE for the whole order."""
     codes = [item_status(i).code for i in order.items.all()]
     done = codes.count(COMPLETE)
     if codes and done == len(codes):
-        return LABELS[COMPLETE]
+        return COMPLETE, LABELS[COMPLETE]
     if all(c == NOT_STARTED for c in codes):
-        return LABELS[NOT_STARTED]
-    return format_lazy(_('In progress ({done}/{total} items complete)'), done=done, total=len(codes))
+        return NOT_STARTED, LABELS[NOT_STARTED]
+    return IN_PROGRESS, format_lazy(_('In progress ({done}/{total} items complete)'), done=done, total=len(codes))
+
+
+def order_status(order):
+    return order_summary(order)[1]
