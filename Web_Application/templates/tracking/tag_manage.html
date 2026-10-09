@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Tags" %} - {% trans "Factory Tracker" %}{% endblock %}
+
+{% block content %}
+  <h1>{% trans "Tags" %}</h1>
+
+  <form method="post" class="card">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="assign">
+    {{ form }}
+    <datalist id="box-labels">
+      {% for label in box_labels %}<option value="{{ label }}">{% endfor %}
+    </datalist>
+    <datalist id="tag-uids">
+      {% for uid in tag_uids %}<option value="{{ uid }}">{% endfor %}
+    </datalist>
+    <button type="submit" class="button">{% trans "Link tag" %}</button>
+  </form>
+
+  <h2>{% trans "In use" %}</h2>
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>{% trans "Tag" %}</th>
+          <th>{% trans "Box" %}</th>
+          <th>{% trans "Item" %}</th>
+          <th>{% trans "Since (JST)" %}</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in open %}
+          <tr>
+            <td>{{ a.tag }}</td>
+            <td>{{ a.box }}</td>
+            <td><a href="{% url 'order_detail' a.item.order.job_number %}">{{ a.item.item_code }}</a> {{ a.item.part_name }}</td>
+            <td>{{ a.start_at|date:"Y-m-d H:i" }}</td>
+            <td>
+              <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="release">
+                <input type="hidden" name="assignment" value="{{ a.pk }}">
+                <button type="submit" class="remove-step">{% trans "Release" %}</button>
+              </form>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5">{% trans "No tags in use." %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <h2>{% trans "History" %}</h2>
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>{% trans "Tag" %}</th>
+          <th>{% trans "Box" %}</th>
+          <th>{% trans "Item" %}</th>
+          <th>{% trans "From (JST)" %}</th>
+          <th>{% trans "To (JST)" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in history %}
+          <tr>
+            <td>{{ a.tag }}</td>
+            <td>{{ a.box }}</td>
+            <td><a href="{% url 'order_detail' a.item.order.job_number %}">{{ a.item.item_code }}</a> {{ a.item.part_name }}</td>
+            <td>{{ a.start_at|date:"Y-m-d H:i" }}</td>
+            <td>{{ a.end_at|date:"Y-m-d H:i" }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5">{% trans "No history yet." %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}

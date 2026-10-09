@@ -1,13 +1,14 @@
 from datetime import timedelta
 
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
 
 from orders.models import Customer, Order, OrderItem, Process, RouteStep
 
 from .models import Box, Event, ScannerDevice, Tag, TagAssignment
-from .services import record_event
+from .services import assign_tag, record_event, release_assignment
 from .status import AT_VENDOR, COMPLETE, IN_PROGRESS, NOT_STARTED, WAITING, item_status
 
 E = Event.Type
@@ -111,3 +112,53 @@ class RecordEventTests(TestCase):
         self.assertRedirects(r, '/simulate/')
         self.assertEqual(Event.objects.get().tag_uid, 'ZZ')
         self.assertEqual(self.client.get('/simulate/').status_code, 200)
+
+
+class TagManageTests(TestCase):
+    def setUp(self):
+        self.proc = Process.objects.create(name='Mat', kind=K.MATERIAL)
+        order = Order.objects.create(customer=Customer.objects.create(name='C'), due_date=timezone.localdate())
+        self.item1 = OrderItem.objects.create(order=order, part_name='A', quantity=1)
+        self.item2 = OrderItem.objects.create(order=order, part_name='B', quantity=1)
+        RouteStep.objects.create(item=self.item2, sequence=1, process=self.proc)
+
+    def test_assign_creates_box_tag_and_open_assignment(self):
+        a = assign_tag(self.item1, ' B1 ', 'ab12')
+        self.assertEqual((a.box.label, a.tag.uid, a.end_at), ('B1', 'AB12', None))
+
+    def test_uid_is_uppercased(self):
+        assign_tag(self.item1, 'B1', ' ab12 ')
+        self.assertTrue(Tag.objects.filter(uid='AB12').exists())
+
+    def test_tag_in_use_is_rejected(self):
+        assign_tag(self.item1, 'B1', 'AB')
+        with self.assertRaises(ValidationError):
+            assign_tag(self.item2, 'B2', 'ab')
+        self.assertFalse(Box.objects.filter(label='B2').exists())
+
+    def test_item_with_assignment_is_rejected(self):
+        assign_tag(self.item1, 'B1', 'AB')
+        with self.assertRaises(ValidationError):
+            assign_tag(self.item1, 'B2', 'CD')
+
+    def test_release_then_reuse_and_events_count_for_new_item(self):
+        old = assign_tag(self.item1, 'B1', 'AB')
+        release_assignment(old)
+        old.refresh_from_db()
+        self.assertIsNotNone(old.end_at)
+        assign_tag(self.item2, 'B1', 'AB')
+        record_event(ScannerDevice.objects.create(name='D'), 'AB', self.proc, E.ARRIVED)
+        self.assertEqual(item_status(self.item2).code, COMPLETE)
+        self.assertEqual(item_status(self.item1).code, NOT_STARTED)
+
+    def test_page_is_staff_only_and_assign_release_work(self):
+        self.assertEqual(self.client.get('/tags/').status_code, 302)
+        self.client.force_login(User.objects.create_user('s', password='x', is_staff=True))
+        self.assertEqual(self.client.get('/tags/').status_code, 200)
+        r = self.client.post('/tags/', {'action': 'assign', 'item': self.item1.pk, 'box_label': 'B1', 'tag_uid': 'ab'})
+        self.assertRedirects(r, '/tags/')
+        a = TagAssignment.objects.get()
+        self.client.post('/tags/', {'action': 'release', 'assignment': a.pk})
+        a.refresh_from_db()
+        self.assertIsNotNone(a.end_at)
+        self.assertEqual(self.client.post('/tags/', {'action': 'release', 'assignment': a.pk}).status_code, 404)

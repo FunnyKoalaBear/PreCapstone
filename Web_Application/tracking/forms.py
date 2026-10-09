@@ -1,9 +1,9 @@
 from django import forms
 from django.utils.translation import gettext_lazy as _
 
-from orders.models import Process
+from orders.models import OrderItem, Process
 
-from .models import Event, ScannerDevice
+from .models import Event, ScannerDevice, TagAssignment
 
 
 class SimulateScanForm(forms.Form):
@@ -30,3 +30,21 @@ class SimulateScanForm(forms.Form):
             pk, event_type = data['action'].split(':')
             data['process'], data['event_type'] = self.processes[pk], event_type
         return data
+
+
+class AssignTagForm(forms.Form):
+    item = forms.ModelChoiceField(label=_('Item'), queryset=OrderItem.objects.none())
+    box_label = forms.CharField(
+        label=_('Box label'), max_length=100, widget=forms.TextInput(attrs={'list': 'box-labels', 'autocomplete': 'off'}),
+    )
+    tag_uid = forms.CharField(
+        label=_('Tag UID'), max_length=100, widget=forms.TextInput(attrs={'list': 'tag-uids', 'autocomplete': 'off'}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Only items without an open assignment
+        busy = TagAssignment.objects.filter(end_at__isnull=True).values('item_id')
+        field = self.fields['item']
+        field.queryset = OrderItem.objects.exclude(pk__in=busy).select_related('order').order_by('order__job_number', 'item_no')
+        field.label_from_instance = lambda i: f'{i.item_code} {i.part_name}'
