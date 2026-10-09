@@ -29,3 +29,7 @@ Windows 11, Python 3.13, VS Code. The developer is learning: explain each step b
 
 - TagAssignment history is never deleted or rewritten; end an assignment (end_at) and create a new one.
 
+## Status rules
+- Status is computed in tracking/status.py from events; never stored.
+- Events voided by a CORRECTION are ignored. Item events = events whose tag UID was assigned to the item at that time.
+
