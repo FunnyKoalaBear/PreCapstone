@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Simulate scan" %} - {% trans "Factory Tracker" %}{% endblock %}
+
+{% block content %}
+  <h1>{% trans "Simulate scan" %}</h1>
+
+  <form method="post" class="card">
+    {% csrf_token %}
+    {{ form }}
+    <datalist id="tag-uids">
+      {% for uid in tag_uids %}<option value="{{ uid }}">{% endfor %}
+    </datalist>
+    <button type="submit" class="button">{% trans "Record event" %}</button>
+  </form>
+
+  <h2>{% trans "Last 10 events" %}</h2>
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>{% trans "Time (JST)" %}</th>
+          <th>{% trans "Tag" %}</th>
+          <th>{% trans "Process" %}</th>
+          <th>{% trans "Action" %}</th>
+          <th>{% trans "Device" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in events %}
+          <tr>
+            <td>{{ e.occurred_at|date:"Y-m-d H:i:s" }}</td>
+            <td>{{ e.tag_uid }}</td>
+            <td>{{ e.process|default_if_none:"-" }}</td>
+            <td>{{ e.get_event_type_display }}</td>
+            <td>{{ e.device }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5">{% trans "No events yet." %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}

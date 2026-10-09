@@ -41,3 +41,37 @@ body {
   color: var(--color-muted);
   font-size: 0.875rem;
 }
+
+.messages { list-style: none; margin: 0 0 1rem; padding: 0; }
+.message {
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.5rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--color-primary);
+}
+.message.success { border-left-color: var(--status-done); }
+.message.warning { border-left-color: var(--status-waiting); }
+.message.error { border-left-color: var(--status-late); }
+
+.card {
+  max-width: 32rem;
+  padding: 1rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+.card input, .card select { width: 100%; padding: 0.4rem; border: 1px solid var(--color-border); }
+.card div { margin-bottom: 0.75rem; }
+
+.button {
+  padding: 0.5rem 1rem;
+  background: var(--color-primary);
+  color: var(--color-surface);
+  border: 0;
+  cursor: pointer;
+}
+
+.table-wrap { overflow-x: auto; }
+.table { width: 100%; border-collapse: collapse; background: var(--color-surface); }
+.table th, .table td { padding: 0.5rem; text-align: left; border-bottom: 1px solid var(--color-border); }
+.table th { color: var(--color-muted); font-weight: 600; }
