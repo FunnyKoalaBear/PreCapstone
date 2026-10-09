@@ -99,3 +99,14 @@ body {
   cursor: pointer;
 }
 .is-removed, .delete-field { display: none; }
+
+.route-step { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; }
+.route-step select { flex: 1; }
+.remove-step {
+  padding: 0.25rem 0.6rem;
+  background: var(--color-surface);
+  color: var(--status-late);
+  border: 1px solid var(--status-late);
+  cursor: pointer;
+}
+.errorlist { margin: 0 0 0.5rem; padding: 0; list-style: none; color: var(--status-late); }

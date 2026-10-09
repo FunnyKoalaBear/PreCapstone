@@ -25,4 +25,20 @@ document.addEventListener('DOMContentLoaded', () => {
     card.classList.add('is-removed');
     renumber();
   });
+
+  // Route steps: delegated so they work in cards added later
+  form.addEventListener('click', (e) => {
+    const add = e.target.closest('.add-step');
+    const remove = e.target.closest('.remove-step');
+    if (add) {
+      const steps = add.closest('.route').querySelector('.route-steps');
+      const row = steps.lastElementChild.cloneNode(true);
+      row.querySelector('select').value = '';
+      steps.append(row);
+    } else if (remove) {
+      const row = remove.closest('.route-step');
+      if (row.parentElement.children.length > 1) row.remove();
+      else row.querySelector('select').value = '';
+    }
+  });
 });

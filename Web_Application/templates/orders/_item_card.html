@@ -7,8 +7,27 @@
   {% for field in f.visible_fields %}
     {% if field.name == "DELETE" %}
       <div class="delete-field">{{ field }}</div>
-    {% else %}
+    {% elif field.name != "route" %}
       <div>{{ field.label_tag }}{{ field.errors }}{{ field }}</div>
     {% endif %}
   {% endfor %}
+
+  <div class="route">
+    <label>{% trans "Route" %}</label>
+    {{ f.route.errors }}
+    <div class="route-steps">
+      {% for sel in f.route_selected %}
+        <div class="route-step">
+          <select name="{{ f.prefix }}-route">
+            <option value="">{% trans "Choose a process" %}</option>
+            {% for pk, label in f.fields.route.choices %}
+              <option value="{{ pk }}"{% if sel == pk|stringformat:"s" %} selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          <button type="button" class="remove-step">{% trans "Remove" %}</button>
+        </div>
+      {% endfor %}
+    </div>
+    <button type="button" class="add-step button-secondary">{% trans "Add step" %}</button>
+  </div>
 </div>
