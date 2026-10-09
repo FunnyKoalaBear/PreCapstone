@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.translation import gettext_lazy as _
 
-from .models import Box, Tag, TagAssignment
+from .models import Box, Event, ScannerDevice, Tag, TagAssignment
 
 
 class OpenFilter(admin.SimpleListFilter):
@@ -42,3 +42,22 @@ class TagAssignmentAdmin(admin.ModelAdmin):
     def release_selected(self, request, queryset):
         for a in queryset:
             a.release()
+
+
+@admin.register(ScannerDevice)
+class ScannerDeviceAdmin(admin.ModelAdmin):
+    list_display = ['name', 'location', 'active', 'last_seen']
+    list_filter = ['active']
+    readonly_fields = ['api_key']
+
+
+@admin.register(Event)
+class EventAdmin(admin.ModelAdmin):
+    list_display = ['occurred_at', 'event_type', 'tag_uid', 'device', 'process']
+    list_filter = ['event_type', 'device', 'process']
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
