@@ -15,7 +15,6 @@ class OrderForm(forms.ModelForm):
 
 
 OrderItemFormSet = inlineformset_factory(
-    Order, OrderItem, fields=['part_name', 'quantity', 'drawing_ref', 'drawing_file'],
+    Order, OrderItem, fields=['part_name', 'quantity', 'drawing_file'],
     extra=0, can_delete=True, min_num=1, validate_min=True,
-    widgets={'drawing_ref': forms.Textarea(attrs={'rows': 2})},
 )
