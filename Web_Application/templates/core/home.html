@@ -5,5 +5,81 @@
 
 {% block content %}
   <h1>{% trans "Home" %}</h1>
-  <p>{% trans "Dashboard coming soon." %}</p>
+
+  {% if not request.user.is_staff %}
+    <p>{% trans "Dashboard coming soon." %}</p>
+  {% else %}
+    <div class="counters">
+      <div class="card counter counter-in_progress"><strong>{{ counters.in_progress }}</strong> {% trans "In progress" %}</div>
+      <div class="card counter counter-waiting"><strong>{{ counters.waiting }}</strong> {% trans "Waiting" %}</div>
+      <div class="card counter counter-at_vendor"><strong>{{ counters.at_vendor }}</strong> {% trans "At vendor" %}</div>
+      <div class="card counter counter-not_started"><strong>{{ counters.not_started }}</strong> {% trans "Not started" %}</div>
+      <div class="card counter counter-overdue"><strong>{{ counters.overdue }}</strong> {% trans "Overdue orders" %}</div>
+    </div>
+
+    <h2>{% trans "In-house now" %}</h2>
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{% trans "Item" %}</th>
+            <th>{% trans "Part" %}</th>
+            <th>{% trans "Customer" %}</th>
+            <th>{% trans "Current process" %}</th>
+            <th>{% trans "Status" %}</th>
+            <th>{% trans "Due date" %}</th>
+            <th>{% trans "Last scan (JST)" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in in_house %}
+            <tr>
+              <td><a href="{% url 'order_detail' e.order.job_number %}">{{ e.item.item_code }}</a></td>
+              <td>{{ e.item.part_name }}</td>
+              <td>{{ e.order.customer }}</td>
+              <td>{{ e.process }}</td>
+              <td><span class="badge badge-{{ e.code|lower }}">{{ e.label }}</span></td>
+              <td>
+                {{ e.due_date|date:"Y-m-d" }}
+                {% if e.late %}<span class="badge badge-overdue">{% trans "Overdue" %}</span>{% endif %}
+              </td>
+              <td>{{ e.last_event_at|date:"Y-m-d H:i"|default:"-" }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="7">{% trans "Nothing in the factory right now." %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <h2>{% trans "At vendors" %}</h2>
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{% trans "Item" %}</th>
+            <th>{% trans "Part" %}</th>
+            <th>{% trans "Vendor" %}</th>
+            <th>{% trans "Process" %}</th>
+            <th>{% trans "Out since (JST)" %}</th>
+            <th>{% trans "Days out" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in at_vendor %}
+            <tr>
+              <td><a href="{% url 'order_detail' e.order.job_number %}">{{ e.item.item_code }}</a></td>
+              <td>{{ e.item.part_name }}</td>
+              <td>{{ e.vendor|default:"-" }}</td>
+              <td>{{ e.process }}</td>
+              <td>{{ e.out_since|date:"Y-m-d H:i"|default:"-" }}</td>
+              <td>{{ e.days_out|default_if_none:"-" }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="6">{% trans "Nothing is out at vendors." %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
 {% endblock %}

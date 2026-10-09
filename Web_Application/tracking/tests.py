@@ -78,6 +78,13 @@ class ItemStatusTests(TestCase):
         self.ev(K.MATERIAL, E.ARRIVED, -1)
         self.assertEqual(self.code(), NOT_STARTED)
 
+    def test_active_step_after_a_pending_one_is_in_progress(self):
+        # Material never scanned, but milling started: the item is being worked on
+        self.ev(K.MACHINING, E.STARTED, 1)
+        s = item_status(self.item)
+        self.assertEqual((s.code, s.current_step.process.kind), (IN_PROGRESS, K.MACHINING))
+        self.assertTrue(s.warnings)
+
 
 class RecordEventTests(TestCase):
     def setUp(self):
@@ -162,3 +169,4 @@ class TagManageTests(TestCase):
         a.refresh_from_db()
         self.assertIsNotNone(a.end_at)
         self.assertEqual(self.client.post('/tags/', {'action': 'release', 'assignment': a.pk}).status_code, 404)
+

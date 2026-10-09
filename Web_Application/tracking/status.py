@@ -92,6 +92,14 @@ def _apply(event, rows, warnings):
         warnings.append(format_lazy(_('Unexpected {} event for {}'), event.get_event_type_display(), event.process))
 
 
+def _current(rows):
+    """The step being worked on (latest active one), else the first step not done."""
+    active = [r for r in rows if r.state in (STEP_IN_PROGRESS, STEP_AT_VENDOR)]
+    if active:
+        return max(active, key=lambda r: r.started_at)
+    return next((r for r in rows if r.state != DONE), None)
+
+
 def item_status(item):
     rows = [StepRow(s) for s in item.steps.select_related('process').order_by('sequence')]
     warnings, events = [], list(events_for_item(item))
@@ -101,7 +109,7 @@ def item_status(item):
     for i, r in enumerate(rows):
         if r.state != PENDING:
             warnings += [format_lazy(_('Step skipped: {}'), p.step.process) for p in rows[:i] if p.state == PENDING]
-    current = next((r for r in rows if r.state != DONE), None)
+    current = _current(rows)
     if not rows or all(r.state == PENDING for r in rows):
         code = NOT_STARTED
     elif current is None:
@@ -125,3 +133,8 @@ def order_summary(order):
 
 def order_status(order):
     return order_summary(order)[1]
+
+
+def current_row(status):
+    """The route row of the step an item is on now, or None."""
+    return _current(status.rows)
