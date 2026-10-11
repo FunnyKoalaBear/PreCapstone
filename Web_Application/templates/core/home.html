@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n duration %}
 
 {% block title %}{% trans "Home" %} - {% trans "Factory Tracker" %}{% endblock %}
 
@@ -14,6 +14,7 @@
       <div class="card counter counter-waiting"><strong>{{ counters.waiting }}</strong> {% trans "Waiting" %}</div>
       <div class="card counter counter-at_vendor"><strong>{{ counters.at_vendor }}</strong> {% trans "At vendor" %}</div>
       <div class="card counter counter-not_started"><strong>{{ counters.not_started }}</strong> {% trans "Not started" %}</div>
+      <div class="card counter counter-stagnant"><strong>{{ counters.stagnant }}</strong> {% trans "Stagnant" %}</div>
       <div class="card counter counter-overdue"><strong>{{ counters.overdue }}</strong> {% trans "Overdue orders" %}</div>
       <div class="card counter counter-vendor{% if counters.vendor_overdue %} counter-overdue counter-late{% endif %}"><strong>{{ counters.vendor_overdue }}</strong> {% trans "Vendor overdue" %}</div>
     </div>
@@ -30,6 +31,7 @@
             <th>{% trans "Status" %}</th>
             <th>{% trans "Due date" %}</th>
             <th>{% trans "Last scan (JST)" %}</th>
+            <th>{% trans "Idle for" %}</th>
           </tr>
         </thead>
         <tbody>
@@ -45,9 +47,10 @@
                 {% if e.late %}<span class="badge badge-overdue">{% trans "Overdue" %}</span>{% endif %}
               </td>
               <td>{{ e.last_event_at|date:"Y-m-d H:i"|default:"-" }}</td>
+              <td>{% if e.idle %}{{ e.idle|duration }}{% else %}-{% endif %}{% if e.stagnant %} <span class="badge badge-stagnant">{% trans "Stagnant" %}</span>{% endif %}</td>
             </tr>
           {% empty %}
-            <tr><td colspan="7">{% trans "Nothing in the factory right now." %}</td></tr>
+            <tr><td colspan="8">{% trans "Nothing in the factory right now." %}</td></tr>
           {% endfor %}
         </tbody>
       </table>

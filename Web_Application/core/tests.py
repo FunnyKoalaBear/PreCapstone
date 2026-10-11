@@ -131,3 +131,15 @@ class HomeDashboardTests(TestCase):
         r = self.home()
         self.assertEqual([e['item'] for e in r.context['at_vendor']], [late5, late3, oldest])
         self.assertEqual(r.context['counters']['vendor_overdue'], 2)
+
+    def test_stagnant_counter_and_sort_order(self):
+        now = timezone.now()
+        fresh, fresh_uid = self.make_item([self.material, self.milling], due_days=1, since=now - timedelta(days=9))
+        old, old_uid = self.make_item([self.material, self.milling], due_days=20, since=now - timedelta(days=9))
+        older, older_uid = self.make_item([self.material, self.milling], due_days=30, since=now - timedelta(days=9))
+        for uid, ago in ((fresh_uid, timedelta(hours=1)), (old_uid, timedelta(days=3)), (older_uid, timedelta(days=5))):
+            record_event(self.device, uid, self.material, 'ARRIVED', occurred_at=now - ago)
+        r = self.home()
+        self.assertEqual(r.context['counters']['stagnant'], 2)
+        self.assertEqual([e['item'] for e in r.context['in_house']], [older, old, fresh])
+        self.assertContains(r, 'Idle for')

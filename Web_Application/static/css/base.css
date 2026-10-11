@@ -162,3 +162,6 @@ body {
 .tier-filters { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1rem 0; }
 .tier-filters a.active { font-weight: bold; text-decoration: none; }
 .reasons { margin: 0; padding-left: 1rem; font-size: 0.85rem; color: var(--color-muted); }
+
+.badge-stagnant { color: var(--stagnant-color); }
+.counter-stagnant { border-top-color: var(--stagnant-color); }

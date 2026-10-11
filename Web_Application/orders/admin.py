@@ -26,7 +26,7 @@ class CustomerAdmin(admin.ModelAdmin):
 
 @admin.register(Process)
 class ProcessAdmin(admin.ModelAdmin):
-    list_display = ['name', 'name_ja', 'kind', 'vendor_name', 'vendor_lead_days']
+    list_display = ['name', 'name_ja', 'kind', 'vendor_name', 'vendor_lead_days', 'stagnation_hours']
     list_filter = ['kind']
 
 

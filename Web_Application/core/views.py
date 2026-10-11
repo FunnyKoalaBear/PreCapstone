@@ -3,7 +3,8 @@ from django.utils import timezone
 
 from orders.models import OrderItem
 from tracking.status import (
-    AT_VENDOR, COMPLETE, IN_PROGRESS, NOT_STARTED, WAITING, current_row, days_late, due_back, item_status,
+    AT_VENDOR, COMPLETE, IN_PROGRESS, NOT_STARTED, WAITING, current_row, days_late, due_back, idle_for, is_stagnant,
+    item_status,
 )
 
 
@@ -33,6 +34,7 @@ def home(request):
         entry = {
             'item': item, 'order': order, 'code': st.code, 'label': st.label, 'process': process,
             'vendor': process.vendor_name, 'last_event_at': st.last_event_at, 'due_date': order.due_date,
+            'idle': idle_for(st, now), 'stagnant': is_stagnant(st, now),
             'late': late, 'out_since': row.started_at,
             'days_out': (now - row.started_at).days if row.started_at else None,
         }
@@ -42,7 +44,8 @@ def home(request):
             at_vendor.append(entry)
         else:
             in_house.append(entry)
-    in_house.sort(key=lambda e: (e['due_date'], e['order'].job_number, e['item'].item_no))
+    # Stagnant first (longest idle first), then due date
+    in_house.sort(key=lambda e: (not e['stagnant'], -(e['idle'].total_seconds() if e['stagnant'] else 0), e['due_date'], e['order'].job_number, e['item'].item_no))
     # Late first (most days late first), then oldest out-since
     at_vendor.sort(key=lambda e: (-e['late_days'], e['out_since'] is None, e['out_since']))
     return render(request, 'core/home.html', {
@@ -50,6 +53,7 @@ def home(request):
         'counters': {
             'in_progress': counts[IN_PROGRESS], 'waiting': counts[WAITING], 'at_vendor': counts[AT_VENDOR],
             'not_started': counts[NOT_STARTED], 'overdue': len(overdue),
+            'stagnant': sum(e['stagnant'] for e in in_house),
             'vendor_overdue': sum(1 for e in at_vendor if e['late_days']),
         },
     })

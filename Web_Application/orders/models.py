@@ -30,6 +30,9 @@ class Process(models.Model):
     kind = models.CharField(_('kind'), max_length=20, choices=Kind.choices)
     vendor_name = models.CharField(_('vendor name'), max_length=200, blank=True)
     vendor_lead_days = models.PositiveIntegerField(_('vendor lead days'), null=True, blank=True)
+    stagnation_hours = models.PositiveIntegerField(
+        _('stagnation hours'), null=True, blank=True, help_text=_('Blank = use the default.'),
+    )
 
     class Meta:
         verbose_name = _('process')

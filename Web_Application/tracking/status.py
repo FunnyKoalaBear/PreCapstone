@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
+from django.conf import settings
 from django.db.models import Q
 from django.utils import timezone
 from django.utils.text import format_lazy
@@ -166,3 +167,17 @@ def timeline(rows, now=None):
         out.append({'duration': duration, 'running': running, 'wait_before': wait if wait and wait >= timedelta(0) else None})
         prev_end = r.finished_at or prev_end
     return out
+
+
+def idle_for(status, now=None):
+    """Time since the item's last event, or None without events."""
+    return (now or timezone.now()) - status.last_event_at if status.last_event_at else None
+
+
+def is_stagnant(status, now=None):
+    """True for WAITING/IN_PROGRESS items idle longer than the step's limit (or the default)."""
+    idle = idle_for(status, now)
+    if status.code not in (WAITING, IN_PROGRESS) or idle is None or status.current_step is None:
+        return False
+    hours = status.current_step.process.stagnation_hours or settings.STAGNATION_DEFAULT_HOURS
+    return idle > timedelta(hours=hours)

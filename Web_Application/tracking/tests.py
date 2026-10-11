@@ -3,7 +3,9 @@ from datetime import timezone as dt_timezone
 
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
-from django.test import TestCase
+from types import SimpleNamespace
+
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from orders.models import Customer, Order, OrderItem, Process, RouteStep
@@ -11,7 +13,7 @@ from orders.models import Customer, Order, OrderItem, Process, RouteStep
 from .models import Box, Event, ScannerDevice, Tag, TagAssignment
 from .priority import priority
 from .services import assign_tag, record_event, release_assignment
-from .status import AT_VENDOR, COMPLETE, IN_PROGRESS, NOT_STARTED, WAITING, days_late, due_back, item_status, timeline
+from .status import AT_VENDOR, COMPLETE, IN_PROGRESS, NOT_STARTED, WAITING, ItemStatus, days_late, due_back, idle_for, is_stagnant, item_status, timeline
 
 E = Event.Type
 K = Process.Kind
@@ -285,3 +287,34 @@ class PriorityTests(TestCase):
         only = self.client.get('/priorities/?tier=OVERDUE').context['rows']
         self.assertEqual([r['tier'] for r in only], ['OVERDUE'])
         self.assertEqual(len(self.client.get('/priorities/?tier=bogus').context['rows']), 2)
+
+
+@override_settings(STAGNATION_DEFAULT_HOURS=24)
+class StagnationTests(TestCase):
+    def setUp(self):
+        self.now = timezone.now()
+
+    def st(self, code=WAITING, idle_hours=30, limit=None):
+        step = SimpleNamespace(process=SimpleNamespace(stagnation_hours=limit))
+        last = None if idle_hours is None else self.now - timedelta(hours=idle_hours)
+        return ItemStatus(code, code, step, last_event_at=last)
+
+    def test_over_and_under_default(self):
+        self.assertTrue(is_stagnant(self.st(idle_hours=25), self.now))
+        self.assertFalse(is_stagnant(self.st(idle_hours=23), self.now))
+
+    def test_in_progress_counts(self):
+        self.assertTrue(is_stagnant(self.st(IN_PROGRESS, 30), self.now))
+
+    def test_per_process_override(self):
+        self.assertTrue(is_stagnant(self.st(idle_hours=5, limit=4), self.now))
+        self.assertFalse(is_stagnant(self.st(idle_hours=30, limit=48), self.now))
+
+    def test_other_states_never_stagnant(self):
+        for code in (AT_VENDOR, NOT_STARTED, COMPLETE):
+            self.assertFalse(is_stagnant(self.st(code, 1000), self.now))
+
+    def test_no_events(self):
+        st = self.st(idle_hours=None)
+        self.assertIsNone(idle_for(st, self.now))
+        self.assertFalse(is_stagnant(st, self.now))

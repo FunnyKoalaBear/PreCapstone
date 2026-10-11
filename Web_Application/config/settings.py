@@ -33,6 +33,9 @@ DEBUG = os.environ.get('DEBUG', 'False').lower() in ('1', 'true', 'yes')
 
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '127.0.0.1,localhost').split(',')
 
+# Hours a box may sit idle before it is flagged stagnant
+STAGNATION_DEFAULT_HOURS = int(os.environ.get('STAGNATION_DEFAULT_HOURS', '24'))
+
 
 # Application definition
 
