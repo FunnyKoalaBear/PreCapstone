@@ -55,7 +55,7 @@
               {{ row.order.due_date|date:"Y-m-d" }}
               {% if row.late %}<span class="badge badge-overdue">{% trans "Overdue" %}</span>{% endif %}
             </td>
-            <td>{{ row.items }}</td>
+            <td>{{ row.items }}{% if row.boxes %} <small>{% blocktrans with n=row.boxes %}({{ n }} boxes){% endblocktrans %}</small>{% endif %}</td>
             <td><span class="badge badge-{{ row.code|lower }}">{{ row.label }}</span></td>
           </tr>
         {% empty %}

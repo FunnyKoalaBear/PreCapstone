@@ -149,6 +149,37 @@ class HomeDashboardTests(TestCase):
         self.assertEqual([e['item'] for e in r.context['in_house']], [older, old, fresh])
         self.assertContains(r, 'Idle for')
 
+    def test_split_item_has_one_row_per_box_and_counters_count_boxes(self):
+        item, uid1 = self.make_item([self.material, self.milling])
+        item.box_count = 3
+        item.save()
+        now = timezone.now()
+        TagAssignment.objects.create(tag=Tag.objects.create(uid='T2X'), box=Box.objects.create(label='BX2'), item=item,
+                                     start_at=now - timedelta(days=3))
+        record_event(self.device, uid1, self.material, 'ARRIVED')
+        record_event(self.device, uid1, self.milling, 'STARTED')
+        record_event(self.device, 'T2X', self.material, 'ARRIVED', occurred_at=now - timedelta(days=2))
+        r = self.home()
+        rows = r.context['in_house']
+        self.assertEqual([(e['box_label'], e['code'], e['stagnant'], e['multi']) for e in rows],
+                         [('BX2', 'WAITING', True, True), ('B1', 'IN_PROGRESS', False, True)])
+        c = r.context['counters']
+        self.assertEqual((c['in_progress'], c['waiting'], c['not_started'], c['stagnant'], c['overdue']), (1, 1, 1, 1, 0))
+        self.assertContains(r, f'{item.item_code} - box BX2')
+
+    def test_vendor_lateness_is_per_box(self):
+        proc = Process.objects.create(name='Paint', kind=K.OUTSOURCED, vendor_name='V', vendor_lead_days=2)
+        item, uid1 = self.make_item([proc])
+        item.box_count = 2
+        item.save()
+        now = timezone.now()
+        TagAssignment.objects.create(tag=Tag.objects.create(uid='T2Y'), box=Box.objects.create(label='BY2'), item=item,
+                                     start_at=now - timedelta(days=9))
+        record_event(self.device, uid1, proc, 'SENT_OUT')
+        record_event(self.device, 'T2Y', proc, 'SENT_OUT', occurred_at=now - timedelta(days=6))
+        rows = self.home().context['at_vendor']
+        self.assertEqual([(e['box_label'], e['late_days'] > 0) for e in rows], [('BY2', True), ('B1', False)])
+
 
 class SeedDemoTests(TestCase):
     def seed(self, *args):

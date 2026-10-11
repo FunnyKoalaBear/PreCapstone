@@ -10,6 +10,7 @@ from django.utils import timezone
 
 from orders.models import Customer, Order, OrderItem, Process, RouteStep
 
+from .forms import AssignTagForm
 from .models import Box, Event, ScannerDevice, Tag, TagAssignment
 from .priority import priority
 from .services import assign_tag, record_event, release_assignment
@@ -175,6 +176,27 @@ class TagManageTests(TestCase):
         self.assertEqual(self.client.post('/tags/', {'action': 'release', 'assignment': a.pk}).status_code, 404)
 
 
+    def test_assign_dropdown_only_offers_items_with_a_free_box_slot(self):
+        self.item2.box_count = 2
+        self.item2.save()
+        assign_tag(self.item1, 'B1', 'AB')
+        assign_tag(self.item2, 'B2', 'CD')
+        field = AssignTagForm().fields['item']
+        self.assertEqual(list(field.queryset), [self.item2])
+        label = field.label_from_instance(field.queryset.get())
+        self.assertIn('(1 of 2 boxes linked)', label)
+        self.assertTrue(label.startswith(self.item2.item_code + ' - '))
+
+    def test_tags_page_labels_each_open_box_of_an_item(self):
+        self.item1.box_count = 2
+        self.item1.save()
+        assign_tag(self.item1, 'B1', 'AB')
+        assign_tag(self.item1, 'B2', 'CD')
+        self.client.force_login(User.objects.create_user('s', password='x', is_staff=True))
+        r = self.client.get('/tags/')
+        self.assertContains(r, 'Box B1 (1 of 2)')
+        self.assertContains(r, 'Box B2 (2 of 2)')
+
 
 class DueBackTests(TestCase):
     def test_due_back_adds_lead_days_in_jst(self):
@@ -287,6 +309,21 @@ class PriorityTests(TestCase):
         only = self.client.get('/priorities/?tier=OVERDUE').context['rows']
         self.assertEqual([r['tier'] for r in only], ['OVERDUE'])
         self.assertEqual(len(self.client.get('/priorities/?tier=bogus').context['rows']), 2)
+
+    def test_priorities_one_row_per_linked_box_with_own_risk(self):
+        item = self.make(1, (K.MACHINING, K.MACHINING))
+        item.box_count = 3
+        item.save()
+        mach = self.procs[K.MACHINING]
+        a1 = item.tagassignment_set.get()
+        TagAssignment.objects.create(tag=Tag.objects.create(uid='T2B'), box=Box.objects.create(label='B2b'), item=item,
+                                     start_at=timezone.now() - timedelta(days=5))
+        for etype in (E.STARTED, E.FINISHED):  # box 1 finishes step 1
+            Event.objects.create(device=self.device, tag_uid=a1.tag.uid, event_type=etype, process=mach)
+        self.client.force_login(User.objects.create_user('s', password='x', is_staff=True))
+        rows = self.client.get('/priorities/').context['rows']
+        self.assertEqual([(r['box_label'], r['tier'], r['multi']) for r in rows],
+                         [('B2b', 'CRITICAL', True), (a1.box.label, 'WATCH', True)])  # unlinked third box left out
 
 
 @override_settings(STAGNATION_DEFAULT_HOURS=24)

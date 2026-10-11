@@ -28,10 +28,14 @@
       </h2>
 
       <p>
-        {% if entry.assignment %}
-          {% blocktrans with box=entry.assignment.box tag=entry.assignment.tag %}Box {{ box }}, tag {{ tag }}{% endblocktrans %}
+        {% if entry.single %}
+          {% if entry.assignment %}
+            {% blocktrans with box=entry.assignment.box tag=entry.assignment.tag %}Box {{ box }}, tag {{ tag }}{% endblocktrans %}
+          {% else %}
+            {% trans "No tag assigned." %}
+          {% endif %}
         {% else %}
-          {% trans "No tag assigned." %}
+          {% blocktrans with n=entry.linked t=entry.item.box_count %}Boxes: {{ n }} of {{ t }} linked{% endblocktrans %}
         {% endif %}
         {% if entry.item.drawing_file %}
           &middot; <a href="{{ entry.item.drawing_file.url }}" target="_blank" rel="noopener">{% trans "Drawing" %}</a>
@@ -42,53 +46,22 @@
         <ul class="warnings">{% for w in entry.status.warnings %}<li>{{ w }}</li>{% endfor %}</ul>
       {% endif %}
 
-      <ol class="timeline">
-        {% for s in entry.steps %}
-          {% if s.wait_before %}<li class="timeline-wait">{% blocktrans with d=s.wait_before|duration %}waited {{ d }}{% endblocktrans %}</li>{% endif %}
-          <li class="timeline-step timeline-{{ s.row.state }}">
-            <span class="timeline-marker">{{ s.row.step.sequence }}</span>
-            <div class="timeline-body">
-              <strong>{{ s.row.step.process }}{% if s.row.step.process.vendor_name %} ({{ s.row.step.process.vendor_name }}){% endif %}</strong>
-              <span class="badge badge-{{ s.row.state }}">{{ s.label }}</span>
-              {% if s.due_back %}
-                <small>{% blocktrans with d=s.due_back|date:"Y-m-d" %}due back {{ d }}{% endblocktrans %}</small>
-                {% if s.late_days %}<span class="badge badge-overdue">{% blocktrans count counter=s.late_days %}Late by {{ counter }} day{% plural %}Late by {{ counter }} days{% endblocktrans %}</span>{% endif %}
-              {% endif %}
-              <div class="timeline-times">
-                {% trans "Started" %}: {{ s.row.started_at|date:"Y-m-d H:i"|default:"-" }}
-                &middot; {% trans "Finished" %}: {{ s.row.finished_at|date:"Y-m-d H:i"|default:"-" }}
-                {% if s.duration %}&middot; {{ s.duration|duration }}{% if s.running %} {% trans "so far" %}{% endif %}{% endif %}
-              </div>
-            </div>
-          </li>
+      {% if entry.single %}
+        {% include "orders/_box_detail.html" with b=entry.boxes.0 single=True %}
+      {% else %}
+        {% for b in entry.boxes %}
+          <section class="box-section">
+            {% if b.box.assignment %}
+              <h3>{% blocktrans with l=b.box.label %}Box {{ l }}{% endblocktrans %}{% if not b.open %} <small>{% trans "(released)" %}</small>{% endif %}
+                <span class="badge badge-{{ b.box.code|lower }}">{{ b.box.code_label }}</span></h3>
+              {% include "orders/_box_detail.html" with b=b single=False %}
+            {% else %}
+              <h3>{% trans "Box not linked yet" %}</h3>
+              <p><a href="{% url 'tag_manage' %}">{% trans "Link a tag" %}</a></p>
+            {% endif %}
+          </section>
         {% endfor %}
-      </ol>
-
-      <h3>{% trans "Event history" %}</h3>
-      <div class="table-wrap">
-        <table class="table">
-          <thead>
-            <tr>
-              <th>{% trans "Time (JST)" %}</th>
-              <th>{% trans "Action" %}</th>
-              <th>{% trans "Process" %}</th>
-              <th>{% trans "Device" %}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for e in entry.events %}
-              <tr>
-                <td>{{ e.occurred_at|date:"Y-m-d H:i:s" }}</td>
-                <td>{{ e.get_event_type_display }}</td>
-                <td>{{ e.process|default_if_none:"-" }}</td>
-                <td>{{ e.device }}</td>
-              </tr>
-            {% empty %}
-              <tr><td colspan="4">{% trans "No events yet." %}</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
+      {% endif %}
     </div>
   {% endfor %}
 {% endblock %}

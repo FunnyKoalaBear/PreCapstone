@@ -29,13 +29,21 @@ class OrderItemForm(forms.ModelForm):
 
     class Meta:
         model = OrderItem
-        fields = ['part_name', 'quantity', 'drawing_file']
+        fields = ['part_name', 'quantity', 'box_count', 'drawing_file']
+        labels = {'box_count': _('Boxes')}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields['box_count'].required = False
+        self.fields['box_count'].widget.attrs['min'] = 1
         self.fields['route'].choices = [
             (p.pk, f'{p.name} ({p.get_kind_display()})') for p in Process.objects.order_by('kind', 'name')
         ]
+
+    def clean_box_count(self):
+        # A missing value means one box
+        value = self.cleaned_data.get('box_count')
+        return 1 if value is None else value
 
     @property
     def route_selected(self):

@@ -11,7 +11,7 @@ from .forms import AssignTagForm, SimulateScanForm
 from .models import Box, Event, Tag, TagAssignment
 from .priority import TIER_LABELS, TIERS, priority
 from .services import assign_tag, record_event, release_assignment
-from .status import COMPLETE, current_row, item_status
+from .status import COMPLETE, NOT_STARTED, current_row, item_status
 
 
 @staff_member_required
@@ -62,9 +62,13 @@ def tag_manage(request):
                 })
                 return redirect('tag_manage')
     assignments = TagAssignment.objects.select_related('tag', 'box', 'item__order')
+    open_ = list(assignments.filter(end_at__isnull=True).order_by('item__order__job_number', 'item__item_no', 'start_at'))
+    seen = {}
+    for a in open_:  # position of the box within its item
+        seen[a.item_id] = a.nth = seen.get(a.item_id, 0) + 1
     return render(request, 'tracking/tag_manage.html', {
         'form': form,
-        'open': assignments.filter(end_at__isnull=True).order_by('-start_at'),
+        'open': open_,
         'history': assignments.filter(end_at__isnull=False).order_by('-end_at')[:20],
         'tag_uids': Tag.objects.filter(active=True).values_list('uid', flat=True),
         'box_labels': Box.objects.filter(active=True).values_list('label', flat=True),
@@ -76,10 +80,17 @@ def priorities(request):
     rows = []
     for item in OrderItem.objects.select_related('order__customer').order_by('order__due_date'):
         st = item_status(item)
-        if st.code != COMPLETE:
-            row = current_row(st)
-            p = priority(item.order, st)
-            rows.append({'item': item, 'status': st, 'process': row.step.process if row else None, **p, 'label': TIER_LABELS[p['tier']]})
+        for box in st.boxes:
+            a = box.assignment
+            # Unlinked placeholders and finished boxes are left out
+            if box.code == COMPLETE or a is None or (a.end_at and box.code == NOT_STARTED):
+                continue
+            row = current_row(box)
+            p = priority(item.order, box)
+            rows.append({
+                'item': item, 'status': box, 'process': row.step.process if row else None,
+                'box_label': box.label, 'multi': len(st.boxes) > 1, **p, 'label': TIER_LABELS[p['tier']],
+            })
     rows.sort(key=lambda r: (TIERS.index(r['tier']), r['slack']))
     counts = {t: sum(r['tier'] == t for r in rows) for t in TIERS}
     tier = request.GET.get('tier', '')

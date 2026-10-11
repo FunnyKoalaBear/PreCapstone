@@ -35,7 +35,7 @@
         {% for a in open %}
           <tr>
             <td>{{ a.tag }}</td>
-            <td>{{ a.box }}</td>
+            <td>{% blocktrans with l=a.box n=a.nth t=a.item.box_count %}Box {{ l }} ({{ n }} of {{ t }}){% endblocktrans %}</td>
             <td><a href="{% url 'order_detail' a.item.order.job_number %}">{{ a.item.item_code }}</a> {{ a.item.part_name }}</td>
             <td>{{ a.start_at|date:"Y-m-d H:i" }}</td>
             <td>

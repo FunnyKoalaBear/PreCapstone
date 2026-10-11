@@ -24,8 +24,10 @@ class OrderCreateTests(TestCase):
             'customer': Customer.objects.create(name='C').pk, 'due_date': timezone.localdate() + timedelta(days=30),
             'items-TOTAL_FORMS': len(items), 'items-INITIAL_FORMS': 0, 'items-MIN_NUM_FORMS': 1, 'items-MAX_NUM_FORMS': 1000,
         }
-        for i, (name, qty, route) in enumerate(items):
+        for i, (name, qty, route, *boxes) in enumerate(items):
             data.update({f'items-{i}-part_name': name, f'items-{i}-quantity': qty, f'items-{i}-route': route})
+            if boxes:
+                data[f'items-{i}-box_count'] = boxes[0]
         data.update({f'items-{i}-DELETE': 'on' for i in deleted})
         return self.client.post('/orders/new/', data)
 
@@ -46,6 +48,17 @@ class OrderCreateTests(TestCase):
         order = Order.objects.get()
         codes = [i.item_code for i in OrderItem.objects.order_by('item_no')]
         self.assertEqual(codes, [f'{order.job_number}-01', f'{order.job_number}-02'])
+
+    def test_box_count_is_saved_and_defaults_to_one(self):
+        self.login_staff()
+        route = [self.material.pk]
+        self.assertRedirects(self.post([('Shaft', 5, route, 3), ('Gear', 2, route)]), '/orders/')
+        self.assertEqual(dict(OrderItem.objects.values_list('part_name', 'box_count')), {'Shaft': 3, 'Gear': 1})
+
+    def test_box_count_below_one_is_rejected(self):
+        self.login_staff()
+        self.assertEqual(self.post([('Shaft', 5, [self.material.pk], 0)]).status_code, 200)
+        self.assertFalse(OrderItem.objects.exists())
 
     def test_route_is_saved_in_submitted_order(self):
         self.login_staff()
@@ -149,7 +162,44 @@ class OrderDetailTests(TestCase):
         record_event(ScannerDevice.objects.create(name='D'), 'AB', self.proc, 'ARRIVED')
         r = self.client.get(self.url)
         entry = r.context['items'][0]
-        self.assertEqual(entry['steps'][0]['row'].state, 'done')
-        self.assertEqual(len(entry['events']), 1)
+        self.assertEqual(entry['boxes'][0]['steps'][0]['row'].state, 'done')
+        self.assertEqual(len(entry['boxes'][0]['events']), 1)
         self.assertContains(r, 'Arrived')
         self.assertContains(r, 'Done')
+
+
+class BoxViewTests(TestCase):
+    def setUp(self):
+        self.client.force_login(User.objects.create_user('s', password='x', is_staff=True))
+        self.order = Order.objects.create(customer=Customer.objects.create(name='Acme'), due_date=timezone.localdate())
+        self.proc = Process.objects.create(name='Mat', kind=K.MATERIAL)
+
+    def item(self, boxes, linked):
+        item = OrderItem.objects.create(order=self.order, part_name=f'P{OrderItem.objects.count()}', quantity=1, box_count=boxes)
+        RouteStep.objects.create(item=item, sequence=1, process=self.proc)
+        for i in range(linked):
+            TagAssignment.objects.create(
+                tag=Tag.objects.create(uid=f'U{item.pk}{i}'), box=Box.objects.create(label=f'L{item.pk}{i}'), item=item)
+        return item
+
+    def test_list_shows_box_total_only_for_split_items(self):
+        self.item(1, 1)
+        self.assertIsNone(self.client.get('/orders/').context['rows'][0]['boxes'])
+        self.item(3, 1)
+        self.assertEqual(self.client.get('/orders/').context['rows'][0]['boxes'], 4)
+
+    def test_detail_single_box_looks_as_before(self):
+        self.item(1, 1)
+        r = self.client.get(f'/orders/{self.order.job_number}/')
+        self.assertContains(r, 'Event history')
+        self.assertNotContains(r, 'Boxes:')
+
+    def test_detail_split_item_shows_sections_and_unlinked_box(self):
+        item = self.item(3, 2)
+        r = self.client.get(f'/orders/{self.order.job_number}/')
+        self.assertContains(r, 'Boxes: 2 of 3 linked')
+        self.assertContains(r, f'Box L{item.pk}0')
+        self.assertContains(r, f'Box L{item.pk}1')
+        self.assertContains(r, 'Box not linked yet')
+        self.assertContains(r, 'href="/tags/"')
+        self.assertEqual(len(r.context['items'][0]['boxes']), 3)

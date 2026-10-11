@@ -37,7 +37,7 @@
         <tbody>
           {% for e in in_house %}
             <tr>
-              <td><a href="{% url 'order_detail' e.order.job_number %}">{{ e.item.item_code }}</a></td>
+              <td><a href="{% url 'order_detail' e.order.job_number %}">{% include "includes/item_box.html" with item=e.item multi=e.multi label=e.box_label %}</a></td>
               <td>{{ e.item.part_name }}</td>
               <td>{{ e.order.customer }}</td>
               <td>{{ e.process }}</td>
@@ -74,7 +74,7 @@
         <tbody>
           {% for e in at_vendor %}
             <tr>
-              <td><a href="{% url 'order_detail' e.order.job_number %}">{{ e.item.item_code }}</a></td>
+              <td><a href="{% url 'order_detail' e.order.job_number %}">{% include "includes/item_box.html" with item=e.item multi=e.multi label=e.box_label %}</a></td>
               <td>{{ e.item.part_name }}</td>
               <td>{{ e.vendor|default:"-" }}</td>
               <td>{{ e.process }}</td>

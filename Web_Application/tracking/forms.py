@@ -1,6 +1,9 @@
 from django import forms
 from django.utils.translation import gettext_lazy as _
 
+from django.db.models import Count, F, Q
+from django.utils.translation import gettext
+
 from orders.models import OrderItem, Process
 
 from .models import Event, ScannerDevice, TagAssignment
@@ -43,8 +46,12 @@ class AssignTagForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Only items without an open assignment
-        busy = TagAssignment.objects.filter(end_at__isnull=True).values('item_id')
+        # Only items that still have a free box slot
         field = self.fields['item']
-        field.queryset = OrderItem.objects.exclude(pk__in=busy).select_related('order').order_by('order__job_number', 'item_no')
-        field.label_from_instance = lambda i: f'{i.item_code} {i.part_name}'
+        field.queryset = (
+            OrderItem.objects.annotate(linked=Count('tagassignment', filter=Q(tagassignment__end_at__isnull=True)))
+            .filter(linked__lt=F('box_count')).select_related('order').order_by('order__job_number', 'item_no')
+        )
+        field.label_from_instance = lambda i: gettext('%(code)s - %(part)s (%(n)s of %(total)s boxes linked)') % {
+            'code': i.item_code, 'part': i.part_name, 'n': i.linked, 'total': i.box_count,
+        }

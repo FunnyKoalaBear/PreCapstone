@@ -25,27 +25,29 @@ def home(request):
         late = order.due_date < today
         if late:
             overdue.add(order.pk)
-        if st.code in counts:
-            counts[st.code] += 1
-        row = current_row(st)
-        if st.code not in (WAITING, IN_PROGRESS, AT_VENDOR) or row is None:
-            continue
-        process = row.step.process
-        entry = {
-            'item': item, 'order': order, 'code': st.code, 'label': st.label, 'process': process,
-            'vendor': process.vendor_name, 'last_event_at': st.last_event_at, 'due_date': order.due_date,
-            'idle': idle_for(st, now), 'stagnant': is_stagnant(st, now),
-            'late': late, 'out_since': row.started_at,
-            'days_out': (now - row.started_at).days if row.started_at else None,
-        }
-        if st.code == AT_VENDOR:
-            entry['due_back'] = due_back(row.started_at, process.vendor_lead_days)
-            entry['late_days'] = days_late(entry['due_back'], today)
-            at_vendor.append(entry)
-        else:
-            in_house.append(entry)
+        for box in st.boxes:  # each box counts and is listed with its own status
+            if box.code in counts:
+                counts[box.code] += 1
+            row = current_row(box)
+            if box.code not in (WAITING, IN_PROGRESS, AT_VENDOR) or row is None:
+                continue
+            process = row.step.process
+            entry = {
+                'item': item, 'order': order, 'code': box.code, 'label': box.code_label, 'process': process,
+                'box_label': box.label, 'multi': len(st.boxes) > 1,
+                'vendor': process.vendor_name, 'last_event_at': box.last_event_at, 'due_date': order.due_date,
+                'idle': idle_for(box, now), 'stagnant': is_stagnant(box, now),
+                'late': late, 'out_since': row.started_at,
+                'days_out': (now - row.started_at).days if row.started_at else None,
+            }
+            if box.code == AT_VENDOR:
+                entry['due_back'] = due_back(row.started_at, process.vendor_lead_days)
+                entry['late_days'] = days_late(entry['due_back'], today)
+                at_vendor.append(entry)
+            else:
+                in_house.append(entry)
     # Stagnant first (longest idle first), then due date
-    in_house.sort(key=lambda e: (not e['stagnant'], -(e['idle'].total_seconds() if e['stagnant'] else 0), e['due_date'], e['order'].job_number, e['item'].item_no))
+    in_house.sort(key=lambda e: (not e['stagnant'], -(e['idle'].total_seconds() if e['stagnant'] else 0), e['due_date'], e['order'].job_number, e['item'].item_no, e['box_label']))
     # Late first (most days late first), then oldest out-since
     at_vendor.sort(key=lambda e: (-e['late_days'], e['out_since'] is None, e['out_since']))
     return render(request, 'core/home.html', {
