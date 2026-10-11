@@ -153,3 +153,16 @@ def days_late(due_date, today=None):
     if due_date is None:
         return 0
     return max(((today or timezone.localdate()) - due_date).days, 0)
+
+
+def timeline(rows, now=None):
+    """Per step: duration (timedelta or None), running flag, and wait since the last finished step."""
+    now, out, prev_end = now or timezone.now(), [], None
+    for r in rows:
+        running = r.state in (STEP_IN_PROGRESS, STEP_AT_VENDOR) and r.started_at is not None
+        end = now if running else r.finished_at
+        duration = end - r.started_at if r.started_at and end else None
+        wait = r.started_at - prev_end if r.started_at and prev_end else None
+        out.append({'duration': duration, 'running': running, 'wait_before': wait if wait and wait >= timedelta(0) else None})
+        prev_end = r.finished_at or prev_end
+    return out

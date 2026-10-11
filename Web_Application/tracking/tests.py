@@ -10,7 +10,7 @@ from orders.models import Customer, Order, OrderItem, Process, RouteStep
 
 from .models import Box, Event, ScannerDevice, Tag, TagAssignment
 from .services import assign_tag, record_event, release_assignment
-from .status import AT_VENDOR, COMPLETE, IN_PROGRESS, NOT_STARTED, WAITING, days_late, due_back, item_status
+from .status import AT_VENDOR, COMPLETE, IN_PROGRESS, NOT_STARTED, WAITING, days_late, due_back, item_status, timeline
 
 E = Event.Type
 K = Process.Kind
@@ -185,3 +185,43 @@ class DueBackTests(TestCase):
     def test_days_late_only_when_positive(self):
         today = date(2030, 1, 10)
         self.assertEqual((days_late(date(2030, 1, 7), today), days_late(today, today), days_late(None, today)), (3, 0, 0))
+
+
+class TimelineTests(TestCase):
+    def setUp(self):
+        self.t0 = datetime(2026, 1, 1, 9, 0, tzinfo=dt_timezone.utc)
+
+    def row(self, state, start=None, end=None):
+        from .status import StepRow
+        h = lambda x: None if x is None else self.t0 + timedelta(hours=x)
+        return StepRow(None, state, h(start), h(end))
+
+    def test_finished_step(self):
+        t = timeline([self.row('done', 0, 2)], now=self.t0 + timedelta(hours=9))[0]
+        self.assertEqual((t['duration'], t['running']), (timedelta(hours=2), False))
+
+    def test_running_step(self):
+        t = timeline([self.row('in_progress', 1)], now=self.t0 + timedelta(hours=4))[0]
+        self.assertEqual((t['duration'], t['running']), (timedelta(hours=3), True))
+
+    def test_running_at_vendor(self):
+        t = timeline([self.row('at_vendor', 0)], now=self.t0 + timedelta(hours=5))[0]
+        self.assertTrue(t['running'])
+
+    def test_unstarted_step(self):
+        t = timeline([self.row('pending')])[0]
+        self.assertEqual((t['duration'], t['running'], t['wait_before']), (None, False, None))
+
+    def test_missing_previous_finish(self):
+        t = timeline([self.row('in_progress', 0), self.row('in_progress', 3)], now=self.t0 + timedelta(hours=9))
+        self.assertIsNone(t[1]['wait_before'])
+
+    def test_wait_uses_last_finished_step(self):
+        rows = [self.row('done', 0, 1), self.row('pending'), self.row('done', 4, 5)]
+        t = timeline(rows, now=self.t0 + timedelta(hours=9))
+        self.assertEqual(t[2]['wait_before'], timedelta(hours=3))
+        self.assertIsNone(t[0]['wait_before'])
+
+    def test_negative_wait_is_none(self):
+        t = timeline([self.row('done', 0, 5), self.row('done', 2, 3)])
+        self.assertIsNone(t[1]['wait_before'])

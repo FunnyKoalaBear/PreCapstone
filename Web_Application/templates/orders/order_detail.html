@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n duration %}
 
 {% block title %}{{ order.job_number }} - {% trans "Factory Tracker" %}{% endblock %}
 
@@ -42,35 +42,27 @@
         <ul class="warnings">{% for w in entry.status.warnings %}<li>{{ w }}</li>{% endfor %}</ul>
       {% endif %}
 
-      <div class="table-wrap">
-        <table class="table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>{% trans "Process" %}</th>
-              <th>{% trans "State" %}</th>
-              <th>{% trans "Started" %}</th>
-              <th>{% trans "Finished" %}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for s in entry.steps %}
-              <tr>
-                <td>{{ s.row.step.sequence }}</td>
-                <td>{{ s.row.step.process }}{% if s.row.step.process.vendor_name %} ({{ s.row.step.process.vendor_name }}){% endif %}</td>
-                <td><span class="badge badge-{{ s.row.state }}">{{ s.label }}</span>
-                  {% if s.due_back %}
-                    <small>{% blocktrans with d=s.due_back|date:"Y-m-d" %}due back {{ d }}{% endblocktrans %}</small>
-                    {% if s.late_days %}<span class="badge badge-overdue">{% blocktrans count counter=s.late_days %}Late by {{ counter }} day{% plural %}Late by {{ counter }} days{% endblocktrans %}</span>{% endif %}
-                  {% endif %}
-                </td>
-                <td>{{ s.row.started_at|date:"Y-m-d H:i"|default:"-" }}</td>
-                <td>{{ s.row.finished_at|date:"Y-m-d H:i"|default:"-" }}</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
+      <ol class="timeline">
+        {% for s in entry.steps %}
+          {% if s.wait_before %}<li class="timeline-wait">{% blocktrans with d=s.wait_before|duration %}waited {{ d }}{% endblocktrans %}</li>{% endif %}
+          <li class="timeline-step timeline-{{ s.row.state }}">
+            <span class="timeline-marker">{{ s.row.step.sequence }}</span>
+            <div class="timeline-body">
+              <strong>{{ s.row.step.process }}{% if s.row.step.process.vendor_name %} ({{ s.row.step.process.vendor_name }}){% endif %}</strong>
+              <span class="badge badge-{{ s.row.state }}">{{ s.label }}</span>
+              {% if s.due_back %}
+                <small>{% blocktrans with d=s.due_back|date:"Y-m-d" %}due back {{ d }}{% endblocktrans %}</small>
+                {% if s.late_days %}<span class="badge badge-overdue">{% blocktrans count counter=s.late_days %}Late by {{ counter }} day{% plural %}Late by {{ counter }} days{% endblocktrans %}</span>{% endif %}
+              {% endif %}
+              <div class="timeline-times">
+                {% trans "Started" %}: {{ s.row.started_at|date:"Y-m-d H:i"|default:"-" }}
+                &middot; {% trans "Finished" %}: {{ s.row.finished_at|date:"Y-m-d H:i"|default:"-" }}
+                {% if s.duration %}&middot; {{ s.duration|duration }}{% if s.running %} {% trans "so far" %}{% endif %}{% endif %}
+              </div>
+            </div>
+          </li>
+        {% endfor %}
+      </ol>
 
       <h3>{% trans "Event history" %}</h3>
       <div class="table-wrap">

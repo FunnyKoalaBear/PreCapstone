@@ -142,3 +142,14 @@ body {
 .info dd { margin: 0; }
 .warnings { margin: 0 0 0.75rem; padding-left: 1.25rem; color: var(--status-waiting); }
 .counter-late strong { color: var(--status-late); }
+
+/* Order timeline */
+.timeline { list-style: none; margin: 1rem 0; padding: 0 0 0 1.25rem; border-left: 2px solid var(--color-border); }
+.timeline-step { position: relative; display: flex; gap: 0.75rem; padding: 0.5rem 0; }
+.timeline-marker { position: absolute; left: -2.1rem; width: 1.6rem; height: 1.6rem; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--color-surface); border: 2px solid var(--color-muted); color: var(--color-muted); font-size: 0.8rem; }
+.timeline-in_progress .timeline-marker { border-color: var(--status-in-progress); color: var(--status-in-progress); }
+.timeline-at_vendor .timeline-marker { border-color: var(--status-at-vendor); color: var(--status-at-vendor); }
+.timeline-done .timeline-marker { border-color: var(--status-done); color: var(--status-done); }
+.timeline-body { min-width: 0; overflow-wrap: anywhere; }
+.timeline-times { color: var(--color-muted); font-size: 0.85rem; }
+.timeline-wait { color: var(--color-muted); font-size: 0.8rem; font-style: italic; padding: 0.1rem 0; }
