@@ -1,12 +1,17 @@
 from datetime import timedelta
+from io import StringIO
 
 from django.contrib.auth.models import User
-from django.test import TestCase
+from django.core.management import call_command
+from django.core.management.base import CommandError
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from orders.models import Customer, Order, OrderItem, Process, RouteStep
-from tracking.models import Box, ScannerDevice, Tag, TagAssignment
+from tracking.models import Box, Event, ScannerDevice, Tag, TagAssignment
+from tracking.priority import priority
 from tracking.services import record_event
+from tracking.status import days_late, due_back, is_stagnant, item_status
 
 K = Process.Kind
 
@@ -143,3 +148,76 @@ class HomeDashboardTests(TestCase):
         self.assertEqual(r.context['counters']['stagnant'], 2)
         self.assertEqual([e['item'] for e in r.context['in_house']], [older, old, fresh])
         self.assertContains(r, 'Idle for')
+
+
+class SeedDemoTests(TestCase):
+    def seed(self, *args):
+        call_command('seed_demo', *args, stdout=StringIO())
+
+    def status(self, part):
+        item = OrderItem.objects.get(part_name=part)
+        return item, item_status(item)
+
+    def test_refuses_without_debug(self):
+        with override_settings(DEBUG=False), self.assertRaises(CommandError):
+            self.seed()
+        self.assertFalse(Customer.objects.exists())
+
+    @override_settings(DEBUG=True)
+    def test_runs_twice_without_duplicating_and_reset_recreates(self):
+        self.seed()
+        n = (Order.objects.count(), Event.objects.count())
+        self.seed()
+        self.assertEqual((Order.objects.count(), Event.objects.count()), n)
+        self.seed('--reset')
+        self.assertEqual((Order.objects.count(), Event.objects.count()), n)
+
+    @override_settings(DEBUG=True)
+    def test_scenarios_match_statuses(self):
+        self.seed()
+        item, st = self.status('Flange')
+        self.assertEqual((st.code, priority(item.order, st)['tier']), ('IN_PROGRESS', 'OVERDUE'))
+        item, st = self.status('Cover')
+        self.assertEqual(st.code, 'AT_VENDOR')
+        self.assertGreater(days_late(due_back(st.rows[1].started_at, 5)), 0)
+        self.assertTrue(is_stagnant(self.status('Shaft')[1]))
+        self.assertEqual(self.status('Plate')[1].code, 'COMPLETE')
+        self.assertEqual(self.status('Pin')[1].code, 'NOT_STARTED')
+        item, st = self.status('Housing')
+        self.assertEqual(priority(item.order, st)['tier'], 'CRITICAL')
+        self.assertTrue(self.status('Gear')[1].warnings)
+        self.assertEqual(self.status('New part')[1].code, 'IN_PROGRESS')
+
+    @override_settings(DEBUG=True)
+    def test_every_event_uses_the_right_process_kind(self):
+        self.seed()
+        events = Event.objects.exclude(event_type='CORRECTION').select_related('process')
+        self.assertTrue(events)
+        for e in events:
+            self.assertEqual(e.process.kind, Event.REQUIRED_KIND[e.event_type], e)
+        self.assertTrue(Event.objects.filter(event_type='CORRECTION').exists())
+        self.assertFalse(Process.objects.exclude(name__startswith='DEMO ').exists())
+
+    @override_settings(DEBUG=True)
+    def test_reset_removes_demo_data_and_keeps_real_data(self):
+        real_proc = Process.objects.create(name='Cutting', kind=K.MATERIAL)
+        real_cust = Customer.objects.create(name='Real Co')
+        real_order = Order.objects.create(customer=real_cust, due_date=timezone.localdate())
+        real_dev = ScannerDevice.objects.create(name='Real scanner')
+        Tag.objects.create(uid='REAL1')
+        real_event = Event.objects.create(device=real_dev, tag_uid='REAL1', event_type='ARRIVED', process=real_proc)
+        self.seed()
+        n = (Order.objects.count(), Event.objects.count(), Process.objects.count(), TagAssignment.objects.count())
+        self.seed('--reset')
+        self.assertEqual((Order.objects.count(), Event.objects.count(), Process.objects.count(), TagAssignment.objects.count()), n)
+        self.assertTrue(Event.objects.filter(pk=real_event.pk).exists())
+        self.assertTrue(Order.objects.filter(pk=real_order.pk).exists())
+        self.assertTrue(Tag.objects.filter(uid='REAL1').exists())
+        self.assertTrue(Process.objects.filter(pk=real_proc.pk, kind=K.MATERIAL).exists())
+
+    @override_settings(DEBUG=True)
+    def test_failed_seed_leaves_nothing_behind(self):
+        Process.objects.create(name='DEMO Cutting', kind=K.MATERIAL)  # wrong kind makes STARTED fail
+        with self.assertRaises(Exception):
+            self.seed()
+        self.assertEqual((Customer.objects.count(), Order.objects.count(), Event.objects.count()), (0, 0, 0))
