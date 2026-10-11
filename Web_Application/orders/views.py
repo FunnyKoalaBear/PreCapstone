@@ -13,7 +13,7 @@ from tracking.status import (
 )
 
 from .forms import OrderForm, OrderItemFormSet
-from .models import Order
+from .models import Order, OrderChange
 
 SORTS = {
     'due': ('due_date', 'job_number'),
@@ -36,6 +36,63 @@ def order_create(request):
         messages.success(request, _('Order %(job)s created.') % {'job': order.job_number})
         return redirect('order_list')
     return render(request, 'orders/order_form.html', {'form': form, 'formset': formset})
+
+
+ORDER_FIELDS = ['customer', 'customer_order_number', 'due_date', 'notes']
+ITEM_FIELDS = ['part_name', 'quantity', 'box_count']
+
+
+def _order_values(order):
+    return {f: str(getattr(order, f) if getattr(order, f) is not None else '') for f in ORDER_FIELDS}
+
+
+def _item_values(item):
+    values = {f: str(getattr(item, f)) for f in ITEM_FIELDS}
+    values['drawing_file'] = item.drawing_file.name or ''
+    values['route'] = ' > '.join(item.steps.values_list('process__name', flat=True))
+    return values
+
+
+def _log_changes(order, user, old_order, old_items):
+    """Append one OrderChange per changed field, added item and deleted item."""
+    rows = []
+    row = lambda field, old, new, item=None, code='': rows.append(OrderChange(
+        order=order, item=item, item_code=code, field=field, old_value=old, new_value=new, changed_by=user))
+    new_order = _order_values(order)
+    rows += [OrderChange(order=order, field=f, old_value=old_order[f], new_value=new_order[f], changed_by=user)
+             for f in ORDER_FIELDS if old_order[f] != new_order[f]]
+    seen = set()
+    for item in order.items.all():
+        seen.add(item.pk)
+        if item.pk not in old_items:
+            row('item_added', '', f'{item.item_code} {item.part_name}', item, item.item_code)
+            continue
+        new = _item_values(item)
+        for f, old in old_items[item.pk].items():
+            if f != 'code' and old != new[f]:
+                row(f, old, new[f], item, item.item_code)
+    for pk, old in old_items.items():
+        if pk not in seen:
+            row('item_deleted', f"{old['code']} {old['part_name']}", '', None, old['code'])
+    OrderChange.objects.bulk_create(rows)
+
+
+@staff_member_required
+def order_edit(request, job_number):
+    order = get_object_or_404(Order, job_number=job_number)
+    # Snapshot before the forms touch the instances
+    old_order = _order_values(order)
+    old_items = {i.pk: {**_item_values(i), 'code': i.item_code} for i in order.items.all()}
+    data, files = request.POST or None, request.FILES or None
+    form, formset = OrderForm(data, instance=order), OrderItemFormSet(data, files, instance=order)
+    if request.method == 'POST' and form.is_valid() and formset.is_valid():
+        with transaction.atomic():
+            form.save()
+            formset.save()
+            _log_changes(order, request.user, old_order, old_items)
+        messages.success(request, _('Order %(job)s updated.') % {'job': order.job_number})
+        return redirect('order_detail', job_number=order.job_number)
+    return render(request, 'orders/order_form.html', {'form': form, 'formset': formset, 'order': order})
 
 
 @staff_member_required
@@ -97,5 +154,6 @@ def order_detail(request, job_number):
         })
     return render(request, 'orders/order_detail.html', {
         'order': order, 'code': code, 'label': label, 'items': items,
+        'changes': order.changes.select_related('changed_by'),
         'late': order.due_date < timezone.localdate() and code != COMPLETE,
     })

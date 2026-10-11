@@ -1,13 +1,18 @@
+import tempfile
 from datetime import timedelta
 
+from django.contrib.admin import site
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import override_settings
 from django.utils import timezone
 
 from core.testing import TestCase
 from tracking.models import Box, ScannerDevice, Tag, TagAssignment
 from tracking.services import record_event
 
-from .models import Customer, Order, OrderItem, Process, RouteStep
+from .models import Customer, Order, OrderChange, OrderItem, Process, RouteStep
 
 K = Process.Kind
 
@@ -203,3 +208,166 @@ class BoxViewTests(TestCase):
         self.assertContains(r, 'Box not linked yet')
         self.assertContains(r, 'href="/tags/"')
         self.assertEqual(len(r.context['items'][0]['boxes']), 3)
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class OrderEditTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user('s', password='x', is_staff=True)
+        self.client.force_login(self.user)
+        self.mat = Process.objects.create(name='Mat', kind=K.MATERIAL)
+        self.mill = Process.objects.create(name='Mill', kind=K.MACHINING)
+        self.cust = Customer.objects.create(name='Acme')
+        self.order = Order.objects.create(customer=self.cust, due_date=timezone.localdate() + timedelta(days=30), notes='old')
+        self.item = self.new_item('Shaft', [self.mat, self.mill])
+        self.device = ScannerDevice.objects.create(name='D')
+
+    def new_item(self, part, route, boxes=1):
+        item = OrderItem.objects.create(order=self.order, part_name=part, quantity=2, box_count=boxes)
+        for i, p in enumerate(route, 1):
+            RouteStep.objects.create(item=item, sequence=i, process=p)
+        return item
+
+    def link(self, item, uid, box, end=False):
+        return TagAssignment.objects.create(
+            tag=Tag.objects.create(uid=uid), box=Box.objects.create(label=box), item=item,
+            start_at=timezone.now() - timedelta(days=2), end_at=timezone.now() - timedelta(days=1) if end else None)
+
+    def post(self, items=None, **order_fields):
+        """Edit POST: current order values, one entry per item (dict of overrides), then the overrides."""
+        o = self.order
+        items = items if items is not None else [{}]
+        data = {'customer': o.customer_id, 'customer_order_number': o.customer_order_number, 'due_date': o.due_date, 'notes': o.notes,
+                'items-TOTAL_FORMS': len(items), 'items-INITIAL_FORMS': o.items.count(), 'items-MIN_NUM_FORMS': 1, 'items-MAX_NUM_FORMS': 1000}
+        existing = list(o.items.all())
+        for i, ov in enumerate(items):
+            base = {}
+            if i < len(existing):
+                it = existing[i]
+                base = {'id': it.pk, 'order': o.pk, 'part_name': it.part_name, 'quantity': it.quantity, 'box_count': it.box_count,
+                        'route': list(it.steps.values_list('process_id', flat=True))}
+            base.update(ov)
+            data.update({f'items-{i}-{k}': v for k, v in base.items()})
+        data.update(order_fields)
+        return self.client.post(f'/orders/{o.job_number}/edit/', data)
+
+    def changes(self):
+        return {(c.item_code, c.field): (c.old_value, c.new_value) for c in OrderChange.objects.filter(order=self.order)}
+
+    def test_edit_fields_logs_history_and_keeps_codes(self):
+        job, code = self.order.job_number, self.item.item_code
+        due = timezone.localdate() + timedelta(days=5)
+        r = self.post([{'part_name': 'Long shaft', 'quantity': 9}], due_date=due, notes='rush', customer_order_number='PO-1')
+        self.assertRedirects(r, f'/orders/{job}/')
+        self.order.refresh_from_db()
+        self.item.refresh_from_db()
+        self.assertEqual((self.order.job_number, self.item.item_code, self.order.due_date, self.item.part_name), (job, code, due, 'Long shaft'))
+        ch = self.changes()
+        self.assertEqual(ch['', 'notes'], ('old', 'rush'))
+        self.assertEqual(ch['', 'customer_order_number'], ('', 'PO-1'))
+        self.assertEqual(ch['', 'due_date'][1], str(due))
+        self.assertEqual(ch[code, 'part_name'], ('Shaft', 'Long shaft'))
+        self.assertEqual(ch[code, 'quantity'], ('2', '9'))
+        self.assertTrue(all(c.changed_by == self.user for c in OrderChange.objects.all()))
+        page = self.client.get(f'/orders/{job}/')
+        self.assertContains(page, 'Change history')
+        self.assertContains(page, 'rush')
+
+    def test_unchanged_save_logs_nothing(self):
+        self.post()
+        self.assertFalse(OrderChange.objects.exists())
+
+    def test_due_date_change_moves_priority_tier(self):
+        self.link(self.item, 'T1', 'B1')
+        tier = lambda: self.client.get('/priorities/').context['rows'][0]['tier']
+        self.assertEqual(tier(), 'ON_TRACK')
+        self.post(due_date=timezone.localdate())
+        self.assertEqual(tier(), 'CRITICAL')
+        self.post(due_date=timezone.localdate() - timedelta(days=1))
+        self.assertEqual(tier(), 'OVERDUE')
+
+    def test_box_count_cannot_drop_below_linked_boxes(self):
+        item = self.new_item('Frame', [self.mill], boxes=3)
+        self.link(item, 'A', 'BA', end=True)
+        self.link(item, 'B', 'BB')
+        r = self.post([{}, {'box_count': 1}])
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, 'Box count cannot be lower than the 2 boxes already linked.')
+        item.refresh_from_db()
+        self.assertEqual(item.box_count, 3)
+        self.assertFalse(OrderChange.objects.exists())
+        self.assertEqual(self.post([{}, {'box_count': 2}]).status_code, 302)
+        item.refresh_from_db()
+        self.assertEqual(item.box_count, 2)
+
+    def test_route_editable_before_a_scan_and_logged(self):
+        self.assertEqual(self.post([{'route': [self.mill.pk]}]).status_code, 302)
+        self.assertEqual(list(self.item.steps.values_list('process_id', flat=True)), [self.mill.pk])
+        self.assertEqual(self.changes()[self.item.item_code, 'route'], ('Mat > Mill', 'Mill'))
+        self.assertNotContains(self.client.get(f'/orders/{self.order.job_number}/edit/'), 'Route is locked')
+
+    def test_route_locked_after_a_scan_and_posted_changes_ignored(self):
+        self.link(self.item, 'T1', 'B1')
+        record_event(self.device, 'T1', self.mat, 'ARRIVED')
+        r = self.post([{'route': [self.mill.pk], 'part_name': 'Renamed'}])
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(list(self.item.steps.values_list('process_id', flat=True)), [self.mat.pk, self.mill.pk])
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.part_name, 'Renamed')
+        self.assertNotIn((self.item.item_code, 'route'), self.changes())
+        self.assertContains(self.client.get(f'/orders/{self.order.job_number}/edit/'), 'Route is locked because this item has been scanned.')
+
+    def test_add_item(self):
+        r = self.post([{}, {'part_name': 'Pin', 'quantity': 4, 'box_count': 2, 'route': [self.mill.pk]}])
+        self.assertEqual(r.status_code, 302)
+        new = self.order.items.get(part_name='Pin')
+        self.assertEqual((new.item_code, new.box_count, new.steps.count()), (f'{self.order.job_number}-02', 2, 1))
+        self.assertIn((new.item_code, 'item_added'), self.changes())
+
+    def test_delete_untouched_item_but_not_a_linked_or_scanned_one(self):
+        spare = self.new_item('Spare', [self.mill])
+        r = self.post([{}, {'DELETE': 'on'}])
+        self.assertEqual(r.status_code, 302)
+        self.assertFalse(OrderItem.objects.filter(pk=spare.pk).exists())
+        self.assertEqual(self.changes()[f'{self.order.job_number}-02', 'item_deleted'][0], f'{self.order.job_number}-02 Spare')
+        self.link(self.item, 'T1', 'B1')
+        r = self.post([{'DELETE': 'on'}, {}])
+        self.assertContains(r, 'cannot be deleted because it has tags or scans')
+        self.assertTrue(OrderItem.objects.filter(pk=self.item.pk).exists())
+        self.assertContains(self.client.get(f'/orders/{self.order.job_number}/edit/'), 'Cannot be removed because it has tags or scans.')
+
+    def test_replaced_drawing_is_logged(self):
+        self.post([{'drawing_file': SimpleUploadedFile('a.pdf', b'%PDF-1.4 x')}])
+        self.item.refresh_from_db()
+        self.assertTrue(self.item.drawing_file.name.endswith('a.pdf'))
+        self.assertEqual(self.changes()[self.item.item_code, 'drawing_file'][0], '')
+
+    def test_staff_only(self):
+        url = f'/orders/{self.order.job_number}/edit/'
+        self.client.logout()
+        self.assertEqual(self.client.get(url).status_code, 302)
+        self.client.force_login(User.objects.create_user('u', password='x'))
+        self.assertEqual(self.client.get(url).status_code, 302)
+        self.assertEqual(self.client.post(url, {}).status_code, 302)
+
+    def test_change_history_is_append_only(self):
+        self.post(notes='x')
+        c = OrderChange.objects.get()
+        c.new_value = 'y'
+        with self.assertRaises(ValidationError):
+            c.save()
+        with self.assertRaises(ValidationError):
+            c.delete()
+        model_admin = site._registry[OrderChange]
+        self.assertFalse(model_admin.has_change_permission(None) or model_admin.has_delete_permission(None) or model_admin.has_add_permission(None))
+
+    def test_pages_render_in_both_languages(self):
+        self.post(notes='x')
+        for lang, words in (('en', ('Edit', 'Change history', 'Save changes')), ('ja', ('編集', '変更履歴', '変更を保存'))):
+            self.client.cookies['django_language'] = lang
+            detail = self.client.get(f'/orders/{self.order.job_number}/')
+            edit = self.client.get(f'/orders/{self.order.job_number}/edit/')
+            self.assertEqual((detail.status_code, edit.status_code), (200, 200))
+            self.assertContains(detail, words[0])
+            self.assertContains(detail, words[1])
+            self.assertContains(edit, words[2])

@@ -1,7 +1,11 @@
 {% load i18n %}
 <div class="card item-card">
-  <button type="button" class="remove-item">{% trans "Remove" %}</button>
-  <h2>{% trans "Item" %} <span class="item-number">{{ n }}</span></h2>
+  {% if f.undeletable %}
+    <p class="note">{% trans "Cannot be removed because it has tags or scans." %}</p>
+  {% else %}
+    <button type="button" class="remove-item">{% trans "Remove" %}</button>
+  {% endif %}
+  <h2>{% trans "Item" %} <span class="item-number">{{ n }}</span>{% if f.instance.pk %} <small>{{ f.instance.item_code }}</small>{% endif %}</h2>
   {{ f.non_field_errors }}
   {% for field in f.hidden_fields %}{{ field }}{% endfor %}
   {% for field in f.visible_fields %}
@@ -12,6 +16,13 @@
     {% endif %}
   {% endfor %}
 
+  {% if f.locked %}
+    <div class="route">
+      <label>{% trans "Route" %}</label>
+      <ol class="route-readonly">{% for proc in f.route_steps %}<li>{{ proc }}</li>{% endfor %}</ol>
+      <p class="note">{% trans "Route is locked because this item has been scanned." %}</p>
+    </div>
+  {% else %}
   <div class="route">
     <label>{% trans "Route" %}</label>
     {{ f.route.errors }}
@@ -30,4 +41,5 @@
     </div>
     <button type="button" class="add-step button-secondary">{% trans "Add step" %}</button>
   </div>
+  {% endif %}
 </div>

@@ -97,3 +97,15 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | Demo banner | これはサンプルデータによるデモです。変更はこのブラウザにのみ保存されます。 |
 | Choose / Choose a process | 選択してください / 工程を選択 |
 | Order not found | 受注が見つかりません。 |
+
+## Terms added for order editing
+
+| English | Japanese |
+|---|---|
+| Edit | 編集 |
+| Save changes | 変更を保存 |
+| Change history | 変更履歴 |
+| Changed by | 変更者 |
+| Before / After | 変更前 / 変更後 |
+| Item added / deleted (history) | 品目の追加 / 品目の削除 |
+| Route is locked (item has been scanned) | スキャン済みのため、工程順は変更できません |

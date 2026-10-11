@@ -3,7 +3,7 @@ from django.utils.translation import gettext_lazy as _
 
 from tracking.status import item_status, order_status
 
-from .models import Customer, Order, OrderItem, Process, RouteStep
+from .models import Customer, Order, OrderChange, OrderItem, Process, RouteStep
 
 
 class OrderItemInline(admin.TabularInline):
@@ -56,3 +56,18 @@ class OrderItemAdmin(admin.ModelAdmin):
 @admin.register(RouteStep)
 class RouteStepAdmin(admin.ModelAdmin):
     list_display = ['item', 'sequence', 'process']
+
+
+@admin.register(OrderChange)
+class OrderChangeAdmin(admin.ModelAdmin):
+    list_display = ['changed_at', 'order', 'item_code', 'field', 'old_value', 'new_value', 'changed_by']
+    list_filter = ['field']
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

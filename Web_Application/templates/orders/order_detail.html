@@ -5,7 +5,8 @@
 
 {% block content %}
   <p><a href="{% url 'order_list' %}">&larr; {% trans "Back to Orders" %}</a></p>
-  <h1>{{ order.job_number }} <span class="badge badge-{{ code|lower }}">{{ label }}</span></h1>
+  <h1>{{ order.job_number }} <span class="badge badge-{{ code|lower }}">{{ label }}</span>
+    <a class="button-secondary" href="{% url 'order_edit' order.job_number %}">{% trans "Edit" %}</a></h1>
 
   <dl class="info">
     <div><dt>{% trans "Customer" %}</dt><dd>{{ order.customer }}</dd></div>
@@ -64,4 +65,32 @@
       {% endif %}
     </div>
   {% endfor %}
+
+  <h2>{% trans "Change history" %}</h2>
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>{% trans "Time (JST)" %}</th>
+          <th>{% trans "Changed by" %}</th>
+          <th>{% trans "What" %}</th>
+          <th>{% trans "Before" %}</th>
+          <th>{% trans "After" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in changes %}
+          <tr>
+            <td>{{ c.changed_at|date:"Y-m-d H:i" }}</td>
+            <td>{{ c.changed_by|default:"-" }}</td>
+            <td>{% if c.item_code %}{{ c.item_code }} {% endif %}{{ c.field_label }}</td>
+            <td>{{ c.old_value|default:"-" }}</td>
+            <td>{{ c.new_value|default:"-" }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5">{% trans "No changes yet." %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 {% endblock %}
