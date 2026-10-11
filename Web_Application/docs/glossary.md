@@ -87,3 +87,13 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | Reasons | 理由 |
 | Assignment history | 紐付け履歴 |
 | Vendor late | 外注遅れ |
+
+## Terms added for the static demo
+
+| English | Japanese |
+|---|---|
+| Boxes (list page) | 箱一覧 |
+| Reset demo data | デモデータをリセット |
+| Demo banner | これはサンプルデータによるデモです。変更はこのブラウザにのみ保存されます。 |
+| Choose / Choose a process | 選択してください / 工程を選択 |
+| Order not found | 受注が見つかりません。 |

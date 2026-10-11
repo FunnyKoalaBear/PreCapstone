@@ -11,4 +11,14 @@
   --status-done: #16a34a;
   --status-at-vendor: #7c3aed;
   --status-late: #dc2626;
+
+  --stagnant-color: #be185d;
+
+  --board-queue: #c2410c;
+  --board-queue-bg: #fff7ed;
+
+  --risk-overdue: #b91c1c;
+  --risk-critical: #ea580c;
+  --risk-watch: #ca8a04;
+  --risk-on-track: #16a34a;
 }

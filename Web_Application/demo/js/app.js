@@ -1,7 +1,7 @@
-// Static demo of Factory Tracker. All data lives in the browser (localStorage); nothing is sent anywhere.
+// Static demo of Factory Tracker: pages and UI. All data lives in this browser (localStorage); nothing is sent anywhere.
 (() => {
-  const LABELS = { NOT_STARTED: 'Not started', WAITING: 'Waiting', IN_PROGRESS: 'In progress', AT_VENDOR: 'At vendor', COMPLETE: 'Complete' };
-  const STEP_LABELS = { pending: 'Pending', in_progress: 'In progress', at_vendor: 'At vendor', done: 'Done' };
+  const KEY = 'ft_demo_v2', LANG_KEY = 'ft_lang';
+  const { NOT_STARTED, WAITING, IN_PROGRESS, AT_VENDOR, COMPLETE } = FT;
 
   // ---------- helpers ----------
   const $ = (s, r = document) => r.querySelector(s);
@@ -9,296 +9,377 @@
   const h = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const store = {
     get(k, d) { try { const v = JSON.parse(localStorage.getItem(k)); return v === null ? d : v; } catch (e) { return d; } },
-    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage blocked */ } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage blocked: keep going in memory */ } },
+    del(k) { try { localStorage.removeItem(k); } catch (e) { /* storage blocked */ } },
   };
-  const jst = (t) => new Date(t).toLocaleString('sv-SE', { timeZone: 'Asia/Tokyo' });
-  const fmtDT = (t) => (t ? jst(t).slice(0, 16) : '-');
-  const todayStr = () => jst(Date.now()).slice(0, 10);
-  const addDays = (d, n) => new Date(Date.parse(d + 'T00:00:00Z') + n * DAY).toISOString().slice(0, 10);
-  const dueBack = (started, lead) => (started == null || lead == null ? null : addDays(jst(started).slice(0, 10), lead));
-  const daysLate = (due) => (due ? Math.max(Math.floor((Date.parse(todayStr() + 'T00:00:00Z') - Date.parse(due + 'T00:00:00Z')) / DAY), 0) : 0);
-  const dayWord = (n) => (n === 1 ? '1 day' : n + ' days');
+  const Q = new URLSearchParams(location.search);
   const badge = (cls, text) => `<span class="badge badge-${cls}">${h(text)}</span>`;
-  const proc = (id) => PROCESSES.find((p) => p.id === id);
-  const itemCode = (i) => `${i.order}-${String(i.no).padStart(2, '0')}`;
-  const msg = (kind, text) => `<ul class="messages"><li class="message ${kind}">${h(text)}</li></ul>`;
-  const table = (head, body, empty) =>
-    `<div class="table-wrap"><table class="table"><thead><tr>${head.map((x) => `<th>${x}</th>`).join('')}</tr></thead><tbody>${
-      body.length ? body.join('') : `<tr><td colspan="${head.length}">${empty}</td></tr>`}</tbody></table></div>`;
+  const statusBadge = (code) => badge(code.toLowerCase(), t(code));
+  const pname = (p) => (p ? (I18N.lang === 'ja' && p.ja ? p.ja : p.name) : '-');
+  const fmtDT = (ms, sec) => (ms == null ? '-' : FT.jstStr(ms).slice(0, sec ? 19 : 16));
+  const orderLink = (job, text) => `<a href="order.html?job=${encodeURIComponent(job)}">${h(text)}</a>`;
+  // templatetags/duration.py
+  const fmtDur = (ms) => {
+    if (ms == null) return '-';
+    const mins = Math.floor(ms / 60000), d = Math.floor(mins / 1440), hh = Math.floor(mins / 60) % 24, m = mins % 60;
+    return d ? t('dur_dh', { d, h: hh }) : hh ? t('dur_hm', { h: hh, m }) : m ? t('dur_m', { m }) : t('dur_lt1');
+  };
+  const itemBox = (e) => `${e.item.id}${e.multi ? ' - ' + t('box_n', { l: e.boxLabel }) : ''}`;
+  const lateBadge = (n) => badge('overdue', t('n_days', { n }));
+  const table = (head, rows, empty) =>
+    `<div class="table-wrap"><table class="table"><thead><tr>${head.map((x) => `<th>${h(x)}</th>`).join('')}</tr></thead><tbody>${
+      rows.length ? rows.join('') : `<tr><td colspan="${head.length}">${h(empty)}</td></tr>`}</tbody></table></div>`;
+  const warnText = (x) => t(x.k, { p: pname(world.proc(x.proc)), e: x.type ? t(x.type) : '' });
+  const reasonText = (r) => (r.k === 'r_due_in' || r.k === 'r_overdue_by'
+    ? t(r.k, { days: t('n_days', { n: r.d }), steps: t('n_steps_left', { n: r.s }) }) : t(r.k, { n: r.n }));
+  const flashHtml = () => (flash ? `<ul class="messages"><li class="message ${flash.kind}">${h(flash.text)}</li></ul>` : '');
+  const errText = (e) => t(e.k, e);
 
   // ---------- state ----------
-  const events = () => {
-    let e = store.get('ft_events', null);
-    if (!e) {
-      e = SEED_EVENTS.map(([hrs, tag, type, p], i) => ({ id: i + 1, t: Date.now() - hrs * 36e5, tag, type, proc: p, device: DEVICES[1] }));
-      store.set('ft_events', e);
-    }
-    return e;
-  };
-  const orders = () => [
-    ...BASE_ORDERS.map((o) => ({ ...o, due: addDays(todayStr(), o.due) })),
-    ...store.get('ft_orders', []),
-  ];
-  const items = () => {
-    const tagmap = store.get('ft_tags', {});
-    return [
-      ...BASE_ITEMS.map((i) => ({ ...i, tagStart: Date.now() - i.tagAgo * DAY })),
-      ...store.get('ft_items', []),
-    ].map((i) => ({ ...i, ...(tagmap[itemCode(i)] || {}) }));
-  };
-  const orderOf = (i) => orders().find((o) => o.job === i.order);
-
-  // ---------- status logic (same rules as the Django app) ----------
-  function itemStatus(item) {
-    const rows = item.route.map((id) => ({ proc: proc(id), state: 'pending', started: null, finished: null }));
-    const warnings = [];
-    const evs = item.tag ? events().filter((e) => e.tag === item.tag && e.t >= item.tagStart).sort((a, b) => a.t - b.t) : [];
-    for (const e of evs) {
-      const c = rows.filter((r) => r.proc.id === e.proc);
-      const pick = (...st) => { for (const s of st) { const r = c.find((x) => x.state === s); if (r) return r; } return null; };
-      let r = null;
-      if (e.type === 'ARRIVED') { r = pick('pending'); if (r) { r.state = 'done'; r.started = r.finished = e.t; } }
-      else if (e.type === 'STARTED') { r = pick('pending'); if (r) { r.state = 'in_progress'; r.started = e.t; } }
-      else if (e.type === 'FINISHED') { r = pick('in_progress', 'pending'); if (r) { r.state = 'done'; r.finished = e.t; } }
-      else if (e.type === 'SENT_OUT') { r = pick('pending'); if (r) { r.state = 'at_vendor'; r.started = e.t; } }
-      else if (e.type === 'RETURNED') { r = pick('at_vendor', 'pending'); if (r) { r.state = 'done'; r.finished = e.t; } }
-      const pname = proc(e.proc).name;
-      if (!c.length) warnings.push(`Event for a process not in the route: ${pname}`);
-      else if (!r) warnings.push(`Unexpected ${ACTION_LABELS[e.type]} event for ${pname}`);
-    }
-    rows.forEach((r, i) => {
-      if (r.state !== 'pending') rows.slice(0, i).filter((p) => p.state === 'pending').forEach((p) => warnings.push(`Step skipped: ${p.proc.name}`));
-    });
-    const active = rows.filter((r) => r.state === 'in_progress' || r.state === 'at_vendor');
-    const current = active.length ? active.reduce((a, b) => (b.started > a.started ? b : a)) : rows.find((r) => r.state !== 'done') || null;
-    let code;
-    if (!rows.length || rows.every((r) => r.state === 'pending')) code = 'NOT_STARTED';
-    else if (!current) code = 'COMPLETE';
-    else code = { in_progress: 'IN_PROGRESS', at_vendor: 'AT_VENDOR' }[current.state] || 'WAITING';
-    return { code, label: LABELS[code], rows, current, warnings: [...new Set(warnings)], events: evs, last: evs.length ? evs[evs.length - 1].t : null };
-  }
-  function orderSummary(order) {
-    const sts = items().filter((i) => i.order === order.job).map((i) => itemStatus(i).code);
-    const done = sts.filter((c) => c === 'COMPLETE').length;
-    if (sts.length && done === sts.length) return { code: 'COMPLETE', label: LABELS.COMPLETE };
-    if (sts.every((c) => c === 'NOT_STARTED')) return { code: 'NOT_STARTED', label: LABELS.NOT_STARTED };
-    return { code: 'IN_PROGRESS', label: `In progress (${done}/${sts.length} items complete)` };
-  }
-  const lateBadge = (n) => (n ? badge('overdue', dayWord(n)) : '');
-  const link = (job, text) => `<a href="order.html?job=${encodeURIComponent(job)}">${h(text)}</a>`;
+  let state = store.get(KEY, {}) || {};
+  let seed, world, flash = null;
+  const save = () => store.set(KEY, state);
+  const refresh = () => { const now = Date.now(); seed = seed || buildSeed(now); world = FT.makeWorld(seed, state, now); };
+  const push = (k, v) => { state[k] = [...(state[k] || []), v]; save(); refresh(); };
+  const tagList = () => world.tags.filter((u) => !world.inactive.has(u));
 
   // ---------- shell ----------
+  const NAV = [['index', 'nav_home'], ['orders', 'nav_orders'], ['new-order', 'nav_new'], ['boxes', 'nav_boxes'], ['board', 'nav_board'],
+    ['priorities', 'nav_prio'], ['tags', 'nav_tags'], ['simulate', 'nav_sim']];
   function shell() {
-    document.body.insertAdjacentHTML('afterbegin', `
-      <div class="demo-banner">Static demo with sample data. Your changes are saved in this browser only.
-        <button type="button" id="reset-demo">Reset demo data</button></div>
-      <header class="site-header"><span class="brand">Factory Tracker</span>
-        <nav class="site-nav"><a href="index.html">Home</a><a href="orders.html">Orders</a><a href="new-order.html">New order</a>
-        <a href="tags.html">Tags</a><a href="simulate.html">Simulate scan</a></nav></header>`);
-    document.body.insertAdjacentHTML('beforeend', '<footer class="site-footer">Factory Tracker (demo)</footer>');
-    $('#reset-demo').addEventListener('click', () => {
-      ['ft_events', 'ft_orders', 'ft_items', 'ft_tags'].forEach((k) => { try { localStorage.removeItem(k); } catch (e) { /* ignore */ } });
-      location.href = 'index.html';
-    });
+    document.documentElement.lang = I18N.lang;
+    $('#banner').innerHTML = `${h(t('banner'))} <button type="button" id="reset-demo">${h(t('reset_demo'))}</button>`;
+    $('#hdr').innerHTML = `<span class="brand">${h(t('brand'))}</span><nav class="site-nav">${
+      NAV.map(([p, k]) => `<a href="${p}.html">${h(t(k))}</a>`).join('')}</nav>
+      <form class="lang-switch" id="lang-switch">${['ja', 'en'].map((l) =>
+    `<button type="button" data-lang="${l}"${I18N.lang === l ? ' class="active" aria-current="true"' : ''}>${l === 'ja' ? '日本語' : 'English'}</button>`).join('')}</form>`;
+    $('#ftr').textContent = t('footer');
+    $('#reset-demo').addEventListener('click', () => { store.del(KEY); state = {}; seed = null; flash = null; boot(); });
+    $$('#lang-switch button').forEach((b) => b.addEventListener('click', () => {
+      I18N.lang = b.dataset.lang; store.set(LANG_KEY, I18N.lang); flash = null; boot();
+    }));
   }
 
-  // ---------- pages ----------
+  // ---------- home ----------
   function pageHome(app) {
-    const rows = items().map((i) => ({ i, o: orderOf(i), st: itemStatus(i) }));
-    const complete = {};
-    rows.forEach((r) => { complete[r.i.order] = (complete[r.i.order] ?? true) && r.st.code === 'COMPLETE'; });
-    const counts = { IN_PROGRESS: 0, WAITING: 0, AT_VENDOR: 0, NOT_STARTED: 0 };
-    const overdue = new Set(); const inHouse = []; const atVendor = [];
-    for (const r of rows) {
-      if (complete[r.i.order]) continue;
-      const late = r.o.due < todayStr();
-      if (late) overdue.add(r.i.order);
-      if (r.st.code in counts) counts[r.st.code]++;
-      const cur = r.st.current;
-      if (!cur || !['WAITING', 'IN_PROGRESS', 'AT_VENDOR'].includes(r.st.code)) continue;
-      Object.assign(r, { cur, late });
-      if (r.st.code === 'AT_VENDOR') { r.due = dueBack(cur.started, cur.proc.lead); r.lateDays = daysLate(r.due); atVendor.push(r); } else inHouse.push(r);
-    }
-    inHouse.sort((a, b) => (a.o.due + a.i.order + a.i.no).localeCompare(b.o.due + b.i.order + b.i.no));
-    atVendor.sort((a, b) => b.lateDays - a.lateDays || a.cur.started - b.cur.started);
-    const vOver = atVendor.filter((r) => r.lateDays > 0).length;
-    const card = (cls, n, text) => `<div class="card counter ${cls}"><strong>${n}</strong> ${text}</div>`;
-    app.innerHTML = `<h1>Home</h1><div class="counters">
-      ${card('counter-in_progress', counts.IN_PROGRESS, 'In progress')}${card('counter-waiting', counts.WAITING, 'Waiting')}
-      ${card('counter-at_vendor', counts.AT_VENDOR, 'At vendor')}${card('counter-not_started', counts.NOT_STARTED, 'Not started')}
-      ${card('counter-overdue', overdue.size, 'Overdue orders')}
-      ${card('counter-vendor' + (vOver ? ' counter-overdue counter-late' : ''), vOver, 'Vendor overdue')}</div>
-      <h2>In-house now</h2>${table(['Item', 'Part', 'Customer', 'Current process', 'Status', 'Due date', 'Last scan (JST)'],
-      inHouse.map((r) => `<tr><td>${link(r.i.order, itemCode(r.i))}</td><td>${h(r.i.part)}</td><td>${h(r.o.customer)}</td><td>${h(r.cur.proc.name)}</td>
-        <td>${badge(r.st.code.toLowerCase(), r.st.label)}</td><td>${r.o.due} ${r.late ? badge('overdue', 'Overdue') : ''}</td><td>${fmtDT(r.st.last)}</td></tr>`),
-      'Nothing in the factory right now.')}
-      <h2>At vendors</h2>${table(['Item', 'Part', 'Vendor', 'Process', 'Out since (JST)', 'Days out', 'Due back', 'Late by'],
-      atVendor.map((r) => `<tr><td>${link(r.i.order, itemCode(r.i))}</td><td>${h(r.i.part)}</td><td>${h(r.cur.proc.vendor || '-')}</td><td>${h(r.cur.proc.name)}</td>
-        <td>${fmtDT(r.cur.started)}</td><td>${Math.floor((Date.now() - r.cur.started) / DAY)}</td><td>${r.due || 'No due date'}</td><td>${lateBadge(r.lateDays)}</td></tr>`),
-      'Nothing is out at vendors.')}`;
+    const d = FT.homeData(world), c = d.counters;
+    const card = (cls, href, n, label) => `<a class="card counter counter-${cls}" href="${href}"><strong>${n}</strong> ${h(label)}</a>`;
+    const inRows = d.inHouse.map((e) => `<tr><td>${orderLink(e.order.job, itemBox(e))}</td><td>${h(e.item.part)}</td><td>${h(e.order.customer)}</td>
+      <td>${h(pname(e.proc))}</td><td>${statusBadge(e.code)}</td>
+      <td>${e.due}${e.late ? ' ' + badge('overdue', t('overdue')) : ''}</td><td>${fmtDT(e.lastEvent)}</td>
+      <td>${fmtDur(e.idle)}${e.stagnant ? ' ' + badge('stagnant', t('stagnant')) : ''}</td></tr>`);
+    const vRows = d.atVendor.map((e) => `<tr><td>${orderLink(e.order.job, itemBox(e))}</td><td>${h(e.item.part)}</td><td>${h(e.proc.vendor || '-')}</td>
+      <td>${h(pname(e.proc))}</td><td>${fmtDT(e.started)}</td><td>${e.daysOut ?? '-'}</td>
+      <td>${e.dueBack || h(t('no_due_date'))}</td><td>${e.lateDays ? lateBadge(e.lateDays) : ''}</td></tr>`);
+    app.innerHTML = `<h1>${h(t('home_title'))}</h1><div class="counters">
+      ${card('in_progress', 'boxes.html?status=in_progress', c.in_progress, t('IN_PROGRESS'))}
+      ${card('waiting', 'boxes.html?status=waiting', c.waiting, t('WAITING'))}
+      ${card('at_vendor', 'boxes.html?status=at_vendor', c.at_vendor, t('AT_VENDOR'))}
+      ${card('not_started', 'boxes.html?status=not_started', c.not_started, t('NOT_STARTED'))}
+      ${card('stagnant', 'boxes.html?stagnant=1', c.stagnant, t('stagnant'))}
+      ${card('overdue', 'orders.html?late=1', c.overdue, t('overdue_orders'))}
+      ${card('vendor' + (c.vendor_overdue ? ' counter-overdue counter-late' : ''), 'boxes.html?status=at_vendor&vendor_late=1', c.vendor_overdue, t('vendor_overdue'))}
+    </div>
+    <h2>${h(t('in_house_now'))}</h2>${table([t('item'), t('part'), t('customer'), t('current_process'), t('status'), t('due_date'), t('last_scan'), t('idle_for')], inRows, t('nothing_factory'))}
+    <h2>${h(t('at_vendors'))}</h2>${table([t('item'), t('part'), t('vendor'), t('process'), t('out_since'), t('days_out'), t('due_back'), t('late_by')], vRows, t('nothing_vendor'))}`;
   }
 
+  // ---------- boxes ----------
+  const STATUS_PARAMS = { in_progress: IN_PROGRESS, waiting: WAITING, at_vendor: AT_VENDOR, not_started: NOT_STARTED };
+  function pageBoxes(app) {
+    const status = STATUS_PARAMS[Q.get('status')] || null, stagnant = Q.get('stagnant') === '1', vendorLate = Q.get('vendor_late') === '1';
+    const parts = [status && t(status), stagnant && t('stagnant'), vendorLate && t('vendor_late')].filter(Boolean);
+    const rows = FT.boxesPage(world, { status, stagnant, vendorLate }).map((e) => `<tr>
+      <td>${orderLink(e.order.job, e.item.id)}</td>
+      <td>${e.boxLabel ? h(e.boxLabel) : `${h(t('not_linked_yet'))} <a href="tags.html">${h(t('link_a_tag'))}</a>`}</td>
+      <td>${h(e.item.part)}</td><td>${h(e.order.customer)}</td><td>${h(pname(e.proc))}</td><td>${statusBadge(e.code)}</td><td>${e.due}</td><td>${fmtDur(e.idle)}</td>
+      <td>${e.late ? badge('overdue', t('overdue')) : ''} ${e.stagnant ? badge('stagnant', t('stagnant')) : ''} ${e.lateDays ? badge('overdue', t('vendor_late')) + ' ' + lateBadge(e.lateDays) : ''}</td></tr>`);
+    app.innerHTML = `<p><a href="index.html">&larr; ${h(t('back_home'))}</a></p>
+      <h1>${h(t('boxes_title'))}${parts.length ? ` <small>- ${h(parts.join(', '))}</small>` : ''}</h1>
+      ${rows.length ? table([t('item'), t('box'), t('part'), t('customer'), t('current_process'), t('status'), t('due_date'), t('idle_for'), ''], rows, '') : `<p>${h(t('no_boxes_match'))}</p>`}`;
+  }
+
+  // ---------- orders ----------
   function pageOrders(app) {
-    const created = new URLSearchParams(location.search).get('created');
-    app.innerHTML = `<h1>Orders</h1>${created ? msg('success', `Order ${created} created.`) : ''}
-      <form class="filters" id="f">
-        <div><label for="q">Search</label><input type="search" id="q"></div>
-        <div><label for="status">Status</label><select id="status"><option value="">All</option>
-          ${['NOT_STARTED', 'IN_PROGRESS', 'COMPLETE'].map((c) => `<option value="${c}">${LABELS[c]}</option>`).join('')}</select></div>
-        <div><label for="sort">Sort by</label><select id="sort"><option value="due">Due date</option><option value="newest">Newest</option><option value="customer">Customer</option></select></div>
-        <label class="check"><input type="checkbox" id="late"> Overdue only</label>
-        <a href="new-order.html">New order</a></form><div id="list"></div>`;
-    const draw = () => {
-      const q = $('#q').value.trim().toLowerCase(); const status = $('#status').value; const sort = $('#sort').value; const lateOnly = $('#late').checked;
-      let rows = orders().map((o) => {
-        const its = items().filter((i) => i.order === o.job);
-        const s = orderSummary(o);
-        return { o, its, s, late: o.due < todayStr() && s.code !== 'COMPLETE' };
-      }).filter((r) => (!q || [r.o.job, r.o.customer, r.o.custNo, ...r.its.map((i) => i.part)].some((x) => String(x || '').toLowerCase().includes(q)))
-        && (!status || r.s.code === status) && (!lateOnly || r.late));
-      const cmp = { due: (a, b) => (a.o.due + a.o.job).localeCompare(b.o.due + b.o.job), newest: (a, b) => b.o.job.localeCompare(a.o.job),
-        customer: (a, b) => a.o.customer.localeCompare(b.o.customer) || a.o.due.localeCompare(b.o.due) };
-      rows.sort(cmp[sort]);
-      $('#list').innerHTML = table(['Job number', 'Customer', 'Customer order number', 'Due date', 'Items', 'Status'],
-        rows.map((r) => `<tr><td>${link(r.o.job, r.o.job)}</td><td>${h(r.o.customer)}</td><td>${h(r.o.custNo)}</td>
-          <td>${r.o.due} ${r.late ? badge('overdue', 'Overdue') : ''}</td><td>${r.its.length}</td><td>${badge(r.s.code.toLowerCase(), r.s.label)}</td></tr>`),
-        'No orders found.');
-    };
-    $('#f').addEventListener('input', draw); $('#f').addEventListener('submit', (e) => e.preventDefault()); draw();
+    const q = (Q.get('q') || '').trim().toLowerCase(), status = Q.get('status') || '', sort = ['due', 'newest', 'customer'].includes(Q.get('sort')) ? Q.get('sort') : 'due';
+    const late = Q.get('late') === '1';
+    const SORTS = { due: (a, b) => a.due.localeCompare(b.due) || a.job.localeCompare(b.job), newest: (a, b) => b.job.localeCompare(a.job),
+      customer: (a, b) => a.customer.localeCompare(b.customer) || a.due.localeCompare(b.due) };
+    const rows = [...world.orders].sort(SORTS[sort]).map((o) => {
+      const its = world.items.filter((i) => i.order === o.job);
+      return { o, its, sum: FT.orderSummary(world, o), late: o.due < world.today };
+    }).filter((r) => {
+      const hay = [r.o.job, r.o.customer, r.o.custNo, ...r.its.map((i) => i.part)].join(' ').toLowerCase();
+      return (!q || hay.includes(q)) && (!status || r.sum.code === status) && (!late || (r.late && r.sum.code !== COMPLETE));
+    });
+    const lateOf = (r) => r.late && r.sum.code !== COMPLETE;
+    const body = rows.map((r) => `<tr><td>${orderLink(r.o.job, r.o.job)}</td><td>${h(r.o.customer)}</td><td>${h(r.o.custNo)}</td>
+      <td>${r.o.due}${lateOf(r) ? ' ' + badge('overdue', t('overdue')) : ''}</td>
+      <td>${r.its.length}${r.its.some((i) => i.boxCount > 1) ? ` <small>${h(t('n_boxes', { n: r.its.reduce((s, i) => s + i.boxCount, 0) }))}</small>` : ''}</td>
+      <td>${badge(r.sum.code.toLowerCase(), r.sum.code === IN_PROGRESS ? t('order_progress', r.sum) : t(r.sum.code))}</td></tr>`);
+    const opt = (v, text, cur) => `<option value="${v}"${v === cur ? ' selected' : ''}>${h(text)}</option>`;
+    app.innerHTML = `${Q.get('created') ? `<ul class="messages"><li class="message success">${h(t('order_created', { job: Q.get('created') }))}</li></ul>` : ''}
+      <h1>${h(t('orders_title'))}</h1>
+      <form method="get" class="filters">
+        <div><label for="q">${h(t('search'))}</label><input type="search" id="q" name="q" value="${h(Q.get('q') || '')}"></div>
+        <div><label for="status">${h(t('status'))}</label><select id="status" name="status">${opt('', t('all'), status)}${[NOT_STARTED, IN_PROGRESS, COMPLETE].map((c) => opt(c, t(c), status)).join('')}</select></div>
+        <div><label for="sort">${h(t('sort_by'))}</label><select id="sort" name="sort">${opt('due', t('due_date'), sort)}${opt('newest', t('newest'), sort)}${opt('customer', t('customer'), sort)}</select></div>
+        <label class="check"><input type="checkbox" name="late" value="1"${late ? ' checked' : ''}> ${h(t('overdue_only'))}</label>
+        <button type="submit" class="button">${h(t('apply'))}</button><a href="new-order.html">${h(t('new_order'))}</a></form>
+      ${table([t('job_number'), t('customer'), t('customer_order_number'), t('due_date'), t('items'), t('status')], body, t('no_orders'))}`;
   }
 
+  // ---------- order detail ----------
+  function timelineHtml(box) {
+    return `<ol class="timeline">${FT.timeline(box.rows, world.now).map((s) => {
+      const r = s.row, back = r.state === 'at_vendor' ? FT.dueBack(r.started, r.proc.lead) : null, lateDays = FT.daysLate(back, world.today);
+      return `${s.wait ? `<li class="timeline-wait">${h(t('waited', { d: fmtDur(s.wait) }))}</li>` : ''}
+        <li class="timeline-step timeline-${r.state}"><span class="timeline-marker">${box.rows.indexOf(r) + 1}</span><div class="timeline-body">
+        <strong>${h(pname(r.proc))}${r.proc.vendor ? ` (${h(r.proc.vendor)})` : ''}</strong> ${badge(r.state, t(r.state))}
+        ${back ? `<small>${h(t('due_back_d', { d: back }))}</small> ${lateDays ? badge('overdue', t('late_by_n', { n: lateDays })) : ''}` : ''}
+        <div class="timeline-times">${h(t('started'))}: ${fmtDT(r.started)} &middot; ${h(t('finished'))}: ${fmtDT(r.finished)}
+        ${s.duration ? `&middot; ${fmtDur(s.duration)}${s.running ? ' ' + h(t('so_far')) : ''}` : ''}</div></div></li>`;
+    }).join('')}</ol>`;
+  }
+  function eventsHtml(box, single) {
+    const evs = box.assignments.length ? FT.eventsForBox(world, box.assignments) : [];
+    const rows = evs.map((e) => `<tr><td>${fmtDT(e.t, true)}</td><td>${h(t(e.type))}</td><td>${h(pname(world.proc(e.proc)))}</td><td>${h(e.device)}</td></tr>`);
+    return `${single ? '<h3>' : '<h4>'}${h(t('event_history'))}${single ? '</h3>' : '</h4>'}${table([t('time_jst'), t('action'), t('process'), t('device')], rows, t('no_events'))}`;
+  }
   function pageOrder(app) {
-    const job = new URLSearchParams(location.search).get('job');
-    const o = orders().find((x) => x.job === job);
-    if (!o) { app.innerHTML = '<p><a href="orders.html">&larr; Back to Orders</a></p><h1>Order not found</h1>'; return; }
-    const s = orderSummary(o); const late = o.due < todayStr() && s.code !== 'COMPLETE';
-    const cards = items().filter((i) => i.order === job).map((i) => {
-      const st = itemStatus(i);
-      const steps = st.rows.map((r, n) => {
-        let extra = '';
-        if (r.state === 'at_vendor') {
-          const due = dueBack(r.started, r.proc.lead); const l = daysLate(due);
-          extra = due ? ` <small>due back ${due}</small> ${l ? badge('overdue', 'Late by ' + dayWord(l)) : ''}` : '';
-        }
-        return `<tr><td>${n + 1}</td><td>${h(r.proc.name)}${r.proc.vendor ? ` (${h(r.proc.vendor)})` : ''}</td>
-          <td>${badge(r.state, STEP_LABELS[r.state])}${extra}</td><td>${fmtDT(r.started)}</td><td>${fmtDT(r.finished)}</td></tr>`;
-      });
-      return `<div class="card card-wide"><h2>${itemCode(i)} - ${h(i.part)} &times; ${i.qty} ${badge(st.code.toLowerCase(), st.label)}</h2>
-        <p>${i.tag ? `Box ${h(i.box)}, tag ${h(i.tag)}` : 'No tag assigned.'}</p>
-        ${st.warnings.length ? `<ul class="warnings">${st.warnings.map((w) => `<li>${h(w)}</li>`).join('')}</ul>` : ''}
-        ${table(['#', 'Process', 'State', 'Started', 'Finished'], steps, '-')}
-        <h3>Event history</h3>${table(['Time (JST)', 'Action', 'Process', 'Device'],
-          st.events.map((e) => `<tr><td>${jst(e.t)}</td><td>${ACTION_LABELS[e.type]}</td><td>${h(proc(e.proc).name)}</td><td>${h(e.device)}</td></tr>`), 'No events yet.')}</div>`;
+    const order = world.order(Q.get('job'));
+    if (!order) { app.innerHTML = `<p><a href="orders.html">&larr; ${h(t('back_orders'))}</a></p><p>${h(t('order_missing'))}</p>`; return; }
+    const sum = FT.orderSummary(world, order);
+    const items = world.items.filter((i) => i.order === order.job).map((item) => {
+      const st = FT.itemStatus(world, item);
+      const single = item.boxCount === 1 && st.boxes.length === 1;
+      const open = st.boxes.filter((b) => b.assignment && b.assignment.end == null);
+      const warns = st.warnings.length ? `<ul class="warnings">${st.warnings.map((x) => `<li>${h(warnText(x))}</li>`).join('')}</ul>` : '';
+      let body;
+      if (single) {
+        const b = st.boxes[0];
+        body = `<p>${open.length ? h(t('box_tag', { box: open[0].label, tag: open[0].assignment.tag })) : h(t('no_tag_assigned'))}</p>${warns}${timelineHtml(b)}${eventsHtml(b, true)}`;
+      } else {
+        body = `<p>${h(t('boxes_linked', { n: open.length, t: item.boxCount }))}</p>${warns}${st.boxes.map((b) => (b.assignment
+          ? `<section class="box-section"><h3>${h(t('box_title', { l: b.label }))}${b.assignment.end != null ? ` <small>${h(t('released'))}</small>` : ''} ${statusBadge(b.code)}</h3>${timelineHtml(b)}${eventsHtml(b, false)}</section>`
+          : `<section class="box-section"><h3>${h(t('box_not_linked'))}</h3><p><a href="tags.html">${h(t('link_a_tag'))}</a></p></section>`)).join('')}`;
+      }
+      return `<div class="card card-wide"><h2>${h(item.id)} - ${h(item.part)} &times; ${item.qty} ${statusBadge(st.code)}</h2>${body}</div>`;
     });
-    app.innerHTML = `<p><a href="orders.html">&larr; Back to Orders</a></p>
-      <h1>${h(o.job)} ${badge(s.code.toLowerCase(), s.label)}</h1>
-      <dl class="info"><div><dt>Customer</dt><dd>${h(o.customer)}</dd></div><div><dt>Customer order number</dt><dd>${h(o.custNo || '-')}</dd></div>
-      <div><dt>Due date</dt><dd>${o.due} ${late ? badge('overdue', 'Overdue') : ''}</dd></div>
-      ${o.notes ? `<div><dt>Notes</dt><dd>${h(o.notes)}</dd></div>` : ''}</dl>${cards.join('')}`;
+    app.innerHTML = `<p><a href="orders.html">&larr; ${h(t('back_orders'))}</a></p>
+      <h1>${h(order.job)} ${badge(sum.code.toLowerCase(), sum.code === IN_PROGRESS ? t('order_progress', sum) : t(sum.code))}</h1>
+      <dl class="info"><div><dt>${h(t('customer'))}</dt><dd>${h(order.customer)}</dd></div>
+      <div><dt>${h(t('customer_order_number'))}</dt><dd>${h(order.custNo || '-')}</dd></div>
+      <div><dt>${h(t('due_date'))}</dt><dd>${order.due}${order.due < world.today && sum.code !== COMPLETE ? ' ' + badge('overdue', t('overdue')) : ''}</dd></div>
+      ${order.notes ? `<div><dt>${h(t('notes'))}</dt><dd>${h(order.notes)}</dd></div>` : ''}</dl>${items.join('')}`;
   }
 
+  // ---------- new order ----------
+  function itemCard(n) {
+    const opts = PROCESSES.map((p) => `<option value="${p.id}">${h(t('process_opt', { p: pname(p), k: t(p.kind) }))}</option>`).join('');
+    return `<div class="card item-card"><button type="button" class="remove-item">${h(t('remove'))}</button>
+      <h2>${h(t('item'))} <span class="item-number">${n}</span></h2>
+      <div><label>${h(t('part_name'))}</label><input name="part" required></div>
+      <div><label>${h(t('quantity'))}</label><input name="qty" type="number" min="1" value="1" required></div>
+      <div><label>${h(t('boxes_field'))}</label><input name="boxes" type="number" min="1" value="1" required></div>
+      <div class="route"><label>${h(t('route'))}</label><div class="route-steps">${stepRow(opts)}</div>
+      <button type="button" class="add-step button-secondary">${h(t('add_step'))}</button></div></div>`;
+  }
+  const stepRow = (opts) => `<div class="route-step"><select name="route"><option value="">${h(t('choose_process'))}</option>${opts}</select>
+    <button type="button" class="remove-step">${h(t('remove'))}</button></div>`;
   function pageNewOrder(app) {
-    const options = '<option value="">Choose a process</option>' + PROCESSES.map((p) => `<option value="${p.id}">${h(p.name)} (${p.kind.toLowerCase()})</option>`).join('');
-    const step = () => `<div class="route-step"><select>${options}</select><button type="button" class="remove-step">Remove</button></div>`;
-    const card = () => `<div class="card item-card"><button type="button" class="remove-item">Remove</button>
-      <h2>Item <span class="item-number"></span></h2>
-      <div><label>Part name</label><input class="part" required></div>
-      <div><label>Quantity</label><input class="qty" type="number" min="1" value="1"></div>
-      <div class="route"><label>Route</label><div class="route-steps">${step()}</div><button type="button" class="add-step button-secondary">Add step</button></div></div>`;
-    app.innerHTML = `<h1>New order</h1><div id="errors"></div><form id="f">
-      <div class="card"><div><label>Customer</label><select id="customer">${CUSTOMERS.map((c) => `<option>${h(c)}</option>`).join('')}</select></div>
-      <div><label>Customer order number</label><input id="custNo"></div><div><label>Due date</label><input id="due" type="date"></div>
-      <div><label>Notes</label><textarea id="notes" rows="3"></textarea></div></div>
-      <div class="form-actions"><button type="button" id="add-item" class="button-secondary">Add another item</button>
-      <button type="submit" class="button">Create order</button></div></form>`;
-    const actions = $('.form-actions');
-    const number = () => $$('.item-card:not(.is-removed) .item-number').forEach((s, n) => { s.textContent = n + 1; });
-    const addItem = () => { actions.insertAdjacentHTML('beforebegin', card()); number(); };
-    addItem();
-    $('#add-item').addEventListener('click', addItem);
-    $('#f').addEventListener('click', (e) => {
-      const t = e.target;
-      if (t.closest('.remove-item')) { t.closest('.item-card').classList.add('is-removed'); number(); }
-      else if (t.closest('.add-step')) { t.closest('.route').querySelector('.route-steps').insertAdjacentHTML('beforeend', step()); }
-      else if (t.closest('.remove-step')) {
-        const row = t.closest('.route-step');
-        if (row.parentElement.children.length > 1) row.remove(); else row.querySelector('select').value = '';
-      }
+    app.innerHTML = `<h1>${h(t('new_order'))}</h1><form id="f" novalidate><div class="card">
+      <div><label>${h(t('customer'))}</label><select name="customer">${CUSTOMERS.map((c) => `<option>${h(c)}</option>`).join('')}</select></div>
+      <div><label>${h(t('customer_order_number'))}</label><input name="custNo"></div>
+      <div><label>${h(t('due_date'))}</label><input type="date" name="due" required value="${FT.addDays(world.today, 14)}"></div>
+      <div><label>${h(t('notes'))}</label><textarea name="notes" rows="3"></textarea></div></div>
+      <div id="items">${itemCard(1)}</div><div id="err"></div>
+      <div class="form-actions"><button type="button" id="add-item" class="button-secondary">${h(t('add_item'))}</button>
+      <button type="submit" class="button">${h(t('create_order'))}</button></div></form>`;
+    const f = $('#f'), opts = PROCESSES.map((p) => `<option value="${p.id}">${h(t('process_opt', { p: pname(p), k: t(p.kind) }))}</option>`).join('');
+    const renumber = () => $$('.item-card:not(.is-removed) .item-number', f).forEach((s, i) => { s.textContent = i + 1; });
+    $('#add-item').addEventListener('click', () => { $('#items').insertAdjacentHTML('beforeend', itemCard(0)); renumber(); });
+    f.addEventListener('click', (e) => {
+      if (e.target.closest('.remove-item')) { e.target.closest('.item-card').classList.add('is-removed'); renumber(); }
+      if (e.target.closest('.add-step')) e.target.closest('.route').querySelector('.route-steps').insertAdjacentHTML('beforeend', stepRow(opts));
+      const rm = e.target.closest('.remove-step');
+      if (rm) { const row = rm.closest('.route-step'); if (row.parentElement.children.length > 1) row.remove(); else row.querySelector('select').value = ''; }
     });
-    $('#f').addEventListener('submit', (e) => {
+    f.addEventListener('submit', (e) => {
       e.preventDefault();
-      const errs = []; const its = [];
-      if (!$('#due').value) errs.push('Due date is required.');
-      $$('.item-card:not(.is-removed)').forEach((c, n) => {
-        const route = $$('select', c).map((s) => Number(s.value)).filter(Boolean);
-        const part = $('.part', c).value.trim(); const qty = Number($('.qty', c).value);
-        if (!part || !(qty > 0)) errs.push(`Item ${n + 1}: part name and quantity are required.`);
-        if (!route.length) errs.push(`Item ${n + 1}: add at least one step to the route.`);
-        its.push({ part, qty, route });
-      });
-      if (!its.length) errs.push('Add at least one item.');
-      if (errs.length) { $('#errors').innerHTML = `<ul class="messages">${errs.map((x) => `<li class="message error">${h(x)}</li>`).join('')}</ul>`; return; }
-      const prefix = todayStr().slice(2, 4) + todayStr().slice(5, 7);
-      const seq = Math.max(0, ...orders().filter((o) => o.job.startsWith(prefix + '-')).map((o) => Number(o.job.split('-')[1]))) + 1;
+      const errs = [], cards = $$('.item-card:not(.is-removed)', f);
+      const items = cards.map((c) => ({
+        part: $('[name=part]', c).value.trim(), qty: Number($('[name=qty]', c).value), boxCount: Number($('[name=boxes]', c).value),
+        route: $$('[name=route]', c).map((s) => Number(s.value)).filter(Boolean),
+      }));
+      if (!f.due.value || !items.length || items.some((i) => !i.part || !(i.qty >= 1))) errs.push(t('err_required'));
+      if (items.some((i) => !(i.boxCount >= 1))) errs.push(t('err_boxes'));
+      if (items.some((i) => !i.route.length)) errs.push(t('err_route'));
+      if (errs.length) { $('#err').innerHTML = `<ul class="errorlist">${errs.map((x) => `<li>${h(x)}</li>`).join('')}</ul>`; return; }
+      const prefix = FT.jstStr(world.now).slice(2, 4) + FT.jstStr(world.now).slice(5, 7);
+      const seq = Math.max(0, ...world.orders.filter((o) => o.job.startsWith(prefix + '-')).map((o) => Number(o.job.slice(5)))) + 1;
       const job = `${prefix}-${String(seq).padStart(3, '0')}`;
-      store.set('ft_orders', [...store.get('ft_orders', []), { job, customer: $('#customer').value, custNo: $('#custNo').value.trim(), due: $('#due').value, notes: $('#notes').value.trim() }]);
-      store.set('ft_items', [...store.get('ft_items', []), ...its.map((x, n) => ({ order: job, no: n + 1, ...x, tag: null }))]);
+      push('orders', { job, customer: f.customer.value, custNo: f.custNo.value.trim(), due: f.due.value, notes: f.notes.value.trim() });
+      items.forEach((i, n) => push('items', { id: `${job}-${String(n + 1).padStart(2, '0')}`, order: job, no: n + 1, part: i.part, qty: i.qty, boxCount: i.boxCount, route: i.route }));
       location.href = `orders.html?created=${job}`;
     });
   }
 
+  // ---------- tags ----------
   function pageTags(app) {
-    const all = items(); const used = all.filter((i) => i.tag); const free = all.filter((i) => !i.tag);
-    const flash = new URLSearchParams(location.search).get('linked');
-    app.innerHTML = `<h1>Tags</h1>${flash ? msg('success', flash) : ''}<div id="errors"></div>
-      <form class="card" id="f"><div><label>Item</label><select id="item">${free.map((i) => `<option value="${itemCode(i)}">${itemCode(i)} ${h(i.part)}</option>`).join('')}</select></div>
-      <div><label>Box label</label><input id="box" required></div><div><label>Tag UID</label><input id="uid" required></div>
-      <button type="submit" class="button" ${free.length ? '' : 'disabled'}>Link tag</button>${free.length ? '' : '<p>All items already have a tag.</p>'}</form>
-      <h2>In use</h2>${table(['Tag', 'Box', 'Item', 'Since (JST)'],
-        used.map((i) => `<tr><td>${h(i.tag)}</td><td>${h(i.box)}</td><td>${link(i.order, itemCode(i))} ${h(i.part)}</td><td>${fmtDT(i.tagStart)}</td></tr>`), 'No tags in use.')}
-      <h2>History</h2>${table(['Tag', 'Box', 'Item', 'From (JST)', 'To (JST)'], [], 'No history yet.')}`;
-    $('#f').addEventListener('submit', (e) => {
+    const q = (Q.get('q') || '').trim().toLowerCase();
+    const open = FT.openOf(world).sort((a, b) => a.item.localeCompare(b.item) || a.start - b.start);
+    const seen = {};
+    open.forEach((a) => { seen[a.item] = a.nth = (seen[a.item] || 0) + 1; });
+    const itemOf = (id) => world.items.find((i) => i.id === id);
+    const shown = open.filter((a) => {
+      const it = itemOf(a.item), o = world.order(it.order);
+      return !q || [it.id, o.job, it.part, o.customer, a.box, a.tag].some((x) => x.toLowerCase().includes(q));
+    });
+    const free = world.items.filter((i) => open.filter((a) => a.item === i.id).length < i.boxCount);
+    const rows = shown.map((a) => { const it = itemOf(a.item); return `<tr><td>${h(a.tag)}</td><td>${h(t('box_nth', { l: a.box, n: a.nth, t: it.boxCount }))}</td>
+      <td>${orderLink(it.order, it.id)} ${h(it.part)}</td><td>${fmtDT(a.start)}</td><td>
+      <button type="button" class="remove-step" data-release="${h(a.id)}">${h(t('release'))}</button>
+      <details class="replace-tag"><summary>${h(t('replace_tag'))}</summary><form data-replace="${h(a.id)}">
+      <input type="text" name="uid" list="tag-uids" autocomplete="off" required placeholder="${h(t('new_tag_uid'))}">
+      <label class="check"><input type="checkbox" name="lost" checked> ${h(t('mark_lost'))}</label><button type="submit" class="button">${h(t('replace'))}</button></form></details></td></tr>`; });
+    const hist = world.assignments.filter((a) => a.end != null).sort((a, b) => b.end - a.end).slice(0, 20).map((a) => { const it = itemOf(a.item);
+      return `<tr><td>${h(a.tag)}</td><td>${h(a.box)}</td><td>${orderLink(it.order, it.id)} ${h(it.part)}</td><td>${fmtDT(a.start)}</td><td>${fmtDT(a.end)}</td></tr>`; });
+    const boxes = [...new Set(world.assignments.map((a) => a.box))];
+    app.innerHTML = `<h1>${h(t('tags_title'))}</h1><div id="flash">${flashHtml()}</div>
+      <form id="assign" class="card"><div><label>${h(t('item'))}</label><select name="item"><option value="">${h(t('choose'))}</option>${free.map((i) => {
+    const n = open.filter((a) => a.item === i.id).length;
+    return `<option value="${h(i.id)}">${h(t('item_opt', { code: i.id, part: i.part, n, total: i.boxCount }))}</option>`; }).join('')}</select></div>
+      <div><label>${h(t('box_label'))}</label><input name="box" list="box-labels" autocomplete="off"></div>
+      <div><label>${h(t('tag_uid'))}</label><input name="uid" list="tag-uids" autocomplete="off"></div>
+      <datalist id="box-labels">${boxes.map((b) => `<option value="${h(b)}">`).join('')}</datalist>
+      <datalist id="tag-uids">${tagList().map((u) => `<option value="${h(u)}">`).join('')}</datalist>
+      <button type="submit" class="button">${h(t('link_tag'))}</button></form>
+      <h2>${h(t('in_use'))}</h2><form method="get" class="filters"><div><label for="q">${h(t('search'))}</label>
+      <input type="search" id="q" name="q" value="${h(Q.get('q') || '')}" placeholder="${h(t('search_ph'))}"></div><button type="submit" class="button">${h(t('search'))}</button></form>
+      ${table([t('tag'), t('box'), t('item'), t('since_jst'), ''], rows, t('no_tags_in_use'))}
+      <h2>${h(t('history'))}</h2>${table([t('tag'), t('box'), t('item'), t('from_jst'), t('to_jst')], hist, t('no_history'))}`;
+    const done = (msg) => { flash = msg; refresh(); boot(); };
+    $('#assign').addEventListener('submit', (e) => {
       e.preventDefault();
-      const uid = $('#uid').value.trim().toUpperCase(); const box = $('#box').value.trim(); const code = $('#item').value;
-      const clash = used.find((i) => i.tag === uid) ? `Tag ${uid} is already in use.` : used.find((i) => i.box === box) ? `Box ${box} is already in use.` : '';
-      if (clash) { $('#errors').innerHTML = `<ul class="messages"><li class="message error">${h(clash)}</li></ul>`; return; }
-      store.set('ft_tags', { ...store.get('ft_tags', {}), [code]: { tag: uid, box, tagStart: Date.now() } });
-      location.href = `tags.html?linked=${encodeURIComponent(`Tag ${uid} linked to box ${box}, item ${code}.`)}`;
+      const f = e.target;
+      if (!f.item.value) return done({ kind: 'error', text: t('pick_item') });
+      const r = FT.assignTag(world, f.item.value, f.box.value, f.uid.value);
+      if (r.error) return done({ kind: 'error', text: errText(r.error) });
+      push('assignments', r.assignment);
+      done({ kind: 'success', text: t('m_linked', { tag: r.assignment.tag, box: r.assignment.box, item: r.assignment.item }) });
+    });
+    $$('[data-release]', app).forEach((b) => b.addEventListener('click', () => {
+      const a = world.assignments.find((x) => x.id === b.dataset.release);
+      state.ended = { ...(state.ended || {}), [a.id]: Date.now() }; save(); refresh();
+      done({ kind: 'success', text: t('m_released', { tag: a.tag, box: a.box }) });
+    }));
+    $$('[data-replace]', app).forEach((f) => f.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const old = world.assignments.find((x) => x.id === f.dataset.replace);
+      const r = FT.replaceTag(world, old, f.uid.value, f.lost.checked);
+      if (r.error) return done({ kind: 'error', text: errText(r.error) });
+      state.ended = { ...(state.ended || {}), [r.endId]: r.assignment.start };
+      if (r.lostTag) state.inactive = [...(state.inactive || []), r.lostTag];
+      push('assignments', r.assignment);
+      done({ kind: 'success', text: t('m_replaced', { old: old.tag, new: r.assignment.tag, box: old.box }) });
+    }));
+  }
+
+  // ---------- simulate ----------
+  const sim = { device: DEVICES[0], tag: '' };
+  function recordEvent(device, tag, proc, type) {
+    const now = Date.now();
+    push('events', { id: Math.max(0, ...world.events.map((x) => x.id)) + 1, t: now, tag, type, proc, device, corrects: null });
+    const a = FT.resolveTag(world, tag, now);
+    if (!a) return { kind: 'warning', text: t('m_nomatch', { uid: tag }) };
+    const item = world.items.find((i) => i.id === a.item);
+    return { kind: 'success', text: t('m_saved', { box: a.box, item: item.id, status: t(FT.itemStatus(world, item).code) }) };
+  }
+  function pageSimulate(app) {
+    const open = FT.openOf(world).sort((a, b) => a.tag.localeCompare(b.tag));
+    const itemOf = (id) => world.items.find((i) => i.id === id);
+    let step = '';
+    if (sim.tag) {
+      const a = FT.resolveTag(world, sim.tag, world.now);
+      if (!a) step = `<p>${h(t('not_linked_tag', { uid: sim.tag }))}</p>`;
+      else {
+        const it = itemOf(a.item), box = FT.itemStatus(world, it).boxes.find((b) => b.assignment && b.assignment.box === a.box), next = FT.nextAction(box);
+        step = `<p>${h(t('tag_info', { uid: sim.tag, item: it.id, box: a.box, part: it.part }))} ${statusBadge(box.code)}</p>${next
+          ? `<form id="confirm"><label for="next-action">${h(t('what_happened'))}</label>
+            <select id="next-action"><option selected>${h(t(next.type) + ' - ' + pname(next.proc))}</option></select> <button type="submit" class="button">${h(t('confirm'))}</button></form>`
+          : `<p>${h(t('box_finished'))}</p>`}`;
+      }
+      step = `<div class="card">${step}</div>`;
+    }
+    const devOpts = DEVICES.map((d) => `<option${d === sim.device ? ' selected' : ''}>${h(d)}</option>`).join('');
+    const actions = PROCESSES.flatMap((p) => ACTIONS[p.kind].map((ty) => `<option value="${p.id}:${ty}">${h(pname(p) + ' - ' + t(ty))}</option>`)).join('');
+    const last = [...world.events].sort((a, b) => b.t - a.t || b.id - a.id).slice(0, 10).map((e) =>
+      `<tr><td>${fmtDT(e.t, true)}</td><td>${h(e.tag)}</td><td>${h(pname(world.proc(e.proc)))}</td><td>${h(t(e.type))}</td><td>${h(e.device)}</td></tr>`);
+    const picks = `<datalist id="tag-picks">${open.map((a) => `<option value="${h(a.tag)}">${h(`${a.tag} - ${a.item} - ${t('box_n', { l: a.box })} - ${itemOf(a.item).part}`)}</option>`).join('')}</datalist>`;
+    app.innerHTML = `<h1>${h(t('sim_title'))}</h1><div id="flash">${flashHtml()}</div>
+      <form id="pick" class="card"><div><label>${h(t('device'))}</label><select name="device">${devOpts}</select></div>
+      <div><label>${h(t('tag'))}</label><input name="tag" list="tag-picks" autocomplete="off" placeholder="${h(t('search_or_pick'))}" value="${h(sim.tag)}"></div>${picks}</form>${step}
+      <details class="card"><summary>${h(t('other_action'))}</summary><form id="adv"><div><label>${h(t('tag_uid'))}</label><input name="tag" list="tag-picks" autocomplete="off" required value="${h(sim.tag)}"></div>
+      <div><label>${h(t('device'))}</label><select name="device">${devOpts}</select></div>
+      <div><label>${h(t('what_happened'))}</label><select name="action">${actions}</select></div><button type="submit" class="button">${h(t('record_event'))}</button></form></details>
+      <h2>${h(t('last_10'))}</h2>${table([t('time_jst'), t('tag'), t('process'), t('action'), t('device')], last, t('no_events'))}`;
+    const redraw = () => { refresh(); pageSimulate(app); };
+    $('#pick').addEventListener('change', (e) => { sim.device = e.currentTarget.device.value; sim.tag = e.currentTarget.tag.value.trim().toUpperCase(); flash = null; redraw(); });
+    $('#pick').addEventListener('submit', (e) => e.preventDefault());
+    const send = (device, tag, proc, type) => { flash = recordEvent(device, tag, proc, type); sim.device = device; sim.tag = ''; redraw(); };
+    const cf = $('#confirm');
+    if (cf) cf.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const a = FT.resolveTag(world, sim.tag, world.now), it = itemOf(a.item);
+      const next = FT.nextAction(FT.itemStatus(world, it).boxes.find((b) => b.assignment && b.assignment.box === a.box));
+      send(sim.device, sim.tag, next.proc.id, next.type);
+    });
+    $('#adv').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const f = e.target, [pid, ty] = f.action.value.split(':');
+      send(f.device.value, f.tag.value.trim().toUpperCase(), Number(pid), ty);
     });
   }
 
-  function pageSimulate(app) {
-    const actions = PROCESSES.flatMap((p) => KIND_ACTIONS[p.kind].map((a) => `<option value="${p.id}:${a}">${h(p.name)} - ${ACTION_LABELS[a]}</option>`));
-    const tags = items().filter((i) => i.tag).map((i) => `<option value="${h(i.tag)}">`).join('');
-    app.innerHTML = `<h1>Simulate scan</h1><div id="flash"></div>
-      <form class="card" id="f"><div><label>Tag UID</label><input id="uid" list="uids" autocomplete="off" required></div>
-      <div><label>Device</label><select id="device">${DEVICES.map((d) => `<option>${h(d)}</option>`).join('')}</select></div>
-      <div><label>What happened</label><select id="action">${actions.join('')}</select></div>
-      <datalist id="uids">${tags}</datalist><button type="submit" class="button">Record event</button></form>
-      <h2>Last 10 events</h2><div id="log"></div>`;
-    const draw = () => {
-      const last = [...events()].sort((a, b) => b.t - a.t).slice(0, 10);
-      $('#log').innerHTML = table(['Time (JST)', 'Tag', 'Process', 'Action', 'Device'],
-        last.map((e) => `<tr><td>${jst(e.t)}</td><td>${h(e.tag)}</td><td>${h(proc(e.proc).name)}</td><td>${ACTION_LABELS[e.type]}</td><td>${h(e.device)}</td></tr>`), 'No events yet.');
-    };
-    $('#f').addEventListener('submit', (e) => {
-      e.preventDefault();
-      const uid = $('#uid').value.trim().toUpperCase(); const [pid, type] = $('#action').value.split(':');
-      const all = events(); const now = Date.now();
-      store.set('ft_events', [...all, { id: Math.max(0, ...all.map((x) => x.id)) + 1, t: now, tag: uid, type, proc: Number(pid), device: $('#device').value }]);
-      const item = items().find((i) => i.tag === uid && i.tagStart <= now);
-      $('#flash').innerHTML = item
-        ? msg('success', `Saved: box ${item.box}, item ${itemCode(item)}, status: ${itemStatus(item).label}`)
-        : msg('warning', `Event saved, but tag ${uid} matches no item.`);
-      draw();
-    });
-    draw();
+  // ---------- process board ----------
+  function pageBoard(app) {
+    const flags = (e) => (e.late ? badge('overdue', t('overdue')) : `<small>${e.due}</small>`) + (e.stagnant ? ' ' + badge('stagnant', t('stagnant')) : '');
+    const list = (rows, time) => (rows.length ? `<ul class="process-boxes">${rows.map((e) =>
+      `<li>${orderLink(e.order.job, itemBox(e))} ${time(e) != null ? `<small>${fmtDur(time(e))}</small>` : ''} ${flags(e)}</li>`).join('')}</ul>` : '');
+    const card = (c) => `<section class="card process-card${c.queue ? ' queue-building' : ''}"><h3>${h(pname(c.proc))}
+      ${c.outsourced && c.proc.vendor ? `<small>${h(c.proc.vendor)}</small>` : ''} ${c.queue ? badge('queue', t('queue_building')) : ''}</h3>
+      <p class="process-counts"><span><strong>${c.running.length}</strong> ${h(t('running'))}</span><span><strong>${c.waiting.length}</strong> ${h(t('waiting'))}</span></p>
+      ${list(c.running, (e) => e.runningFor)}${c.waiting.length ? `<h4>${h(t('waiting'))}</h4>${list(c.waiting, (e) => e.idle)}` : ''}</section>`;
+    const cards = FT.processBoard(world);
+    const grid = (rows, empty) => `<div class="board-grid">${rows.length ? rows.map(card).join('') : `<p>${h(empty)}</p>`}</div>`;
+    app.innerHTML = `<h1>${h(t('board_title'))}</h1><h2>${h(t('in_house'))}</h2>${grid(cards.filter((c) => !c.outsourced), t('no_in_house'))}
+      <h2>${h(t('outsourced'))}</h2>${grid(cards.filter((c) => c.outsourced), t('no_outsourced'))}`;
+  }
+
+  // ---------- priorities ----------
+  function pagePriorities(app) {
+    const all = FT.prioritiesRows(world), tier = FT.TIERS.includes(Q.get('tier')) ? Q.get('tier') : '';
+    const rows = all.filter((r) => !tier || r.tier === tier).map((r) => `<tr><td>${orderLink(r.order.job, r.item.id + (r.multi ? ' - ' + t('box_n', { l: r.box.label }) : ''))}</td>
+      <td>${h(r.item.part)}</td><td>${h(r.order.customer)}</td><td>${r.order.due}</td><td>${r.daysLeft}</td><td>${r.slack}</td><td>${h(pname(r.proc))}</td>
+      <td>${badge('risk-' + r.tier.toLowerCase(), t(r.tier))}</td><td><ul class="reasons">${r.reasons.map((x) => `<li>${h(reasonText(x))}</li>`).join('')}</ul></td></tr>`);
+    const links = FT.TIERS.map((c) => `<a href="?tier=${c}" class="badge badge-risk-${c.toLowerCase()}${tier === c ? ' active' : ''}">${h(t(c))} (${all.filter((r) => r.tier === c).length})</a>`).join('');
+    app.innerHTML = `<h1>${h(t('prio_title'))}</h1><nav class="tier-filters"><a href="priorities.html"${tier ? '' : ' class="active"'}>${h(t('all'))} (${all.length})</a>${links}</nav>
+      ${rows.length ? table([t('item'), t('part'), t('customer'), t('due_date'), t('days_left'), t('slack'), t('current_process'), t('risk'), t('reasons')], rows, '') : `<p>${h(t('nothing_attention'))}</p>`}`;
   }
 
   // ---------- start ----------
-  document.addEventListener('DOMContentLoaded', () => {
+  const PAGES = { home: pageHome, boxes: pageBoxes, orders: pageOrders, order: pageOrder, new: pageNewOrder, tags: pageTags, simulate: pageSimulate, board: pageBoard, priorities: pagePriorities };
+  function boot() {
+    refresh();
     shell();
-    const app = $('#app');
-    ({ home: pageHome, orders: pageOrders, order: pageOrder, new: pageNewOrder, tags: pageTags, simulate: pageSimulate })[document.body.dataset.page](app);
+    const page = document.body.dataset.page;
+    document.title = `${t(`nav_${{ home: 'home', order: 'orders', new: 'new', simulate: 'sim', priorities: 'prio' }[page] || page}`)} - ${t('brand')}`;
+    PAGES[page]($('#app'));
+  }
+  document.addEventListener('DOMContentLoaded', () => {
+    I18N.lang = Q.get('lang') || store.get(LANG_KEY, 'ja');
+    store.set(LANG_KEY, I18N.lang);
+    boot();
   });
 })();
