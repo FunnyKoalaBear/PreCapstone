@@ -153,3 +153,12 @@ body {
 .timeline-body { min-width: 0; overflow-wrap: anywhere; }
 .timeline-times { color: var(--color-muted); font-size: 0.85rem; }
 .timeline-wait { color: var(--color-muted); font-size: 0.8rem; font-style: italic; padding: 0.1rem 0; }
+
+/* Risk badges and priority tier filters */
+.badge-risk-overdue { color: var(--risk-overdue); }
+.badge-risk-critical { color: var(--risk-critical); }
+.badge-risk-watch { color: var(--risk-watch); }
+.badge-risk-on_track { color: var(--risk-on-track); }
+.tier-filters { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1rem 0; }
+.tier-filters a.active { font-weight: bold; text-decoration: none; }
+.reasons { margin: 0; padding-left: 1rem; font-size: 0.85rem; color: var(--color-muted); }

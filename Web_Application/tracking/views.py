@@ -5,10 +5,13 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.translation import gettext as _
 
+from orders.models import OrderItem
+
 from .forms import AssignTagForm, SimulateScanForm
 from .models import Box, Event, Tag, TagAssignment
+from .priority import TIER_LABELS, TIERS, priority
 from .services import assign_tag, record_event, release_assignment
-from .status import item_status
+from .status import COMPLETE, current_row, item_status
 
 
 @staff_member_required
@@ -65,4 +68,24 @@ def tag_manage(request):
         'history': assignments.filter(end_at__isnull=False).order_by('-end_at')[:20],
         'tag_uids': Tag.objects.filter(active=True).values_list('uid', flat=True),
         'box_labels': Box.objects.filter(active=True).values_list('label', flat=True),
+    })
+
+
+@staff_member_required
+def priorities(request):
+    rows = []
+    for item in OrderItem.objects.select_related('order__customer').order_by('order__due_date'):
+        st = item_status(item)
+        if st.code != COMPLETE:
+            row = current_row(st)
+            p = priority(item.order, st)
+            rows.append({'item': item, 'status': st, 'process': row.step.process if row else None, **p, 'label': TIER_LABELS[p['tier']]})
+    rows.sort(key=lambda r: (TIERS.index(r['tier']), r['slack']))
+    counts = {t: sum(r['tier'] == t for r in rows) for t in TIERS}
+    tier = request.GET.get('tier', '')
+    if tier in TIERS:
+        rows = [r for r in rows if r['tier'] == tier]
+    return render(request, 'tracking/priorities.html', {
+        'rows': rows, 'tier': tier, 'total': sum(counts.values()),
+        'tiers': [(t, t.lower(), TIER_LABELS[t], counts[t]) for t in TIERS],
     })

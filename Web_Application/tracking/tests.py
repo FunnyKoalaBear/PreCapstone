@@ -9,6 +9,7 @@ from django.utils import timezone
 from orders.models import Customer, Order, OrderItem, Process, RouteStep
 
 from .models import Box, Event, ScannerDevice, Tag, TagAssignment
+from .priority import priority
 from .services import assign_tag, record_event, release_assignment
 from .status import AT_VENDOR, COMPLETE, IN_PROGRESS, NOT_STARTED, WAITING, days_late, due_back, item_status, timeline
 
@@ -225,3 +226,62 @@ class TimelineTests(TestCase):
     def test_negative_wait_is_none(self):
         t = timeline([self.row('done', 0, 5), self.row('done', 2, 3)])
         self.assertIsNone(t[1]['wait_before'])
+
+
+class PriorityTests(TestCase):
+    def setUp(self):
+        self.today = timezone.localdate()
+        self.procs = {k: Process.objects.create(name=k, kind=k, vendor_lead_days=3 if k == K.OUTSOURCED else None)
+                      for k in (K.MATERIAL, K.MACHINING, K.OUTSOURCED)}
+        self.device = ScannerDevice.objects.create(name='D')
+        self.n = 0
+
+    def make(self, days, kinds=(K.MACHINING,), send_days_ago=None):
+        """Item due `days` from today with a route of `kinds`; optionally sent out N days ago."""
+        self.n += 1
+        order = Order.objects.create(customer=Customer.objects.create(name=f'C{self.n}'), due_date=self.today + timedelta(days=days))
+        item = OrderItem.objects.create(order=order, part_name='P', quantity=1)
+        for i, k in enumerate(kinds, 1):
+            RouteStep.objects.create(item=item, sequence=i, process=self.procs[k])
+        tag = Tag.objects.create(uid=f'T{self.n}')
+        TagAssignment.objects.create(tag=tag, box=Box.objects.create(label=f'B{self.n}'), item=item, start_at=timezone.now() - timedelta(days=30))
+        if send_days_ago is not None:
+            Event.objects.create(device=self.device, tag_uid=tag.uid, event_type=E.SENT_OUT, process=self.procs[K.OUTSOURCED],
+                                 occurred_at=timezone.now() - timedelta(days=send_days_ago))
+        return item
+
+    def pr(self, item):
+        return priority(item.order, item_status(item), self.today)
+
+    def test_overdue(self):
+        self.assertEqual(self.pr(self.make(-1))['tier'], 'OVERDUE')
+
+    def test_critical_not_due_yet(self):
+        p = self.pr(self.make(1, (K.MATERIAL, K.MACHINING, K.MACHINING)))
+        self.assertEqual((p['tier'], p['slack'], p['days_needed']), ('CRITICAL', -2, 3))
+
+    def test_watch_and_on_track(self):
+        self.assertEqual(self.pr(self.make(3))['tier'], 'WATCH')
+        self.assertEqual(self.pr(self.make(4))['tier'], 'ON_TRACK')
+
+    def test_vendor_lead_days_count_for_pending_step(self):
+        self.assertEqual(self.pr(self.make(10, (K.OUTSOURCED,)))['days_needed'], 3)
+
+    def test_vendor_step_uses_remaining_days(self):
+        p = self.pr(self.make(10, (K.OUTSOURCED,), send_days_ago=1))
+        self.assertEqual(p['days_needed'], 2)
+
+    def test_vendor_late(self):
+        p = self.pr(self.make(10, (K.OUTSOURCED,), send_days_ago=5))
+        self.assertEqual(p['days_needed'], 0)
+        self.assertTrue(any('late' in r for r in p['reasons']))
+
+    def test_view_sorts_overdue_first_and_filters_tier(self):
+        self.make(30)
+        late = self.make(-5)
+        self.client.force_login(User.objects.create_user('s', password='x', is_staff=True))
+        rows = self.client.get('/priorities/').context['rows']
+        self.assertEqual((rows[0]['item'], rows[0]['tier']), (late, 'OVERDUE'))
+        only = self.client.get('/priorities/?tier=OVERDUE').context['rows']
+        self.assertEqual([r['tier'] for r in only], ['OVERDUE'])
+        self.assertEqual(len(self.client.get('/priorities/?tier=bogus').context['rows']), 2)
