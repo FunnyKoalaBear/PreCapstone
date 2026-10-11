@@ -13,7 +13,7 @@ from orders.models import Customer, Order, OrderItem, Process, RouteStep
 from .models import Box, Event, ScannerDevice, Tag, TagAssignment
 from .priority import priority
 from .services import assign_tag, record_event, release_assignment
-from .status import AT_VENDOR, COMPLETE, IN_PROGRESS, NOT_STARTED, WAITING, ItemStatus, days_late, due_back, idle_for, is_stagnant, item_status, timeline
+from .status import AT_VENDOR, COMPLETE, IN_PROGRESS, NOT_STARTED, WAITING, BoxStatus, ItemStatus, _roll_up, events_for_item, days_late, due_back, idle_for, is_stagnant, item_status, timeline
 
 E = Event.Type
 K = Process.Kind
@@ -318,3 +318,109 @@ class StagnationTests(TestCase):
         st = self.st(idle_hours=None)
         self.assertIsNone(idle_for(st, self.now))
         self.assertFalse(is_stagnant(st, self.now))
+
+
+class MultiBoxTests(TestCase):
+    def setUp(self):
+        self.now = timezone.now()
+        self.start = self.now - timedelta(days=2)
+        self.procs = {k: Process.objects.create(name=k, kind=k) for k in (K.MATERIAL, K.MACHINING)}
+        self.order = Order.objects.create(customer=Customer.objects.create(name='C'), due_date=self.now.date())
+        self.item = self.new_item(2)
+        self.device = ScannerDevice.objects.create(name='D')
+
+    def new_item(self, boxes):
+        item = OrderItem.objects.create(order=self.order, part_name='P', quantity=1, box_count=boxes)
+        for i, k in enumerate((K.MATERIAL, K.MACHINING), 1):
+            RouteStep.objects.create(item=item, sequence=i, process=self.procs[k])
+        return item
+
+    def link(self, uid, item=None, start=None, end=None):
+        return TagAssignment.objects.create(
+            tag=Tag.objects.get_or_create(uid=uid)[0], box=Box.objects.create(label=f'B{uid}{Box.objects.count()}'), item=item or self.item,
+            start_at=start or self.start, end_at=end,
+        )
+
+    def ev(self, uid, kind, etype, hours):
+        return Event.objects.create(
+            device=self.device, tag_uid=uid, event_type=etype, process=self.procs[kind],
+            occurred_at=self.start + timedelta(hours=hours),
+        )
+
+    def run_route(self, uid, h=1):
+        self.ev(uid, K.MATERIAL, E.ARRIVED, h)
+        self.ev(uid, K.MACHINING, E.STARTED, h + 1)
+        self.ev(uid, K.MACHINING, E.FINISHED, h + 2)
+
+    def test_single_box_item_has_one_box_with_item_rows(self):
+        item = self.new_item(1)
+        self.link('S1', item)
+        st = item_status(item)
+        self.assertEqual((len(st.boxes), st.code), (1, NOT_STARTED))
+        self.assertIs(st.rows, st.boxes[0].rows)
+
+    def test_boxes_at_different_steps_give_no_warnings(self):
+        self.link('A'), self.link('B')
+        self.ev('A', K.MATERIAL, E.ARRIVED, 1)
+        self.ev('A', K.MACHINING, E.STARTED, 2)
+        self.ev('B', K.MATERIAL, E.ARRIVED, 3)
+        st = item_status(self.item)
+        self.assertEqual((st.code, st.warnings), (IN_PROGRESS, []))
+        self.assertEqual([b.code for b in st.boxes], [IN_PROGRESS, WAITING])
+
+    def test_boxes_doing_the_same_step(self):
+        self.link('A'), self.link('B')
+        for uid in 'AB':
+            self.ev(uid, K.MATERIAL, E.ARRIVED, 1)
+            self.ev(uid, K.MACHINING, E.STARTED, 2)
+        st = item_status(self.item)
+        self.assertEqual((st.code, st.warnings, [b.code for b in st.boxes]), (IN_PROGRESS, [], [IN_PROGRESS] * 2))
+
+    def test_placeholder_box_blocks_complete(self):
+        self.link('A')
+        self.run_route('A')
+        st = item_status(self.item)
+        self.assertEqual((st.code, [b.code for b in st.boxes]), (WAITING, [COMPLETE, NOT_STARTED]))
+        self.assertIsNone(st.boxes[1].assignment)
+
+    def test_released_finished_box_still_counts(self):
+        item = self.new_item(1)
+        self.link('R', item, end=self.start + timedelta(days=1))
+        self.run_route('R')
+        self.assertEqual(item_status(item).code, COMPLETE)
+
+    def test_all_boxes_complete_is_complete(self):
+        self.link('A'), self.link('B')
+        self.run_route('A'), self.run_route('B', 4)
+        self.assertEqual(item_status(self.item).code, COMPLETE)
+
+    def test_roll_up_codes(self):
+        box = lambda c: BoxStatus(None, '', c, c)
+        cases = [
+            ([COMPLETE, COMPLETE], COMPLETE), ([NOT_STARTED, NOT_STARTED], NOT_STARTED),
+            ([IN_PROGRESS, WAITING], IN_PROGRESS), ([WAITING, AT_VENDOR], WAITING),
+            ([AT_VENDOR, COMPLETE], AT_VENDOR), ([AT_VENDOR, NOT_STARTED], AT_VENDOR),
+            ([COMPLETE, NOT_STARTED], WAITING), ([IN_PROGRESS, COMPLETE, NOT_STARTED], IN_PROGRESS),
+        ]
+        for codes, expected in cases:
+            self.assertEqual(_roll_up([box(c) for c in codes]).code, expected, codes)
+
+    def test_assign_tag_respects_box_count(self):
+        assign_tag(self.item, 'L1', 'U1')
+        assign_tag(self.item, 'L2', 'U2')
+        with self.assertRaisesMessage(ValidationError, 'already has all 2 boxes linked'):
+            assign_tag(self.item, 'L3', 'U3')
+        self.item.box_count = 3
+        self.item.save()
+        assign_tag(self.item, 'L3', 'U3')
+        self.assertEqual(self.item.tagassignment_set.count(), 3)
+
+    def test_reassigned_tag_does_not_leak_events(self):
+        other = self.new_item(1)
+        self.link('X', end=self.start + timedelta(hours=10))
+        self.link('X', other, start=self.start + timedelta(hours=10))
+        self.ev('X', K.MATERIAL, E.ARRIVED, 5)
+        self.ev('X', K.MATERIAL, E.ARRIVED, 12)
+        self.assertEqual(len(list(events_for_item(self.item))), 1)
+        self.assertEqual(len(list(events_for_item(other))), 1)
+        self.assertEqual(item_status(other).boxes[0].rows[0].started_at, self.start + timedelta(hours=12))

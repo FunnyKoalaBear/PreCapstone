@@ -60,16 +60,19 @@ class Command(BaseCommand):
         c1, c2 = (Customer.objects.get_or_create(name=f'DEMO {n}')[0] for n in ('Alpha Industries', 'Beta Works'))
         created = []
 
-        def make(label, customer, part, route, due, uid, box, start=None, end=None):
-            """One order with one item, its route, and a tag/box assignment; returns the item."""
-            order = Order.objects.create(customer=customer, due_date=today + timedelta(days=due))
-            item = OrderItem.objects.create(order=order, part_name=part, quantity=10)
-            for i, name in enumerate(route, 1):
-                RouteStep.objects.create(item=item, sequence=i, process=procs[name])
+        def link(item, uid, box, start=None, end=None):
             TagAssignment.objects.create(
                 tag=Tag.objects.get_or_create(uid=uid)[0], box=Box.objects.get_or_create(label=box)[0],
                 item=item, start_at=start or ago(days=21), end_at=end,
             )
+
+        def make(label, customer, part, route, due, uid, box, start=None, end=None, box_count=1):
+            """One order with one item, its route, and a tag/box assignment; returns the item."""
+            order = Order.objects.create(customer=customer, due_date=today + timedelta(days=due))
+            item = OrderItem.objects.create(order=order, part_name=part, quantity=10, box_count=box_count)
+            for i, name in enumerate(route, 1):
+                RouteStep.objects.create(item=item, sequence=i, process=procs[name])
+            link(item, uid, box, start, end)
             created.append((label, item))
             return item
 
@@ -130,6 +133,16 @@ class Command(BaseCommand):
         scan('DEMO-09B', 'Cutting', 'STARTED', ago(hours=30))
         scan('DEMO-09B', 'Cutting', 'FINISHED', ago(hours=20))
         scan('DEMO-09B', 'Welding', 'STARTED', ago(hours=2), d2)
+        # 10 Split item: 3 boxes expected; one finished, one at step 2, one not linked yet
+        route = ['Cutting', 'Welding', 'Assembly']
+        split = make('Split item', c1, 'Frame', route, 8, 'DEMO-10', 'DEMO-10', box_count=3)
+        link(split, 'DEMO-11', 'DEMO-11')
+        for name, s, f in (('Cutting', 40, 36), ('Welding', 34, 30), ('Assembly', 28, 24)):
+            scan('DEMO-10', name, 'STARTED', ago(hours=s))
+            scan('DEMO-10', name, 'FINISHED', ago(hours=f))
+        scan('DEMO-11', 'Cutting', 'STARTED', ago(hours=26))
+        scan('DEMO-11', 'Cutting', 'FINISHED', ago(hours=22))
+        scan('DEMO-11', 'Welding', 'STARTED', ago(hours=1), d2)
 
         self.stdout.write(self.style.SUCCESS(f'Created {len(created)} demo orders:'))
         for label, item in created:

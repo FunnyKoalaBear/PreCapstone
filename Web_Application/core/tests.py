@@ -189,6 +189,18 @@ class SeedDemoTests(TestCase):
         self.assertEqual(self.status('New part')[1].code, 'IN_PROGRESS')
 
     @override_settings(DEBUG=True)
+    def test_split_item_rolls_up_three_boxes(self):
+        self.seed()
+        item, st = self.status('Frame')
+        self.assertEqual((item.box_count, st.code), (3, 'IN_PROGRESS'))
+        self.assertEqual([b.code for b in st.boxes], ['COMPLETE', 'IN_PROGRESS', 'NOT_STARTED'])
+        self.assertIsNone(st.boxes[2].assignment)
+        self.assertEqual(st.warnings, [])
+        self.seed('--reset')
+        self.assertEqual(OrderItem.objects.filter(part_name='Frame').count(), 1)
+        self.assertEqual(TagAssignment.objects.filter(item__part_name='Frame').count(), 2)
+
+    @override_settings(DEBUG=True)
     def test_every_event_uses_the_right_process_kind(self):
         self.seed()
         events = Event.objects.exclude(event_type='CORRECTION').select_related('process')

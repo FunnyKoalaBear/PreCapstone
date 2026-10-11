@@ -22,7 +22,8 @@ Windows 11, Python 3.13, VS Code. The developer is learning: explain each step b
 ## Data model decisions (confirmed)
 - Status is never stored; it is derived from Events.
 - Job number (seiban) format YYMM-NNN, auto-generated in JST, unique, never edited. Item code = job number + "-NN".
-- One box holds one OrderItem. Route (RouteStep) belongs to the OrderItem.
+- One box holds one OrderItem, but an item may use several boxes (OrderItem.box_count = expected number, each box has its own tag/TagAssignment). Route (RouteStep) belongs to the OrderItem.
+- Status is derived per box (each box runs the route on its own) and rolled up to the item in tracking/status.py.
 - Event types: ARRIVED, STARTED, FINISHED, SENT_OUT, RETURNED, CORRECTION. Events are append-only.
 - All times shown in JST (TIME_ZONE Asia/Tokyo, USE_TZ True).
 - Verbose names use gettext_lazy.
@@ -31,7 +32,7 @@ Windows 11, Python 3.13, VS Code. The developer is learning: explain each step b
 
 ## Status rules
 - Status is computed in tracking/status.py from events; never stored.
-- Events voided by a CORRECTION are ignored. Item events = events whose tag UID was assigned to the item at that time.
+- Events voided by a CORRECTION are ignored. Box events = events whose tag UID was assigned to that box at that time; item events = all its boxes' events.
 
 - All events are created through tracking/services.record_event (simulate page now, scan API later). Events are always saved, even for unassigned tags.
 

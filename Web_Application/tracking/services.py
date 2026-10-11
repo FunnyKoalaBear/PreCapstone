@@ -43,8 +43,10 @@ def assign_tag(item, box_label, tag_uid):
         if not box.active:
             raise ValidationError(_('Box %(box)s is inactive.') % {'box': box})
         open_ = TagAssignment.objects.filter(end_at__isnull=True).select_related('item__order', 'tag', 'box')
-        if open_.filter(item=item).exists():
-            raise ValidationError(_('Item %(item)s already has a tag assigned.') % {'item': item.item_code})
+        if open_.filter(item=item).count() >= item.box_count:
+            raise ValidationError(_('Item %(item)s already has all %(n)s boxes linked. Raise its box count first.') % {
+                'item': item.item_code, 'n': item.box_count,
+            })
         if found := open_.filter(tag=tag).first():
             raise ValidationError(_('Tag %(tag)s is already in use for item %(item)s.') % {'tag': tag, 'item': found.item.item_code})
         if found := open_.filter(box=box).first():

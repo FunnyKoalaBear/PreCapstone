@@ -38,6 +38,18 @@ class StepRow:
 
 
 @dataclass
+class BoxStatus:
+    assignment: object
+    label: str
+    code: str
+    code_label: str
+    current_step: object = None
+    rows: list = field(default_factory=list)
+    warnings: list = field(default_factory=list)
+    last_event_at: datetime | None = None
+
+
+@dataclass
 class ItemStatus:
     code: str
     label: str
@@ -45,20 +57,32 @@ class ItemStatus:
     rows: list = field(default_factory=list)
     warnings: list = field(default_factory=list)
     last_event_at: datetime | None = None
+    boxes: list = field(default_factory=list)
+
+
+def _window(a):
+    """Q for events on the assignment's tag while it was assigned."""
+    q = Q(tag_uid=a.tag.uid, occurred_at__gte=a.start_at)
+    return q & Q(occurred_at__lt=a.end_at) if a.end_at else q
+
+
+def _live(q):
+    """Events matching q, minus those voided by a CORRECTION, oldest first."""
+    corrected = Event.objects.filter(event_type=Event.Type.CORRECTION).values('corrects_id')
+    return Event.objects.filter(q).exclude(pk__in=corrected).order_by('occurred_at', 'pk')
+
+
+def events_for_assignment(assignment):
+    """Events scanned on one box's tag during its assignment window."""
+    return _live(_window(assignment))
 
 
 def events_for_item(item):
-    """Events scanned on the item's tags while those tags were assigned to it."""
+    """Events of all the item's boxes (open and ended assignments)."""
     q = Q()
     for a in item.tagassignment_set.select_related('tag'):
-        part = Q(tag_uid=a.tag.uid, occurred_at__gte=a.start_at)
-        if a.end_at:
-            part &= Q(occurred_at__lt=a.end_at)
-        q |= part
-    if not q:
-        return Event.objects.none()
-    corrected = Event.objects.filter(event_type=Event.Type.CORRECTION).values('corrects_id')
-    return Event.objects.filter(q).exclude(pk__in=corrected).order_by('occurred_at', 'pk')
+        q |= _window(a)
+    return _live(q) if q else Event.objects.none()
 
 
 def _apply(event, rows, warnings):
@@ -102,9 +126,9 @@ def _current(rows):
     return next((r for r in rows if r.state != DONE), None)
 
 
-def item_status(item):
-    rows = [StepRow(s) for s in item.steps.select_related('process').order_by('sequence')]
-    warnings, events = [], list(events_for_item(item))
+def _replay(steps, assignment, events):
+    """Status of one box: replay its events over fresh rows of the item's route."""
+    rows, warnings = [StepRow(st) for st in steps], []
     for e in events:
         if e.process_id:
             _apply(e, rows, warnings)
@@ -118,8 +142,45 @@ def item_status(item):
         code = COMPLETE
     else:
         code = {STEP_IN_PROGRESS: IN_PROGRESS, STEP_AT_VENDOR: AT_VENDOR}.get(current.state, WAITING)
+    label = assignment.box.label if assignment else ''
     last = events[-1].occurred_at if events else None
-    return ItemStatus(code, LABELS[code], current.step if current else None, rows, list(dict.fromkeys(map(str, warnings))), last)
+    return BoxStatus(assignment, label, code, LABELS[code], current.step if current else None, rows,
+                     list(dict.fromkeys(map(str, warnings))), last)
+
+
+def _steps(item):
+    return list(item.steps.select_related('process').order_by('sequence'))
+
+
+def box_status(assignment):
+    return _replay(_steps(assignment.item), assignment, list(events_for_assignment(assignment)))
+
+
+def _roll_up(boxes):
+    """Item status from its boxes; the deciding box supplies step, rows and last scan."""
+    codes = {b.code for b in boxes}
+    if len(codes) == 1 and codes <= {COMPLETE, NOT_STARTED}:
+        code, pick, last = boxes[0].code, boxes[0], boxes[0].last_event_at
+    else:
+        # Most active code wins; within a code, the most recently scanned box
+        code = next((c for c in (IN_PROGRESS, WAITING, AT_VENDOR) if c in codes), None)
+        if code:
+            pick = max((b for b in boxes if b.code == code), key=lambda b: (b.last_event_at is not None, b.last_event_at))
+            last = pick.last_event_at
+        else:
+            # Only finished and untouched boxes: waiting for the rest
+            code, pick = WAITING, next(b for b in boxes if b.code == NOT_STARTED)
+            last = max((b.last_event_at for b in boxes if b.last_event_at), default=None)
+    warnings = list(dict.fromkeys(w for b in boxes for w in b.warnings))
+    return ItemStatus(code, LABELS[code], pick.current_step, pick.rows, warnings, last, boxes)
+
+
+def item_status(item):
+    steps = _steps(item)
+    assignments = item.tagassignment_set.select_related('tag', 'box').order_by('start_at', 'pk')
+    boxes = [_replay(steps, a, list(events_for_assignment(a))) for a in assignments]
+    boxes += [_replay(steps, None, []) for _ in range(max(item.box_count - len(boxes), 0 if boxes else 1))]
+    return _roll_up(boxes)
 
 
 def order_summary(order):

@@ -9,7 +9,7 @@ from .models import Customer, Order, OrderItem, Process, RouteStep
 class OrderItemInline(admin.TabularInline):
     model = OrderItem
     extra = 1
-    fields = ['part_name', 'quantity', 'drawing_file', 'item_no']
+    fields = ['part_name', 'quantity', 'box_count', 'drawing_file', 'item_no']
     readonly_fields = ['item_no']
 
 
@@ -44,7 +44,7 @@ class OrderAdmin(admin.ModelAdmin):
 @admin.register(OrderItem)
 class OrderItemAdmin(admin.ModelAdmin):
     list_display = ['item_code', 'part_name', 'quantity', 'status']
-    fields = ['order', 'part_name', 'quantity', 'drawing_file', 'item_no']
+    fields = ['order', 'part_name', 'quantity', 'box_count', 'drawing_file', 'item_no']
     readonly_fields = ['item_no']
     inlines = [RouteStepInline]
 
