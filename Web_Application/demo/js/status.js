@@ -24,7 +24,9 @@ const FT = (() => {
     const assignments = [...seed.assignments, ...(st.assignments || [])].map((a) => (ended[a.id] != null ? { ...a, end: ended[a.id] } : a));
     const w = {
       now, today, procs: PROCESSES, assignments,
-      orders: [...seed.orders, ...(st.orders || [])], items: [...seed.items, ...(st.items || [])],
+      orders: [...seed.orders, ...(st.orders || [])].map((o) => ({ ...o, ...(st.orderEdits || {})[o.job] })),
+      items: [...seed.items, ...(st.items || [])].filter((i) => !(st.deleted || []).includes(i.id)).map((i) => ({ ...i, ...(st.itemEdits || {})[i.id] })),
+      changes: st.changes || [],
       events: [...seed.events, ...(st.events || [])], inactive: new Set(st.inactive || []),
       tags: [...new Set([...seed.tags, ...(st.tags || []), ...assignments.map((a) => a.tag)])].sort(),
     };
@@ -263,6 +265,13 @@ const FT = (() => {
     return rows.sort((a, b) => TIERS.indexOf(a.tier) - TIERS.indexOf(b.tier) || a.slack - b.slack);
   }
 
+  // forms.OrderItemForm: boxes already linked (open or ended) and whether the item has any scan
+  const linkedBoxes = (w, item) => new Set(w.assignments.filter((a) => a.item === item.id).map((a) => a.box)).size;
+  const itemHasEvents = (w, item) => {
+    const group = w.assignments.filter((a) => a.item === item.id);
+    return group.length > 0 && eventsForBox(w, group).length > 0;
+  };
+
   // ---------- tag services (tracking/services.py) ----------
   // services.resolve_tag: the assignment active for a tag at a moment
   const resolveTag = (w, uid, when) => w.assignments.find((a) => a.tag === uid && a.start <= when && (a.end == null || a.end > when)) || null;
@@ -297,6 +306,6 @@ const FT = (() => {
   return {
     NOT_STARTED, WAITING, IN_PROGRESS, AT_VENDOR, COMPLETE, TIERS, jstStr, jstDate, dayNum, addDays, dueBack, daysLate, makeWorld,
     eventsForBox, itemStatus, orderSummary, idleFor, isStagnant, nextAction, timeline, priority, activeBoxes, processBoard, homeData, boxesPage,
-    prioritiesRows, resolveTag, openOf, assignTag, replaceTag, current,
+    prioritiesRows, linkedBoxes, itemHasEvents, resolveTag, openOf, assignTag, replaceTag, current,
   };
 })();

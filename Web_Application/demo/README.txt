@@ -11,6 +11,7 @@ Files (upload all of them, keeping the folder structure)
   orders.html       Orders list: search, status filter, sort, overdue only
   order.html        Order detail: timeline and event history per box (?job=...)
   new-order.html    New order, including the Boxes field
+  edit-order.html   Edit an order (?job=...): fields, items, box count; route locked after a scan; changes go to the order's Change history
   tags.html         Link / release / replace tags, search linked tags
   simulate.html     Simulate a scan (next step only, plus "other action")
   board.html        Process board: running and waiting boxes per process
@@ -25,7 +26,7 @@ Files (upload all of them, keeping the folder structure)
 Upload to Neocities
 -------------------
 1. Log in to Neocities and open the dashboard ("Edit Site").
-2. Upload the nine .html files to the top level of the site.
+2. Upload the ten .html files to the top level of the site.
 3. Create the folders css and js (or drag the folders in) and upload the files above.
 4. Open https://<yoursite>.neocities.org/index.html. Staff can also open
    index.html straight from a local copy of this folder; no server is needed.
@@ -45,8 +46,8 @@ How it differs from the real app
 - Status rules are a JavaScript port of tracking/status.py, priority.py and overview.py.
   If the Python rules change, update js/status.js too.
 - Sample data only (companies, parts and processes are made up). No drawing files.
-- A new order cannot change an item's box count afterwards, and there is no
-  device or tag management beyond the tags page.
+- There is no device management, and the edit page records a stand-in user
+  ("Demo user") in the change history; drawings keep only the chosen file name.
 - The simulate page reloads in place instead of using GET reloads, and the
   language is switched without a page reload.
 - Process names show the Japanese name (name_ja) in Japanese and the English name

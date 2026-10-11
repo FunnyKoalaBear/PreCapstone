@@ -146,6 +146,8 @@
     const rows = evs.map((e) => `<tr><td>${fmtDT(e.t, true)}</td><td>${h(t(e.type))}</td><td>${h(pname(world.proc(e.proc)))}</td><td>${h(e.device)}</td></tr>`);
     return `${single ? '<h3>' : '<h4>'}${h(t('event_history'))}${single ? '</h3>' : '</h4>'}${table([t('time_jst'), t('action'), t('process'), t('device')], rows, t('no_events'))}`;
   }
+  const FIELD_LABELS = { customer: 'customer', customer_order_number: 'customer_order_number', due_date: 'due_date', notes: 'notes', part_name: 'part_name',
+    quantity: 'quantity', box_count: 'boxes_field', drawing: 'drawing', route: 'route', item_added: 'item_added', item_deleted: 'item_deleted' };
   function pageOrder(app) {
     const order = world.order(Q.get('job'));
     if (!order) { app.innerHTML = `<p><a href="orders.html">&larr; ${h(t('back_orders'))}</a></p><p>${h(t('order_missing'))}</p>`; return; }
@@ -164,28 +166,42 @@
           ? `<section class="box-section"><h3>${h(t('box_title', { l: b.label }))}${b.assignment.end != null ? ` <small>${h(t('released'))}</small>` : ''} ${statusBadge(b.code)}</h3>${timelineHtml(b)}${eventsHtml(b, false)}</section>`
           : `<section class="box-section"><h3>${h(t('box_not_linked'))}</h3><p><a href="tags.html">${h(t('link_a_tag'))}</a></p></section>`)).join('')}`;
       }
-      return `<div class="card card-wide"><h2>${h(item.id)} - ${h(item.part)} &times; ${item.qty} ${statusBadge(st.code)}</h2>${body}</div>`;
+      return `<div class="card card-wide"><h2>${h(item.id)} - ${h(item.part)} &times; ${item.qty} ${statusBadge(st.code)}</h2>${item.drawing ? `<p>${h(t('drawing'))}: ${h(item.drawing)}</p>` : ''}${body}</div>`;
     });
-    app.innerHTML = `<p><a href="orders.html">&larr; ${h(t('back_orders'))}</a></p>
-      <h1>${h(order.job)} ${badge(sum.code.toLowerCase(), sum.code === IN_PROGRESS ? t('order_progress', sum) : t(sum.code))}</h1>
+    const changes = world.changes.filter((c) => c.job === order.job).reverse().map((c) => `<tr><td>${fmtDT(c.t)}</td><td>${h(t('demo_user'))}</td>
+      <td>${h((c.item ? c.item + ' ' : '') + t(FIELD_LABELS[c.field] || c.field))}</td><td>${h(c.old || '-')}</td><td>${h(c.new || '-')}</td></tr>`);
+    app.innerHTML = `${Q.get('updated') ? `<ul class="messages"><li class="message success">${h(t('order_updated', { job: order.job }))}</li></ul>` : ''}
+      <p><a href="orders.html">&larr; ${h(t('back_orders'))}</a></p>
+      <h1>${h(order.job)} ${badge(sum.code.toLowerCase(), sum.code === IN_PROGRESS ? t('order_progress', sum) : t(sum.code))}
+      <a class="button-secondary" href="edit-order.html?job=${encodeURIComponent(order.job)}">${h(t('edit'))}</a></h1>
       <dl class="info"><div><dt>${h(t('customer'))}</dt><dd>${h(order.customer)}</dd></div>
       <div><dt>${h(t('customer_order_number'))}</dt><dd>${h(order.custNo || '-')}</dd></div>
       <div><dt>${h(t('due_date'))}</dt><dd>${order.due}${order.due < world.today && sum.code !== COMPLETE ? ' ' + badge('overdue', t('overdue')) : ''}</dd></div>
-      ${order.notes ? `<div><dt>${h(t('notes'))}</dt><dd>${h(order.notes)}</dd></div>` : ''}</dl>${items.join('')}`;
+      ${order.notes ? `<div><dt>${h(t('notes'))}</dt><dd>${h(order.notes)}</dd></div>` : ''}</dl>${items.join('')}
+      <h2>${h(t('change_history'))}</h2>${table([t('time_jst'), t('changed_by'), t('what'), t('before'), t('after')], changes, t('no_changes'))}`;
   }
 
   // ---------- new order ----------
-  function itemCard(n) {
-    const opts = PROCESSES.map((p) => `<option value="${p.id}">${h(t('process_opt', { p: pname(p), k: t(p.kind) }))}</option>`).join('');
-    return `<div class="card item-card"><button type="button" class="remove-item">${h(t('remove'))}</button>
-      <h2>${h(t('item'))} <span class="item-number">${n}</span></h2>
-      <div><label>${h(t('part_name'))}</label><input name="part" required></div>
-      <div><label>${h(t('quantity'))}</label><input name="qty" type="number" min="1" value="1" required></div>
-      <div><label>${h(t('boxes_field'))}</label><input name="boxes" type="number" min="1" value="1" required></div>
-      <div class="route"><label>${h(t('route'))}</label><div class="route-steps">${stepRow(opts)}</div>
-      <button type="button" class="add-step button-secondary">${h(t('add_step'))}</button></div></div>`;
+  const procOpts = () => PROCESSES.map((p) => `<option value="${p.id}">${h(t('process_opt', { p: pname(p), k: t(p.kind) }))}</option>`).join('');
+  // New-order card, or (with an item) the edit card: prefilled, route locked after a scan, no Remove once tags/scans exist
+  function itemCard(n, it, edit) {
+    const locked = it && FT.itemHasEvents(world, it), keep = it && (locked || world.assignments.some((a) => a.item === it.id));
+    const min = it ? Math.max(1, FT.linkedBoxes(world, it)) : 1;
+    const steps = (it ? it.route : []).map((id) => stepRow(procOpts(), id)).join('') || stepRow(procOpts());
+    return `<div class="card item-card"${it ? ` data-id="${h(it.id)}"` : ''}${locked ? ' data-locked="1"' : ''}>
+      ${keep ? `<p class="note">${h(t('cannot_remove'))}</p>` : `<button type="button" class="remove-item">${h(t('remove'))}</button>`}
+      <h2>${h(t('item'))} <span class="item-number">${n}</span>${it ? ` <small>${h(it.id)}</small>` : ''}</h2>
+      <div><label>${h(t('part_name'))}</label><input name="part" required value="${h(it ? it.part : '')}"></div>
+      <div><label>${h(t('quantity'))}</label><input name="qty" type="number" min="1" value="${it ? it.qty : 1}" required></div>
+      <div><label>${h(t('boxes_field'))}</label><input name="boxes" type="number" min="${min}" value="${it ? it.boxCount : 1}" required></div>
+      ${edit ? `<div><label>${h(t('drawing'))}</label>${it && it.drawing ? `<p class="note">${h(t('current_file', { name: it.drawing }))}</p>` : ''}<input name="drawing" type="file"></div>` : ''}
+      ${locked ? `<div class="route"><label>${h(t('route'))}</label><ol class="route-readonly">${it.route.map((id) => `<li>${h(pname(world.proc(id)))}</li>`).join('')}</ol>
+        <p class="note">${h(t('route_locked'))}</p></div>`
+    : `<div class="route"><label>${h(t('route'))}</label><div class="route-steps">${steps}</div>
+      <button type="button" class="add-step button-secondary">${h(t('add_step'))}</button></div>`}</div>`;
   }
-  const stepRow = (opts) => `<div class="route-step"><select name="route"><option value="">${h(t('choose_process'))}</option>${opts}</select>
+  const stepRow = (opts, sel) => `<div class="route-step"><select name="route"><option value="">${h(t('choose_process'))}</option>${
+    sel ? opts.replace(`value="${sel}"`, `value="${sel}" selected`) : opts}</select>
     <button type="button" class="remove-step">${h(t('remove'))}</button></div>`;
   function pageNewOrder(app) {
     app.innerHTML = `<h1>${h(t('new_order'))}</h1><form id="f" novalidate><div class="card">
@@ -196,15 +212,8 @@
       <div id="items">${itemCard(1)}</div><div id="err"></div>
       <div class="form-actions"><button type="button" id="add-item" class="button-secondary">${h(t('add_item'))}</button>
       <button type="submit" class="button">${h(t('create_order'))}</button></div></form>`;
-    const f = $('#f'), opts = PROCESSES.map((p) => `<option value="${p.id}">${h(t('process_opt', { p: pname(p), k: t(p.kind) }))}</option>`).join('');
-    const renumber = () => $$('.item-card:not(.is-removed) .item-number', f).forEach((s, i) => { s.textContent = i + 1; });
-    $('#add-item').addEventListener('click', () => { $('#items').insertAdjacentHTML('beforeend', itemCard(0)); renumber(); });
-    f.addEventListener('click', (e) => {
-      if (e.target.closest('.remove-item')) { e.target.closest('.item-card').classList.add('is-removed'); renumber(); }
-      if (e.target.closest('.add-step')) e.target.closest('.route').querySelector('.route-steps').insertAdjacentHTML('beforeend', stepRow(opts));
-      const rm = e.target.closest('.remove-step');
-      if (rm) { const row = rm.closest('.route-step'); if (row.parentElement.children.length > 1) row.remove(); else row.querySelector('select').value = ''; }
-    });
+    const f = $('#f'), opts = procOpts();
+    wireItemCards(f, itemCard);
     f.addEventListener('submit', (e) => {
       e.preventDefault();
       const errs = [], cards = $$('.item-card:not(.is-removed)', f);
@@ -222,6 +231,78 @@
       push('orders', { job, customer: f.customer.value, custNo: f.custNo.value.trim(), due: f.due.value, notes: f.notes.value.trim() });
       items.forEach((i, n) => push('items', { id: `${job}-${String(n + 1).padStart(2, '0')}`, order: job, no: n + 1, part: i.part, qty: i.qty, boxCount: i.boxCount, route: i.route }));
       location.href = `orders.html?created=${job}`;
+    });
+  }
+
+  // ---------- edit order ----------
+  const FIELD_NAMES = { customer: 'customer', custNo: 'customer_order_number', due: 'due_date', notes: 'notes' };
+  const routeNames = (ids) => ids.map((id) => world.proc(id).name).join(' > ');
+  function pageEdit(app) {
+    const order = world.order(Q.get('job'));
+    if (!order) { app.innerHTML = `<p><a href="orders.html">&larr; ${h(t('back_orders'))}</a></p><p>${h(t('order_missing'))}</p>`; return; }
+    const its = world.items.filter((i) => i.order === order.job);
+    app.innerHTML = `<p><a href="order.html?job=${encodeURIComponent(order.job)}">&larr; ${h(order.job)}</a></p><h1>${h(t('edit_order', { job: order.job }))}</h1>
+      <form id="f" novalidate><div class="card"><div><label>${h(t('job_number'))}</label><input value="${h(order.job)}" disabled></div>
+      <div><label>${h(t('customer'))}</label><select name="customer">${CUSTOMERS.map((c) => `<option${c === order.customer ? ' selected' : ''}>${h(c)}</option>`).join('')}</select></div>
+      <div><label>${h(t('customer_order_number'))}</label><input name="custNo" value="${h(order.custNo)}"></div>
+      <div><label>${h(t('due_date'))}</label><input type="date" name="due" required value="${order.due}"></div>
+      <div><label>${h(t('notes'))}</label><textarea name="notes" rows="3">${h(order.notes)}</textarea></div></div>
+      <div id="items">${its.map((it, n) => itemCard(n + 1, it, true)).join('')}</div><div id="err"></div>
+      <div class="form-actions"><button type="button" id="add-item" class="button-secondary">${h(t('add_item'))}</button>
+      <button type="submit" class="button">${h(t('save_changes'))}</button></div></form>`;
+    wireItemCards($('#f'), (n) => itemCard(n, null, true));
+    $('#f').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const f = e.target, errs = [], kept = [], added = [], deleted = [];
+      const o = { customer: f.customer.value, custNo: f.custNo.value.trim(), due: f.due.value, notes: f.notes.value.trim() };
+      $$('.item-card', f).forEach((c) => {
+        const it = c.dataset.id && world.items.find((x) => x.id === c.dataset.id);
+        if (c.classList.contains('is-removed')) { if (it) deleted.push(it); return; }
+        const file = $('[name=drawing]', c).files[0];
+        const v = { part: $('[name=part]', c).value.trim(), qty: Number($('[name=qty]', c).value), boxCount: Number($('[name=boxes]', c).value),
+          drawing: file ? file.name : (it && it.drawing) || '', route: c.dataset.locked ? it.route : $$('[name=route]', c).map((x) => Number(x.value)).filter(Boolean) };
+        if (!v.part || !(v.qty >= 1)) errs.push(t('err_required'));
+        if (!v.route.length) errs.push(t('err_route'));
+        if (it && v.boxCount < FT.linkedBoxes(world, it)) errs.push(t('err_box_min', { n: FT.linkedBoxes(world, it) }));
+        else if (!(v.boxCount >= 1)) errs.push(t('err_boxes'));
+        (it ? kept : added).push({ it, v });
+      });
+      if (!o.due) errs.push(t('err_required'));
+      if (!kept.length && !added.length) errs.push(t('err_one_item'));
+      if (deleted.some((it) => FT.itemHasEvents(world, it) || world.assignments.some((a) => a.item === it.id))) errs.push(t('cannot_remove'));
+      if (o.custNo && world.orders.some((x) => x.job !== order.job && x.customer === o.customer && x.custNo === o.custNo)) errs.push(t('err_dup_po'));
+      if (errs.length) { $('#err').innerHTML = `<ul class="errorlist">${[...new Set(errs)].map((x) => `<li>${h(x)}</li>`).join('')}</ul>`; return; }
+      // Append one record per changed field (the log is never edited or deleted)
+      const when = Date.now(), log = [];
+      const add = (item, field, old, now) => { if (String(old ?? '') !== String(now ?? '')) log.push({ t: when, job: order.job, item, field, old: String(old ?? ''), new: String(now ?? ''), by: 'demo' }); };
+      Object.keys(FIELD_NAMES).forEach((k) => add(null, FIELD_NAMES[k], order[k], o[k]));
+      kept.forEach(({ it, v }) => {
+        add(it.id, 'part_name', it.part, v.part); add(it.id, 'quantity', it.qty, v.qty); add(it.id, 'box_count', it.boxCount, v.boxCount);
+        add(it.id, 'drawing', it.drawing || '', v.drawing); add(it.id, 'route', routeNames(it.route), routeNames(v.route));
+      });
+      let no = Math.max(0, ...its.map((i) => i.no), ...(state.deleted || []).filter((d) => d.startsWith(order.job + '-')).map((d) => Number(d.slice(-2))));
+      const fresh = added.map(({ v }) => ({ id: `${order.job}-${String(++no).padStart(2, '0')}`, order: order.job, no, ...v }));
+      fresh.forEach((i) => add(i.id, 'item_added', '', `${i.id} ${i.part}`));
+      deleted.forEach((i) => add(i.id, 'item_deleted', `${i.id} ${i.part}`, ''));
+      state.orderEdits = { ...state.orderEdits, [order.job]: o };
+      state.itemEdits = { ...state.itemEdits, ...Object.fromEntries(kept.map(({ it, v }) => [it.id, v])) };
+      state.deleted = [...(state.deleted || []), ...deleted.map((i) => i.id)];
+      state.items = [...(state.items || []), ...fresh];
+      state.changes = [...(state.changes || []), ...log];
+      save();
+      location.href = `order.html?job=${encodeURIComponent(order.job)}&updated=1`;
+    });
+  }
+
+  // Remove / add-step / add-item buttons shared by the new-order and edit forms
+  function wireItemCards(f, make) {
+    const renumber = () => $$('.item-card:not(.is-removed) .item-number', f).forEach((s, i) => { s.textContent = i + 1; });
+    $('#add-item').addEventListener('click', () => { $('#items').insertAdjacentHTML('beforeend', make(0)); renumber(); });
+    f.addEventListener('click', (e) => {
+      if (e.target.closest('.remove-item')) { e.target.closest('.item-card').classList.add('is-removed'); renumber(); }
+      if (e.target.closest('.add-step')) e.target.closest('.route').querySelector('.route-steps').insertAdjacentHTML('beforeend', stepRow(procOpts()));
+      const rm = e.target.closest('.remove-step');
+      if (rm) { const row = rm.closest('.route-step'); if (row.parentElement.children.length > 1) row.remove(); else row.querySelector('select').value = ''; }
     });
   }
 
@@ -369,12 +450,12 @@
   }
 
   // ---------- start ----------
-  const PAGES = { home: pageHome, boxes: pageBoxes, orders: pageOrders, order: pageOrder, new: pageNewOrder, tags: pageTags, simulate: pageSimulate, board: pageBoard, priorities: pagePriorities };
+  const PAGES = { home: pageHome, boxes: pageBoxes, orders: pageOrders, order: pageOrder, edit: pageEdit, new: pageNewOrder, tags: pageTags, simulate: pageSimulate, board: pageBoard, priorities: pagePriorities };
   function boot() {
     refresh();
     shell();
     const page = document.body.dataset.page;
-    document.title = `${t(`nav_${{ home: 'home', order: 'orders', new: 'new', simulate: 'sim', priorities: 'prio' }[page] || page}`)} - ${t('brand')}`;
+    document.title = `${t(`nav_${{ home: 'home', order: 'orders', edit: 'orders', new: 'new', simulate: 'sim', priorities: 'prio' }[page] || page}`)} - ${t('brand')}`;
     PAGES[page]($('#app'));
   }
   document.addEventListener('DOMContentLoaded', () => {

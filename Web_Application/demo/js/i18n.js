@@ -61,6 +61,18 @@ const TEXTS = {
   e_tag_in_use: ['タグ {tag} は品目 {item} で使用中です。', 'Tag {tag} is already in use for item {item}.'],
   e_box_in_use: ['箱 {box} は品目 {item} で使用中です。', 'Box {box} is already in use for item {item}.'],
   e_same_tag: ['新しいタグは旧タグと異なるものにしてください。', 'The new tag must differ from the old tag.'],
+  // order editing
+  edit: ['編集', 'Edit'], edit_order: ['受注 {job} を編集', 'Edit order {job}'], save_changes: ['変更を保存', 'Save changes'],
+  order_updated: ['受注 {job} を更新しました。', 'Order {job} updated.'], drawing: ['図面', 'Drawing'], current_file: ['現在のファイル: {name}', 'Current file: {name}'],
+  route_locked: ['この品目はスキャン済みのため、工程順は変更できません。', 'Route is locked because this item has been scanned.'], // CHECK: tone
+  cannot_remove: ['タグまたはスキャンの記録があるため、削除できません。', 'Cannot be removed because it has tags or scans.'],
+  err_box_min: ['箱数は、すでに紐付け済みの{n}個より少なくできません。', 'Box count cannot be lower than the {n} boxes already linked.'], // CHECK: wording
+  err_one_item: ['受注には品目が1つ以上必要です。', 'An order needs at least one item.'],
+  err_dup_po: ['同じ得意先に同じ客先注文番号の受注がすでにあります。', 'This customer already has an order with this customer order number.'],
+  change_history: ['変更履歴', 'Change history'], changed_by: ['変更者', 'Changed by'], before: ['変更前', 'Before'], after: ['変更後', 'After'],
+  what: ['変更内容', 'What'], // CHECK: column header for the changed field, my choice
+  no_changes: ['変更履歴はまだありません。', 'No changes yet.'], demo_user: ['デモ担当者', 'Demo user'], // CHECK: stand-in for the logged-in user
+  item_added: ['品目の追加', 'Item added'], item_deleted: ['品目の削除', 'Item deleted'], // CHECK: noun forms, my choice
   // simulate
   sim_title: ['スキャンのシミュレーション', 'Simulate scan'], search_or_pick: ['タグを検索または選択', 'Search or pick a tag'],
   not_linked_tag: ['タグ {uid} は品目に紐付いていません。イベントは保存されますが、どの品目にも結び付きません。送信するには下の「その他の操作」を使ってください。',
