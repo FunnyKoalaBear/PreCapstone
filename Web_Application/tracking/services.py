@@ -57,3 +57,29 @@ def assign_tag(item, box_label, tag_uid):
 def release_assignment(assignment):
     assignment.release()
     return assignment
+
+
+def replace_tag(assignment, new_uid, mark_lost=True):
+    """Swap a lost tag: end the open assignment now and start a new one on the same item and box."""
+    uid = new_uid.strip().upper()
+    with transaction.atomic():
+        old = TagAssignment.objects.select_for_update().select_related('tag', 'box', 'item__order').get(pk=assignment.pk)
+        if old.end_at is not None:
+            raise ValidationError(_('This assignment has already ended.'))
+        if not uid:
+            raise ValidationError(_('Box label and tag UID are required.'))
+        if uid == old.tag.uid:
+            raise ValidationError(_('The new tag must differ from the old tag.'))
+        tag = Tag.objects.get_or_create(uid=uid)[0]
+        if not tag.active:
+            raise ValidationError(_('Tag %(tag)s is inactive.') % {'tag': tag})
+        if found := TagAssignment.objects.filter(tag=tag, end_at__isnull=True).select_related('item__order').first():
+            raise ValidationError(_('Tag %(tag)s is already in use for item %(item)s.') % {'tag': tag, 'item': found.item.item_code})
+        now = timezone.now()
+        old.end_at = now
+        old.save(update_fields=['end_at'])
+        new = TagAssignment.objects.create(tag=tag, box=old.box, item=old.item, start_at=now)
+        if mark_lost:
+            old.tag.active = False
+            old.tag.save(update_fields=['active'])
+        return new

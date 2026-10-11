@@ -14,8 +14,8 @@ from .forms import AssignTagForm
 from .models import Box, Event, ScannerDevice, Tag, TagAssignment
 from .overview import active_boxes, process_board
 from .priority import priority
-from .services import assign_tag, record_event, release_assignment
-from .status import AT_VENDOR, COMPLETE, IN_PROGRESS, NOT_STARTED, WAITING, BoxStatus, ItemStatus, _roll_up, events_for_item, days_late, due_back, idle_for, is_stagnant, item_status, timeline
+from .services import assign_tag, record_event, release_assignment, replace_tag
+from .status import AT_VENDOR, COMPLETE, IN_PROGRESS, NOT_STARTED, WAITING, BoxStatus, ItemStatus, _roll_up, events_for_item, days_late, next_action, due_back, idle_for, is_stagnant, item_status, timeline
 
 E = Event.Type
 K = Process.Kind
@@ -620,3 +620,132 @@ class ProcessBoardTests(OverviewBase):
         self.assertContains(r, 'PV')
         self.assertContains(r, 'href="/orders/')
         self.assertContains(r, 'Process board')
+
+
+class ReplaceTagTests(OverviewBase):
+    """Lost-tag replacement, box = (item, box) pair, next_action and the simulate page."""
+
+    def setUp(self):
+        super().setUp()
+        self.item1 = self.item([self.mat, self.cut], uids=['OLD'])
+        self.old = self.item1.tagassignment_set.get()
+
+    def test_status_continues_across_a_replaced_tag(self):
+        self.scan('OLD', self.mat, E.ARRIVED, 3)
+        self.scan('OLD', self.cut, E.STARTED, 2)
+        new = replace_tag(self.old, 'new')
+        Event.objects.create(device=self.device, tag_uid='NEW', event_type=E.FINISHED, process=self.cut)
+        st = item_status(self.item1)
+        self.assertEqual((len(st.boxes), st.code, st.warnings), (1, COMPLETE, []))
+        self.assertEqual(st.boxes[0].assignment, new)
+        self.assertEqual(len(st.boxes[0].assignments), 2)
+
+    def test_replacement_keeps_history_and_box(self):
+        new = replace_tag(self.old, ' new ')
+        self.old.refresh_from_db()
+        self.assertEqual((new.tag.uid, new.box, new.item, new.end_at), ('NEW', self.old.box, self.item1, None))
+        self.assertEqual(self.old.end_at, new.start_at)
+        self.assertEqual(TagAssignment.objects.count(), 2)
+
+    def test_placeholders_count_distinct_boxes(self):
+        item = self.item([self.cut], boxes=2, uids=['X1'])
+        replace_tag(item.tagassignment_set.get(), 'X2')  # two assignments, still one box
+        st = item_status(item)
+        self.assertEqual(len(st.boxes), 2)
+        self.assertIsNone(st.boxes[1].assignment)
+
+    def test_rejections(self):
+        other = self.item([self.cut], uids=['USED'])
+        Tag.objects.create(uid='DEAD', active=False)
+        for uid, msg in (('old', 'must differ'), ('used', 'already in use'), ('dead', 'inactive'), ('  ', 'required')):
+            with self.assertRaisesMessage(ValidationError, msg):
+                replace_tag(self.old, uid)
+        self.assertEqual((TagAssignment.objects.filter(end_at__isnull=True).count(), other.tagassignment_set.count()), (2, 1))
+        replace_tag(self.old, 'fresh')
+        with self.assertRaisesMessage(ValidationError, 'already ended'):
+            replace_tag(self.old, 'again')
+
+    def test_lost_flag_and_old_tag_becomes_unusable(self):
+        replace_tag(self.old, 'n1')
+        self.old.tag.refresh_from_db()
+        self.assertFalse(self.old.tag.active)
+        with self.assertRaisesMessage(ValidationError, 'inactive'):
+            assign_tag(self.item([self.cut]), 'BX', 'OLD')
+        a = self.item([self.cut], uids=['KEEP']).tagassignment_set.get()
+        replace_tag(a, 'n2', mark_lost=False)
+        a.tag.refresh_from_db()
+        self.assertTrue(a.tag.active)
+
+    def test_tags_page_search_and_replace(self):
+        self.item([self.cut], uids=['OTHER'])
+        self.staff()
+        uids = lambda q: [a.tag.uid for a in self.client.get('/tags/', {'q': q}).context['open']]
+        self.assertEqual(sorted(uids('')), ['OLD', 'OTHER'])
+        self.assertEqual(uids('old'), ['OLD'])
+        self.assertEqual(uids('LOTHER'), ['OTHER'])  # box label
+        self.assertEqual(uids(self.item1.part_name), ['OLD'])
+        self.assertEqual(uids(self.item1.order.job_number), ['OLD'])
+        self.assertEqual(uids('nothing'), [])
+        r = self.client.post('/tags/', {'action': 'replace', 'assignment': self.old.pk, 'new_uid': 'brandnew', 'mark_lost': 'on'}, follow=True)
+        self.assertContains(r, 'Tag OLD replaced by BRANDNEW')
+        self.assertFalse(Tag.objects.get(uid='OLD').active)
+        r = self.client.post('/tags/', {'action': 'replace', 'assignment': self.item1.tagassignment_set.last().pk, 'new_uid': 'other'}, follow=True)
+        self.assertContains(r, 'already in use')
+        self.assertContains(self.client.get('/tags/'), 'Mark the old tag as lost')
+
+    def test_replace_without_checkbox_keeps_tag_active(self):
+        self.staff()
+        self.client.post('/tags/', {'action': 'replace', 'assignment': self.old.pk, 'new_uid': 'z9'})
+        self.assertTrue(Tag.objects.get(uid='OLD').active)
+
+    def box(self, item):
+        return item_status(item).boxes[0]
+
+    def test_next_action_for_every_state(self):
+        a = self.item([self.mat, self.cut, self.paint], uids=['N1'])
+        self.assertEqual(next_action(self.box(a)), (E.ARRIVED, self.mat))
+        self.scan('N1', self.mat, E.ARRIVED, 5)
+        self.assertEqual(next_action(self.box(a)), (E.STARTED, self.cut))
+        self.scan('N1', self.cut, E.STARTED, 4)
+        self.assertEqual(next_action(self.box(a)), (E.FINISHED, self.cut))
+        self.scan('N1', self.cut, E.FINISHED, 3)
+        self.assertEqual(next_action(self.box(a)), (E.SENT_OUT, self.paint))
+        self.scan('N1', self.paint, E.SENT_OUT, 2)
+        self.assertEqual(next_action(self.box(a)), (E.RETURNED, self.paint))
+        self.scan('N1', self.paint, E.RETURNED, 1)
+        self.assertIsNone(next_action(self.box(a)))
+        self.assertIsNone(next_action(self.box(self.item([], uids=['N2']))))  # no route
+
+    def test_simulate_shows_only_the_next_action(self):
+        self.staff()
+        r = self.client.get('/simulate/', {'tag': 'old', 'device': self.device.pk})
+        self.assertEqual(r.context['step']['label'], 'Arrived - Mat')
+        self.assertContains(r, '<option value="%d:ARRIVED" selected>Arrived - Mat</option>' % self.mat.pk)
+        self.assertContains(r, 'Other action (test a mistake)')
+        self.assertContains(r, f'OLD - {self.item1.item_code} - box LOLD - {self.item1.part_name}')
+        self.assertContains(r, 'Confirm')
+        r = self.client.post('/simulate/', {'tag_uid': 'OLD', 'device': self.device.pk, 'action': r.context['step']['value']})
+        self.assertRedirects(r, '/simulate/')
+        self.assertEqual(Event.objects.get().event_type, 'ARRIVED')
+
+    def test_simulate_finished_and_unassigned(self):
+        self.staff()
+        self.scan('OLD', self.mat, E.ARRIVED, 3)
+        self.scan('OLD', self.cut, E.STARTED, 2)
+        self.scan('OLD', self.cut, E.FINISHED, 1)
+        r = self.client.get('/simulate/', {'tag': 'OLD', 'device': self.device.pk})
+        self.assertEqual(r.context['step']['state'], 'finished')
+        self.assertContains(r, 'Nothing left to scan')
+        self.assertNotContains(r, 'id="next-action"')
+        r = self.client.get('/simulate/', {'tag': 'ghost', 'device': self.device.pk})
+        self.assertEqual(r.context['step']['state'], 'unassigned')
+        self.assertContains(r, 'match no item')
+
+    def test_simulate_advanced_section_can_still_send_a_wrong_scan(self):
+        self.staff()
+        r = self.client.post('/simulate/', {'tag_uid': 'OLD', 'device': self.device.pk, 'action': f'{self.cut.pk}:FINISHED'})
+        self.assertRedirects(r, '/simulate/')  # skipped steps are still accepted
+        self.assertEqual(Event.objects.get().event_type, 'FINISHED')
+        r = self.client.post('/simulate/', {'tag_uid': 'OLD', 'device': self.device.pk, 'action': '999:ARRIVED'})
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, '<details class="card" open>')

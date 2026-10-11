@@ -8,7 +8,7 @@ from django.utils.translation import gettext as _
 from django.utils.translation import gettext_lazy
 
 from tracking.status import (
-    COMPLETE, IN_PROGRESS, LABELS, NOT_STARTED, STEP_LABELS, days_late, due_back, events_for_assignment, item_status,
+    COMPLETE, IN_PROGRESS, LABELS, NOT_STARTED, STEP_LABELS, days_late, due_back, events_for_box, item_status,
     order_summary, timeline,
 )
 
@@ -76,7 +76,7 @@ def _box_entry(b, today):
     a = b.assignment
     return {
         'box': b, 'steps': [_step_entry(r, today, t) for r, t in zip(b.rows, timeline(b.rows))],
-        'events': events_for_assignment(a).select_related('process', 'device') if a else [],
+        'events': events_for_box(b.assignments).select_related('process', 'device') if a else [],
         'open': bool(a and a.end_at is None),
     }
 

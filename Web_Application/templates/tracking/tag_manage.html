@@ -20,6 +20,13 @@
   </form>
 
   <h2>{% trans "In use" %}</h2>
+  <form method="get" class="filters">
+    <div>
+      <label for="q">{% trans "Search" %}</label>
+      <input type="search" id="q" name="q" value="{{ q }}" placeholder="{% trans 'Item, job, part, customer, box or tag' %}">
+    </div>
+    <button type="submit" class="button">{% trans "Search" %}</button>
+  </form>
   <div class="table-wrap">
     <table class="table">
       <thead>
@@ -45,6 +52,17 @@
                 <input type="hidden" name="assignment" value="{{ a.pk }}">
                 <button type="submit" class="remove-step">{% trans "Release" %}</button>
               </form>
+              <details class="replace-tag">
+                <summary>{% trans "Replace tag" %}</summary>
+                <form method="post">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="replace">
+                  <input type="hidden" name="assignment" value="{{ a.pk }}">
+                  <input type="text" name="new_uid" list="tag-uids" autocomplete="off" required placeholder="{% trans 'New tag UID' %}">
+                  <label class="check"><input type="checkbox" name="mark_lost" checked> {% trans "Mark the old tag as lost" %}</label>
+                  <button type="submit" class="button">{% trans "Replace" %}</button>
+                </form>
+              </details>
             </td>
           </tr>
         {% empty %}

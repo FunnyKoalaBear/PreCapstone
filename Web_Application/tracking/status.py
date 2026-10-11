@@ -47,6 +47,7 @@ class BoxStatus:
     rows: list = field(default_factory=list)
     warnings: list = field(default_factory=list)
     last_event_at: datetime | None = None
+    assignments: list = field(default_factory=list)
 
 
 @dataclass
@@ -72,9 +73,17 @@ def _live(q):
     return Event.objects.filter(q).exclude(pk__in=corrected).order_by('occurred_at', 'pk')
 
 
+def events_for_box(assignments):
+    """Events of one (item, box) pair: every tag it had, each within its own window, in time order."""
+    q = Q()
+    for a in assignments:
+        q |= _window(a)
+    return _live(q) if q else Event.objects.none()
+
+
 def events_for_assignment(assignment):
-    """Events scanned on one box's tag during its assignment window."""
-    return _live(_window(assignment))
+    """Events scanned on one tag during its assignment window."""
+    return events_for_box([assignment])
 
 
 def events_for_item(item):
@@ -126,8 +135,8 @@ def _current(rows):
     return next((r for r in rows if r.state != DONE), None)
 
 
-def _replay(steps, assignment, events):
-    """Status of one box: replay its events over fresh rows of the item's route."""
+def _replay(steps, assignments, events):
+    """Status of one (item, box) pair: replay its events over fresh rows of the item's route."""
     rows, warnings = [StepRow(st) for st in steps], []
     for e in events:
         if e.process_id:
@@ -142,10 +151,11 @@ def _replay(steps, assignment, events):
         code = COMPLETE
     else:
         code = {STEP_IN_PROGRESS: IN_PROGRESS, STEP_AT_VENDOR: AT_VENDOR}.get(current.state, WAITING)
+    assignment = assignments[-1] if assignments else None
     label = assignment.box.label if assignment else ''
     last = events[-1].occurred_at if events else None
     return BoxStatus(assignment, label, code, LABELS[code], current.step if current else None, rows,
-                     list(dict.fromkeys(map(str, warnings))), last)
+                     list(dict.fromkeys(map(str, warnings))), last, list(assignments))
 
 
 def _steps(item):
@@ -153,7 +163,9 @@ def _steps(item):
 
 
 def box_status(assignment):
-    return _replay(_steps(assignment.item), assignment, list(events_for_assignment(assignment)))
+    """Status of the (item, box) pair the assignment belongs to."""
+    group = list(assignment.item.tagassignment_set.filter(box=assignment.box).select_related('tag', 'box').order_by('start_at', 'pk'))
+    return _replay(_steps(assignment.item), group, list(events_for_box(group)))
 
 
 def _roll_up(boxes):
@@ -178,8 +190,11 @@ def _roll_up(boxes):
 def item_status(item):
     steps = _steps(item)
     assignments = item.tagassignment_set.select_related('tag', 'box').order_by('start_at', 'pk')
-    boxes = [_replay(steps, a, list(events_for_assignment(a))) for a in assignments]
-    boxes += [_replay(steps, None, []) for _ in range(max(item.box_count - len(boxes), 0 if boxes else 1))]
+    groups = {}  # a box keeps its status across replaced tags
+    for a in assignments:
+        groups.setdefault(a.box_id, []).append(a)
+    boxes = [_replay(steps, g, list(events_for_box(g))) for g in groups.values()]
+    boxes += [_replay(steps, [], []) for _ in range(max(item.box_count - len(boxes), 0 if boxes else 1))]
     return _roll_up(boxes)
 
 
@@ -242,3 +257,16 @@ def is_stagnant(status, now=None):
         return False
     hours = status.current_step.process.stagnation_hours or settings.STAGNATION_DEFAULT_HOURS
     return idle > timedelta(hours=hours)
+
+
+def next_action(box):
+    """(event type, process) that moves this box one step forward, or None when finished."""
+    row = _current(box.rows)
+    if row is None or box.code == COMPLETE:
+        return None
+    E, K = Event.Type, row.step.process.kind
+    if row.state == STEP_IN_PROGRESS:
+        return E.FINISHED, row.step.process
+    if row.state == STEP_AT_VENDOR:
+        return E.RETURNED, row.step.process
+    return {'MATERIAL': E.ARRIVED, 'MACHINING': E.STARTED, 'OUTSOURCED': E.SENT_OUT}[K], row.step.process

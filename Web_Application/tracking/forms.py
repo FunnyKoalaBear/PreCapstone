@@ -35,6 +35,15 @@ class SimulateScanForm(forms.Form):
         return data
 
 
+class PickTagForm(forms.Form):
+    """Device and tag picker; submitting it (GET) shows the next action for that tag."""
+    device = forms.ModelChoiceField(label=_('Device'), queryset=ScannerDevice.objects.filter(active=True))
+    tag = forms.CharField(
+        label=_('Tag'), required=False,
+        widget=forms.TextInput(attrs={'list': 'tag-picks', 'autocomplete': 'off', 'placeholder': _('Search or pick a tag')}),
+    )
+
+
 class AssignTagForm(forms.Form):
     item = forms.ModelChoiceField(label=_('Item'), queryset=OrderItem.objects.none())
     box_label = forms.CharField(

@@ -184,3 +184,8 @@ body {
 .process-boxes { list-style: none; margin: 0 0 0.5rem; padding: 0; font-size: 0.9rem; }
 .process-boxes li { padding: 0.15rem 0; overflow-wrap: anywhere; }
 .badge-queue { color: var(--board-queue); }
+
+/* Replace-tag inline form and collapsible simulate section */
+.replace-tag { margin-top: 0.35rem; }
+.replace-tag summary, details.card summary { cursor: pointer; color: var(--color-primary); }
+.replace-tag form { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.35rem; }

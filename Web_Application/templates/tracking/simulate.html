@@ -6,14 +6,50 @@
 {% block content %}
   <h1>{% trans "Simulate scan" %}</h1>
 
-  <form method="post" class="card">
-    {% csrf_token %}
-    {{ form }}
-    <datalist id="tag-uids">
-      {% for uid in tag_uids %}<option value="{{ uid }}">{% endfor %}
+  <form method="get" class="card" onchange="this.submit()">
+    {{ pick }}
+    <datalist id="tag-picks">
+      {% for uid, label in picks %}<option value="{{ uid }}">{{ label }}</option>{% endfor %}
     </datalist>
-    <button type="submit" class="button">{% trans "Record event" %}</button>
+    <noscript><button type="submit" class="button">{% trans "Show next step" %}</button></noscript>
   </form>
+
+  {% if step %}
+    <div class="card">
+      {% if step.state == "unassigned" %}
+        <p>{% blocktrans with uid=uid %}Tag {{ uid }} is not linked to any item: the event would be saved but match no item. Use "Other action" below to send it anyway.{% endblocktrans %}</p>
+      {% else %}
+        <p>
+          {% blocktrans with uid=uid item=step.assignment.item.item_code box=step.assignment.box.label part=step.assignment.item.part_name %}Tag {{ uid }}: item {{ item }}, box {{ box }}, {{ part }}{% endblocktrans %}
+          <span class="badge badge-{{ step.status.code|lower }}">{{ step.status.code_label }}</span>
+        </p>
+        {% if step.state == "finished" %}
+          <p>{% trans "This box has finished its whole route. Nothing left to scan." %}</p>
+        {% else %}
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="tag_uid" value="{{ uid }}">
+            <input type="hidden" name="device" value="{{ device }}">
+            <label for="next-action">{% trans "What happened" %}</label>
+            <select name="action" id="next-action"><option value="{{ step.value }}" selected>{{ step.label }}</option></select>
+            <button type="submit" class="button">{% trans "Confirm" %}</button>
+          </form>
+        {% endif %}
+      {% endif %}
+    </div>
+  {% endif %}
+
+  <details class="card"{% if form.errors or request.method == "POST" %} open{% endif %}>
+    <summary>{% trans "Other action (test a mistake)" %}</summary>
+    <form method="post">
+      {% csrf_token %}
+      {{ form }}
+      <datalist id="tag-uids">
+        {% for uid, label in picks %}<option value="{{ uid }}">{% endfor %}
+      </datalist>
+      <button type="submit" class="button">{% trans "Record event" %}</button>
+    </form>
+  </details>
 
   <h2>{% trans "Last 10 events" %}</h2>
   <div class="table-wrap">
