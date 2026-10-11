@@ -21,7 +21,7 @@ class SimulateScanForm(forms.Form):
         # One option per process and event type that is valid for its kind
         self.processes = {str(p.pk): p for p in Process.objects.order_by('kind', 'name')}
         self.fields['action'].choices = [
-            (f'{p.pk}:{t}', f'{p.name} - {Event.Type(t).label}')
+            (f'{p.pk}:{t}', f'{p} - {Event.Type(t).label}')
             for p in self.processes.values()
             for t, kind in Event.REQUIRED_KIND.items()
             if kind == p.kind

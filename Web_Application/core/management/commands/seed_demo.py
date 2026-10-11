@@ -12,12 +12,14 @@ from tracking.services import record_event
 from tracking.status import item_status
 
 K = Process.Kind
-# short name: (kind, vendor name, lead days); stored as "DEMO <name>", never shared with real processes
+# short name: (kind, Japanese name, vendor name, lead days); stored as "DEMO <name>", never shared with real processes
 PROCESSES = {
-    'Material': (K.MATERIAL, '', None), 'Cutting': (K.MACHINING, '', None), 'Welding': (K.MACHINING, '', None),
-    'Assembly': (K.MACHINING, '', None), 'Inspection': (K.MACHINING, '', None),
-    'Painting': (K.OUTSOURCED, 'DEMO Paint Co', 5), 'Plating': (K.OUTSOURCED, 'DEMO Plating Co', 7),
+    'Material': (K.MATERIAL, '材料入荷', '', None), 'Cutting': (K.MACHINING, '切断', '', None),
+    'Welding': (K.MACHINING, '溶接', '', None), 'Assembly': (K.MACHINING, '組立', '', None),
+    'Inspection': (K.MACHINING, '検査', '', None),
+    'Painting': (K.OUTSOURCED, '塗装', 'DEMO 日本塗装', 5), 'Plating': (K.OUTSOURCED, 'メッキ', 'DEMO メッキ工業', 7),
 }
+CUSTOMERS = ('東洋機械', '北斗製作所')
 
 
 class Command(BaseCommand):
@@ -55,9 +57,10 @@ class Command(BaseCommand):
         now, today = timezone.now(), timezone.localdate()
         ago = lambda **kw: now - timedelta(**kw)
         procs = {n: Process.objects.get_or_create(
-            name=f'DEMO {n}', defaults={'kind': k, 'vendor_name': v, 'vendor_lead_days': d})[0] for n, (k, v, d) in PROCESSES.items()}
+            name=f'DEMO {n}', defaults={'kind': k, 'name_ja': ja, 'vendor_name': v, 'vendor_lead_days': d})[0]
+            for n, (k, ja, v, d) in PROCESSES.items()}
         d1, d2 = (ScannerDevice.objects.get_or_create(name=f'DEMO Scanner {i}')[0] for i in (1, 2))
-        c1, c2 = (Customer.objects.get_or_create(name=f'DEMO {n}')[0] for n in ('Alpha Industries', 'Beta Works'))
+        c1, c2 = (Customer.objects.get_or_create(name=f'DEMO {n}')[0] for n in CUSTOMERS)
         created = []
 
         def link(item, uid, box, start=None, end=None):
@@ -81,30 +84,30 @@ class Command(BaseCommand):
 
         full = ['Cutting', 'Welding', 'Assembly', 'Inspection']
         # 1 Healthy: material arrived, two steps done with a 4h wait, third running
-        make('Healthy', c1, 'Bracket', ['Material'] + full, 10, 'DEMO-01', 'DEMO-01')
+        make('Healthy', c1, 'ブラケット', ['Material'] + full, 10, 'DEMO-01', 'DEMO-01')
         scan('DEMO-01', 'Material', 'ARRIVED', ago(hours=34))
         for name, s, f in (('Cutting', 30, 26), ('Welding', 22, 18)):
             scan('DEMO-01', name, 'STARTED', ago(hours=s))
             scan('DEMO-01', name, 'FINISHED', ago(hours=f))
         scan('DEMO-01', 'Assembly', 'STARTED', ago(hours=3), d2)
         # 2 Overdue
-        make('Overdue', c1, 'Flange', ['Cutting', 'Welding', 'Inspection'], -3, 'DEMO-02', 'DEMO-02')
+        make('Overdue', c1, 'フランジ', ['Cutting', 'Welding', 'Inspection'], -3, 'DEMO-02', 'DEMO-02')
         scan('DEMO-02', 'Cutting', 'STARTED', ago(hours=80))
         scan('DEMO-02', 'Cutting', 'FINISHED', ago(hours=70))
         scan('DEMO-02', 'Welding', 'STARTED', ago(hours=2), d2)
         # 3 Critical: due soon, 4 steps left, nothing scanned yet
-        make('Critical', c2, 'Housing', full, 2, 'DEMO-03', 'DEMO-03')
+        make('Critical', c2, 'ハウジング', full, 2, 'DEMO-03', 'DEMO-03')
         # 4 Vendor late: Painting out 10 days, lead 5
-        make('Vendor late', c2, 'Cover', ['Cutting', 'Painting'], 4, 'DEMO-04', 'DEMO-04')
+        make('Vendor late', c2, 'カバー', ['Cutting', 'Painting'], 4, 'DEMO-04', 'DEMO-04')
         scan('DEMO-04', 'Cutting', 'STARTED', ago(days=12))
         scan('DEMO-04', 'Cutting', 'FINISHED', ago(days=11))
         scan('DEMO-04', 'Painting', 'SENT_OUT', ago(days=10), d2)
         # 5 Stagnant: finished a step 40h ago, nothing since
-        make('Stagnant', c1, 'Shaft', ['Cutting', 'Welding', 'Inspection'], 6, 'DEMO-05', 'DEMO-05')
+        make('Stagnant', c1, 'シャフト', ['Cutting', 'Welding', 'Inspection'], 6, 'DEMO-05', 'DEMO-05')
         scan('DEMO-05', 'Cutting', 'STARTED', ago(hours=46))
         scan('DEMO-05', 'Cutting', 'FINISHED', ago(hours=40))
         # 6 Complete, due yesterday
-        make('Complete', c2, 'Plate', ['Cutting', 'Welding', 'Plating'], -1, 'DEMO-06', 'DEMO-06')
+        make('Complete', c2, 'プレート', ['Cutting', 'Welding', 'Plating'], -1, 'DEMO-06', 'DEMO-06')
         scan('DEMO-06', 'Cutting', 'STARTED', ago(days=6))
         scan('DEMO-06', 'Cutting', 'FINISHED', ago(days=5, hours=20))
         scan('DEMO-06', 'Welding', 'STARTED', ago(days=5))
@@ -112,9 +115,9 @@ class Command(BaseCommand):
         scan('DEMO-06', 'Plating', 'SENT_OUT', ago(days=3), d2)
         scan('DEMO-06', 'Plating', 'RETURNED', ago(days=1), d2)
         # 7 Not started
-        make('Not started', c1, 'Pin', ['Cutting', 'Welding', 'Assembly'], 20, 'DEMO-07', 'DEMO-07')
+        make('Not started', c1, 'ピン', ['Cutting', 'Welding', 'Assembly'], 20, 'DEMO-07', 'DEMO-07')
         # 8 Messy scans: skipped step, process not in route, unassigned tag, voided wrong scan
-        make('Messy scans', c2, 'Gear', full, 5, 'DEMO-08', 'DEMO-08')
+        make('Messy scans', c2, 'ギア', full, 5, 'DEMO-08', 'DEMO-08')
         scan('DEMO-08', 'Cutting', 'STARTED', ago(hours=30))
         scan('DEMO-08', 'Cutting', 'FINISHED', ago(hours=28))
         scan('DEMO-08', 'Assembly', 'STARTED', ago(hours=20))
@@ -126,16 +129,16 @@ class Command(BaseCommand):
         Tag.objects.get_or_create(uid='DEMO-X1')
         scan('DEMO-X1', 'Cutting', 'STARTED', ago(hours=6), d2)
         # 9 Reused box: DEMO-09 carried a finished order, now carries a new one
-        make('Reused box (old)', c2, 'Old part', ['Cutting'], -10, 'DEMO-09A', 'DEMO-09', ago(days=21), ago(days=9))
+        make('Reused box (old)', c2, '旧部品', ['Cutting'], -10, 'DEMO-09A', 'DEMO-09', ago(days=21), ago(days=9))
         scan('DEMO-09A', 'Cutting', 'STARTED', ago(days=19))
         scan('DEMO-09A', 'Cutting', 'FINISHED', ago(days=18))
-        make('Reused box (now)', c1, 'New part', ['Cutting', 'Welding'], 7, 'DEMO-09B', 'DEMO-09', ago(days=2))
+        make('Reused box (now)', c1, '新部品', ['Cutting', 'Welding'], 7, 'DEMO-09B', 'DEMO-09', ago(days=2))
         scan('DEMO-09B', 'Cutting', 'STARTED', ago(hours=30))
         scan('DEMO-09B', 'Cutting', 'FINISHED', ago(hours=20))
         scan('DEMO-09B', 'Welding', 'STARTED', ago(hours=2), d2)
         # 10 Split item: 3 boxes expected; one finished, one at step 2, one not linked yet
         route = ['Cutting', 'Welding', 'Assembly']
-        split = make('Split item', c1, 'Frame', route, 8, 'DEMO-10', 'DEMO-10', box_count=3)
+        split = make('Split item', c1, 'フレーム', route, 8, 'DEMO-10', 'DEMO-10', box_count=3)
         link(split, 'DEMO-11', 'DEMO-11')
         for name, s, f in (('Cutting', 40, 36), ('Welding', 34, 30), ('Assembly', 28, 24)):
             scan('DEMO-10', name, 'STARTED', ago(hours=s))

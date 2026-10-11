@@ -5,9 +5,10 @@ from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from types import SimpleNamespace
 
-from django.test import TestCase, override_settings
+from django.test import override_settings
 from django.utils import timezone
 
+from core.testing import TestCase
 from orders.models import Customer, Order, OrderItem, Process, RouteStep
 
 from .forms import AssignTagForm

@@ -37,7 +37,7 @@ class OrderItemForm(forms.ModelForm):
         self.fields['box_count'].required = False
         self.fields['box_count'].widget.attrs['min'] = 1
         self.fields['route'].choices = [
-            (p.pk, f'{p.name} ({p.get_kind_display()})') for p in Process.objects.order_by('kind', 'name')
+            (p.pk, f'{p} ({p.get_kind_display()})') for p in Process.objects.order_by('kind', 'name')
         ]
 
     def clean_box_count(self):

@@ -54,6 +54,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'core.middleware.DefaultJapaneseMiddleware',
     'django.middleware.locale.LocaleMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -119,9 +120,12 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/6.1/topics/i18n/
 
-LANGUAGE_CODE = 'en'
+LANGUAGE_CODE = 'ja'
 
-LANGUAGES = [('en', 'English'), ('ja', '日本語')]
+LANGUAGES = [('ja', '日本語'), ('en', 'English')]
+
+# Remember the chosen language for a year
+LANGUAGE_COOKIE_AGE = 60 * 60 * 24 * 365
 
 LOCALE_PATHS = [BASE_DIR / 'locale']
 

@@ -29,7 +29,7 @@ def _next_step(uid):
     if todo is None:
         return {'state': 'finished', **info}
     etype, process = todo
-    return {'state': 'next', 'value': f'{process.pk}:{etype}', 'label': f'{Event.Type(etype).label} - {process.name}', **info}
+    return {'state': 'next', 'value': f'{process.pk}:{etype}', 'label': f'{Event.Type(etype).label} - {process}', **info}
 
 
 @staff_member_required

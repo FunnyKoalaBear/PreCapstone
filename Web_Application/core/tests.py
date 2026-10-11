@@ -1,12 +1,18 @@
+import gettext
 from datetime import timedelta
 from io import StringIO
 
+from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.management import call_command
 from django.core.management.base import CommandError
-from django.test import TestCase, override_settings
+from django.test import TestCase as RawTestCase
+from django.test import override_settings
+from django.utils import translation
 from django.utils import timezone
 
+from core.templatetags.duration import duration
+from core.testing import TestCase
 from orders.models import Customer, Order, OrderItem, Process, RouteStep
 from tracking.models import Box, Event, ScannerDevice, Tag, TagAssignment
 from tracking.priority import priority
@@ -206,30 +212,30 @@ class SeedDemoTests(TestCase):
     @override_settings(DEBUG=True)
     def test_scenarios_match_statuses(self):
         self.seed()
-        item, st = self.status('Flange')
+        item, st = self.status('フランジ')
         self.assertEqual((st.code, priority(item.order, st)['tier']), ('IN_PROGRESS', 'OVERDUE'))
-        item, st = self.status('Cover')
+        item, st = self.status('カバー')
         self.assertEqual(st.code, 'AT_VENDOR')
         self.assertGreater(days_late(due_back(st.rows[1].started_at, 5)), 0)
-        self.assertTrue(is_stagnant(self.status('Shaft')[1]))
-        self.assertEqual(self.status('Plate')[1].code, 'COMPLETE')
-        self.assertEqual(self.status('Pin')[1].code, 'NOT_STARTED')
-        item, st = self.status('Housing')
+        self.assertTrue(is_stagnant(self.status('シャフト')[1]))
+        self.assertEqual(self.status('プレート')[1].code, 'COMPLETE')
+        self.assertEqual(self.status('ピン')[1].code, 'NOT_STARTED')
+        item, st = self.status('ハウジング')
         self.assertEqual(priority(item.order, st)['tier'], 'CRITICAL')
-        self.assertTrue(self.status('Gear')[1].warnings)
-        self.assertEqual(self.status('New part')[1].code, 'IN_PROGRESS')
+        self.assertTrue(self.status('ギア')[1].warnings)
+        self.assertEqual(self.status('新部品')[1].code, 'IN_PROGRESS')
 
     @override_settings(DEBUG=True)
     def test_split_item_rolls_up_three_boxes(self):
         self.seed()
-        item, st = self.status('Frame')
+        item, st = self.status('フレーム')
         self.assertEqual((item.box_count, st.code), (3, 'IN_PROGRESS'))
         self.assertEqual([b.code for b in st.boxes], ['COMPLETE', 'IN_PROGRESS', 'NOT_STARTED'])
         self.assertIsNone(st.boxes[2].assignment)
         self.assertEqual(st.warnings, [])
         self.seed('--reset')
-        self.assertEqual(OrderItem.objects.filter(part_name='Frame').count(), 1)
-        self.assertEqual(TagAssignment.objects.filter(item__part_name='Frame').count(), 2)
+        self.assertEqual(OrderItem.objects.filter(part_name='フレーム').count(), 1)
+        self.assertEqual(TagAssignment.objects.filter(item__part_name='フレーム').count(), 2)
 
     @override_settings(DEBUG=True)
     def test_every_event_uses_the_right_process_kind(self):
@@ -264,3 +270,79 @@ class SeedDemoTests(TestCase):
         with self.assertRaises(Exception):
             self.seed()
         self.assertEqual((Customer.objects.count(), Order.objects.count(), Event.objects.count()), (0, 0, 0))
+
+
+class LanguageTests(RawTestCase):
+    """Japanese by default, English one click away, choice remembered by cookie."""
+
+    def staff_data(self):
+        self.client.force_login(User.objects.create_user('s', password='x', is_staff=True))
+        order = Order.objects.create(customer=Customer.objects.create(name='C'), due_date=timezone.localdate())
+        item = OrderItem.objects.create(order=order, part_name='P', quantity=1)
+        RouteStep.objects.create(item=item, sequence=1, process=Process.objects.create(name='Cut', kind=K.MACHINING))
+        return order
+
+    def test_first_visit_is_japanese_even_with_english_browser(self):
+        r = self.client.get('/', HTTP_ACCEPT_LANGUAGE='en-US,en;q=0.9')
+        self.assertContains(r, 'ダッシュボードは準備中です。')
+        self.assertContains(r, '<html lang="ja">')
+        self.assertContains(r, 'class="lang-switch"')
+        self.assertContains(r, 'value="ja" class="active" aria-current="true"')
+
+    def test_switch_to_english_persists_in_cookie(self):
+        r = self.client.post('/i18n/setlang/', {'language': 'en', 'next': '/'})
+        self.assertRedirects(r, '/', fetch_redirect_response=False)
+        cookie = self.client.cookies[settings.LANGUAGE_COOKIE_NAME]
+        self.assertEqual((cookie.value, cookie['max-age']), ('en', 60 * 60 * 24 * 365))
+        r = self.client.get('/', HTTP_ACCEPT_LANGUAGE='ja')
+        self.assertContains(r, 'Dashboard coming soon.')
+        self.assertContains(r, 'value="en" class="active" aria-current="true"')
+        self.client.post('/i18n/setlang/', {'language': 'ja', 'next': '/'})
+        self.assertContains(self.client.get('/'), 'ダッシュボードは準備中です。')
+
+    def test_main_pages_work_in_both_languages(self):
+        order = self.staff_data()
+        urls = ['/', '/orders/', '/orders/new/', f'/orders/{order.job_number}/', '/tags/', '/simulate/', '/priorities/', '/boxes/', '/board/']
+        for lang in ('ja', 'en'):
+            self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = lang
+            for url in urls:
+                self.assertEqual(self.client.get(url).status_code, 200, (lang, url))
+
+    def test_japanese_pages_are_translated(self):
+        order = self.staff_data()
+        r = self.client.get(f'/orders/{order.job_number}/')
+        self.assertContains(r, '受注一覧に戻る')
+        self.assertContains(self.client.get('/board/'), '工程ボード')
+        self.assertContains(self.client.get('/tags/'), 'タグを紐付ける')
+
+    def test_admin_login_has_the_switch(self):
+        self.assertContains(self.client.get('/admin/login/'), 'class="lang-switch"')
+
+    def test_process_name_follows_language(self):
+        both = Process(name='Cutting', name_ja='切断', kind=K.MACHINING)
+        only_en = Process(name='Milling', kind=K.MACHINING)
+        with translation.override('ja'):
+            self.assertEqual((str(both), str(only_en)), ('切断', 'Milling'))
+        with translation.override('en'):
+            self.assertEqual((str(both), str(only_en)), ('Cutting', 'Milling'))
+
+    def test_duration_filter_is_translated(self):
+        td = timedelta(days=2, hours=3)
+        with translation.override('en'):
+            self.assertEqual(duration(td), '2d 3h')
+        with translation.override('ja'):
+            self.assertEqual((duration(td), duration(timedelta(seconds=5))), ('2日3時間', '1分未満'))
+
+    def test_catalog_is_complete(self):
+        base = settings.BASE_DIR / 'locale' / 'ja' / 'LC_MESSAGES'
+        po = (base / 'django.po').read_text(encoding='utf-8')
+        entries = [b for b in po.split('\n\n')[1:] if 'msgid "' in b]
+        self.assertGreater(len(entries), 200)
+        self.assertNotIn('#, fuzzy', po)
+        for b in entries:
+            self.assertNotRegex(b, r'(?m)^msgstr(\[0\])? ""\n(?!")|^msgstr(\[0\])? ""\Z', b)
+        with open(base / 'django.mo', 'rb') as f:
+            catalog = gettext.GNUTranslations(f)._catalog
+        self.assertFalse([k for k, v in catalog.items() if not v and k != ''])
+        self.assertEqual(catalog['Home'], 'ホーム')
+        self.assertGreaterEqual(len(catalog), len(entries))

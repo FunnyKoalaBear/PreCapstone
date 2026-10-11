@@ -37,3 +37,6 @@ Windows 11, Python 3.13, VS Code. The developer is learning: explain each step b
 
 - All events are created through tracking/services.record_event (simulate page now, scan API later). Events are always saved, even for unassigned tags.
 
+
+## Translation rule
+- Every new user-visible string needs its Japanese translation in locale/ja using docs/glossary.md; then run makemessages and compilemessages (commit .po and .mo). No untranslated or fuzzy entries; add new terms to the glossary. Mark unsure choices with a `# CHECK: reason` translator comment.

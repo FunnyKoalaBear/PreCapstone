@@ -2,6 +2,7 @@ from django.core.validators import MinValueValidator
 from django.db import models, transaction
 from django.db.models import Max, Q
 from django.utils import timezone
+from django.utils.translation import get_language
 from django.utils.translation import gettext_lazy as _
 
 from .validators import drawing_upload_to, validate_drawing_extension, validate_drawing_size
@@ -40,7 +41,7 @@ class Process(models.Model):
         verbose_name_plural = _('processes')
 
     def __str__(self):
-        return self.name
+        return self.name_ja if self.name_ja and get_language().startswith('ja') else self.name
 
 
 class Order(models.Model):
