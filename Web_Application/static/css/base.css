@@ -168,3 +168,19 @@ body {
 
 /* Per-box sections on the order page */
 .box-section { margin-top: 1.25rem; padding-top: 0.5rem; border-top: 1px solid var(--color-border); }
+
+/* Clickable home counters */
+.counters a.counter { display: block; text-decoration: none; }
+.counters a.counter:hover, .counters a.counter:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+
+/* Process board */
+.board-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
+.board-grid .process-card { max-width: none; margin: 0; }
+.process-card.queue-building { border-color: var(--board-queue); background: var(--board-queue-bg); }
+.process-card h3 { margin: 0 0 0.5rem; }
+.process-card h3 small { color: var(--color-muted); font-weight: normal; }
+.process-counts { display: flex; gap: 1rem; margin: 0 0 0.5rem; color: var(--color-muted); }
+.process-counts strong { font-size: 1.5rem; color: var(--color-text); }
+.process-boxes { list-style: none; margin: 0 0 0.5rem; padding: 0; font-size: 0.9rem; }
+.process-boxes li { padding: 0.15rem 0; overflow-wrap: anywhere; }
+.badge-queue { color: var(--board-queue); }

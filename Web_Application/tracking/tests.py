@@ -12,6 +12,7 @@ from orders.models import Customer, Order, OrderItem, Process, RouteStep
 
 from .forms import AssignTagForm
 from .models import Box, Event, ScannerDevice, Tag, TagAssignment
+from .overview import active_boxes, process_board
 from .priority import priority
 from .services import assign_tag, record_event, release_assignment
 from .status import AT_VENDOR, COMPLETE, IN_PROGRESS, NOT_STARTED, WAITING, BoxStatus, ItemStatus, _roll_up, events_for_item, days_late, due_back, idle_for, is_stagnant, item_status, timeline
@@ -461,3 +462,161 @@ class MultiBoxTests(TestCase):
         self.assertEqual(len(list(events_for_item(self.item))), 1)
         self.assertEqual(len(list(events_for_item(other))), 1)
         self.assertEqual(item_status(other).boxes[0].rows[0].started_at, self.start + timedelta(hours=12))
+
+
+class OverviewBase(TestCase):
+    def setUp(self):
+        self.now = timezone.now()
+        self.mat = Process.objects.create(name='Mat', kind=K.MATERIAL)
+        self.cut = Process.objects.create(name='Cut', kind=K.MACHINING)
+        self.weld = Process.objects.create(name='Weld', kind=K.MACHINING)
+        self.paint = Process.objects.create(name='Paint', kind=K.OUTSOURCED, vendor_name='PV', vendor_lead_days=3)
+        self.device = ScannerDevice.objects.create(name='D')
+        self.cust = Customer.objects.create(name='C')
+        self.n = 0
+
+    def item(self, route, due=10, boxes=1, uids=(), ended=()):
+        self.n += 1
+        order = Order.objects.create(customer=self.cust, due_date=timezone.localdate() + timedelta(days=due))
+        item = OrderItem.objects.create(order=order, part_name=f'P{self.n}', quantity=1, box_count=boxes)
+        for i, p in enumerate(route, 1):
+            RouteStep.objects.create(item=item, sequence=i, process=p)
+        for uid in uids:
+            TagAssignment.objects.create(
+                tag=Tag.objects.create(uid=uid), box=Box.objects.create(label=f'L{uid}'), item=item,
+                start_at=self.now - timedelta(days=20), end_at=self.now - timedelta(days=1) if uid in ended else None,
+            )
+        return item
+
+    def scan(self, uid, proc, etype, hours_ago):
+        Event.objects.create(device=self.device, tag_uid=uid, event_type=etype, process=proc,
+                             occurred_at=self.now - timedelta(hours=hours_ago))
+
+    def staff(self):
+        self.client.force_login(User.objects.create_user('s', password='x', is_staff=True))
+
+    def scenario(self):
+        """7 unfinished boxes: one of each status plus 4 not started (2 are unlinked placeholders)."""
+        self.item([self.cut], uids=['A'])
+        self.scan('A', self.cut, E.STARTED, 2)
+        self.item([self.cut, self.weld], due=-2, uids=['B'])  # overdue, waiting 30h = stagnant
+        self.scan('B', self.cut, E.STARTED, 40)
+        self.scan('B', self.cut, E.FINISHED, 30)
+        self.item([self.paint], uids=['C'])
+        self.scan('C', self.paint, E.SENT_OUT, 24 * 5)  # lead 3 days: late
+        self.item([self.cut], uids=['D'])
+        self.item([self.cut], boxes=2, uids=['E'])
+        self.item([self.cut], boxes=2, uids=['F'], ended=['F'])  # released finished box + placeholder
+        self.scan('F', self.cut, E.STARTED, 100)
+        self.scan('F', self.cut, E.FINISHED, 99)
+        self.item([self.cut], uids=['G'])  # complete: not listed
+        self.scan('G', self.cut, E.STARTED, 5)
+        self.scan('G', self.cut, E.FINISHED, 4)
+
+
+class ActiveBoxesTests(OverviewBase):
+    def test_each_status_placeholder_and_released_box(self):
+        self.scenario()
+        rows = {(e['item'].part_name, e['box_label']): e for e in active_boxes(self.now)}
+        self.assertEqual(len(rows), 7)
+        self.assertEqual(rows['P1', 'LA']['code'], IN_PROGRESS)
+        self.assertEqual(rows['P1', 'LA']['process'], self.cut)
+        b = rows['P2', 'LB']
+        self.assertEqual((b['code'], b['process'], b['stagnant'], b['late']), (WAITING, self.weld, True, True))
+        self.assertEqual(b['idle'], timedelta(hours=30))
+        c = rows['P3', 'LC']
+        self.assertEqual((c['code'], c['late_days'], c['vendor']), (AT_VENDOR, 2, 'PV'))
+        self.assertEqual(c['due_back'], due_back(c['started_at'], 3))
+        self.assertEqual(rows['P4', 'LD']['code'], NOT_STARTED)
+        self.assertIn(('P5', None), rows)  # placeholder
+        self.assertEqual(rows['P5', None]['code'], NOT_STARTED)
+        self.assertIn(('P6', None), rows)
+        self.assertNotIn(('P6', 'LF'), rows)  # released finished box is done
+        self.assertFalse([k for k in rows if k[0] == 'P7'])  # complete item
+
+
+class BoxesPageTests(OverviewBase):
+    def rows(self, query=''):
+        r = self.client.get('/boxes/' + query)
+        self.assertEqual(r.status_code, 200)
+        return r.context['rows']
+
+    def test_staff_only(self):
+        self.assertEqual(self.client.get('/boxes/').status_code, 302)
+        self.assertEqual(self.client.get('/board/').status_code, 302)
+
+    def test_filters_and_invalid_values(self):
+        self.scenario()
+        self.staff()
+        sizes = {q: len(self.rows(q)) for q in (
+            '', '?status=in_progress', '?status=waiting', '?status=at_vendor', '?status=not_started',
+            '?stagnant=1', '?vendor_late=1', '?status=waiting&stagnant=1', '?status=in_progress&stagnant=1',
+            '?status=bogus&stagnant=maybe&vendor_late=2',
+        )}
+        self.assertEqual(list(sizes.values()), [7, 1, 1, 1, 4, 1, 1, 1, 0, 7])
+
+    def test_title_placeholder_link_and_empty_message(self):
+        self.scenario()
+        self.staff()
+        r = self.client.get('/boxes/?status=not_started')
+        self.assertContains(r, 'Not linked yet')
+        self.assertContains(r, 'href="/tags/"')
+        self.assertContains(r, 'Back to Home')
+        self.assertContains(self.client.get('/boxes/?status=waiting&stagnant=1'), 'Waiting, Stagnant')
+        self.assertContains(self.client.get('/boxes/?status=in_progress&stagnant=1'), 'No boxes match this filter.')
+
+    def test_home_counters_equal_page_rows(self):
+        self.scenario()
+        self.staff()
+        home = self.client.get('/')
+        links = {
+            'in_progress': '/boxes/?status=in_progress', 'waiting': '/boxes/?status=waiting',
+            'at_vendor': '/boxes/?status=at_vendor', 'not_started': '/boxes/?status=not_started',
+            'stagnant': '/boxes/?stagnant=1', 'vendor_overdue': '/boxes/?status=at_vendor&vendor_late=1',
+        }
+        for key, url in links.items():
+            self.assertContains(home, f'href="{url.replace("&", "&amp;")}"')
+            self.assertEqual(home.context['counters'][key], len(self.rows(url[len('/boxes/'):])), key)
+        self.assertContains(home, 'href="/orders/?late=1"')
+        late_orders = self.client.get('/orders/?late=1').context['rows']
+        self.assertEqual(home.context['counters']['overdue'], len(late_orders))
+        self.assertEqual(home.context['counters']['not_started'], 4)
+
+
+class ProcessBoardTests(OverviewBase):
+    def build(self):
+        self.item([self.cut], uids=['R1'])
+        self.scan('R1', self.cut, E.STARTED, 5)
+        self.item([self.cut], uids=['R2'])
+        self.scan('R2', self.cut, E.STARTED, 2)
+        for uid, idle in (('W1', 10), ('W2', 4), ('W3', 7)):
+            self.item([self.cut, self.weld], uids=[uid])
+            self.scan(uid, self.cut, E.STARTED, idle + 1)
+            self.scan(uid, self.cut, E.FINISHED, idle)
+        self.item([self.paint], uids=['V1'])
+        self.scan('V1', self.paint, E.SENT_OUT, 6)
+
+    def test_running_waiting_split_sorting_and_queue(self):
+        self.build()
+        cards = {c['process'].name: c for c in process_board(self.now)}
+        self.assertEqual(sorted(cards), ['Cut', 'Paint', 'Weld'])  # material is skipped
+        cut, weld, paint = cards['Cut'], cards['Weld'], cards['Paint']
+        self.assertEqual([b['box_label'] for b in cut['running']], ['LR1', 'LR2'])  # longest first
+        self.assertEqual(cut['running'][0]['running_for'], timedelta(hours=5))
+        self.assertEqual((cut['waiting'], cut['queue']), ([], False))
+        self.assertEqual(weld['running'], [])
+        self.assertEqual([b['box_label'] for b in weld['waiting']], ['LW1', 'LW3', 'LW2'])  # longest idle first
+        self.assertTrue(weld['queue'])
+        self.assertEqual(([b['box_label'] for b in paint['running']], paint['outsourced']), (['LV1'], True))
+
+    def test_board_page_groups_and_highlights(self):
+        self.build()
+        self.staff()
+        r = self.client.get('/board/')
+        self.assertEqual([c['process'].name for c in r.context['in_house']], ['Cut', 'Weld'])
+        self.assertEqual([c['process'].name for c in r.context['outsourced']], ['Paint'])
+        self.assertContains(r, 'queue-building', count=1)
+        self.assertContains(r, 'Queue building', count=1)
+        self.assertContains(r, 'PV')
+        self.assertContains(r, 'href="/orders/')
+        self.assertContains(r, 'Process board')

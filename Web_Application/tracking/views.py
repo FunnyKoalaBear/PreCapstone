@@ -4,14 +4,16 @@ from django.core.exceptions import ValidationError
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.translation import gettext as _
+from django.utils.translation import gettext_lazy
 
 from orders.models import OrderItem
 
 from .forms import AssignTagForm, SimulateScanForm
 from .models import Box, Event, Tag, TagAssignment
+from .overview import active_boxes, process_board
 from .priority import TIER_LABELS, TIERS, priority
 from .services import assign_tag, record_event, release_assignment
-from .status import COMPLETE, NOT_STARTED, current_row, item_status
+from .status import AT_VENDOR, COMPLETE, IN_PROGRESS, NOT_STARTED, WAITING, current_row, item_status
 
 
 @staff_member_required
@@ -99,4 +101,34 @@ def priorities(request):
     return render(request, 'tracking/priorities.html', {
         'rows': rows, 'tier': tier, 'total': sum(counts.values()),
         'tiers': [(t, t.lower(), TIER_LABELS[t], counts[t]) for t in TIERS],
+    })
+
+
+BOX_STATUSES = {
+    'in_progress': (IN_PROGRESS, gettext_lazy('In progress')), 'waiting': (WAITING, gettext_lazy('Waiting')),
+    'at_vendor': (AT_VENDOR, gettext_lazy('At vendor')), 'not_started': (NOT_STARTED, gettext_lazy('Not started')),
+}
+
+
+@staff_member_required
+def boxes(request):
+    status, stagnant, vendor_late = request.GET.get('status'), request.GET.get('stagnant') == '1', request.GET.get('vendor_late') == '1'
+    rows, parts = active_boxes(), []
+    if status in BOX_STATUSES:
+        rows = [r for r in rows if r['code'] == BOX_STATUSES[status][0]]
+        parts.append(BOX_STATUSES[status][1])
+    if stagnant:
+        rows = [r for r in rows if r['stagnant']]
+        parts.append(_('Stagnant'))
+    if vendor_late:
+        rows = [r for r in rows if r['late_days']]
+        parts.append(_('Vendor late'))
+    return render(request, 'tracking/boxes.html', {'rows': rows, 'filters': ', '.join(map(str, parts))})
+
+
+@staff_member_required
+def board(request):
+    cards = process_board()
+    return render(request, 'tracking/board.html', {
+        'in_house': [c for c in cards if not c['outsourced']], 'outsourced': [c for c in cards if c['outsourced']],
     })

@@ -14,6 +14,9 @@
 
   --stagnant-color: #be185d;
 
+  --board-queue: #c2410c;
+  --board-queue-bg: #fff7ed;
+
   --risk-overdue: #b91c1c;
   --risk-critical: #ea580c;
   --risk-watch: #ca8a04;
