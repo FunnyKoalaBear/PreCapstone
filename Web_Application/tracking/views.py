@@ -11,7 +11,7 @@ from orders.models import OrderItem
 
 from .forms import AssignTagForm, PickTagForm, SimulateScanForm
 from .models import Box, Event, Tag, TagAssignment
-from .overview import active_boxes, process_board
+from .overview import active_boxes
 from .priority import TIER_LABELS, TIERS, priority
 from .services import assign_tag, record_event, release_assignment, replace_tag, resolve_tag
 from .status import AT_VENDOR, COMPLETE, IN_PROGRESS, NOT_STARTED, WAITING, current_row, item_status, next_action
@@ -145,25 +145,36 @@ BOX_STATUSES = {
 }
 
 
+BOX_SORTS = {
+    'process': lambda e: (e['process'].name if e['process'] else '￿', e['due_date'], e['order'].job_number, e['item'].item_no),
+    'due': lambda e: (e['due_date'], e['order'].job_number, e['item'].item_no, e['box_label'] or ''),
+    'customer': lambda e: (str(e['order'].customer), e['due_date'], e['order'].job_number, e['item'].item_no),
+    'waiting': lambda e: (e['idle'] is None, -e['idle'].total_seconds() if e['idle'] else 0, e['due_date'], e['order'].job_number),
+}
+BOX_SORT_CHOICES = [
+    ('process', gettext_lazy('Current process')), ('due', gettext_lazy('Due date')),
+    ('customer', gettext_lazy('Customer')), ('waiting', gettext_lazy('Idle for')),
+]
+
+
 @staff_member_required
 def boxes(request):
     status, stagnant, vendor_late = request.GET.get('status'), request.GET.get('stagnant') == '1', request.GET.get('vendor_late') == '1'
+    sort = request.GET.get('sort') if request.GET.get('sort') in BOX_SORTS else 'due'
     rows, parts = active_boxes(), []
     if status in BOX_STATUSES:
         rows = [r for r in rows if r['code'] == BOX_STATUSES[status][0]]
+    if vendor_late:
+        rows = [r for r in rows if r['late_days']]
+        parts.append(_('Vendor overdue'))
+    elif status in BOX_STATUSES:
         parts.append(BOX_STATUSES[status][1])
     if stagnant:
         rows = [r for r in rows if r['stagnant']]
         parts.append(_('Stagnant'))
-    if vendor_late:
-        rows = [r for r in rows if r['late_days']]
-        parts.append(_('Vendor late'))
-    return render(request, 'tracking/boxes.html', {'rows': rows, 'filters': ', '.join(map(str, parts))})
-
-
-@staff_member_required
-def board(request):
-    cards = process_board()
-    return render(request, 'tracking/board.html', {
-        'in_house': [c for c in cards if not c['outsourced']], 'outsourced': [c for c in cards if c['outsourced']],
+    rows.sort(key=BOX_SORTS[sort])
+    keep = {k: v for k, v in (('status', status), ('stagnant', '1' if stagnant else ''), ('vendor_late', '1' if vendor_late else '')) if v}
+    return render(request, 'tracking/boxes.html', {
+        'rows': rows, 'title': ', '.join(map(str, parts)) or _('Active boxes'), 'sort': sort,
+        'sort_choices': BOX_SORT_CHOICES, 'keep': keep,
     })

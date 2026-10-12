@@ -6,15 +6,15 @@ frameworks). Japanese is the default; the 日本語 / English switch is in the h
 
 Files (upload all of them, keeping the folder structure)
 --------------------------------------------------------
-  index.html        Home: counters (clickable) and in-house / at-vendor tables
-  boxes.html        Boxes list behind the counters (?status=, ?stagnant=1, ?vendor_late=1)
+  index.html        Home: counters (clickable) and the process board (running and waiting boxes per process)
+  boxes.html        Result list behind the counters, titled by its filter (?status=, ?stagnant=1, ?vendor_late=1)
+                    and sortable (?sort=process|due|customer|waiting; default due)
   orders.html       Orders list: search, status filter, sort, overdue only
   order.html        Order detail: timeline and event history per box (?job=...)
   new-order.html    New order, including the Boxes field
   edit-order.html   Edit an order (?job=...): fields, items, box count; route locked after a scan; changes go to the order's Change history
   tags.html         Link / release / replace tags, search linked tags
   simulate.html     Simulate a scan (next step only, plus "other action")
-  board.html        Process board: running and waiting boxes per process
   priorities.html   Priorities: risk tiers, slack and reasons
   css/theme.css     Colour variables (same as the app)
   css/base.css      Styles (same as the app, plus the demo banner)
@@ -26,7 +26,7 @@ Files (upload all of them, keeping the folder structure)
 Upload to Neocities
 -------------------
 1. Log in to Neocities and open the dashboard ("Edit Site").
-2. Upload the ten .html files to the top level of the site.
+2. Upload the nine .html files to the top level of the site.
 3. Create the folders css and js (or drag the folders in) and upload the files above.
 4. Open https://<yoursite>.neocities.org/index.html. Staff can also open
    index.html straight from a local copy of this folder; no server is needed.

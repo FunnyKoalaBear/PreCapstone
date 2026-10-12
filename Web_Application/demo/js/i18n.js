@@ -4,8 +4,8 @@ const TEXTS = {
   brand: ['工程進捗管理', 'Factory Tracker'], footer: ['工程進捗管理（デモ）', 'Factory Tracker (demo)'],
   banner: ['これはサンプルデータによるデモです。変更はこのブラウザにのみ保存されます。', 'This is a demo with sample data. Changes are saved only in this browser.'],
   reset_demo: ['デモデータをリセット', 'Reset demo data'],
-  nav_home: ['ホーム', 'Home'], nav_orders: ['受注一覧', 'Orders'], nav_new: ['新規受注', 'New order'], nav_boxes: ['箱一覧', 'Boxes'],
-  nav_board: ['工程ボード', 'Process board'], nav_prio: ['優先度', 'Priorities'], nav_tags: ['タグ管理', 'Tags'], nav_sim: ['スキャンのシミュレーション', 'Simulate scan'],
+  nav_home: ['ホーム', 'Home'], nav_orders: ['受注一覧', 'Orders'], nav_new: ['新規受注', 'New order'],
+  nav_prio: ['優先度', 'Priorities'], nav_tags: ['タグ管理', 'Tags'], nav_sim: ['スキャンのシミュレーション', 'Simulate scan'],
   // statuses, kinds, events, tiers
   NOT_STARTED: ['未着手', 'Not started'], WAITING: ['待機中', 'Waiting'], IN_PROGRESS: ['作業中', 'In progress'], AT_VENDOR: ['外注中', 'At vendor'], COMPLETE: ['完了', 'Complete'],
   pending: ['未処理', 'Pending'], in_progress: ['作業中', 'In progress'], at_vendor: ['外注中', 'At vendor'], done: ['完了', 'Done'],
@@ -15,7 +15,7 @@ const TEXTS = {
   // common words
   item: ['品目', 'Item'], part: ['品名', 'Part'], customer: ['得意先', 'Customer'], status: ['状態', 'Status'], due_date: ['納期', 'Due date'], notes: ['備考', 'Notes'],
   process: ['工程', 'Process'], current_process: ['現在の工程', 'Current process'], box: ['箱', 'Box'], tag: ['タグ', 'Tag'], vendor: ['外注先', 'Vendor'],
-  overdue: ['納期遅れ', 'Overdue'], stagnant: ['滞留', 'Stagnant'], vendor_late: ['外注遅れ', 'Vendor late'], idle_for: ['滞留時間', 'Idle for'],
+  overdue: ['納期遅れ', 'Overdue'], stagnant: ['滞留', 'Stagnant'], idle_for: ['滞留時間', 'Idle for'],
   search: ['検索', 'Search'], all: ['すべて', 'All'], apply: ['適用', 'Apply'], remove: ['削除', 'Remove'], confirm: ['確定', 'Confirm'], device: ['読取端末', 'Device'],
   action: ['操作', 'Action'], time_jst: ['時刻（JST）', 'Time (JST)'], job_number: ['製番', 'Job number'], customer_order_number: ['客先注文番号', 'Customer order number'],
   not_linked_yet: ['未紐付け', 'Not linked yet'], link_a_tag: ['タグを紐付ける', 'Link a tag'], back_home: ['ホームに戻る', 'Back to Home'], back_orders: ['受注一覧に戻る', 'Back to Orders'],
@@ -25,12 +25,8 @@ const TEXTS = {
   dur_dh: ['{d}日{h}時間', '{d}d {h}h'], dur_hm: ['{h}時間{m}分', '{h}h {m}m'], dur_m: ['{m}分', '{m}m'], dur_lt1: ['1分未満', '<1m'],
   // home
   home_title: ['ホーム', 'Home'], overdue_orders: ['納期遅れの受注', 'Overdue orders'], vendor_overdue: ['外注遅れ', 'Vendor overdue'],
-  in_house_now: ['社内の現在状況', 'In-house now'], at_vendors: ['外注中', 'At vendors'], last_scan: ['最終スキャン（JST）', 'Last scan (JST)'],
-  nothing_factory: ['現在、社内に作業中の箱はありません。', 'Nothing in the factory right now.'],
-  out_since: ['外注出し日（JST）', 'Out since (JST)'], days_out: ['外注日数', 'Days out'], due_back: ['戻り予定日', 'Due back'], late_by: ['遅れ', 'Late by'],
-  no_due_date: ['戻り予定なし', 'No due date'], nothing_vendor: ['外注中の箱はありません。', 'Nothing is out at vendors.'],
   // boxes page
-  boxes_title: ['箱一覧', 'Boxes'], no_boxes_match: ['条件に一致する箱はありません。', 'No boxes match this filter.'],
+  active_boxes: ['進行中の箱', 'Active boxes'], no_match: ['条件に一致するものはありません。', 'Nothing matches this filter.'],
   // orders
   orders_title: ['受注一覧', 'Orders'], sort_by: ['並び順', 'Sort by'], newest: ['新しい順', 'Newest'], overdue_only: ['納期遅れのみ', 'Overdue only'],
   items: ['品目', 'Items'], no_orders: ['受注が見つかりません。', 'No orders found.'], order_progress: ['作業中（{total}品目中{done}品目が完了）', 'In progress ({done}/{total} items complete)'],

@@ -544,7 +544,6 @@ class BoxesPageTests(OverviewBase):
 
     def test_staff_only(self):
         self.assertEqual(self.client.get('/boxes/').status_code, 302)
-        self.assertEqual(self.client.get('/board/').status_code, 302)
 
     def test_filters_and_invalid_values(self):
         self.scenario()
@@ -564,7 +563,55 @@ class BoxesPageTests(OverviewBase):
         self.assertContains(r, 'href="/tags/"')
         self.assertContains(r, 'Back to Home')
         self.assertContains(self.client.get('/boxes/?status=waiting&stagnant=1'), 'Waiting, Stagnant')
-        self.assertContains(self.client.get('/boxes/?status=in_progress&stagnant=1'), 'No boxes match this filter.')
+        self.assertContains(self.client.get('/boxes/?status=in_progress&stagnant=1'), 'Nothing matches this filter.')
+
+    def test_titles_say_what_the_list_shows(self):
+        self.scenario()
+        self.staff()
+        for query, title in (('?status=in_progress', 'In progress'), ('?status=waiting', 'Waiting'), ('?status=at_vendor', 'At vendor'),
+                             ('?status=not_started', 'Not started'), ('?stagnant=1', 'Stagnant'),
+                             ('?status=at_vendor&vendor_late=1', 'Vendor overdue'), ('', 'Active boxes')):
+            r = self.client.get('/boxes/' + query)
+            self.assertEqual(r.context['title'], title)
+            self.assertContains(r, f'<h1>{title}</h1>')
+            self.assertContains(r, f'<title>{title} - Factory Tracker</title>')
+        self.assertNotContains(self.client.get('/boxes/?status=waiting&stagnant=1'), '<h1>Boxes')
+
+    def test_sort_options_and_fallback(self):
+        self.scenario()
+        other = Customer.objects.create(name='AAA')
+        order = Order.objects.create(customer=other, due_date=timezone.localdate() + timedelta(days=30))
+        OrderItem.objects.create(order=order, part_name='Z', quantity=1)
+        self.staff()
+        due = [(r['due_date'], r['order'].job_number) for r in self.rows('?sort=due')]
+        self.assertEqual(due, sorted(due))
+        self.assertEqual(self.rows('?sort=due')[0]['due_date'], timezone.localdate() - timedelta(days=2))
+        procs = [r['process'].name if r['process'] else None for r in self.rows('?sort=process')]
+        named = [p for p in procs if p]
+        self.assertEqual((named, procs[len(named):]), (sorted(named), [None] * (len(procs) - len(named))))
+        self.assertEqual(named[0], 'Cut')
+        customers = [str(r['order'].customer) for r in self.rows('?sort=customer')]
+        self.assertEqual((customers, customers[0]), (sorted(customers), 'AAA'))
+        idles = [r['idle'] for r in self.rows('?sort=waiting')]
+        known = [i for i in idles if i is not None]
+        self.assertEqual((known, idles[len(known):]), (sorted(known, reverse=True), [None] * (len(idles) - len(known))))
+        self.assertGreater(len(known), 1)
+        for bad in ('?sort=bogus', '?sort='):
+            self.assertEqual(self.client.get('/boxes/' + bad).context['sort'], 'due')
+            key = lambda rows: [(r['item'].pk, r['box_label']) for r in rows]
+            self.assertEqual(key(self.rows(bad)), key(self.rows('?sort=due')))
+
+    def test_sort_control_keeps_filters(self):
+        self.scenario()
+        self.staff()
+        r = self.client.get('/boxes/?status=waiting&stagnant=1&sort=customer')
+        self.assertContains(r, '<input type="hidden" name="status" value="waiting">')
+        self.assertContains(r, '<input type="hidden" name="stagnant" value="1">')
+        self.assertContains(r, '<option value="customer" selected>')
+
+    def test_board_page_is_gone(self):
+        self.staff()
+        self.assertEqual(self.client.get('/board/').status_code, 404)
 
     def test_home_counters_equal_page_rows(self):
         self.scenario()
@@ -609,18 +656,6 @@ class ProcessBoardTests(OverviewBase):
         self.assertEqual([b['box_label'] for b in weld['waiting']], ['LW1', 'LW3', 'LW2'])  # longest idle first
         self.assertTrue(weld['queue'])
         self.assertEqual(([b['box_label'] for b in paint['running']], paint['outsourced']), (['LV1'], True))
-
-    def test_board_page_groups_and_highlights(self):
-        self.build()
-        self.staff()
-        r = self.client.get('/board/')
-        self.assertEqual([c['process'].name for c in r.context['in_house']], ['Cut', 'Weld'])
-        self.assertEqual([c['process'].name for c in r.context['outsourced']], ['Paint'])
-        self.assertContains(r, 'queue-building', count=1)
-        self.assertContains(r, 'Queue building', count=1)
-        self.assertContains(r, 'PV')
-        self.assertContains(r, 'href="/orders/')
-        self.assertContains(r, 'Process board')
 
 
 class ReplaceTagTests(OverviewBase):

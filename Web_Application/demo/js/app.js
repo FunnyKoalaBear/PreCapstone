@@ -44,7 +44,7 @@
   const tagList = () => world.tags.filter((u) => !world.inactive.has(u));
 
   // ---------- shell ----------
-  const NAV = [['index', 'nav_home'], ['orders', 'nav_orders'], ['new-order', 'nav_new'], ['boxes', 'nav_boxes'], ['board', 'nav_board'],
+  const NAV = [['index', 'nav_home'], ['orders', 'nav_orders'], ['new-order', 'nav_new'],
     ['priorities', 'nav_prio'], ['tags', 'nav_tags'], ['simulate', 'nav_sim']];
   function shell() {
     document.documentElement.lang = I18N.lang;
@@ -64,13 +64,6 @@
   function pageHome(app) {
     const d = FT.homeData(world), c = d.counters;
     const card = (cls, href, n, label) => `<a class="card counter counter-${cls}" href="${href}"><strong>${n}</strong> ${h(label)}</a>`;
-    const inRows = d.inHouse.map((e) => `<tr><td>${orderLink(e.order.job, itemBox(e))}</td><td>${h(e.item.part)}</td><td>${h(e.order.customer)}</td>
-      <td>${h(pname(e.proc))}</td><td>${statusBadge(e.code)}</td>
-      <td>${e.due}${e.late ? ' ' + badge('overdue', t('overdue')) : ''}</td><td>${fmtDT(e.lastEvent)}</td>
-      <td>${fmtDur(e.idle)}${e.stagnant ? ' ' + badge('stagnant', t('stagnant')) : ''}</td></tr>`);
-    const vRows = d.atVendor.map((e) => `<tr><td>${orderLink(e.order.job, itemBox(e))}</td><td>${h(e.item.part)}</td><td>${h(e.proc.vendor || '-')}</td>
-      <td>${h(pname(e.proc))}</td><td>${fmtDT(e.started)}</td><td>${e.daysOut ?? '-'}</td>
-      <td>${e.dueBack || h(t('no_due_date'))}</td><td>${e.lateDays ? lateBadge(e.lateDays) : ''}</td></tr>`);
     app.innerHTML = `<h1>${h(t('home_title'))}</h1><div class="counters">
       ${card('in_progress', 'boxes.html?status=in_progress', c.in_progress, t('IN_PROGRESS'))}
       ${card('waiting', 'boxes.html?status=waiting', c.waiting, t('WAITING'))}
@@ -80,23 +73,28 @@
       ${card('overdue', 'orders.html?late=1', c.overdue, t('overdue_orders'))}
       ${card('vendor' + (c.vendor_overdue ? ' counter-overdue counter-late' : ''), 'boxes.html?status=at_vendor&vendor_late=1', c.vendor_overdue, t('vendor_overdue'))}
     </div>
-    <h2>${h(t('in_house_now'))}</h2>${table([t('item'), t('part'), t('customer'), t('current_process'), t('status'), t('due_date'), t('last_scan'), t('idle_for')], inRows, t('nothing_factory'))}
-    <h2>${h(t('at_vendors'))}</h2>${table([t('item'), t('part'), t('vendor'), t('process'), t('out_since'), t('days_out'), t('due_back'), t('late_by')], vRows, t('nothing_vendor'))}`;
+    <h2>${h(t('board_title'))}</h2>${boardHtml()}`;
   }
 
   // ---------- boxes ----------
   const STATUS_PARAMS = { in_progress: IN_PROGRESS, waiting: WAITING, at_vendor: AT_VENDOR, not_started: NOT_STARTED };
   function pageBoxes(app) {
     const status = STATUS_PARAMS[Q.get('status')] || null, stagnant = Q.get('stagnant') === '1', vendorLate = Q.get('vendor_late') === '1';
-    const parts = [status && t(status), stagnant && t('stagnant'), vendorLate && t('vendor_late')].filter(Boolean);
-    const rows = FT.boxesPage(world, { status, stagnant, vendorLate }).map((e) => `<tr>
+    const sort = Object.keys(FT.BOX_SORTS).includes(Q.get('sort')) ? Q.get('sort') : 'due';
+    const title = [vendorLate ? t('vendor_overdue') : status && t(status), stagnant && t('stagnant')].filter(Boolean).join(', ') || t('active_boxes');
+    const rows = FT.boxesPage(world, { status, stagnant, vendorLate, sort }).map((e) => `<tr>
       <td>${orderLink(e.order.job, e.item.id)}</td>
       <td>${e.boxLabel ? h(e.boxLabel) : `${h(t('not_linked_yet'))} <a href="tags.html">${h(t('link_a_tag'))}</a>`}</td>
       <td>${h(e.item.part)}</td><td>${h(e.order.customer)}</td><td>${h(pname(e.proc))}</td><td>${statusBadge(e.code)}</td><td>${e.due}</td><td>${fmtDur(e.idle)}</td>
-      <td>${e.late ? badge('overdue', t('overdue')) : ''} ${e.stagnant ? badge('stagnant', t('stagnant')) : ''} ${e.lateDays ? badge('overdue', t('vendor_late')) + ' ' + lateBadge(e.lateDays) : ''}</td></tr>`);
+      <td>${e.late ? badge('overdue', t('overdue')) : ''} ${e.stagnant ? badge('stagnant', t('stagnant')) : ''} ${e.lateDays ? badge('overdue', t('vendor_overdue')) + ' ' + lateBadge(e.lateDays) : ''}</td></tr>`);
+    const keep = [['status', status ? Q.get('status') : ''], ['stagnant', stagnant ? '1' : ''], ['vendor_late', vendorLate ? '1' : '']]
+      .filter(([, v]) => v).map(([k, v]) => `<input type="hidden" name="${k}" value="${v}">`).join('');
+    const opt = (v, text) => `<option value="${v}"${v === sort ? ' selected' : ''}>${h(text)}</option>`;
     app.innerHTML = `<p><a href="index.html">&larr; ${h(t('back_home'))}</a></p>
-      <h1>${h(t('boxes_title'))}${parts.length ? ` <small>- ${h(parts.join(', '))}</small>` : ''}</h1>
-      ${rows.length ? table([t('item'), t('box'), t('part'), t('customer'), t('current_process'), t('status'), t('due_date'), t('idle_for'), ''], rows, '') : `<p>${h(t('no_boxes_match'))}</p>`}`;
+      <h1>${h(title)}</h1>
+      <form method="get" class="filters">${keep}<div><label for="sort">${h(t('sort_by'))}</label><select id="sort" name="sort" onchange="this.form.submit()">${
+  opt('process', t('current_process'))}${opt('due', t('due_date'))}${opt('customer', t('customer'))}${opt('waiting', t('idle_for'))}</select></div></form>
+      ${rows.length ? table([t('item'), t('box'), t('part'), t('customer'), t('current_process'), t('status'), t('due_date'), t('idle_for'), ''], rows, '') : `<p>${h(t('no_match'))}</p>`}`;
   }
 
   // ---------- orders ----------
@@ -423,8 +421,8 @@
     });
   }
 
-  // ---------- process board ----------
-  function pageBoard(app) {
+  // ---------- process board (on the home page) ----------
+  function boardHtml() {
     const flags = (e) => (e.late ? badge('overdue', t('overdue')) : `<small>${e.due}</small>`) + (e.stagnant ? ' ' + badge('stagnant', t('stagnant')) : '');
     const list = (rows, time) => (rows.length ? `<ul class="process-boxes">${rows.map((e) =>
       `<li>${orderLink(e.order.job, itemBox(e))} ${time(e) != null ? `<small>${fmtDur(time(e))}</small>` : ''} ${flags(e)}</li>`).join('')}</ul>` : '');
@@ -434,8 +432,8 @@
       ${list(c.running, (e) => e.runningFor)}${c.waiting.length ? `<h4>${h(t('waiting'))}</h4>${list(c.waiting, (e) => e.idle)}` : ''}</section>`;
     const cards = FT.processBoard(world);
     const grid = (rows, empty) => `<div class="board-grid">${rows.length ? rows.map(card).join('') : `<p>${h(empty)}</p>`}</div>`;
-    app.innerHTML = `<h1>${h(t('board_title'))}</h1><h2>${h(t('in_house'))}</h2>${grid(cards.filter((c) => !c.outsourced), t('no_in_house'))}
-      <h2>${h(t('outsourced'))}</h2>${grid(cards.filter((c) => c.outsourced), t('no_outsourced'))}`;
+    return `<h3>${h(t('in_house'))}</h3>${grid(cards.filter((c) => !c.outsourced), t('no_in_house'))}
+      <h3>${h(t('outsourced'))}</h3>${grid(cards.filter((c) => c.outsourced), t('no_outsourced'))}`;
   }
 
   // ---------- priorities ----------
@@ -450,7 +448,7 @@
   }
 
   // ---------- start ----------
-  const PAGES = { home: pageHome, boxes: pageBoxes, orders: pageOrders, order: pageOrder, edit: pageEdit, new: pageNewOrder, tags: pageTags, simulate: pageSimulate, board: pageBoard, priorities: pagePriorities };
+  const PAGES = { home: pageHome, boxes: pageBoxes, orders: pageOrders, order: pageOrder, edit: pageEdit, new: pageNewOrder, tags: pageTags, simulate: pageSimulate, priorities: pagePriorities };
   function boot() {
     refresh();
     shell();

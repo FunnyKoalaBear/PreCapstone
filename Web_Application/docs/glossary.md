@@ -92,7 +92,7 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 
 | English | Japanese |
 |---|---|
-| Boxes (list page) | 箱一覧 |
+| Active boxes (unfiltered result list) | 進行中の箱 |
 | Reset demo data | デモデータをリセット |
 | Demo banner | これはサンプルデータによるデモです。変更はこのブラウザにのみ保存されます。 |
 | Choose / Choose a process | 選択してください / 工程を選択 |

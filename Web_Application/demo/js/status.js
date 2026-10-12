@@ -227,27 +227,28 @@ const FT = (() => {
   function homeData(w) {
     const boxes = activeBoxes(w);
     const count = (c) => boxes.filter((e) => e.code === c).length;
-    const inHouse = boxes.filter((e) => e.code === WAITING || e.code === IN_PROGRESS).sort((a, b) =>
-      (!a.stagnant - !b.stagnant) || (a.stagnant && b.stagnant ? b.idle - a.idle : 0) || (a.due < b.due ? -1 : a.due > b.due ? 1 : 0)
-      || a.item.id.localeCompare(b.item.id) || (a.boxLabel || '').localeCompare(b.boxLabel || ''));
-    const atVendor = boxes.filter((e) => e.code === AT_VENDOR).sort((a, b) => b.lateDays - a.lateDays || (a.started == null) - (b.started == null) || a.started - b.started);
     return {
-      inHouse, atVendor,
       counters: {
         in_progress: count(IN_PROGRESS), waiting: count(WAITING), at_vendor: count(AT_VENDOR), not_started: count(NOT_STARTED),
         stagnant: boxes.filter((e) => e.stagnant).length, overdue: new Set(boxes.filter((e) => e.late).map((e) => e.order.job)).size,
-        vendor_overdue: atVendor.filter((e) => e.lateDays).length,
+        vendor_overdue: boxes.filter((e) => e.lateDays).length,
       },
     };
   }
 
-  // views.boxes: the boxes page rows for the given filters (the same rows the home counters count)
+  // views.boxes: the result-list rows for the given filters and sort (the same rows the home counters count)
+  const BOX_SORTS = {
+    process: (a, b) => (a.proc ? 0 : 1) - (b.proc ? 0 : 1) || (a.proc ? a.proc.name : '').localeCompare(b.proc ? b.proc.name : '') || a.due.localeCompare(b.due),
+    due: (a, b) => a.due.localeCompare(b.due) || a.order.job.localeCompare(b.order.job) || a.item.id.localeCompare(b.item.id) || (a.boxLabel || '').localeCompare(b.boxLabel || ''),
+    customer: (a, b) => a.order.customer.localeCompare(b.order.customer) || a.due.localeCompare(b.due) || a.order.job.localeCompare(b.order.job),
+    waiting: (a, b) => (a.idle == null) - (b.idle == null) || (b.idle || 0) - (a.idle || 0) || a.due.localeCompare(b.due),
+  };
   function boxesPage(w, f) {
     let rows = activeBoxes(w);
     if (f.status) rows = rows.filter((e) => e.code === f.status);
     if (f.stagnant) rows = rows.filter((e) => e.stagnant);
     if (f.vendorLate) rows = rows.filter((e) => e.lateDays);
-    return rows;
+    return rows.sort(BOX_SORTS[f.sort] || BOX_SORTS.due);
   }
 
   // views.priorities: one row per started or linked unfinished box, most urgent first
@@ -305,7 +306,7 @@ const FT = (() => {
 
   return {
     NOT_STARTED, WAITING, IN_PROGRESS, AT_VENDOR, COMPLETE, TIERS, jstStr, jstDate, dayNum, addDays, dueBack, daysLate, makeWorld,
-    eventsForBox, itemStatus, orderSummary, idleFor, isStagnant, nextAction, timeline, priority, activeBoxes, processBoard, homeData, boxesPage,
+    eventsForBox, itemStatus, orderSummary, idleFor, isStagnant, nextAction, timeline, priority, activeBoxes, processBoard, homeData, boxesPage, BOX_SORTS,
     prioritiesRows, linkedBoxes, itemHasEvents, resolveTag, openOf, assignTag, replaceTag, current,
   };
 })();

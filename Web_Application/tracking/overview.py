@@ -52,3 +52,9 @@ def process_board(now=None, today=None):
         cards.append({'process': p, 'outsourced': p.kind == Process.Kind.OUTSOURCED, 'running': running,
                       'waiting': waiting, 'queue': len(waiting) >= QUEUE_WAITING})
     return cards
+
+
+def board_groups(now=None, today=None):
+    """The process board cards split into (in_house, outsourced)."""
+    cards = process_board(now, today)
+    return [c for c in cards if not c['outsourced']], [c for c in cards if c['outsourced']]
