@@ -381,7 +381,7 @@
     let step = '';
     if (sim.tag) {
       const a = FT.resolveTag(world, sim.tag, world.now);
-      if (!a) step = `<p>${h(t('not_linked_tag', { uid: sim.tag }))}</p>`;
+      if (!a) step = `<p>${h(t('not_linked_tag', { uid: sim.tag }))} <a href="tags.html">${h(t('link_a_tag'))}</a></p>`;
       else {
         const it = itemOf(a.item), box = FT.itemStatus(world, it).boxes.find((b) => b.assignment && b.assignment.box === a.box), next = FT.nextAction(box);
         step = `<p>${h(t('tag_info', { uid: sim.tag, item: it.id, box: a.box, part: it.part }))} ${statusBadge(box.code)}</p>${next
@@ -392,16 +392,12 @@
       step = `<div class="card">${step}</div>`;
     }
     const devOpts = DEVICES.map((d) => `<option${d === sim.device ? ' selected' : ''}>${h(d)}</option>`).join('');
-    const actions = PROCESSES.flatMap((p) => ACTIONS[p.kind].map((ty) => `<option value="${p.id}:${ty}">${h(pname(p) + ' - ' + t(ty))}</option>`)).join('');
     const last = [...world.events].sort((a, b) => b.t - a.t || b.id - a.id).slice(0, 10).map((e) =>
       `<tr><td>${fmtDT(e.t, true)}</td><td>${h(e.tag)}</td><td>${h(pname(world.proc(e.proc)))}</td><td>${h(t(e.type))}</td><td>${h(e.device)}</td></tr>`);
     const picks = `<datalist id="tag-picks">${open.map((a) => `<option value="${h(a.tag)}">${h(`${a.tag} - ${a.item} - ${t('box_n', { l: a.box })} - ${itemOf(a.item).part}`)}</option>`).join('')}</datalist>`;
     app.innerHTML = `<h1>${h(t('sim_title'))}</h1><div id="flash">${flashHtml()}</div>
       <form id="pick" class="card"><div><label>${h(t('device'))}</label><select name="device">${devOpts}</select></div>
       <div><label>${h(t('tag'))}</label><input name="tag" list="tag-picks" autocomplete="off" placeholder="${h(t('search_or_pick'))}" value="${h(sim.tag)}"></div>${picks}</form>${step}
-      <details class="card"><summary>${h(t('other_action'))}</summary><form id="adv"><div><label>${h(t('tag_uid'))}</label><input name="tag" list="tag-picks" autocomplete="off" required value="${h(sim.tag)}"></div>
-      <div><label>${h(t('device'))}</label><select name="device">${devOpts}</select></div>
-      <div><label>${h(t('what_happened'))}</label><select name="action">${actions}</select></div><button type="submit" class="button">${h(t('record_event'))}</button></form></details>
       <h2>${h(t('last_10'))}</h2>${table([t('time_jst'), t('tag'), t('process'), t('action'), t('device')], last, t('no_events'))}`;
     const redraw = () => { refresh(); pageSimulate(app); };
     $('#pick').addEventListener('change', (e) => { sim.device = e.currentTarget.device.value; sim.tag = e.currentTarget.tag.value.trim().toUpperCase(); flash = null; redraw(); });
@@ -413,11 +409,6 @@
       const a = FT.resolveTag(world, sim.tag, world.now), it = itemOf(a.item);
       const next = FT.nextAction(FT.itemStatus(world, it).boxes.find((b) => b.assignment && b.assignment.box === a.box));
       send(sim.device, sim.tag, next.proc.id, next.type);
-    });
-    $('#adv').addEventListener('submit', (e) => {
-      e.preventDefault();
-      const f = e.target, [pid, ty] = f.action.value.split(':');
-      send(f.device.value, f.tag.value.trim().toUpperCase(), Number(pid), ty);
     });
   }
 
@@ -438,13 +429,17 @@
 
   // ---------- priorities ----------
   function pagePriorities(app) {
-    const all = FT.prioritiesRows(world), tier = FT.TIERS.includes(Q.get('tier')) ? Q.get('tier') : '';
+    const sort = Object.keys(FT.PRIORITY_SORTS).includes(Q.get('sort')) ? Q.get('sort') : 'risk';
+    const all = FT.prioritiesRows(world, sort), tier = FT.TIERS.includes(Q.get('tier')) ? Q.get('tier') : '';
     const rows = all.filter((r) => !tier || r.tier === tier).map((r) => `<tr><td>${orderLink(r.order.job, r.item.id + (r.multi ? ' - ' + t('box_n', { l: r.box.label }) : ''))}</td>
-      <td>${h(r.item.part)}</td><td>${h(r.order.customer)}</td><td>${r.order.due}</td><td>${r.daysLeft}</td><td>${r.slack}</td><td>${h(pname(r.proc))}</td>
+      <td>${h(r.item.part)}</td><td>${h(r.order.customer)}</td><td>${r.order.due}</td><td>${r.daysLeft}</td><td>${r.slack}</td><td>${h(pname(r.proc))}</td><td>${fmtDur(r.idle)}</td>
       <td>${badge('risk-' + r.tier.toLowerCase(), t(r.tier))}</td><td><ul class="reasons">${r.reasons.map((x) => `<li>${h(reasonText(x))}</li>`).join('')}</ul></td></tr>`);
-    const links = FT.TIERS.map((c) => `<a href="?tier=${c}" class="badge badge-risk-${c.toLowerCase()}${tier === c ? ' active' : ''}">${h(t(c))} (${all.filter((r) => r.tier === c).length})</a>`).join('');
-    app.innerHTML = `<h1>${h(t('prio_title'))}</h1><nav class="tier-filters"><a href="priorities.html"${tier ? '' : ' class="active"'}>${h(t('all'))} (${all.length})</a>${links}</nav>
-      ${rows.length ? table([t('item'), t('part'), t('customer'), t('due_date'), t('days_left'), t('slack'), t('current_process'), t('risk'), t('reasons')], rows, '') : `<p>${h(t('nothing_attention'))}</p>`}`;
+    const links = FT.TIERS.map((c) => `<a href="?tier=${c}&amp;sort=${sort}" class="badge badge-risk-${c.toLowerCase()}${tier === c ? ' active' : ''}">${h(t(c))} (${all.filter((r) => r.tier === c).length})</a>`).join('');
+    const opt = (v, text) => `<option value="${v}"${v === sort ? ' selected' : ''}>${h(text)}</option>`;
+    app.innerHTML = `<h1>${h(t('prio_title'))}</h1><nav class="tier-filters"><a href="?sort=${sort}"${tier ? '' : ' class="active"'}>${h(t('all'))} (${all.length})</a>${links}</nav>
+      <form method="get" class="filters">${tier ? `<input type="hidden" name="tier" value="${tier}">` : ''}<div><label for="sort">${h(t('sort_by'))}</label><select id="sort" name="sort" onchange="this.form.submit()">${
+  opt('risk', t('risk'))}${opt('process', t('current_process'))}${opt('waiting', t('idle_for'))}</select></div></form>
+      ${rows.length ? table([t('item'), t('part'), t('customer'), t('due_date'), t('days_left'), t('slack'), t('current_process'), t('idle_for'), t('risk'), t('reasons')], rows, '') : `<p>${h(t('nothing_attention'))}</p>`}`;
   }
 
   // ---------- start ----------

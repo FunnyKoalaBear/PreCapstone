@@ -312,6 +312,58 @@ class PriorityTests(TestCase):
         self.assertEqual([r['tier'] for r in only], ['OVERDUE'])
         self.assertEqual(len(self.client.get('/priorities/?tier=bogus').context['rows']), 2)
 
+    def idle_scan(self, item, hours_ago):
+        Event.objects.create(device=self.device, tag_uid=item.tagassignment_set.get().tag.uid, event_type=E.STARTED,
+                             process=self.procs[K.MACHINING], occurred_at=timezone.now() - timedelta(hours=hours_ago))
+
+    def sorted_rows(self, query=''):
+        self.client.force_login(User.objects.get_or_create(username='s', is_staff=True)[0])
+        return self.client.get('/priorities/' + query).context['rows']
+
+    def test_sort_options_and_fallback(self):
+        a = self.make(-5)  # overdue, never scanned (no idle)
+        b = self.make(30)
+        c = self.make(10, (K.OUTSOURCED,))
+        d = self.make(2)
+        e = self.make(20)
+        for item, h in ((b, 5), (d, 50), (e, 20)):
+            self.idle_scan(item, h)
+        items = lambda q: [r['item'] for r in self.sorted_rows(q)]
+        self.assertEqual(items(''), items('?sort=risk'))
+        self.assertEqual(items('?sort=risk')[0], a)  # overdue first
+        self.assertEqual(items('?sort=waiting'), [d, e, b, a, c][:3] + items('?sort=waiting')[3:])  # longest idle first, unscanned last
+        self.assertEqual(set(items('?sort=waiting')[3:]), {a, c})
+        procs = [r['process'].name if r['process'] else '' for r in self.sorted_rows('?sort=process')]
+        self.assertEqual(procs, sorted(procs))
+        self.assertEqual(procs[0], K.MACHINING)
+        for bad in ('?sort=bogus', '?sort='):
+            self.assertEqual(items(bad), items('?sort=risk'))
+
+    def test_process_sort_breaks_ties_by_risk(self):
+        far = self.make(30)
+        near = self.make(-2)
+        mid = self.make(2)
+        self.assertEqual([r['item'] for r in self.sorted_rows('?sort=process')], [near, mid, far])
+
+    def test_tier_filter_works_with_sort_and_is_kept_by_the_form(self):
+        self.make(-5)
+        late = self.make(-1)
+        self.make(30)
+        self.idle_scan(late, 10)
+        self.client.force_login(User.objects.create_user('s', password='x', is_staff=True))
+        r = self.client.get('/priorities/?tier=OVERDUE&sort=waiting')
+        self.assertEqual([x['item'] for x in r.context['rows']][0], late)
+        self.assertEqual({x['tier'] for x in r.context['rows']}, {'OVERDUE'})
+        self.assertContains(r, '<input type="hidden" name="tier" value="OVERDUE">')
+        self.assertContains(r, '<option value="waiting" selected>')
+        self.assertContains(r, 'href="?tier=CRITICAL&amp;sort=waiting"')
+
+    def test_idle_column_shows_duration(self):
+        item = self.make(10)
+        self.idle_scan(item, 5)
+        rows = self.sorted_rows()
+        self.assertGreaterEqual(rows[0]['idle'], timedelta(hours=5))
+
     def test_priorities_one_row_per_linked_box_with_own_risk(self):
         item = self.make(1, (K.MACHINING, K.MACHINING))
         item.box_count = 3
@@ -757,7 +809,9 @@ class ReplaceTagTests(OverviewBase):
         r = self.client.get('/simulate/', {'tag': 'old', 'device': self.device.pk})
         self.assertEqual(r.context['step']['label'], 'Arrived - Mat')
         self.assertContains(r, '<option value="%d:ARRIVED" selected>Arrived - Mat</option>' % self.mat.pk)
-        self.assertContains(r, 'Other action (test a mistake)')
+        self.assertNotContains(r, 'Other action')
+        self.assertNotContains(r, 'Record event')
+        self.assertNotContains(r, 'tag-uids')
         self.assertContains(r, f'OLD - {self.item1.item_code} - box LOLD - {self.item1.part_name}')
         self.assertContains(r, 'Confirm')
         r = self.client.post('/simulate/', {'tag_uid': 'OLD', 'device': self.device.pk, 'action': r.context['step']['value']})
@@ -775,13 +829,19 @@ class ReplaceTagTests(OverviewBase):
         self.assertNotContains(r, 'id="next-action"')
         r = self.client.get('/simulate/', {'tag': 'ghost', 'device': self.device.pk})
         self.assertEqual(r.context['step']['state'], 'unassigned')
-        self.assertContains(r, 'match no item')
+        self.assertContains(r, 'is not linked to any item.')
+        self.assertContains(r, 'href="/tags/"')
+        self.assertNotContains(r, 'Other action')
 
-    def test_simulate_advanced_section_can_still_send_a_wrong_scan(self):
+    def test_simulate_page_has_no_other_action_section(self):
         self.staff()
-        r = self.client.post('/simulate/', {'tag_uid': 'OLD', 'device': self.device.pk, 'action': f'{self.cut.pk}:FINISHED'})
-        self.assertRedirects(r, '/simulate/')  # skipped steps are still accepted
-        self.assertEqual(Event.objects.get().event_type, 'FINISHED')
+        r = self.client.get('/simulate/')
+        for text in ('Other action', 'test a mistake', 'Record event', '<details'):
+            self.assertNotContains(r, text)
+
+    def test_simulate_invalid_post_shows_errors_and_saves_nothing(self):
+        self.staff()
         r = self.client.post('/simulate/', {'tag_uid': 'OLD', 'device': self.device.pk, 'action': '999:ARRIVED'})
         self.assertEqual(r.status_code, 200)
-        self.assertContains(r, '<details class="card" open>')
+        self.assertContains(r, 'errorlist')
+        self.assertFalse(Event.objects.exists())

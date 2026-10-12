@@ -252,7 +252,13 @@ const FT = (() => {
   }
 
   // views.priorities: one row per started or linked unfinished box, most urgent first
-  function prioritiesRows(w) {
+  const PRIORITY_SORTS = {
+    risk: (a, b) => TIERS.indexOf(a.tier) - TIERS.indexOf(b.tier) || a.slack - b.slack,
+    process: (a, b) => (a.proc ? 0 : 1) - (b.proc ? 0 : 1) || (a.proc ? a.proc.name : '').localeCompare(b.proc ? b.proc.name : '') || PRIORITY_SORTS.risk(a, b),
+    waiting: (a, b) => (a.idle == null) - (b.idle == null) || (b.idle || 0) - (a.idle || 0) || PRIORITY_SORTS.risk(a, b),
+  };
+  function prioritiesRows(w, sort) {
+    const idle = new Map(activeBoxes(w).map((e) => [`${e.item.id}|${e.boxLabel}`, e.idle]));
     const rows = [];
     w.items.forEach((item) => {
       const st = itemStatus(w, item);
@@ -260,10 +266,10 @@ const FT = (() => {
       st.boxes.forEach((box) => {
         const a = box.assignment;
         if (box.code === COMPLETE || !a || (a.end != null && box.code === NOT_STARTED)) return;
-        rows.push({ item, order, box, multi: st.boxes.length > 1, proc: box.current, ...priority(w, order, box) });
+        rows.push({ item, order, box, multi: st.boxes.length > 1, proc: box.current, idle: idle.get(`${item.id}|${box.label}`), ...priority(w, order, box) });
       });
     });
-    return rows.sort((a, b) => TIERS.indexOf(a.tier) - TIERS.indexOf(b.tier) || a.slack - b.slack);
+    return rows.sort(PRIORITY_SORTS[sort] || PRIORITY_SORTS.risk);
   }
 
   // forms.OrderItemForm: boxes already linked (open or ended) and whether the item has any scan
@@ -306,7 +312,7 @@ const FT = (() => {
 
   return {
     NOT_STARTED, WAITING, IN_PROGRESS, AT_VENDOR, COMPLETE, TIERS, jstStr, jstDate, dayNum, addDays, dueBack, daysLate, makeWorld,
-    eventsForBox, itemStatus, orderSummary, idleFor, isStagnant, nextAction, timeline, priority, activeBoxes, processBoard, homeData, boxesPage, BOX_SORTS,
+    eventsForBox, itemStatus, orderSummary, idleFor, isStagnant, nextAction, timeline, priority, activeBoxes, processBoard, homeData, boxesPage, BOX_SORTS, PRIORITY_SORTS,
     prioritiesRows, linkedBoxes, itemHasEvents, resolveTag, openOf, assignTag, replaceTag, current,
   };
 })();

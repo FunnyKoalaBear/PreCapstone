@@ -14,8 +14,8 @@ Files (upload all of them, keeping the folder structure)
   new-order.html    New order, including the Boxes field
   edit-order.html   Edit an order (?job=...): fields, items, box count; route locked after a scan; changes go to the order's Change history
   tags.html         Link / release / replace tags, search linked tags
-  simulate.html     Simulate a scan (next step only, plus "other action")
-  priorities.html   Priorities: risk tiers, slack and reasons
+  simulate.html     Simulate a scan (next step only)
+  priorities.html   Priorities: risk tiers, slack and reasons; sortable (?sort=risk|process|waiting) with an idle-time column
   css/theme.css     Colour variables (same as the app)
   css/base.css      Styles (same as the app, plus the demo banner)
   js/i18n.js        Japanese and English texts

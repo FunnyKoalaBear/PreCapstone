@@ -71,11 +71,10 @@ const TEXTS = {
   item_added: ['品目の追加', 'Item added'], item_deleted: ['品目の削除', 'Item deleted'], // CHECK: noun forms, my choice
   // simulate
   sim_title: ['スキャンのシミュレーション', 'Simulate scan'], search_or_pick: ['タグを検索または選択', 'Search or pick a tag'],
-  not_linked_tag: ['タグ {uid} は品目に紐付いていません。イベントは保存されますが、どの品目にも結び付きません。送信するには下の「その他の操作」を使ってください。',
-    'Tag {uid} is not linked to any item: the event would be saved but match no item. Use "Other action" below to send it anyway.'],
+  not_linked_tag: ['タグ {uid} は品目に紐付いていません。', 'Tag {uid} is not linked to any item.'],
   tag_info: ['タグ {uid}: 品目 {item}、箱 {box}、{part}', 'Tag {uid}: item {item}, box {box}, {part}'],
   box_finished: ['この箱は全工程を完了しています。スキャンする操作はありません。', 'This box has finished its whole route. Nothing left to scan.'],
-  what_happened: ['実施した操作', 'What happened'], other_action: ['その他の操作（誤操作のテスト）', 'Other action (test a mistake)'], record_event: ['イベントを記録', 'Record event'],
+  what_happened: ['実施した操作', 'What happened'],
   last_10: ['直近10件のイベント', 'Last 10 events'],
   m_saved: ['保存しました: 箱 {box}、品目 {item}、状態: {status}', 'Saved: box {box}, item {item}, status: {status}'],
   m_nomatch: ['イベントを保存しましたが、タグ {uid} に該当する品目がありません。', 'Event saved, but tag {uid} matches no item.'],

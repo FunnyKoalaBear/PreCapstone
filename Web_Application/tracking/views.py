@@ -34,7 +34,7 @@ def _next_step(uid):
 
 @staff_member_required
 def simulate(request):
-    form = SimulateScanForm(request.POST or None, initial={'tag_uid': request.GET.get('tag', ''), 'device': request.GET.get('device')})
+    form = SimulateScanForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
         d = form.cleaned_data
         try:
@@ -112,8 +112,17 @@ def tag_manage(request):
     })
 
 
+PRIORITY_SORTS = {
+    'risk': lambda r: (TIERS.index(r['tier']), r['slack']),
+    'process': lambda r: (r['process'].name if r['process'] else '￿', TIERS.index(r['tier']), r['slack']),
+    'waiting': lambda r: (r['idle'] is None, -r['idle'].total_seconds() if r['idle'] else 0, TIERS.index(r['tier']), r['slack']),
+}
+PRIORITY_SORT_CHOICES = [('risk', gettext_lazy('Risk')), ('process', gettext_lazy('Current process')), ('waiting', gettext_lazy('Idle for'))]
+
+
 @staff_member_required
 def priorities(request):
+    idle = {(e['item'].pk, e['box_label']): e['idle'] for e in active_boxes()}
     rows = []
     for item in OrderItem.objects.select_related('order__customer').order_by('order__due_date'):
         st = item_status(item)
@@ -127,14 +136,16 @@ def priorities(request):
             rows.append({
                 'item': item, 'status': box, 'process': row.step.process if row else None,
                 'box_label': box.label, 'multi': len(st.boxes) > 1, **p, 'label': TIER_LABELS[p['tier']],
+                'idle': idle.get((item.pk, box.label)),
             })
-    rows.sort(key=lambda r: (TIERS.index(r['tier']), r['slack']))
+    sort = request.GET.get('sort') if request.GET.get('sort') in PRIORITY_SORTS else 'risk'
+    rows.sort(key=PRIORITY_SORTS[sort])
     counts = {t: sum(r['tier'] == t for r in rows) for t in TIERS}
     tier = request.GET.get('tier', '')
     if tier in TIERS:
         rows = [r for r in rows if r['tier'] == tier]
     return render(request, 'tracking/priorities.html', {
-        'rows': rows, 'tier': tier, 'total': sum(counts.values()),
+        'rows': rows, 'tier': tier, 'total': sum(counts.values()), 'sort': sort, 'sort_choices': PRIORITY_SORT_CHOICES,
         'tiers': [(t, t.lower(), TIER_LABELS[t], counts[t]) for t in TIERS],
     })
 

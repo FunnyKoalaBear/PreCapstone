@@ -10,9 +10,7 @@ from .models import Event, ScannerDevice, TagAssignment
 
 
 class SimulateScanForm(forms.Form):
-    tag_uid = forms.CharField(
-        label=_('Tag UID'), max_length=100, widget=forms.TextInput(attrs={'list': 'tag-uids', 'autocomplete': 'off'}),
-    )
+    tag_uid = forms.CharField(label=_('Tag UID'), max_length=100)
     device = forms.ModelChoiceField(label=_('Device'), queryset=ScannerDevice.objects.filter(active=True))
     action = forms.ChoiceField(label=_('What happened'))
 
@@ -49,9 +47,7 @@ class AssignTagForm(forms.Form):
     box_label = forms.CharField(
         label=_('Box label'), max_length=100, widget=forms.TextInput(attrs={'list': 'box-labels', 'autocomplete': 'off'}),
     )
-    tag_uid = forms.CharField(
-        label=_('Tag UID'), max_length=100, widget=forms.TextInput(attrs={'list': 'tag-uids', 'autocomplete': 'off'}),
-    )
+    tag_uid = forms.CharField(label=_('Tag UID'), max_length=100)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

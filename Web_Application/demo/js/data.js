@@ -13,7 +13,6 @@ const PROCESSES = [
   { id: 6, name: 'Painting', ja: '塗装', kind: 'OUTSOURCED', vendor: 'DEMO 日本塗装', lead: 5 },
   { id: 7, name: 'Plating', ja: 'メッキ', kind: 'OUTSOURCED', vendor: 'DEMO メッキ工業', lead: 7 },
 ];
-const ACTIONS = { MATERIAL: ['ARRIVED'], MACHINING: ['STARTED', 'FINISHED'], OUTSOURCED: ['SENT_OUT', 'RETURNED'] };
 const P = { mat: 1, cut: 2, weld: 3, asm: 4, insp: 5, paint: 6, plate: 7 };
 
 // Build the seed world: orders, items, tag assignments and scans (times in ms, relative to now)
