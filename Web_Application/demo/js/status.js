@@ -251,6 +251,25 @@ const FT = (() => {
     return rows.sort(BOX_SORTS[f.sort] || BOX_SORTS.due);
   }
 
+  // views.tag_history: range edges in JST (bad custom dates fall back to 3m) and the overlapping assignments, newest first
+  const HISTORY_DAYS = { '1m': 30, '3m': 91, '6m': 182, '1y': 365 };
+  const HISTORY_CAP = 200;
+  const validDay = (d) => /^\d{4}-\d{2}-\d{2}$/.test(d || '') && !Number.isNaN(dayNum(d)) && addDays(d, 0) === d;
+  const jstMidnight = (d) => Date.parse(`${d}T00:00:00+09:00`);
+  function historyRange(w, p) {
+    if (p.range === 'custom' && validDay(p.from) && validDay(p.to) && p.from <= p.to) {
+      return { key: 'custom', start: jstMidnight(p.from), end: jstMidnight(addDays(p.to, 1)), from: p.from, to: p.to };
+    }
+    const key = HISTORY_DAYS[p.range] ? p.range : '3m';
+    return { key, start: w.now - HISTORY_DAYS[key] * DAY, end: w.now, from: '', to: '' };
+  }
+  function tagHistory(w, p) {
+    const r = historyRange(w, p), q = (p.q || '').trim().toLowerCase();
+    const rows = w.assignments.filter((a) => a.start < r.end && (a.end == null || a.end >= r.start)
+      && (!q || a.tag.toLowerCase().includes(q) || a.box.toLowerCase().includes(q))).sort((a, b) => b.start - a.start);
+    return { range: r, rows: rows.slice(0, HISTORY_CAP), capped: rows.length > HISTORY_CAP, cap: HISTORY_CAP };
+  }
+
   // views.priorities: one row per started or linked unfinished box, most urgent first
   const PRIORITY_SORTS = {
     risk: (a, b) => TIERS.indexOf(a.tier) - TIERS.indexOf(b.tier) || a.slack - b.slack,
@@ -312,7 +331,7 @@ const FT = (() => {
 
   return {
     NOT_STARTED, WAITING, IN_PROGRESS, AT_VENDOR, COMPLETE, TIERS, jstStr, jstDate, dayNum, addDays, dueBack, daysLate, makeWorld,
-    eventsForBox, itemStatus, orderSummary, idleFor, isStagnant, nextAction, timeline, priority, activeBoxes, processBoard, homeData, boxesPage, BOX_SORTS, PRIORITY_SORTS,
+    eventsForBox, itemStatus, orderSummary, idleFor, isStagnant, nextAction, timeline, priority, activeBoxes, processBoard, homeData, boxesPage, BOX_SORTS, PRIORITY_SORTS, tagHistory,
     prioritiesRows, linkedBoxes, itemHasEvents, resolveTag, openOf, assignTag, replaceTag, current,
   };
 })();

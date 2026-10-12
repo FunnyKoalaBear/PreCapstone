@@ -26,77 +26,56 @@
       <input type="search" id="q" name="q" value="{{ q }}" placeholder="{% trans 'Item, job, part, customer, box or tag' %}">
     </div>
     <button type="submit" class="button">{% trans "Search" %}</button>
+    <a href="{% url 'tag_history' %}">{% trans "Tag history" %}</a>
   </form>
-  <div class="table-wrap">
-    <table class="table">
-      <thead>
-        <tr>
-          <th>{% trans "Tag" %}</th>
-          <th>{% trans "Box" %}</th>
-          <th>{% trans "Item" %}</th>
-          <th>{% trans "Since (JST)" %}</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for a in open %}
+  <p>{% blocktrans count n=in_use %}{{ n }} tag in use.{% plural %}{{ n }} tags in use.{% endblocktrans %}</p>
+
+  {% if q and open %}
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
           <tr>
-            <td>{{ a.tag }}</td>
-            <td>{% blocktrans with l=a.box n=a.nth t=a.item.box_count %}Box {{ l }} ({{ n }} of {{ t }}){% endblocktrans %}</td>
-            <td><a href="{% url 'order_detail' a.item.order.job_number %}">{{ a.item.item_code }}</a> {{ a.item.part_name }}</td>
-            <td>{{ a.start_at|date:"Y-m-d H:i" }}</td>
-            <td>
-              <form method="post">
-                {% csrf_token %}
-                <input type="hidden" name="action" value="release">
-                <input type="hidden" name="assignment" value="{{ a.pk }}">
-                <button type="submit" class="remove-step">{% trans "Release" %}</button>
-              </form>
-              <details class="replace-tag">
-                <summary>{% trans "Replace tag" %}</summary>
+            <th>{% trans "Tag" %}</th>
+            <th>{% trans "Box" %}</th>
+            <th>{% trans "Item" %}</th>
+            <th>{% trans "Since (JST)" %}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for a in open %}
+            <tr>
+              <td>{{ a.tag }}</td>
+              <td>{% blocktrans with l=a.box n=a.nth t=a.item.box_count %}Box {{ l }} ({{ n }} of {{ t }}){% endblocktrans %}</td>
+              <td><a href="{% url 'order_detail' a.item.order.job_number %}">{{ a.item.item_code }}</a> {{ a.item.part_name }}</td>
+              <td>{{ a.start_at|date:"Y-m-d H:i" }}</td>
+              <td>
                 <form method="post">
                   {% csrf_token %}
-                  <input type="hidden" name="action" value="replace">
+                  <input type="hidden" name="action" value="release">
                   <input type="hidden" name="assignment" value="{{ a.pk }}">
-                  <input type="text" name="new_uid" list="tag-uids" autocomplete="off" required placeholder="{% trans 'New tag UID' %}">
-                  <label class="check"><input type="checkbox" name="mark_lost" checked> {% trans "Mark the old tag as lost" %}</label>
-                  <button type="submit" class="button">{% trans "Replace" %}</button>
+                  <input type="hidden" name="q" value="{{ q }}">
+                  <button type="submit" class="remove-step">{% trans "Release" %}</button>
                 </form>
-              </details>
-            </td>
-          </tr>
-        {% empty %}
-          <tr><td colspan="5">{% trans "No tags in use." %}</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-
-  <h2>{% trans "History" %}</h2>
-  <div class="table-wrap">
-    <table class="table">
-      <thead>
-        <tr>
-          <th>{% trans "Tag" %}</th>
-          <th>{% trans "Box" %}</th>
-          <th>{% trans "Item" %}</th>
-          <th>{% trans "From (JST)" %}</th>
-          <th>{% trans "To (JST)" %}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for a in history %}
-          <tr>
-            <td>{{ a.tag }}</td>
-            <td>{{ a.box }}</td>
-            <td><a href="{% url 'order_detail' a.item.order.job_number %}">{{ a.item.item_code }}</a> {{ a.item.part_name }}</td>
-            <td>{{ a.start_at|date:"Y-m-d H:i" }}</td>
-            <td>{{ a.end_at|date:"Y-m-d H:i" }}</td>
-          </tr>
-        {% empty %}
-          <tr><td colspan="5">{% trans "No history yet." %}</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+                <details class="replace-tag">
+                  <summary>{% trans "Replace tag" %}</summary>
+                  <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="replace">
+                    <input type="hidden" name="assignment" value="{{ a.pk }}">
+                    <input type="hidden" name="q" value="{{ q }}">
+                    <input type="text" name="new_uid" list="tag-uids" autocomplete="off" required placeholder="{% trans 'New tag UID' %}">
+                    <label class="check"><input type="checkbox" name="mark_lost" checked> {% trans "Mark the old tag as lost" %}</label>
+                    <button type="submit" class="button">{% trans "Replace" %}</button>
+                  </form>
+                </details>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% elif q %}
+    <p>{% trans "No tags in use match this search." %}</p>
+  {% endif %}
 {% endblock %}

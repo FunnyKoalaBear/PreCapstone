@@ -128,6 +128,100 @@ class RecordEventTests(TestCase):
         self.assertEqual(self.client.get('/simulate/').status_code, 200)
 
 
+class TagSearchAndHistoryTests(TestCase):
+    def setUp(self):
+        order = Order.objects.create(customer=Customer.objects.create(name='C'), due_date=timezone.localdate())
+        self.item = OrderItem.objects.create(order=order, part_name='Gear', quantity=1, box_count=9)
+        self.now = timezone.now()
+        self.client.force_login(User.objects.create_user('s', password='x', is_staff=True))
+
+    def link(self, uid, box, start_days, end_days=None):
+        """An assignment that began start_days ago and ended end_days ago (open when None)."""
+        return TagAssignment.objects.create(
+            tag=Tag.objects.get_or_create(uid=uid)[0], box=Box.objects.get_or_create(label=box)[0], item=self.item,
+            start_at=self.now - timedelta(days=start_days), end_at=None if end_days is None else self.now - timedelta(days=end_days))
+
+    def history(self, **params):
+        r = self.client.get('/tags/history/', params)
+        self.assertEqual(r.status_code, 200)
+        return [a.tag.uid for a in r.context['rows']], r
+
+    def test_in_use_shows_count_without_rows_until_searched(self):
+        self.link('AA11', 'BX1', 5)
+        self.link('BB22', 'BX2', 6)
+        r = self.client.get('/tags/')
+        self.assertEqual((r.context['open'], r.context['in_use']), ([], 2))
+        self.assertContains(r, '2 tags in use.')
+        self.assertNotContains(r, '<table')
+        self.assertContains(r, 'href="/tags/history/"')
+        r = self.client.get('/tags/', {'q': 'bb22'})
+        self.assertEqual([a.tag.uid for a in r.context['open']], ['BB22'])
+        self.assertContains(r, 'Since (JST)')
+        self.assertContains(self.client.get('/tags/', {'q': 'zzz'}), 'No tags in use match this search.')
+
+    def test_release_keeps_the_search(self):
+        a = self.link('AA11', 'BX1', 5)
+        r = self.client.post('/tags/', {'action': 'release', 'assignment': a.pk, 'q': 'aa'})
+        self.assertRedirects(r, '/tags/?q=aa')
+        self.assertRedirects(self.client.post('/tags/', {'action': 'release', 'assignment': self.link('CC33', 'BX3', 1).pk}), '/tags/')
+
+    def test_history_page_is_staff_only(self):
+        self.client.logout()
+        self.assertEqual(self.client.get('/tags/history/').status_code, 302)
+
+    def test_history_ranges_overlap_rule(self):
+        self.link('D10', 'B10', 20, 10)      # inside every range
+        self.link('D100', 'B100', 120, 100)  # 3-6 months ago
+        self.link('D200', 'B200', 250, 200)  # 6-12 months ago
+        self.link('D400', 'B400', 500, 400)  # older than a year
+        self.link('OPEN', 'BOP', 400)        # open since long ago: overlaps everything
+        self.link('NEW', 'BNW', 2)           # open, started recently
+        expect = {'1m': {'D10', 'OPEN', 'NEW'}, '3m': {'D10', 'OPEN', 'NEW'}, '6m': {'D10', 'D100', 'OPEN', 'NEW'},
+                  '1y': {'D10', 'D100', 'D200', 'OPEN', 'NEW'}}
+        for key, uids in expect.items():
+            self.assertEqual(set(self.history(range=key)[0]), uids, key)
+        self.assertEqual(set(self.history()[0]), expect['3m'])
+        self.assertEqual(set(self.history(range='bogus')[0]), expect['3m'])
+
+    def test_history_is_newest_first_and_shows_in_use(self):
+        self.link('OLD1', 'B1', 30, 20)
+        self.link('NEW1', 'B2', 3)
+        uids, r = self.history()
+        self.assertEqual(uids, ['NEW1', 'OLD1'])
+        self.assertContains(r, 'In use')
+        self.assertContains(r, f'href="/orders/{self.item.order.job_number}/"')
+
+    def test_history_custom_range_and_fallbacks(self):
+        self.link('D10', 'B10', 20, 10)
+        self.link('D100', 'B100', 120, 100)
+        day = lambda n: timezone.localtime(self.now - timedelta(days=n)).date().isoformat()
+        uids, r = self.history(range='custom', **{'from': day(125), 'to': day(95)})
+        self.assertEqual(uids, ['D100'])
+        self.assertContains(r, 'value="custom" selected')
+        self.assertEqual(self.history(range='custom', **{'from': day(25), 'to': day(5)})[0], ['D10'])
+        edge = self.history(range='custom', **{'from': day(100), 'to': day(100)})[0]  # the end day is included
+        self.assertEqual(edge, ['D100'])
+        for params in ({'from': 'x', 'to': day(5)}, {'from': day(5)}, {'from': day(5), 'to': day(50)}):
+            uids, r = self.history(range='custom', **params)
+            self.assertEqual(uids, ['D10'], params)  # 3m fallback
+            self.assertEqual(r.context['range'], '3m')
+
+    def test_history_search_by_tag_and_box(self):
+        self.link('AB12', 'SHELF-1', 5, 2)
+        self.link('CD34', 'SHELF-2', 5, 2)
+        self.assertEqual(self.history(q='ab1')[0], ['AB12'])
+        self.assertEqual(self.history(q='shelf-2')[0], ['CD34'])
+        self.assertEqual(sorted(self.history(q='SHELF')[0]), ['AB12', 'CD34'])
+        self.assertEqual(self.history(q='nothing')[0], [])
+
+    def test_history_cap(self):
+        for i in range(201):
+            self.link(f'T{i:03d}', f'X{i:03d}', 10, 5)
+        uids, r = self.history()
+        self.assertEqual((len(uids), r.context['capped']), (200, True))
+        self.assertContains(r, 'Showing only the newest 200 records.')
+
+
 class TagManageTests(TestCase):
     def setUp(self):
         self.proc = Process.objects.create(name='Mat', kind=K.MATERIAL)
@@ -195,7 +289,7 @@ class TagManageTests(TestCase):
         assign_tag(self.item1, 'B1', 'AB')
         assign_tag(self.item1, 'B2', 'CD')
         self.client.force_login(User.objects.create_user('s', password='x', is_staff=True))
-        r = self.client.get('/tags/')
+        r = self.client.get('/tags/', {'q': 'b'})
         self.assertContains(r, 'Box B1 (1 of 2)')
         self.assertContains(r, 'Box B2 (2 of 2)')
 
@@ -768,7 +862,7 @@ class ReplaceTagTests(OverviewBase):
         self.item([self.cut], uids=['OTHER'])
         self.staff()
         uids = lambda q: [a.tag.uid for a in self.client.get('/tags/', {'q': q}).context['open']]
-        self.assertEqual(sorted(uids('')), ['OLD', 'OTHER'])
+        self.assertEqual(uids(''), [])  # no query: no rows
         self.assertEqual(uids('old'), ['OLD'])
         self.assertEqual(uids('LOTHER'), ['OTHER'])  # box label
         self.assertEqual(uids(self.item1.part_name), ['OLD'])
@@ -779,7 +873,7 @@ class ReplaceTagTests(OverviewBase):
         self.assertFalse(Tag.objects.get(uid='OLD').active)
         r = self.client.post('/tags/', {'action': 'replace', 'assignment': self.item1.tagassignment_set.last().pk, 'new_uid': 'other'}, follow=True)
         self.assertContains(r, 'already in use')
-        self.assertContains(self.client.get('/tags/'), 'Mark the old tag as lost')
+        self.assertContains(self.client.get('/tags/', {'q': 'other'}), 'Mark the old tag as lost')
 
     def test_replace_without_checkbox_keeps_tag_active(self):
         self.staff()

@@ -311,9 +311,9 @@
     const seen = {};
     open.forEach((a) => { seen[a.item] = a.nth = (seen[a.item] || 0) + 1; });
     const itemOf = (id) => world.items.find((i) => i.id === id);
-    const shown = open.filter((a) => {
+    const shown = !q ? [] : open.filter((a) => {
       const it = itemOf(a.item), o = world.order(it.order);
-      return !q || [it.id, o.job, it.part, o.customer, a.box, a.tag].some((x) => x.toLowerCase().includes(q));
+      return [it.id, o.job, it.part, o.customer, a.box, a.tag].some((x) => x.toLowerCase().includes(q));
     });
     const free = world.items.filter((i) => open.filter((a) => a.item === i.id).length < i.boxCount);
     const rows = shown.map((a) => { const it = itemOf(a.item); return `<tr><td>${h(a.tag)}</td><td>${h(t('box_nth', { l: a.box, n: a.nth, t: it.boxCount }))}</td>
@@ -322,8 +322,6 @@
       <details class="replace-tag"><summary>${h(t('replace_tag'))}</summary><form data-replace="${h(a.id)}">
       <input type="text" name="uid" list="tag-uids" autocomplete="off" required placeholder="${h(t('new_tag_uid'))}">
       <label class="check"><input type="checkbox" name="lost" checked> ${h(t('mark_lost'))}</label><button type="submit" class="button">${h(t('replace'))}</button></form></details></td></tr>`; });
-    const hist = world.assignments.filter((a) => a.end != null).sort((a, b) => b.end - a.end).slice(0, 20).map((a) => { const it = itemOf(a.item);
-      return `<tr><td>${h(a.tag)}</td><td>${h(a.box)}</td><td>${orderLink(it.order, it.id)} ${h(it.part)}</td><td>${fmtDT(a.start)}</td><td>${fmtDT(a.end)}</td></tr>`; });
     const boxes = [...new Set(world.assignments.map((a) => a.box))];
     app.innerHTML = `<h1>${h(t('tags_title'))}</h1><div id="flash">${flashHtml()}</div>
       <form id="assign" class="card"><div><label>${h(t('item'))}</label><select name="item"><option value="">${h(t('choose'))}</option>${free.map((i) => {
@@ -335,9 +333,9 @@
       <datalist id="tag-uids">${tagList().map((u) => `<option value="${h(u)}">`).join('')}</datalist>
       <button type="submit" class="button">${h(t('link_tag'))}</button></form>
       <h2>${h(t('in_use'))}</h2><form method="get" class="filters"><div><label for="q">${h(t('search'))}</label>
-      <input type="search" id="q" name="q" value="${h(Q.get('q') || '')}" placeholder="${h(t('search_ph'))}"></div><button type="submit" class="button">${h(t('search'))}</button></form>
-      ${table([t('tag'), t('box'), t('item'), t('since_jst'), ''], rows, t('no_tags_in_use'))}
-      <h2>${h(t('history'))}</h2>${table([t('tag'), t('box'), t('item'), t('from_jst'), t('to_jst')], hist, t('no_history'))}`;
+      <input type="search" id="q" name="q" value="${h(Q.get('q') || '')}" placeholder="${h(t('search_ph'))}"></div><button type="submit" class="button">${h(t('search'))}</button> <a href="tag-history.html">${h(t('tag_history'))}</a></form>
+      <p>${h(t('tags_in_use_n', { n: open.length }))}</p>
+      ${!q ? '' : rows.length ? table([t('tag'), t('box'), t('item'), t('since_jst'), ''], rows, '') : `<p>${h(t('no_tags_match'))}</p>`}`;
     const done = (msg) => { flash = msg; refresh(); boot(); };
     $('#assign').addEventListener('submit', (e) => {
       e.preventDefault();
@@ -412,6 +410,24 @@
     });
   }
 
+  // ---------- tag history ----------
+  function pageTagHistory(app) {
+    const p = { q: Q.get('q') || '', range: Q.get('range') || '3m', from: Q.get('from') || '', to: Q.get('to') || '' };
+    const d = FT.tagHistory(world, p), r = d.range, custom = r.key === 'custom';
+    const itemOf = (id) => world.items.find((i) => i.id === id);
+    const rows = d.rows.map((a) => { const it = itemOf(a.item);
+      return `<tr><td>${h(a.tag)}</td><td>${h(a.box)}</td><td>${orderLink(it.order, it.id)} ${h(it.part)}</td><td>${fmtDT(a.start)}</td><td>${a.end == null ? h(t('in_use')) : fmtDT(a.end)}</td></tr>`; });
+    const opt = (v, text) => `<option value="${v}"${v === r.key ? ' selected' : ''}>${h(text)}</option>`;
+    app.innerHTML = `<p><a href="tags.html">&larr; ${h(t('back_tags'))}</a></p><h1>${h(t('tag_history'))}</h1>
+      <form method="get" class="filters"><div><label for="q">${h(t('search'))}</label><input type="search" id="q" name="q" value="${h(p.q)}" placeholder="${h(t('tag_or_box'))}"></div>
+      <div><label for="range">${h(t('period'))}</label><select id="range" name="range" onchange="this.form.from.disabled = this.form.to.disabled = this.value !== 'custom'">${
+  opt('1m', t('range_1m'))}${opt('3m', t('range_3m'))}${opt('6m', t('range_6m'))}${opt('1y', t('range_1y'))}${opt('custom', t('range_custom'))}</select></div>
+      <div><label for="from">${h(t('date_from'))}</label><input type="date" id="from" name="from" value="${h(r.from)}"${custom ? '' : ' disabled'}></div>
+      <div><label for="to">${h(t('date_to'))}</label><input type="date" id="to" name="to" value="${h(r.to)}"${custom ? '' : ' disabled'}></div>
+      <button type="submit" class="button">${h(t('apply'))}</button></form>
+      ${rows.length ? table([t('tag'), t('box'), t('item'), t('from_jst'), t('to_jst')], rows, '') + (d.capped ? `<p>${h(t('history_cap', { n: d.cap }))}</p>` : '') : `<p>${h(t('no_history'))}</p>`}`;
+  }
+
   // ---------- process board (on the home page) ----------
   function boardHtml() {
     const flags = (e) => (e.late ? badge('overdue', t('overdue')) : `<small>${e.due}</small>`) + (e.stagnant ? ' ' + badge('stagnant', t('stagnant')) : '');
@@ -443,12 +459,12 @@
   }
 
   // ---------- start ----------
-  const PAGES = { home: pageHome, boxes: pageBoxes, orders: pageOrders, order: pageOrder, edit: pageEdit, new: pageNewOrder, tags: pageTags, simulate: pageSimulate, priorities: pagePriorities };
+  const PAGES = { home: pageHome, boxes: pageBoxes, orders: pageOrders, order: pageOrder, edit: pageEdit, new: pageNewOrder, tags: pageTags, 'tag-history': pageTagHistory, simulate: pageSimulate, priorities: pagePriorities };
   function boot() {
     refresh();
     shell();
     const page = document.body.dataset.page;
-    document.title = `${t(`nav_${{ home: 'home', order: 'orders', edit: 'orders', new: 'new', simulate: 'sim', priorities: 'prio' }[page] || page}`)} - ${t('brand')}`;
+    document.title = `${t(`nav_${{ home: 'home', order: 'orders', edit: 'orders', new: 'new', simulate: 'sim', priorities: 'prio', 'tag-history': 'tags' }[page] || page}`)} - ${t('brand')}`;
     PAGES[page]($('#app'));
   }
   document.addEventListener('DOMContentLoaded', () => {
