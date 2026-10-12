@@ -804,6 +804,43 @@ class ProcessBoardTests(OverviewBase):
         self.assertEqual(([b['box_label'] for b in paint['running']], paint['outsourced']), (['LV1'], True))
 
 
+class InactiveProcessBoardTests(OverviewBase):
+    def test_board_hides_an_unused_inactive_process_but_not_one_with_boxes(self):
+        unused = Process.objects.create(name='Unused', kind=K.MACHINING, active=False)
+        self.item([self.cut, self.weld], uids=['W1'])
+        self.scan('W1', self.cut, E.STARTED, 3)
+        self.scan('W1', self.cut, E.FINISHED, 2)  # waiting at Weld
+        self.weld.active = False
+        self.weld.save()
+        names = [c['process'].name for c in process_board(self.now)]
+        self.assertIn('Weld', names)
+        self.assertNotIn('Unused', names)
+        self.assertIn('Cut', names)
+        self.staff()
+        r = self.client.get('/')
+        self.assertContains(r, 'Weld')
+        self.assertNotContains(r, unused.name)
+        self.weld.active = True
+        self.weld.save()
+
+    def test_inactive_process_without_boxes_is_hidden_when_idle(self):
+        self.weld.active = False
+        self.weld.save()
+        self.assertNotIn('Weld', [c['process'].name for c in process_board(self.now)])
+
+    def test_simulate_confirm_accepts_an_inactive_process_in_the_route_only(self):
+        item = self.item([self.cut], uids=['S1'])
+        other = Process.objects.create(name='Other', kind=K.MACHINING, active=False)
+        self.cut.active = False
+        self.cut.save()
+        self.staff()
+        post = lambda proc: self.client.post('/simulate/', {'tag_uid': 's1', 'device': self.device.pk, 'action': f'{proc.pk}:STARTED'})
+        self.assertEqual(post(other).status_code, 200)  # inactive and not in the route
+        self.assertEqual(post(self.cut).status_code, 302)  # inactive but in the route
+        self.assertEqual(Event.objects.get().process, self.cut)
+        self.assertEqual(item.steps.count(), 1)
+
+
 class ReplaceTagTests(OverviewBase):
     """Lost-tag replacement, box = (item, box) pair, next_action and the simulate page."""
 

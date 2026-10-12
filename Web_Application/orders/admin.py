@@ -26,8 +26,17 @@ class CustomerAdmin(admin.ModelAdmin):
 
 @admin.register(Process)
 class ProcessAdmin(admin.ModelAdmin):
-    list_display = ['name', 'name_ja', 'kind', 'vendor_name', 'vendor_lead_days', 'stagnation_hours']
-    list_filter = ['kind']
+    list_display = ['name', 'name_ja', 'kind', 'active', 'vendor_name', 'vendor_lead_days', 'stagnation_hours']
+    list_filter = ['kind', 'active']
+    actions = ['mark_inactive', 'mark_active']
+
+    @admin.action(description=_('Mark selected processes as inactive'))
+    def mark_inactive(self, request, queryset):
+        queryset.update(active=False)
+
+    @admin.action(description=_('Reactivate selected processes'))
+    def mark_active(self, request, queryset):
+        queryset.update(active=True)
 
 
 @admin.register(Order)

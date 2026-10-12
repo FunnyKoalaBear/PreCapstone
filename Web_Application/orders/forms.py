@@ -1,5 +1,6 @@
 from django import forms
 from django.core.exceptions import ValidationError
+from django.db.models import Q
 from django.forms import BaseInlineFormSet, inlineformset_factory
 from django.utils.text import capfirst
 from django.utils.translation import gettext_lazy as _
@@ -76,10 +77,12 @@ class OrderItemForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields['box_count'].required = False
         self.fields['box_count'].widget.attrs['min'] = 1
-        self.fields['route'].choices = [
-            (p.pk, f'{p} ({p.get_kind_display()})') for p in Process.objects.order_by('kind', 'name')
-        ]
         item = self.instance
+        # New work offers active processes; an existing route keeps its own steps selectable
+        keep = Q(pk__in=item.steps.values('process')) if item.pk else Q()
+        self.fields['route'].choices = [
+            (p.pk, f'{p} ({p.get_kind_display()})') for p in Process.objects.filter(Q(active=True) | keep).order_by('kind', 'name')
+        ]
         self.locked = self.undeletable = False
         if item.pk:
             # Route is locked once the item has been scanned; posted route changes are ignored

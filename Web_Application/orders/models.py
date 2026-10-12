@@ -37,6 +37,7 @@ class Process(models.Model):
     stagnation_hours = models.PositiveIntegerField(
         _('stagnation hours'), null=True, blank=True, help_text=_('Blank = use the default.'),
     )
+    active = models.BooleanField(_('active'), default=True)
 
     class Meta:
         verbose_name = _('process')

@@ -6,12 +6,14 @@ from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
+from django.utils.datastructures import MultiValueDict
 from django.utils import timezone
 
 from core.testing import TestCase
 from tracking.models import Box, ScannerDevice, Tag, TagAssignment
 from tracking.services import record_event
 
+from .forms import OrderItemForm
 from .models import Customer, Order, OrderChange, OrderItem, Process, RouteStep
 
 K = Process.Kind
@@ -462,3 +464,49 @@ class CustomerTests(TestCase):
         from django.conf import settings
         css = (settings.BASE_DIR / 'static' / 'css' / 'base.css').read_text(encoding='utf-8')
         self.assertIn('h1 .button-secondary', css)
+
+
+class InactiveProcessTests(TestCase):
+    def setUp(self):
+        self.client.force_login(User.objects.create_user('s', password='x', is_staff=True))
+        self.live = Process.objects.create(name='Live', kind=K.MACHINING)
+        self.old = Process.objects.create(name='RetiredOne', kind=K.MACHINING, active=False)
+        order = Order.objects.create(customer=Customer.objects.create(name='C'), due_date=timezone.localdate() + timedelta(days=9))
+        self.item = OrderItem.objects.create(order=order, part_name='Old part', quantity=1)
+        RouteStep.objects.create(item=self.item, sequence=1, process=self.old)
+        self.order = order
+
+    def route_ids(self, form):
+        return [pk for pk, _label in form.fields['route'].choices]
+
+    def test_new_route_form_excludes_an_inactive_process(self):
+        r = self.client.get('/orders/new/')
+        self.assertNotContains(r, 'RetiredOne')
+        self.assertEqual(self.route_ids(r.context['formset'].empty_form), [self.live.pk])
+        data = MultiValueDict({'part_name': ['P'], 'quantity': ['1'], 'box_count': ['1'], 'route': [str(self.old.pk)]})
+        self.assertFalse(OrderItemForm(data).is_valid())
+
+    def test_editing_an_order_keeps_its_inactive_process_selectable(self):
+        r = self.client.get(f'/orders/{self.order.job_number}/edit/')
+        self.assertContains(r, 'RetiredOne')
+        form = r.context['formset'].forms[0]
+        self.assertEqual(set(self.route_ids(form)), {self.live.pk, self.old.pk})
+        data = MultiValueDict({'part_name': ['Old part'], 'quantity': ['1'], 'box_count': ['1'], 'route': [str(self.old.pk)]})
+        self.assertTrue(OrderItemForm(data, instance=self.item).is_valid())
+        self.assertEqual(self.route_ids(r.context['formset'].empty_form), [self.live.pk])  # new items: active only
+
+    def test_order_detail_still_names_the_inactive_process(self):
+        self.assertContains(self.client.get(f'/orders/{self.order.job_number}/'), 'RetiredOne')
+
+    def test_admin_actions_flip_active(self):
+        User.objects.create_superuser('root', 'r@example.com', 'x')
+        self.client.login(username='root', password='x')
+        post = lambda action, pks: self.client.post('/admin/orders/process/', {'action': action, '_selected_action': pks})
+        post('mark_inactive', [self.live.pk])
+        self.live.refresh_from_db()
+        self.assertFalse(self.live.active)
+        post('mark_active', [self.live.pk, self.old.pk])
+        self.live.refresh_from_db()
+        self.old.refresh_from_db()
+        self.assertTrue(self.live.active and self.old.active)
+        self.assertEqual(Process.objects.filter(active=True).count(), 2)  # no delete involved
