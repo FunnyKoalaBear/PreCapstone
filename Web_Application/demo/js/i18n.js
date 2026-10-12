@@ -28,6 +28,9 @@ const TEXTS = {
   // customers
   cust_name: ['名称', 'Name'], cust_contact: ['連絡先', 'Contact'], add_customer: ['得意先を追加', 'Add customer'], num_orders: ['受注数', 'Number of orders'],
   customer_added: ['得意先 {name} を追加しました。', 'Customer {name} added.'], err_dup_customer: ['この名称の得意先は既に登録されています。', 'A customer with this name already exists.'],
+  back_customers: ['得意先一覧に戻る', 'Back to Customers'], edit_customer: ['得意先 {name} を編集', 'Edit customer {name}'],
+  customer_updated: ['得意先 {name} を更新しました。', 'Customer {name} updated.'], no_customer_orders: ['この得意先の受注はまだありません。', 'This customer has no orders yet.'],
+  customer_missing: ['得意先が見つかりません。', 'Customer not found.'], created_at: ['作成日時', 'Created at'],
   new_customer: ['新規得意先', 'New customer'], no_customers_match: ['該当する得意先はありません。', 'No customers match.'],
   // boxes page
   active_boxes: ['進行中の箱', 'Active boxes'], no_match: ['条件に一致するものはありません。', 'Nothing matches this filter.'],

@@ -39,6 +39,27 @@ def customer_list(request):
 
 
 @staff_member_required
+def customer_detail(request, pk):
+    customer = get_object_or_404(Customer, pk=pk)
+    today, rows = timezone.localdate(), []
+    for o in customer.order_set.prefetch_related('items').order_by('-job_number'):
+        code, label = order_summary(o)
+        rows.append({'order': o, 'code': code, 'label': label, 'late': o.due_date < today and code != COMPLETE})
+    return render(request, 'orders/customer_detail.html', {'customer': customer, 'rows': rows})
+
+
+@staff_member_required
+def customer_edit(request, pk):
+    customer = get_object_or_404(Customer, pk=pk)
+    form = CustomerForm(request.POST or None, instance=customer)
+    if request.method == 'POST' and form.is_valid():
+        form.save()
+        messages.success(request, _('Customer %(name)s updated.') % {'name': customer.name})
+        return redirect('customer_detail', pk=customer.pk)
+    return render(request, 'orders/customer_edit.html', {'form': form, 'customer': customer})
+
+
+@staff_member_required
 def order_create(request):
     data, files = request.POST or None, request.FILES or None
     form, formset = OrderForm(data), OrderItemFormSet(data, files)

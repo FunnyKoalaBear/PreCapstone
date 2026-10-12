@@ -24,7 +24,7 @@ const FT = (() => {
     const assignments = [...seed.assignments, ...(st.assignments || [])].map((a) => (ended[a.id] != null ? { ...a, end: ended[a.id] } : a));
     const w = {
       now, today, procs: PROCESSES, assignments,
-      orders: [...seed.orders, ...(st.orders || [])].map((o) => ({ ...o, ...(st.orderEdits || {})[o.job] })),
+      orders: [...seed.orders, ...(st.orders || [])].map((o) => { const x = { ...o, ...(st.orderEdits || {})[o.job] }; return { ...x, customer: (st.renames || {})[x.customer] || x.customer }; }),
       items: [...seed.items, ...(st.items || [])].filter((i) => !(st.deleted || []).includes(i.id)).map((i) => ({ ...i, ...(st.itemEdits || {})[i.id] })),
       changes: st.changes || [],
       events: [...seed.events, ...(st.events || [])], inactive: new Set(st.inactive || []),

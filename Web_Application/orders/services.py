@@ -11,12 +11,13 @@ def normalize_name(name):
     return ' '.join(str(name or '').split())
 
 
-def find_customer(name):
-    """The customer whose name matches ignoring case, width and spacing, or None."""
+def find_customer(name, exclude=None):
+    """The customer (other than `exclude`) whose name matches ignoring case, width and spacing, or None."""
     key = unicodedata.normalize('NFKC', normalize_name(name)).casefold()
     if not key:
         return None
-    return next((c for c in Customer.objects.all() if unicodedata.normalize('NFKC', normalize_name(c.name)).casefold() == key), None)
+    others = Customer.objects.exclude(pk=exclude.pk) if exclude else Customer.objects.all()
+    return next((c for c in others if unicodedata.normalize('NFKC', normalize_name(c.name)).casefold() == key), None)
 
 
 def create_customer(name, contact=''):
@@ -25,6 +26,16 @@ def create_customer(name, contact=''):
     if find_customer(name):
         raise ValidationError(_('A customer with this name already exists.'))
     return Customer.objects.create(name=name, contact=str(contact or '').strip())
+
+
+def update_customer(customer, name, contact=''):
+    """Rename or re-contact a customer; a name used by another customer is an error."""
+    name = normalize_name(name)
+    if find_customer(name, exclude=customer):
+        raise ValidationError(_('A customer with this name already exists.'))
+    customer.name, customer.contact = name, str(contact or '').strip()
+    customer.save()
+    return customer
 
 
 def get_or_create_customer(name):

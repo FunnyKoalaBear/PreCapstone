@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{{ customer.name }} - {% trans "Factory Tracker" %}{% endblock %}
+
+{% block content %}
+  <p><a href="{% url 'customer_detail' customer.pk %}">&larr; {{ customer.name }}</a></p>
+  <h1>{% blocktrans with name=customer.name %}Edit customer {{ name }}{% endblocktrans %}</h1>
+
+  <form method="post" class="card">
+    {% csrf_token %}
+    {{ form }}
+    <button type="submit" class="button">{% trans "Save changes" %}</button>
+  </form>
+{% endblock %}

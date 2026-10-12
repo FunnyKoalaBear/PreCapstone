@@ -12,6 +12,7 @@ Files (upload all of them, keeping the folder structure)
   orders.html       Orders list: search, status filter, sort, overdue only
   order.html        Order detail: timeline and event history per box (?job=...)
   customers.html    Customers: add form (name, contact), search and order counts; new customers are saved in the browser
+  customer.html     Customer detail (?id=...): contact, orders; ?edit=1 edits name and contact (orders follow a rename)
   new-order.html    New order, including the Boxes field and an optional "New customer" name
   edit-order.html   Edit an order (?job=...): fields, items, box count; route locked after a scan; changes go to the order's Change history
   tags.html         Link / release / replace tags; "In use" shows the count and lists tags only after a search
@@ -28,7 +29,7 @@ Files (upload all of them, keeping the folder structure)
 Upload to Neocities
 -------------------
 1. Log in to Neocities and open the dashboard ("Edit Site").
-2. Upload the eleven .html files to the top level of the site.
+2. Upload the twelve .html files to the top level of the site.
 3. Create the folders css and js (or drag the folders in) and upload the files above.
 4. Open https://<yoursite>.neocities.org/index.html. Staff can also open
    index.html straight from a local copy of this folder; no server is needed.

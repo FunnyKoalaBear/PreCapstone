@@ -32,7 +32,7 @@
       <tbody>
         {% for c in customers %}
           <tr>
-            <td>{{ c.name }}</td>
+            <td><a href="{% url 'customer_detail' c.pk %}">{{ c.name }}</a></td>
             <td>{{ c.contact|default:"-" }}</td>
             <td>{{ c.order_count }}</td>
           </tr>

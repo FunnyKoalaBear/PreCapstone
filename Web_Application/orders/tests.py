@@ -510,3 +510,92 @@ class InactiveProcessTests(TestCase):
         self.old.refresh_from_db()
         self.assertTrue(self.live.active and self.old.active)
         self.assertEqual(Process.objects.filter(active=True).count(), 2)  # no delete involved
+
+
+class CustomerDetailEditTests(TestCase):
+    def setUp(self):
+        self.client.force_login(User.objects.create_user('s', password='x', is_staff=True))
+        self.acme = Customer.objects.create(name='Acme', contact='Mr. A')
+        self.beta = Customer.objects.create(name='Beta Works')
+        mat = Process.objects.create(name='Mat', kind=K.MATERIAL)
+        self.make = lambda c, days, po='': self._order(c, days, po, mat)
+
+    def _order(self, customer, days, po, proc):
+        o = Order.objects.create(customer=customer, customer_order_number=po, due_date=timezone.localdate() + timedelta(days=days))
+        item = OrderItem.objects.create(order=o, part_name='P', quantity=1)
+        RouteStep.objects.create(item=item, sequence=1, process=proc)
+        return o
+
+    def edit(self, customer, name, contact=''):
+        return self.client.post(f'/customers/{customer.pk}/edit/', {'name': name, 'contact': contact})
+
+    def test_pages_need_staff_and_unknown_id_is_404(self):
+        urls = [f'/customers/{self.acme.pk}/', f'/customers/{self.acme.pk}/edit/']
+        self.assertEqual([self.client.get(u).status_code for u in urls], [200, 200])
+        self.assertEqual(self.client.get('/customers/9999/').status_code, 404)
+        self.assertEqual(self.client.get('/customers/9999/edit/').status_code, 404)
+        self.client.logout()
+        self.assertEqual([self.client.get(u).status_code for u in urls], [302, 302])
+        self.assertEqual(self.edit(self.acme, 'Hacked').status_code, 302)
+        self.acme.refresh_from_db()
+        self.assertEqual(self.acme.name, 'Acme')
+
+    def test_list_links_to_the_detail_page(self):
+        self.assertContains(self.client.get('/customers/'), f'href="/customers/{self.acme.pk}/"')
+
+    def test_detail_lists_only_this_customers_orders_newest_first(self):
+        first = self.make(self.acme, 5, 'PO-1')
+        second = self.make(self.acme, -3, 'PO-2')
+        other = self.make(self.beta, 5, 'PO-X')
+        r = self.client.get(f'/customers/{self.acme.pk}/')
+        self.assertEqual([x['order'] for x in r.context['rows']], [second, first])
+        self.assertContains(r, f'href="/orders/{first.job_number}/"')
+        self.assertContains(r, 'PO-2')
+        self.assertNotContains(r, other.job_number)
+        self.assertContains(r, 'Mr. A')
+        self.assertContains(r, 'badge-not_started')
+        self.assertContains(r, 'Overdue')
+        self.assertContains(r, f'href="/customers/{self.acme.pk}/edit/"')
+        self.assertContains(r, 'href="/customers/"')
+
+    def test_detail_without_orders_says_so(self):
+        self.assertContains(self.client.get(f'/customers/{self.beta.pk}/'), 'This customer has no orders yet.')
+
+    def test_edit_saves_name_and_contact_and_returns_to_detail(self):
+        r = self.edit(self.acme, '  Acme   Holdings ', ' 03-1111 ')
+        self.assertRedirects(r, f'/customers/{self.acme.pk}/', fetch_redirect_response=False)
+        self.acme.refresh_from_db()
+        self.assertEqual((self.acme.name, self.acme.contact), ('Acme Holdings', '03-1111'))
+        self.assertContains(self.client.get(f'/customers/{self.acme.pk}/'), 'Customer Acme Holdings updated.')
+
+    def test_edit_form_is_prefilled(self):
+        r = self.client.get(f'/customers/{self.acme.pk}/edit/')
+        self.assertContains(r, 'value="Acme"')
+        self.assertContains(r, 'value="Mr. A"')
+
+    def test_renaming_to_another_customers_name_is_rejected(self):
+        for name in ('Beta Works', 'beta works', ' BETA   WORKS ', 'Beta\u3000Works', 'Ｂｅｔａ Works'):
+            r = self.edit(self.acme, name)
+            self.assertEqual(r.status_code, 200, name)
+            self.assertContains(r, 'A customer with this name already exists.')
+        self.acme.refresh_from_db()
+        self.assertEqual(self.acme.name, 'Acme')
+
+    def test_keeping_the_same_name_works(self):
+        for name in ('Acme', 'ACME', ' Acme '):
+            self.assertEqual(self.edit(self.acme, name, 'new').status_code, 302, name)
+        self.acme.refresh_from_db()
+        self.assertEqual((self.acme.name, self.acme.contact), ('Acme', 'new'))
+
+    def test_orders_show_the_new_name_after_a_rename(self):
+        order = self.make(self.acme, 5)
+        self.edit(self.acme, 'Acme Renamed')
+        self.assertContains(self.client.get(f'/orders/{order.job_number}/'), 'Acme Renamed')
+        self.assertContains(self.client.get('/orders/'), 'Acme Renamed')
+        self.assertNotContains(self.client.get('/orders/'), '>Acme<')
+        self.assertEqual(Order.objects.get(pk=order.pk).customer_id, self.acme.pk)
+
+    def test_heading_button_style_is_compact(self):
+        from django.conf import settings
+        css = (settings.BASE_DIR / 'static' / 'css' / 'base.css').read_text(encoding='utf-8')
+        self.assertIn('font-size: 0.85rem; font-weight: 400', css)

@@ -38,12 +38,12 @@
   // ---------- customers (orders/services.py) ----------
   const normName = (v) => String(v || '').split(/[\s\u3000]+/).filter(Boolean).join(' ');
   const nameKey = (v) => normName(v).normalize('NFKC').toLowerCase();
-  const findCustomer = (name) => customerNames().find((c) => nameKey(c) === nameKey(name));
+  const findCustomer = (name, exceptId) => allCustomers().find((c) => c.id !== exceptId && nameKey(c.name) === nameKey(name));
   const customerSelect = (current) => `<select name="customer"><option value="">${h(t('choose'))}</option>${customerNames().map((c) => `<option${c === current ? ' selected' : ''}>${h(c)}</option>`).join('')}</select>`;
   const newCustomerField = () => `<div><label>${h(t('new_customer'))}</label><input name="newcust" maxlength="200" autocomplete="off"></div>`;
   // The typed name wins over the dropdown; an existing match is reused
   const chosenCustomer = (f) => findCustomer(normName(f.newcust.value)) || normName(f.newcust.value) || f.customer.value;
-  const ensureCustomer = (name) => { if (!findCustomer(name)) push('customers', { name, contact: '' }); };
+  const ensureCustomer = (name) => { if (!findCustomer(name)) push('customers', { name, contact: '', created: Date.now() }); };
 
   // ---------- state ----------
   let state = store.get(KEY, {}) || {};
@@ -51,7 +51,22 @@
   const save = () => store.set(KEY, state);
   const refresh = () => { const now = Date.now(); seed = seed || buildSeed(now); world = FT.makeWorld(seed, state, now); };
   const push = (k, v) => { state[k] = [...(state[k] || []), v]; save(); refresh(); };
-  const customerNames = () => [...CUSTOMERS, ...(state.customers || []).map((c) => c.name)];
+  // Seed customers are s0, s1...; added ones u0, u1...; edits overlay them (orders follow renames via state.renames)
+  const allCustomers = () => [...CUSTOMERS.map((name, i) => ({ id: `s${i}`, name, contact: '' })), ...(state.customers || []).map((c, i) => ({ id: `u${i}`, ...c }))]
+    .map((c) => ({ ...c, ...(state.custEdits || {})[c.id] }));
+  const customerNames = () => allCustomers().map((c) => c.name);
+  function saveCustomer(c, name, contact) {
+    const renames = { ...(state.renames || {}) };
+    if (c.name !== name) {
+      Object.keys(renames).forEach((k) => { if (renames[k] === c.name) renames[k] = name; });
+      renames[c.name] = name;
+      delete renames[name];
+    }
+    state.renames = renames;
+    state.custEdits = { ...(state.custEdits || {}), [c.id]: { name, contact } };
+    save();
+    refresh();
+  }
   const tagList = () => world.tags.filter((u) => !world.inactive.has(u));
 
   // ---------- shell ----------
@@ -111,9 +126,8 @@
   // ---------- customers ----------
   function pageCustomers(app) {
     const q = (Q.get('q') || '').trim().toLowerCase();
-    const list = [...CUSTOMERS.map((name) => ({ name, contact: '' })), ...(state.customers || [])];
-    const rows = list.filter((c) => !q || c.name.toLowerCase().includes(q)).sort((a, b) => a.name.localeCompare(b.name))
-      .map((c) => `<tr><td>${h(c.name)}</td><td>${h(c.contact || '-')}</td><td>${world.orders.filter((o) => o.customer === c.name).length}</td></tr>`);
+    const rows = allCustomers().filter((c) => !q || c.name.toLowerCase().includes(q)).sort((a, b) => a.name.localeCompare(b.name))
+      .map((c) => `<tr><td><a href="customer.html?id=${c.id}">${h(c.name)}</a></td><td>${h(c.contact || '-')}</td><td>${world.orders.filter((o) => o.customer === c.name).length}</td></tr>`);
     app.innerHTML = `<h1>${h(t('nav_customers'))}</h1><div id="flash">${flashHtml()}</div>
       <form id="addcust" class="card"><div><label>${h(t('cust_name'))}</label><input name="name" maxlength="200" required></div>
       <div><label>${h(t('cust_contact'))}</label><input name="contact" maxlength="200"></div><button type="submit" class="button">${h(t('add_customer'))}</button></form>
@@ -125,9 +139,45 @@
       const f = e.target, name = normName(f.name.value);
       if (!name) flash = { kind: 'error', text: t('err_required') };
       else if (findCustomer(name)) flash = { kind: 'error', text: t('err_dup_customer') };
-      else { push('customers', { name, contact: f.contact.value.trim() }); flash = { kind: 'success', text: t('customer_added', { name }) }; }
+      else { push('customers', { name, contact: f.contact.value.trim(), created: Date.now() }); flash = { kind: 'success', text: t('customer_added', { name }) }; }
       boot();
     });
+  }
+
+  // ---------- customer detail and edit ----------
+  let custEditing = null;
+  function pageCustomer(app) {
+    const c = allCustomers().find((x) => x.id === Q.get('id')), back = `<p><a href="customers.html">&larr; ${h(t('back_customers'))}</a></p>`;
+    if (!c) { app.innerHTML = `${back}<p>${h(t('customer_missing'))}</p>`; return; }
+    if (custEditing === null) custEditing = Q.get('edit') === '1';
+    if (custEditing) {
+      app.innerHTML = `${back}<h1>${h(t('edit_customer', { name: c.name }))}</h1>
+        <form id="editcust" class="card"><div><label>${h(t('cust_name'))}</label><input name="name" maxlength="200" required value="${h(c.name)}"></div>
+        <div><label>${h(t('cust_contact'))}</label><input name="contact" maxlength="200" value="${h(c.contact)}"></div><div id="err"></div>
+        <button type="submit" class="button">${h(t('save_changes'))}</button></form>`;
+      $('#editcust').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const f = e.target, name = normName(f.name.value);
+        const err = !name ? t('err_required') : findCustomer(name, c.id) ? t('err_dup_customer') : '';
+        if (err) { $('#err').innerHTML = `<ul class="errorlist"><li>${h(err)}</li></ul>`; return; }
+        saveCustomer(c, name, f.contact.value.trim());
+        custEditing = false;
+        flash = { kind: 'success', text: t('customer_updated', { name }) };
+        history.replaceState(null, '', `customer.html?id=${c.id}`);
+        boot();
+      });
+      return;
+    }
+    const rows = world.orders.filter((o) => o.customer === c.name).sort((a, b) => b.job.localeCompare(a.job)).map((o) => {
+      const sum = FT.orderSummary(world, o), late = o.due < world.today && sum.code !== COMPLETE;
+      return `<tr><td>${orderLink(o.job, o.job)}</td><td>${h(o.custNo || '-')}</td><td>${o.due}${late ? ' ' + badge('overdue', t('overdue')) : ''}</td>
+        <td>${badge(sum.code.toLowerCase(), sum.code === IN_PROGRESS ? t('order_progress', sum) : t(sum.code))}</td></tr>`;
+    });
+    app.innerHTML = `${back}<div id="flash">${flashHtml()}</div><h1>${h(c.name)} <a class="button-secondary" href="customer.html?id=${c.id}&amp;edit=1">${h(t('edit'))}</a></h1>
+      <dl class="info"><div><dt>${h(t('cust_name'))}</dt><dd>${h(c.name)}</dd></div><div><dt>${h(t('cust_contact'))}</dt><dd>${h(c.contact || '-')}</dd></div>
+      <div><dt>${h(t('created_at'))}</dt><dd>${c.created ? fmtDT(c.created) : '-'}</dd></div></dl>
+      <h2>${h(t('nav_orders'))}</h2>
+      ${rows.length ? table([t('job_number'), t('customer_order_number'), t('due_date'), t('status')], rows, '') : `<p>${h(t('no_customer_orders'))}</p>`}`;
   }
 
   // ---------- orders ----------
@@ -496,12 +546,12 @@
   }
 
   // ---------- start ----------
-  const PAGES = { home: pageHome, boxes: pageBoxes, orders: pageOrders, customers: pageCustomers, order: pageOrder, edit: pageEdit, new: pageNewOrder, tags: pageTags, 'tag-history': pageTagHistory, simulate: pageSimulate, priorities: pagePriorities };
+  const PAGES = { home: pageHome, boxes: pageBoxes, orders: pageOrders, customers: pageCustomers, customer: pageCustomer, order: pageOrder, edit: pageEdit, new: pageNewOrder, tags: pageTags, 'tag-history': pageTagHistory, simulate: pageSimulate, priorities: pagePriorities };
   function boot() {
     refresh();
     shell();
     const page = document.body.dataset.page;
-    document.title = `${t(`nav_${{ home: 'home', order: 'orders', edit: 'orders', new: 'new', simulate: 'sim', priorities: 'prio', 'tag-history': 'tags' }[page] || page}`)} - ${t('brand')}`;
+    document.title = `${t(`nav_${{ home: 'home', order: 'orders', edit: 'orders', new: 'new', simulate: 'sim', priorities: 'prio', 'tag-history': 'tags', customer: 'customers' }[page] || page}`)} - ${t('brand')}`;
     PAGES[page]($('#app'));
   }
   document.addEventListener('DOMContentLoaded', () => {

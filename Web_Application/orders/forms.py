@@ -8,21 +8,30 @@ from django.utils.translation import gettext_lazy as _
 from tracking.status import events_for_item
 
 from .models import Customer, Order, OrderItem, Process, RouteStep
-from .services import create_customer, find_customer, get_or_create_customer, normalize_name
+from .services import create_customer, find_customer, get_or_create_customer, normalize_name, update_customer
 
 
 class CustomerForm(forms.Form):
     name = forms.CharField(label=capfirst(_('name')), max_length=200)
     contact = forms.CharField(label=capfirst(_('contact')), max_length=200, required=False)
 
+    def __init__(self, *args, instance=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.instance = instance  # set when editing: its own name stays allowed
+        if instance and not self.is_bound:
+            self.initial = {'name': instance.name, 'contact': instance.contact}
+
     def clean_name(self):
         name = normalize_name(self.cleaned_data['name'])
-        if find_customer(name):
+        if find_customer(name, exclude=self.instance):
             raise ValidationError(_('A customer with this name already exists.'))
         return name
 
     def save(self):
-        return create_customer(self.cleaned_data['name'], self.cleaned_data['contact'])
+        d = self.cleaned_data
+        if self.instance:
+            return update_customer(self.instance, d['name'], d['contact'])
+        return create_customer(d['name'], d['contact'])
 
 
 class OrderForm(forms.ModelForm):
