@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Factory Tracker\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-13 01:52+0900\n"
+"POT-Creation-Date: 2026-10-13 02:29+0900\n"
 "PO-Revision-Date: 2026-10-11 17:00+0900\n"
 "Last-Translator: Claude\n"
 "Language-Team: Japanese\n"
@@ -40,38 +40,49 @@ msgstr "1分未満"
 msgid "status"
 msgstr "状態"
 
-#: .\orders\forms.py:29 .\orders\models.py:158
+#: .\orders\forms.py:14 .\orders\models.py:14 .\orders\models.py:32
+#: .\templates\orders\customer_list.html:27 .\tracking\models.py:90
+msgid "name"
+msgstr "名称"
+
+#: .\orders\forms.py:15 .\orders\models.py:15
+#: .\templates\orders\customer_list.html:28
+msgid "contact"
+msgstr "連絡先"
+
+#: .\orders\forms.py:20 .\orders\services.py:26
+msgid "A customer with this name already exists."
+msgstr "この名称の得意先は既に登録されています。"
+
+# CHECK: 得意先 is marked unsure in the glossary (alternative: 顧客)
+#: .\orders\forms.py:28
+msgid "New customer"
+msgstr "新規得意先"
+
+#: .\orders\forms.py:66 .\orders\models.py:158
 #: .\templates\orders\_item_card.html:21 .\templates\orders\_item_card.html:27
 msgid "Route"
 msgstr "工程順"
 
-#: .\orders\forms.py:30
+#: .\orders\forms.py:67
 msgid "Add at least one step to the route."
 msgstr "工程順に工程を1つ以上追加してください。"
 
 # CHECK: field label for the expected box count; 箱数 is my choice
-#: .\orders\forms.py:36
+#: .\orders\forms.py:73
 msgid "Boxes"
 msgstr "箱数"
 
 # CHECK: check wording
-#: .\orders\forms.py:63
+#: .\orders\forms.py:100
 #, python-format
 msgid "Box count cannot be lower than the %(n)s boxes already linked."
 msgstr "箱数は、すでに紐付け済みの%(n)s個より少なくできません。"
 
-#: .\orders\forms.py:90
+#: .\orders\forms.py:127
 #, python-format
 msgid "Item %(item)s cannot be deleted because it has tags or scans."
 msgstr "品目 %(item)s にはタグまたはスキャンの記録があるため、削除できません。"
-
-#: .\orders\models.py:14 .\orders\models.py:32 .\tracking\models.py:90
-msgid "name"
-msgstr "名称"
-
-#: .\orders\models.py:15
-msgid "contact"
-msgstr "連絡先"
 
 #: .\orders\models.py:16 .\orders\models.py:55 .\tracking\models.py:16
 #: .\tracking\models.py:30
@@ -279,12 +290,17 @@ msgstr "新しい順"
 msgid "Customer"
 msgstr "得意先"
 
-#: .\orders\views.py:36
+#: .\orders\views.py:32
+#, python-format
+msgid "Customer %(name)s added."
+msgstr "得意先 %(name)s を追加しました。"
+
+#: .\orders\views.py:50
 #, python-format
 msgid "Order %(job)s created."
 msgstr "受注 %(job)s を登録しました。"
 
-#: .\orders\views.py:93
+#: .\orders\views.py:107
 #, python-format
 msgid "Order %(job)s updated."
 msgstr "受注 %(job)s を更新しました。"
@@ -298,11 +314,12 @@ msgid "Django administration"
 msgstr "Django 管理サイト"
 
 # CHECK: glossary marks 工程進捗管理 as unsure (product name)
-#: .\templates\base.html:6 .\templates\base.html:13 .\templates\base.html:32
-#: .\templates\core\home.html:4 .\templates\orders\order_detail.html:4
-#: .\templates\orders\order_form.html:4 .\templates\orders\order_list.html:4
-#: .\templates\tracking\boxes.html:4 .\templates\tracking\priorities.html:4
-#: .\templates\tracking\simulate.html:4 .\templates\tracking\tag_history.html:4
+#: .\templates\base.html:6 .\templates\base.html:13 .\templates\base.html:33
+#: .\templates\core\home.html:4 .\templates\orders\customer_list.html:4
+#: .\templates\orders\order_detail.html:4 .\templates\orders\order_form.html:4
+#: .\templates\orders\order_list.html:4 .\templates\tracking\boxes.html:4
+#: .\templates\tracking\priorities.html:4 .\templates\tracking\simulate.html:4
+#: .\templates\tracking\tag_history.html:4
 #: .\templates\tracking\tag_manage.html:4
 msgid "Factory Tracker"
 msgstr "工程進捗管理"
@@ -317,22 +334,28 @@ msgstr "ホーム"
 msgid "Orders"
 msgstr "受注一覧"
 
-#: .\templates\base.html:17 .\templates\orders\order_form.html:4
+# CHECK: 得意先 is marked unsure in the glossary (alternative: 顧客)
+#: .\templates\base.html:17 .\templates\orders\customer_list.html:4
+#: .\templates\orders\customer_list.html:7
+msgid "Customers"
+msgstr "得意先"
+
+#: .\templates\base.html:18 .\templates\orders\order_form.html:4
 #: .\templates\orders\order_form.html:11 .\templates\orders\order_list.html:33
 msgid "New order"
 msgstr "新規受注"
 
-#: .\templates\base.html:18 .\templates\tracking\priorities.html:4
+#: .\templates\base.html:19 .\templates\tracking\priorities.html:4
 #: .\templates\tracking\priorities.html:7
 msgid "Priorities"
 msgstr "優先度"
 
-#: .\templates\base.html:19 .\templates\tracking\tag_manage.html:4
+#: .\templates\base.html:20 .\templates\tracking\tag_manage.html:4
 #: .\templates\tracking\tag_manage.html:7
 msgid "Tags"
 msgstr "タグ管理"
 
-#: .\templates\base.html:20 .\templates\tracking\simulate.html:4
+#: .\templates\base.html:21 .\templates\tracking\simulate.html:4
 #: .\templates\tracking\simulate.html:7
 msgid "Simulate scan"
 msgstr "スキャンのシミュレーション"
@@ -490,6 +513,29 @@ msgstr "工程を選択"
 msgid "Add step"
 msgstr "工程を追加"
 
+# CHECK: 得意先 is marked unsure in the glossary (alternative: 顧客)
+#: .\templates\orders\customer_list.html:12
+msgid "Add customer"
+msgstr "得意先を追加"
+
+#: .\templates\orders\customer_list.html:17
+#: .\templates\orders\customer_list.html:20
+#: .\templates\orders\order_list.html:11
+#: .\templates\tracking\tag_history.html:12
+#: .\templates\tracking\tag_manage.html:25
+#: .\templates\tracking\tag_manage.html:28
+msgid "Search"
+msgstr "検索"
+
+#: .\templates\orders\customer_list.html:29
+msgid "Number of orders"
+msgstr "受注数"
+
+# CHECK: 得意先 is marked unsure in the glossary (alternative: 顧客)
+#: .\templates\orders\customer_list.html:40
+msgid "No customers match."
+msgstr "該当する得意先はありません。"
+
 #: .\templates\orders\order_detail.html:7
 msgid "Back to Orders"
 msgstr "受注一覧に戻る"
@@ -591,13 +637,6 @@ msgstr "変更を保存"
 #: .\templates\orders\order_form.html:30
 msgid "Create order"
 msgstr "受注を登録"
-
-#: .\templates\orders\order_list.html:11
-#: .\templates\tracking\tag_history.html:12
-#: .\templates\tracking\tag_manage.html:25
-#: .\templates\tracking\tag_manage.html:28
-msgid "Search"
-msgstr "検索"
 
 #: .\templates\orders\order_list.html:15 .\templates\orders\order_list.html:45
 #: .\templates\tracking\boxes.html:33

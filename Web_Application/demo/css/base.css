@@ -87,6 +87,10 @@ body {
   cursor: pointer;
 }
 
+h1 .button, h1 .button-secondary, h2 .button, h2 .button-secondary {
+  font-size: 1rem; font-weight: normal; line-height: normal; vertical-align: middle; text-decoration: none;
+}
+
 .item-card { position: relative; }
 .remove-item {
   position: absolute;

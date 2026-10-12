@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Customers" %} - {% trans "Factory Tracker" %}{% endblock %}
+
+{% block content %}
+  <h1>{% trans "Customers" %}</h1>
+
+  <form method="post" class="card">
+    {% csrf_token %}
+    {{ form }}
+    <button type="submit" class="button">{% trans "Add customer" %}</button>
+  </form>
+
+  <form method="get" class="filters">
+    <div>
+      <label for="q">{% trans "Search" %}</label>
+      <input type="search" id="q" name="q" value="{{ q }}">
+    </div>
+    <button type="submit" class="button">{% trans "Search" %}</button>
+  </form>
+
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>{% trans "name" as label %}{{ label|capfirst }}</th>
+          <th>{% trans "contact" as label %}{{ label|capfirst }}</th>
+          <th>{% trans "Number of orders" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in customers %}
+          <tr>
+            <td>{{ c.name }}</td>
+            <td>{{ c.contact|default:"-" }}</td>
+            <td>{{ c.order_count }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="3">{% trans "No customers match." %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}

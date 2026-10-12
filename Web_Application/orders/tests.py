@@ -251,6 +251,12 @@ class OrderEditTests(TestCase):
         data.update(order_fields)
         return self.client.post(f'/orders/{o.job_number}/edit/', data)
 
+    def test_edit_with_a_typed_customer_name_changes_the_customer(self):
+        self.post(new_customer=' New  Client ')
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.customer.name, 'New Client')
+        self.assertEqual(self.changes()['', 'customer'], ('Acme', 'New Client'))
+
     def changes(self):
         return {(c.item_code, c.field): (c.old_value, c.new_value) for c in OrderChange.objects.filter(order=self.order)}
 
@@ -371,3 +377,88 @@ class OrderEditTests(TestCase):
             self.assertContains(detail, words[0])
             self.assertContains(detail, words[1])
             self.assertContains(edit, words[2])
+
+
+class CustomerTests(TestCase):
+    def setUp(self):
+        self.client.force_login(User.objects.create_user('s', password='x', is_staff=True))
+        self.mat = Process.objects.create(name='Mat', kind=K.MATERIAL)
+
+    def add(self, name, contact='', **extra):
+        return self.client.post('/customers/', {'name': name, 'contact': contact, **extra})
+
+    def order_post(self, **fields):
+        data = {
+            'due_date': timezone.localdate() + timedelta(days=30), 'items-TOTAL_FORMS': 1, 'items-INITIAL_FORMS': 0,
+            'items-MIN_NUM_FORMS': 1, 'items-MAX_NUM_FORMS': 1000, 'items-0-part_name': 'P', 'items-0-quantity': 1,
+            'items-0-route': [self.mat.pk], **fields,
+        }
+        return self.client.post('/orders/new/', data)
+
+    def test_page_is_staff_only_and_in_the_nav(self):
+        self.assertContains(self.client.get('/orders/'), 'href="/customers/"')
+        self.client.logout()
+        self.assertEqual(self.client.get('/customers/').status_code, 302)
+        self.assertEqual(self.add('X').status_code, 302)
+        self.assertFalse(Customer.objects.exists())
+
+    def test_add_creates_a_customer_and_stays_on_the_page(self):
+        r = self.add('  Acme   Corp ', 'Mr. A', )
+        self.assertRedirects(r, '/customers/', fetch_redirect_response=False)
+        c = Customer.objects.get()
+        self.assertEqual((c.name, c.contact), ('Acme Corp', 'Mr. A'))
+        self.assertContains(self.client.get('/customers/'), 'Customer Acme Corp added.')
+
+    def test_duplicates_are_rejected(self):
+        Customer.objects.create(name='Acme Corp')
+        for name in ('acme corp', 'ACME CORP', '  Acme Corp  ', 'Acme  Corp', 'Acme　Corp', 'Ａｃｍｅ Corp'):
+            r = self.add(name)
+            self.assertEqual(r.status_code, 200, name)
+            self.assertContains(r, 'A customer with this name already exists.')
+        self.assertEqual(Customer.objects.count(), 1)
+        self.assertContains(self.add('   '), 'This field is required.')
+
+    def test_table_counts_orders_and_search_filters(self):
+        a = Customer.objects.create(name='Acme')
+        Customer.objects.create(name='Beta')
+        for _ in range(2):
+            Order.objects.create(customer=a, due_date=timezone.localdate())
+        r = self.client.get('/customers/')
+        self.assertEqual([(c.name, c.order_count) for c in r.context['customers']], [('Acme', 2), ('Beta', 0)])
+        self.assertEqual([c.name for c in self.client.get('/customers/', {'q': 'bet'}).context['customers']], ['Beta'])
+        self.assertContains(self.client.get('/customers/', {'q': 'zzz'}), 'No customers match.')
+
+    def test_order_with_only_a_new_name_creates_customer_and_order(self):
+        r = self.order_post(new_customer='  Fresh  Client ')
+        self.assertRedirects(r, '/orders/')
+        self.assertEqual(Order.objects.get().customer.name, 'Fresh Client')
+        self.assertEqual(Customer.objects.count(), 1)
+
+    def test_typed_name_wins_over_the_dropdown(self):
+        old = Customer.objects.create(name='Old')
+        self.order_post(customer=old.pk, new_customer='Brand New')
+        self.assertEqual(Order.objects.get().customer.name, 'Brand New')
+        self.assertEqual(Customer.objects.count(), 2)
+
+    def test_typed_name_matching_an_existing_customer_reuses_it(self):
+        c = Customer.objects.create(name='Acme Corp')
+        self.assertRedirects(self.order_post(new_customer='acme  CORP'), '/orders/')
+        self.assertEqual((Order.objects.get().customer, Customer.objects.count()), (c, 1))
+
+    def test_neither_field_gives_the_required_error_and_keeps_input(self):
+        r = self.order_post(customer_order_number='PO-9')
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, 'This field is required.')
+        self.assertContains(r, 'value="PO-9"')
+        self.assertFalse(Order.objects.exists())
+
+    def test_failed_order_creates_no_customer_and_keeps_the_typed_name(self):
+        r = self.order_post(new_customer='Ghost', due_date='')
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, 'value="Ghost"')
+        self.assertFalse(Customer.objects.exists())
+
+    def test_button_in_heading_is_scoped_in_css(self):
+        from django.conf import settings
+        css = (settings.BASE_DIR / 'static' / 'css' / 'base.css').read_text(encoding='utf-8')
+        self.assertIn('h1 .button-secondary', css)

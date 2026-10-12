@@ -35,16 +35,27 @@
   const flashHtml = () => (flash ? `<ul class="messages"><li class="message ${flash.kind}">${h(flash.text)}</li></ul>` : '');
   const errText = (e) => t(e.k, e);
 
+  // ---------- customers (orders/services.py) ----------
+  const normName = (v) => String(v || '').split(/[\s\u3000]+/).filter(Boolean).join(' ');
+  const nameKey = (v) => normName(v).normalize('NFKC').toLowerCase();
+  const findCustomer = (name) => customerNames().find((c) => nameKey(c) === nameKey(name));
+  const customerSelect = (current) => `<select name="customer"><option value="">${h(t('choose'))}</option>${customerNames().map((c) => `<option${c === current ? ' selected' : ''}>${h(c)}</option>`).join('')}</select>`;
+  const newCustomerField = () => `<div><label>${h(t('new_customer'))}</label><input name="newcust" maxlength="200" autocomplete="off"></div>`;
+  // The typed name wins over the dropdown; an existing match is reused
+  const chosenCustomer = (f) => findCustomer(normName(f.newcust.value)) || normName(f.newcust.value) || f.customer.value;
+  const ensureCustomer = (name) => { if (!findCustomer(name)) push('customers', { name, contact: '' }); };
+
   // ---------- state ----------
   let state = store.get(KEY, {}) || {};
   let seed, world, flash = null;
   const save = () => store.set(KEY, state);
   const refresh = () => { const now = Date.now(); seed = seed || buildSeed(now); world = FT.makeWorld(seed, state, now); };
   const push = (k, v) => { state[k] = [...(state[k] || []), v]; save(); refresh(); };
+  const customerNames = () => [...CUSTOMERS, ...(state.customers || []).map((c) => c.name)];
   const tagList = () => world.tags.filter((u) => !world.inactive.has(u));
 
   // ---------- shell ----------
-  const NAV = [['index', 'nav_home'], ['orders', 'nav_orders'], ['new-order', 'nav_new'],
+  const NAV = [['index', 'nav_home'], ['orders', 'nav_orders'], ['customers', 'nav_customers'], ['new-order', 'nav_new'],
     ['priorities', 'nav_prio'], ['tags', 'nav_tags'], ['simulate', 'nav_sim']];
   function shell() {
     document.documentElement.lang = I18N.lang;
@@ -95,6 +106,28 @@
       <form method="get" class="filters">${keep}<div><label for="sort">${h(t('sort_by'))}</label><select id="sort" name="sort" onchange="this.form.submit()">${
   opt('process', t('current_process'))}${opt('due', t('due_date'))}${opt('customer', t('customer'))}${opt('waiting', t('idle_for'))}</select></div></form>
       ${rows.length ? table([t('item'), t('box'), t('part'), t('customer'), t('current_process'), t('status'), t('due_date'), t('idle_for'), ''], rows, '') : `<p>${h(t('no_match'))}</p>`}`;
+  }
+
+  // ---------- customers ----------
+  function pageCustomers(app) {
+    const q = (Q.get('q') || '').trim().toLowerCase();
+    const list = [...CUSTOMERS.map((name) => ({ name, contact: '' })), ...(state.customers || [])];
+    const rows = list.filter((c) => !q || c.name.toLowerCase().includes(q)).sort((a, b) => a.name.localeCompare(b.name))
+      .map((c) => `<tr><td>${h(c.name)}</td><td>${h(c.contact || '-')}</td><td>${world.orders.filter((o) => o.customer === c.name).length}</td></tr>`);
+    app.innerHTML = `<h1>${h(t('nav_customers'))}</h1><div id="flash">${flashHtml()}</div>
+      <form id="addcust" class="card"><div><label>${h(t('cust_name'))}</label><input name="name" maxlength="200" required></div>
+      <div><label>${h(t('cust_contact'))}</label><input name="contact" maxlength="200"></div><button type="submit" class="button">${h(t('add_customer'))}</button></form>
+      <form method="get" class="filters"><div><label for="q">${h(t('search'))}</label><input type="search" id="q" name="q" value="${h(Q.get('q') || '')}"></div>
+      <button type="submit" class="button">${h(t('search'))}</button></form>
+      ${table([t('cust_name'), t('cust_contact'), t('num_orders')], rows, t('no_customers_match'))}`;
+    $('#addcust').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const f = e.target, name = normName(f.name.value);
+      if (!name) flash = { kind: 'error', text: t('err_required') };
+      else if (findCustomer(name)) flash = { kind: 'error', text: t('err_dup_customer') };
+      else { push('customers', { name, contact: f.contact.value.trim() }); flash = { kind: 'success', text: t('customer_added', { name }) }; }
+      boot();
+    });
   }
 
   // ---------- orders ----------
@@ -203,7 +236,7 @@
     <button type="button" class="remove-step">${h(t('remove'))}</button></div>`;
   function pageNewOrder(app) {
     app.innerHTML = `<h1>${h(t('new_order'))}</h1><form id="f" novalidate><div class="card">
-      <div><label>${h(t('customer'))}</label><select name="customer">${CUSTOMERS.map((c) => `<option>${h(c)}</option>`).join('')}</select></div>
+      <div><label>${h(t('customer'))}</label>${customerSelect('')}</div>${newCustomerField()}
       <div><label>${h(t('customer_order_number'))}</label><input name="custNo"></div>
       <div><label>${h(t('due_date'))}</label><input type="date" name="due" required value="${FT.addDays(world.today, 14)}"></div>
       <div><label>${h(t('notes'))}</label><textarea name="notes" rows="3"></textarea></div></div>
@@ -219,14 +252,16 @@
         part: $('[name=part]', c).value.trim(), qty: Number($('[name=qty]', c).value), boxCount: Number($('[name=boxes]', c).value),
         route: $$('[name=route]', c).map((s) => Number(s.value)).filter(Boolean),
       }));
-      if (!f.due.value || !items.length || items.some((i) => !i.part || !(i.qty >= 1))) errs.push(t('err_required'));
+      const customer = chosenCustomer(f);
+      if (!customer || !f.due.value || !items.length || items.some((i) => !i.part || !(i.qty >= 1))) errs.push(t('err_required'));
       if (items.some((i) => !(i.boxCount >= 1))) errs.push(t('err_boxes'));
       if (items.some((i) => !i.route.length)) errs.push(t('err_route'));
       if (errs.length) { $('#err').innerHTML = `<ul class="errorlist">${errs.map((x) => `<li>${h(x)}</li>`).join('')}</ul>`; return; }
       const prefix = FT.jstStr(world.now).slice(2, 4) + FT.jstStr(world.now).slice(5, 7);
       const seq = Math.max(0, ...world.orders.filter((o) => o.job.startsWith(prefix + '-')).map((o) => Number(o.job.slice(5)))) + 1;
       const job = `${prefix}-${String(seq).padStart(3, '0')}`;
-      push('orders', { job, customer: f.customer.value, custNo: f.custNo.value.trim(), due: f.due.value, notes: f.notes.value.trim() });
+      ensureCustomer(customer);
+      push('orders', { job, customer, custNo: f.custNo.value.trim(), due: f.due.value, notes: f.notes.value.trim() });
       items.forEach((i, n) => push('items', { id: `${job}-${String(n + 1).padStart(2, '0')}`, order: job, no: n + 1, part: i.part, qty: i.qty, boxCount: i.boxCount, route: i.route }));
       location.href = `orders.html?created=${job}`;
     });
@@ -241,7 +276,7 @@
     const its = world.items.filter((i) => i.order === order.job);
     app.innerHTML = `<p><a href="order.html?job=${encodeURIComponent(order.job)}">&larr; ${h(order.job)}</a></p><h1>${h(t('edit_order', { job: order.job }))}</h1>
       <form id="f" novalidate><div class="card"><div><label>${h(t('job_number'))}</label><input value="${h(order.job)}" disabled></div>
-      <div><label>${h(t('customer'))}</label><select name="customer">${CUSTOMERS.map((c) => `<option${c === order.customer ? ' selected' : ''}>${h(c)}</option>`).join('')}</select></div>
+      <div><label>${h(t('customer'))}</label>${customerSelect(order.customer)}</div>${newCustomerField()}
       <div><label>${h(t('customer_order_number'))}</label><input name="custNo" value="${h(order.custNo)}"></div>
       <div><label>${h(t('due_date'))}</label><input type="date" name="due" required value="${order.due}"></div>
       <div><label>${h(t('notes'))}</label><textarea name="notes" rows="3">${h(order.notes)}</textarea></div></div>
@@ -252,7 +287,8 @@
     $('#f').addEventListener('submit', (e) => {
       e.preventDefault();
       const f = e.target, errs = [], kept = [], added = [], deleted = [];
-      const o = { customer: f.customer.value, custNo: f.custNo.value.trim(), due: f.due.value, notes: f.notes.value.trim() };
+      const o = { customer: chosenCustomer(f), custNo: f.custNo.value.trim(), due: f.due.value, notes: f.notes.value.trim() };
+      if (!o.customer) errs.push(t('err_required'));
       $$('.item-card', f).forEach((c) => {
         const it = c.dataset.id && world.items.find((x) => x.id === c.dataset.id);
         if (c.classList.contains('is-removed')) { if (it) deleted.push(it); return; }
@@ -273,6 +309,7 @@
       // Append one record per changed field (the log is never edited or deleted)
       const when = Date.now(), log = [];
       const add = (item, field, old, now) => { if (String(old ?? '') !== String(now ?? '')) log.push({ t: when, job: order.job, item, field, old: String(old ?? ''), new: String(now ?? ''), by: 'demo' }); };
+      ensureCustomer(o.customer);
       Object.keys(FIELD_NAMES).forEach((k) => add(null, FIELD_NAMES[k], order[k], o[k]));
       kept.forEach(({ it, v }) => {
         add(it.id, 'part_name', it.part, v.part); add(it.id, 'quantity', it.qty, v.qty); add(it.id, 'box_count', it.boxCount, v.boxCount);
@@ -459,7 +496,7 @@
   }
 
   // ---------- start ----------
-  const PAGES = { home: pageHome, boxes: pageBoxes, orders: pageOrders, order: pageOrder, edit: pageEdit, new: pageNewOrder, tags: pageTags, 'tag-history': pageTagHistory, simulate: pageSimulate, priorities: pagePriorities };
+  const PAGES = { home: pageHome, boxes: pageBoxes, orders: pageOrders, customers: pageCustomers, order: pageOrder, edit: pageEdit, new: pageNewOrder, tags: pageTags, 'tag-history': pageTagHistory, simulate: pageSimulate, priorities: pagePriorities };
   function boot() {
     refresh();
     shell();

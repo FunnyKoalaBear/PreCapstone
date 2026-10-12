@@ -4,7 +4,7 @@ const TEXTS = {
   brand: ['工程進捗管理', 'Factory Tracker'], footer: ['工程進捗管理（デモ）', 'Factory Tracker (demo)'],
   banner: ['これはサンプルデータによるデモです。変更はこのブラウザにのみ保存されます。', 'This is a demo with sample data. Changes are saved only in this browser.'],
   reset_demo: ['デモデータをリセット', 'Reset demo data'],
-  nav_home: ['ホーム', 'Home'], nav_orders: ['受注一覧', 'Orders'], nav_new: ['新規受注', 'New order'],
+  nav_home: ['ホーム', 'Home'], nav_orders: ['受注一覧', 'Orders'], nav_new: ['新規受注', 'New order'], nav_customers: ['得意先', 'Customers'],
   nav_prio: ['優先度', 'Priorities'], nav_tags: ['タグ管理', 'Tags'], nav_sim: ['スキャンのシミュレーション', 'Simulate scan'],
   // statuses, kinds, events, tiers
   NOT_STARTED: ['未着手', 'Not started'], WAITING: ['待機中', 'Waiting'], IN_PROGRESS: ['作業中', 'In progress'], AT_VENDOR: ['外注中', 'At vendor'], COMPLETE: ['完了', 'Complete'],
@@ -25,6 +25,10 @@ const TEXTS = {
   dur_dh: ['{d}日{h}時間', '{d}d {h}h'], dur_hm: ['{h}時間{m}分', '{h}h {m}m'], dur_m: ['{m}分', '{m}m'], dur_lt1: ['1分未満', '<1m'],
   // home
   home_title: ['ホーム', 'Home'], overdue_orders: ['納期遅れの受注', 'Overdue orders'], vendor_overdue: ['外注遅れ', 'Vendor overdue'],
+  // customers
+  cust_name: ['名称', 'Name'], cust_contact: ['連絡先', 'Contact'], add_customer: ['得意先を追加', 'Add customer'], num_orders: ['受注数', 'Number of orders'],
+  customer_added: ['得意先 {name} を追加しました。', 'Customer {name} added.'], err_dup_customer: ['この名称の得意先は既に登録されています。', 'A customer with this name already exists.'],
+  new_customer: ['新規得意先', 'New customer'], no_customers_match: ['該当する得意先はありません。', 'No customers match.'],
   // boxes page
   active_boxes: ['進行中の箱', 'Active boxes'], no_match: ['条件に一致するものはありません。', 'Nothing matches this filter.'],
   // orders

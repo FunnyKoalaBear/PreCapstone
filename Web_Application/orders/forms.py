@@ -1,14 +1,33 @@
 from django import forms
 from django.core.exceptions import ValidationError
 from django.forms import BaseInlineFormSet, inlineformset_factory
+from django.utils.text import capfirst
 from django.utils.translation import gettext_lazy as _
 
 from tracking.status import events_for_item
 
-from .models import Order, OrderItem, Process, RouteStep
+from .models import Customer, Order, OrderItem, Process, RouteStep
+from .services import create_customer, find_customer, get_or_create_customer, normalize_name
+
+
+class CustomerForm(forms.Form):
+    name = forms.CharField(label=capfirst(_('name')), max_length=200)
+    contact = forms.CharField(label=capfirst(_('contact')), max_length=200, required=False)
+
+    def clean_name(self):
+        name = normalize_name(self.cleaned_data['name'])
+        if find_customer(name):
+            raise ValidationError(_('A customer with this name already exists.'))
+        return name
+
+    def save(self):
+        return create_customer(self.cleaned_data['name'], self.cleaned_data['contact'])
 
 
 class OrderForm(forms.ModelForm):
+    new_customer = forms.CharField(label=_('New customer'), required=False, max_length=200)
+    field_order = ['customer', 'new_customer']
+
     class Meta:
         model = Order
         fields = ['customer', 'customer_order_number', 'due_date', 'notes']
@@ -16,6 +35,24 @@ class OrderForm(forms.ModelForm):
             'due_date': forms.DateInput(attrs={'type': 'date'}),
             'notes': forms.Textarea(attrs={'rows': 3}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['customer'].required = False  # the typed name may stand in for it
+
+    def clean(self):
+        data = super().clean()
+        name = data['new_customer'] = normalize_name(data.get('new_customer'))
+        if name:
+            data['customer'] = find_customer(name)  # None: created on save
+        elif not data.get('customer') and 'customer' not in self.errors:
+            self.add_error('customer', ValidationError(self.fields['customer'].error_messages['required'], code='required'))
+        return data
+
+    def save(self, commit=True):
+        if self.cleaned_data['new_customer'] and not self.cleaned_data['customer']:
+            self.instance.customer = get_or_create_customer(self.cleaned_data['new_customer'])
+        return super().save(commit)
 
 
 class RouteWidget(forms.SelectMultiple):
