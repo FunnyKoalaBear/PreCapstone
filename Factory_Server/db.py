@@ -62,8 +62,9 @@ def open_connection():
     cur = conn.cursor() #cursor performs operations on db
     return conn, conn.cursor() 
 
-def add_query(conn, cur): 
-    cur.execute("INSERT INTO scans (uid) VALUES (%s)", ("NEW ID",))
+
+def add_query(conn, cur, data): 
+    cur.execute("INSERT INTO scans (uid) VALUES (%s)", (data.uid,))
     conn.commit()
 
 
@@ -75,9 +76,11 @@ def close_connection(conn, cur):
 def custom_query(conn, cur): 
     pass
 
+
 def print_table(cur):
     cur.execute("SELECT * FROM scans")
     print_rows(cur)
+
 
 if __name__ == "__main__":
     main()
