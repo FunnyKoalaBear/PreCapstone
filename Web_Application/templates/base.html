@@ -1,0 +1,35 @@
+{% load static i18n %}{% get_current_language as LANGUAGE_CODE %}<!DOCTYPE html>
+<html lang="{{ LANGUAGE_CODE }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{% trans "Factory Tracker" %}{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'css/theme.css' %}">
+  <link rel="stylesheet" href="{% static 'css/base.css' %}">
+  <link rel="stylesheet" href="{% static 'css/lang.css' %}">
+</head>
+<body>
+  <header class="site-header">
+    <span class="brand">{% trans "Factory Tracker" %}</span>
+    <nav class="site-nav">
+      <a href="{% url 'home' %}">{% trans "Home" %}</a>
+      {% if request.user.is_staff %}<a href="{% url 'order_list' %}">{% trans "Orders" %}</a>{% endif %}
+      {% if request.user.is_staff %}<a href="{% url 'order_create' %}">{% trans "New order" %}</a>{% endif %}
+      {% if request.user.is_staff %}<a href="{% url 'board' %}">{% trans "Process board" %}</a>{% endif %}
+      {% if request.user.is_staff %}<a href="{% url 'priorities' %}">{% trans "Priorities" %}</a>{% endif %}
+      {% if request.user.is_staff %}<a href="{% url 'tag_manage' %}">{% trans "Tags" %}</a>{% endif %}
+      {% if request.user.is_staff %}<a href="{% url 'simulate' %}">{% trans "Simulate scan" %}</a>{% endif %}
+    </nav>
+    {% include "includes/language_switch.html" %}
+  </header>
+  <main class="site-main">
+    {% if messages %}
+      <ul class="messages">
+        {% for message in messages %}<li class="message {{ message.tags }}">{{ message }}</li>{% endfor %}
+      </ul>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="site-footer">{% trans "Factory Tracker" %}</footer>
+</body>
+</html>

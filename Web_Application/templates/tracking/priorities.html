@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Priorities" %} - {% trans "Factory Tracker" %}{% endblock %}
+
+{% block content %}
+  <h1>{% trans "Priorities" %}</h1>
+
+  <nav class="tier-filters">
+    <a href="{% url 'priorities' %}"{% if not tier %} class="active"{% endif %}>{% trans "All" %} ({{ total }})</a>
+    {% for code, css, name, n in tiers %}
+      <a href="?tier={{ code }}" class="badge badge-risk-{{ css }}{% if tier == code %} active{% endif %}">{{ name }} ({{ n }})</a>
+    {% endfor %}
+  </nav>
+
+  {% if rows %}
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{% trans "Item" %}</th>
+            <th>{% trans "Part" %}</th>
+            <th>{% trans "Customer" %}</th>
+            <th>{% trans "Due date" %}</th>
+            <th>{% trans "Days left" %}</th>
+            <th>{% trans "Slack" %}</th>
+            <th>{% trans "Current process" %}</th>
+            <th>{% trans "Risk" %}</th>
+            <th>{% trans "Reasons" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+            <tr>
+              <td><a href="{% url 'order_detail' r.item.order.job_number %}">{% include "includes/item_box.html" with item=r.item multi=r.multi label=r.box_label %}</a></td>
+              <td>{{ r.item.part_name }}</td>
+              <td>{{ r.item.order.customer }}</td>
+              <td>{{ r.item.order.due_date|date:"Y-m-d" }}</td>
+              <td>{{ r.days_left }}</td>
+              <td>{{ r.slack }}</td>
+              <td>{{ r.process|default:"-" }}</td>
+              <td><span class="badge badge-risk-{{ r.tier|lower }}">{{ r.label }}</span></td>
+              <td><ul class="reasons">{% for t in r.reasons %}<li>{{ t }}</li>{% endfor %}</ul></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p>{% trans "Nothing needs attention." %}</p>
+  {% endif %}
+{% endblock %}

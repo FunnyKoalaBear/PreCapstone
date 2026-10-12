@@ -1,0 +1,48 @@
+{% load i18n duration %}
+      <ol class="timeline">
+        {% for s in b.steps %}
+          {% if s.wait_before %}<li class="timeline-wait">{% blocktrans with d=s.wait_before|duration %}waited {{ d }}{% endblocktrans %}</li>{% endif %}
+          <li class="timeline-step timeline-{{ s.row.state }}">
+            <span class="timeline-marker">{{ s.row.step.sequence }}</span>
+            <div class="timeline-body">
+              <strong>{{ s.row.step.process }}{% if s.row.step.process.vendor_name %} ({{ s.row.step.process.vendor_name }}){% endif %}</strong>
+              <span class="badge badge-{{ s.row.state }}">{{ s.label }}</span>
+              {% if s.due_back %}
+                <small>{% blocktrans with d=s.due_back|date:"Y-m-d" %}due back {{ d }}{% endblocktrans %}</small>
+                {% if s.late_days %}<span class="badge badge-overdue">{% blocktrans count counter=s.late_days %}Late by {{ counter }} day{% plural %}Late by {{ counter }} days{% endblocktrans %}</span>{% endif %}
+              {% endif %}
+              <div class="timeline-times">
+                {% trans "Started" %}: {{ s.row.started_at|date:"Y-m-d H:i"|default:"-" }}
+                &middot; {% trans "Finished" %}: {{ s.row.finished_at|date:"Y-m-d H:i"|default:"-" }}
+                {% if s.duration %}&middot; {{ s.duration|duration }}{% if s.running %} {% trans "so far" %}{% endif %}{% endif %}
+              </div>
+            </div>
+          </li>
+        {% endfor %}
+      </ol>
+
+      {% if single %}<h3>{% trans "Event history" %}</h3>{% else %}<h4>{% trans "Event history" %}</h4>{% endif %}
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{% trans "Time (JST)" %}</th>
+              <th>{% trans "Action" %}</th>
+              <th>{% trans "Process" %}</th>
+              <th>{% trans "Device" %}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for e in b.events %}
+              <tr>
+                <td>{{ e.occurred_at|date:"Y-m-d H:i:s" }}</td>
+                <td>{{ e.get_event_type_display }}</td>
+                <td>{{ e.process|default_if_none:"-" }}</td>
+                <td>{{ e.device }}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="4">{% trans "No events yet." %}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>

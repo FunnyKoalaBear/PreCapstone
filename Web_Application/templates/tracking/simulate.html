@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Simulate scan" %} - {% trans "Factory Tracker" %}{% endblock %}
+
+{% block content %}
+  <h1>{% trans "Simulate scan" %}</h1>
+
+  <form method="get" class="card" onchange="this.submit()">
+    {{ pick }}
+    <datalist id="tag-picks">
+      {% for uid, label in picks %}<option value="{{ uid }}">{{ label }}</option>{% endfor %}
+    </datalist>
+    <noscript><button type="submit" class="button">{% trans "Show next step" %}</button></noscript>
+  </form>
+
+  {% if step %}
+    <div class="card">
+      {% if step.state == "unassigned" %}
+        <p>{% blocktrans with uid=uid %}Tag {{ uid }} is not linked to any item: the event would be saved but match no item. Use "Other action" below to send it anyway.{% endblocktrans %}</p>
+      {% else %}
+        <p>
+          {% blocktrans with uid=uid item=step.assignment.item.item_code box=step.assignment.box.label part=step.assignment.item.part_name %}Tag {{ uid }}: item {{ item }}, box {{ box }}, {{ part }}{% endblocktrans %}
+          <span class="badge badge-{{ step.status.code|lower }}">{{ step.status.code_label }}</span>
+        </p>
+        {% if step.state == "finished" %}
+          <p>{% trans "This box has finished its whole route. Nothing left to scan." %}</p>
+        {% else %}
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="tag_uid" value="{{ uid }}">
+            <input type="hidden" name="device" value="{{ device }}">
+            <label for="next-action">{% trans "What happened" %}</label>
+            <select name="action" id="next-action"><option value="{{ step.value }}" selected>{{ step.label }}</option></select>
+            <button type="submit" class="button">{% trans "Confirm" %}</button>
+          </form>
+        {% endif %}
+      {% endif %}
+    </div>
+  {% endif %}
+
+  <details class="card"{% if form.errors or request.method == "POST" %} open{% endif %}>
+    <summary>{% trans "Other action (test a mistake)" %}</summary>
+    <form method="post">
+      {% csrf_token %}
+      {{ form }}
+      <datalist id="tag-uids">
+        {% for uid, label in picks %}<option value="{{ uid }}">{% endfor %}
+      </datalist>
+      <button type="submit" class="button">{% trans "Record event" %}</button>
+    </form>
+  </details>
+
+  <h2>{% trans "Last 10 events" %}</h2>
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>{% trans "Time (JST)" %}</th>
+          <th>{% trans "Tag" %}</th>
+          <th>{% trans "Process" %}</th>
+          <th>{% trans "Action" %}</th>
+          <th>{% trans "Device" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in events %}
+          <tr>
+            <td>{{ e.occurred_at|date:"Y-m-d H:i:s" }}</td>
+            <td>{{ e.tag_uid }}</td>
+            <td>{{ e.process|default_if_none:"-" }}</td>
+            <td>{{ e.get_event_type_display }}</td>
+            <td>{{ e.device }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5">{% trans "No events yet." %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}

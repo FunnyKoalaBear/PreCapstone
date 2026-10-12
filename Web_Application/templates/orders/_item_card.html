@@ -1,0 +1,45 @@
+{% load i18n %}
+<div class="card item-card">
+  {% if f.undeletable %}
+    <p class="note">{% trans "Cannot be removed because it has tags or scans." %}</p>
+  {% else %}
+    <button type="button" class="remove-item">{% trans "Remove" %}</button>
+  {% endif %}
+  <h2>{% trans "Item" %} <span class="item-number">{{ n }}</span>{% if f.instance.pk %} <small>{{ f.instance.item_code }}</small>{% endif %}</h2>
+  {{ f.non_field_errors }}
+  {% for field in f.hidden_fields %}{{ field }}{% endfor %}
+  {% for field in f.visible_fields %}
+    {% if field.name == "DELETE" %}
+      <div class="delete-field">{{ field }}</div>
+    {% elif field.name != "route" %}
+      <div>{{ field.label_tag }}{{ field.errors }}{{ field }}</div>
+    {% endif %}
+  {% endfor %}
+
+  {% if f.locked %}
+    <div class="route">
+      <label>{% trans "Route" %}</label>
+      <ol class="route-readonly">{% for proc in f.route_steps %}<li>{{ proc }}</li>{% endfor %}</ol>
+      <p class="note">{% trans "Route is locked because this item has been scanned." %}</p>
+    </div>
+  {% else %}
+  <div class="route">
+    <label>{% trans "Route" %}</label>
+    {{ f.route.errors }}
+    <div class="route-steps">
+      {% for sel in f.route_selected %}
+        <div class="route-step">
+          <select name="{{ f.prefix }}-route">
+            <option value="">{% trans "Choose a process" %}</option>
+            {% for pk, label in f.fields.route.choices %}
+              <option value="{{ pk }}"{% if sel == pk|stringformat:"s" %} selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          <button type="button" class="remove-step">{% trans "Remove" %}</button>
+        </div>
+      {% endfor %}
+    </div>
+    <button type="button" class="add-step button-secondary">{% trans "Add step" %}</button>
+  </div>
+  {% endif %}
+</div>
