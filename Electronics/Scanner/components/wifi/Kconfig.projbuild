@@ -1,0 +1,15 @@
+menu "Scanner WiFi"
+
+    config SCANNER_WIFI_SSID
+        string "WiFi network name (SSID)"
+        default ""
+
+    config SCANNER_WIFI_PASSWORD
+        string "WiFi password (empty for an open network)"
+        default ""
+
+    config SCANNER_WIFI_CONNECT_TIMEOUT_MS
+        int "How long init() waits for a connection (ms)"
+        default 15000
+
+endmenu
