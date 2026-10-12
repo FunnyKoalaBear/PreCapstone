@@ -14,13 +14,18 @@ FetchContent_Declare(cjson
     GIT_REPOSITORY https://github.com/DaveGamble/cJSON.git
     GIT_TAG        v1.7.19
 )
+FetchContent_Declare(nlohmann_json
+    GIT_REPOSITORY https://github.com/nlohmann/json.git
+    GIT_TAG        v3.12.0
+    GIT_SHALLOW    TRUE
+)
 
 set(ENABLE_CJSON_TEST OFF CACHE BOOL "" FORCE)
 set(ENABLE_CJSON_UNINSTALL OFF CACHE BOOL "" FORCE)
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 
-FetchContent_MakeAvailable(httplib cjson)
+FetchContent_MakeAvailable(httplib cjson nlohmann_json)
 
-add_executable(scan_client src/main.cpp)
+add_executable(scan_client pc_connection.cpp)
 target_include_directories(scan_client PRIVATE ${cjson_SOURCE_DIR})
-target_link_libraries(scan_client PRIVATE httplib::httplib cjson)
+target_link_libraries(scan_client PRIVATE httplib::httplib cjson nlohmann_json::nlohmann_json)
