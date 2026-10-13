@@ -35,16 +35,42 @@
   const flashHtml = () => (flash ? `<ul class="messages"><li class="message ${flash.kind}">${h(flash.text)}</li></ul>` : '');
   const errText = (e) => t(e.k, e);
 
+  // ---------- customers (orders/services.py) ----------
+  const normName = (v) => String(v || '').split(/[\s\u3000]+/).filter(Boolean).join(' ');
+  const nameKey = (v) => normName(v).normalize('NFKC').toLowerCase();
+  const findCustomer = (name, exceptId) => allCustomers().find((c) => c.id !== exceptId && nameKey(c.name) === nameKey(name));
+  const customerSelect = (current) => `<select name="customer"><option value="">${h(t('choose'))}</option>${customerNames().map((c) => `<option${c === current ? ' selected' : ''}>${h(c)}</option>`).join('')}</select>`;
+  const newCustomerField = () => `<div><label>${h(t('new_customer'))}</label><input name="newcust" maxlength="200" autocomplete="off"></div>`;
+  // The typed name wins over the dropdown; an existing match is reused
+  const chosenCustomer = (f) => findCustomer(normName(f.newcust.value)) || normName(f.newcust.value) || f.customer.value;
+  const ensureCustomer = (name) => { if (!findCustomer(name)) push('customers', { name, contact: '', created: Date.now() }); };
+
   // ---------- state ----------
   let state = store.get(KEY, {}) || {};
   let seed, world, flash = null;
   const save = () => store.set(KEY, state);
   const refresh = () => { const now = Date.now(); seed = seed || buildSeed(now); world = FT.makeWorld(seed, state, now); };
   const push = (k, v) => { state[k] = [...(state[k] || []), v]; save(); refresh(); };
+  // Seed customers are s0, s1...; added ones u0, u1...; edits overlay them (orders follow renames via state.renames)
+  const allCustomers = () => [...CUSTOMERS.map((name, i) => ({ id: `s${i}`, name, contact: '' })), ...(state.customers || []).map((c, i) => ({ id: `u${i}`, ...c }))]
+    .map((c) => ({ ...c, ...(state.custEdits || {})[c.id] }));
+  const customerNames = () => allCustomers().map((c) => c.name);
+  function saveCustomer(c, name, contact) {
+    const renames = { ...(state.renames || {}) };
+    if (c.name !== name) {
+      Object.keys(renames).forEach((k) => { if (renames[k] === c.name) renames[k] = name; });
+      renames[c.name] = name;
+      delete renames[name];
+    }
+    state.renames = renames;
+    state.custEdits = { ...(state.custEdits || {}), [c.id]: { name, contact } };
+    save();
+    refresh();
+  }
   const tagList = () => world.tags.filter((u) => !world.inactive.has(u));
 
   // ---------- shell ----------
-  const NAV = [['index', 'nav_home'], ['orders', 'nav_orders'], ['new-order', 'nav_new'], ['boxes', 'nav_boxes'], ['board', 'nav_board'],
+  const NAV = [['index', 'nav_home'], ['orders', 'nav_orders'], ['customers', 'nav_customers'], ['new-order', 'nav_new'],
     ['priorities', 'nav_prio'], ['tags', 'nav_tags'], ['simulate', 'nav_sim']];
   function shell() {
     document.documentElement.lang = I18N.lang;
@@ -64,13 +90,6 @@
   function pageHome(app) {
     const d = FT.homeData(world), c = d.counters;
     const card = (cls, href, n, label) => `<a class="card counter counter-${cls}" href="${href}"><strong>${n}</strong> ${h(label)}</a>`;
-    const inRows = d.inHouse.map((e) => `<tr><td>${orderLink(e.order.job, itemBox(e))}</td><td>${h(e.item.part)}</td><td>${h(e.order.customer)}</td>
-      <td>${h(pname(e.proc))}</td><td>${statusBadge(e.code)}</td>
-      <td>${e.due}${e.late ? ' ' + badge('overdue', t('overdue')) : ''}</td><td>${fmtDT(e.lastEvent)}</td>
-      <td>${fmtDur(e.idle)}${e.stagnant ? ' ' + badge('stagnant', t('stagnant')) : ''}</td></tr>`);
-    const vRows = d.atVendor.map((e) => `<tr><td>${orderLink(e.order.job, itemBox(e))}</td><td>${h(e.item.part)}</td><td>${h(e.proc.vendor || '-')}</td>
-      <td>${h(pname(e.proc))}</td><td>${fmtDT(e.started)}</td><td>${e.daysOut ?? '-'}</td>
-      <td>${e.dueBack || h(t('no_due_date'))}</td><td>${e.lateDays ? lateBadge(e.lateDays) : ''}</td></tr>`);
     app.innerHTML = `<h1>${h(t('home_title'))}</h1><div class="counters">
       ${card('in_progress', 'boxes.html?status=in_progress', c.in_progress, t('IN_PROGRESS'))}
       ${card('waiting', 'boxes.html?status=waiting', c.waiting, t('WAITING'))}
@@ -80,23 +99,85 @@
       ${card('overdue', 'orders.html?late=1', c.overdue, t('overdue_orders'))}
       ${card('vendor' + (c.vendor_overdue ? ' counter-overdue counter-late' : ''), 'boxes.html?status=at_vendor&vendor_late=1', c.vendor_overdue, t('vendor_overdue'))}
     </div>
-    <h2>${h(t('in_house_now'))}</h2>${table([t('item'), t('part'), t('customer'), t('current_process'), t('status'), t('due_date'), t('last_scan'), t('idle_for')], inRows, t('nothing_factory'))}
-    <h2>${h(t('at_vendors'))}</h2>${table([t('item'), t('part'), t('vendor'), t('process'), t('out_since'), t('days_out'), t('due_back'), t('late_by')], vRows, t('nothing_vendor'))}`;
+    <h2>${h(t('board_title'))}</h2>${boardHtml()}`;
   }
 
   // ---------- boxes ----------
   const STATUS_PARAMS = { in_progress: IN_PROGRESS, waiting: WAITING, at_vendor: AT_VENDOR, not_started: NOT_STARTED };
   function pageBoxes(app) {
     const status = STATUS_PARAMS[Q.get('status')] || null, stagnant = Q.get('stagnant') === '1', vendorLate = Q.get('vendor_late') === '1';
-    const parts = [status && t(status), stagnant && t('stagnant'), vendorLate && t('vendor_late')].filter(Boolean);
-    const rows = FT.boxesPage(world, { status, stagnant, vendorLate }).map((e) => `<tr>
+    const sort = Object.keys(FT.BOX_SORTS).includes(Q.get('sort')) ? Q.get('sort') : 'due';
+    const title = [vendorLate ? t('vendor_overdue') : status && t(status), stagnant && t('stagnant')].filter(Boolean).join(', ') || t('active_boxes');
+    const rows = FT.boxesPage(world, { status, stagnant, vendorLate, sort }).map((e) => `<tr>
       <td>${orderLink(e.order.job, e.item.id)}</td>
       <td>${e.boxLabel ? h(e.boxLabel) : `${h(t('not_linked_yet'))} <a href="tags.html">${h(t('link_a_tag'))}</a>`}</td>
       <td>${h(e.item.part)}</td><td>${h(e.order.customer)}</td><td>${h(pname(e.proc))}</td><td>${statusBadge(e.code)}</td><td>${e.due}</td><td>${fmtDur(e.idle)}</td>
-      <td>${e.late ? badge('overdue', t('overdue')) : ''} ${e.stagnant ? badge('stagnant', t('stagnant')) : ''} ${e.lateDays ? badge('overdue', t('vendor_late')) + ' ' + lateBadge(e.lateDays) : ''}</td></tr>`);
+      <td>${e.late ? badge('overdue', t('overdue')) : ''} ${e.stagnant ? badge('stagnant', t('stagnant')) : ''} ${e.lateDays ? badge('overdue', t('vendor_overdue')) + ' ' + lateBadge(e.lateDays) : ''}</td></tr>`);
+    const keep = [['status', status ? Q.get('status') : ''], ['stagnant', stagnant ? '1' : ''], ['vendor_late', vendorLate ? '1' : '']]
+      .filter(([, v]) => v).map(([k, v]) => `<input type="hidden" name="${k}" value="${v}">`).join('');
+    const opt = (v, text) => `<option value="${v}"${v === sort ? ' selected' : ''}>${h(text)}</option>`;
     app.innerHTML = `<p><a href="index.html">&larr; ${h(t('back_home'))}</a></p>
-      <h1>${h(t('boxes_title'))}${parts.length ? ` <small>- ${h(parts.join(', '))}</small>` : ''}</h1>
-      ${rows.length ? table([t('item'), t('box'), t('part'), t('customer'), t('current_process'), t('status'), t('due_date'), t('idle_for'), ''], rows, '') : `<p>${h(t('no_boxes_match'))}</p>`}`;
+      <h1>${h(title)}</h1>
+      <form method="get" class="filters">${keep}<div><label for="sort">${h(t('sort_by'))}</label><select id="sort" name="sort" onchange="this.form.submit()">${
+  opt('process', t('current_process'))}${opt('due', t('due_date'))}${opt('customer', t('customer'))}${opt('waiting', t('idle_for'))}</select></div></form>
+      ${rows.length ? table([t('item'), t('box'), t('part'), t('customer'), t('current_process'), t('status'), t('due_date'), t('idle_for'), ''], rows, '') : `<p>${h(t('no_match'))}</p>`}`;
+  }
+
+  // ---------- customers ----------
+  function pageCustomers(app) {
+    const q = (Q.get('q') || '').trim().toLowerCase();
+    const rows = allCustomers().filter((c) => !q || c.name.toLowerCase().includes(q)).sort((a, b) => a.name.localeCompare(b.name))
+      .map((c) => `<tr><td><a href="customer.html?id=${c.id}">${h(c.name)}</a></td><td>${h(c.contact || '-')}</td><td>${world.orders.filter((o) => o.customer === c.name).length}</td></tr>`);
+    app.innerHTML = `<h1>${h(t('nav_customers'))}</h1><div id="flash">${flashHtml()}</div>
+      <form id="addcust" class="card"><div><label>${h(t('cust_name'))}</label><input name="name" maxlength="200" required></div>
+      <div><label>${h(t('cust_contact'))}</label><input name="contact" maxlength="200"></div><button type="submit" class="button">${h(t('add_customer'))}</button></form>
+      <form method="get" class="filters"><div><label for="q">${h(t('search'))}</label><input type="search" id="q" name="q" value="${h(Q.get('q') || '')}"></div>
+      <button type="submit" class="button">${h(t('search'))}</button></form>
+      ${table([t('cust_name'), t('cust_contact'), t('num_orders')], rows, t('no_customers_match'))}`;
+    $('#addcust').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const f = e.target, name = normName(f.name.value);
+      if (!name) flash = { kind: 'error', text: t('err_required') };
+      else if (findCustomer(name)) flash = { kind: 'error', text: t('err_dup_customer') };
+      else { push('customers', { name, contact: f.contact.value.trim(), created: Date.now() }); flash = { kind: 'success', text: t('customer_added', { name }) }; }
+      boot();
+    });
+  }
+
+  // ---------- customer detail and edit ----------
+  let custEditing = null;
+  function pageCustomer(app) {
+    const c = allCustomers().find((x) => x.id === Q.get('id')), back = `<p><a href="customers.html">&larr; ${h(t('back_customers'))}</a></p>`;
+    if (!c) { app.innerHTML = `${back}<p>${h(t('customer_missing'))}</p>`; return; }
+    if (custEditing === null) custEditing = Q.get('edit') === '1';
+    if (custEditing) {
+      app.innerHTML = `${back}<h1>${h(t('edit_customer', { name: c.name }))}</h1>
+        <form id="editcust" class="card"><div><label>${h(t('cust_name'))}</label><input name="name" maxlength="200" required value="${h(c.name)}"></div>
+        <div><label>${h(t('cust_contact'))}</label><input name="contact" maxlength="200" value="${h(c.contact)}"></div><div id="err"></div>
+        <button type="submit" class="button">${h(t('save_changes'))}</button></form>`;
+      $('#editcust').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const f = e.target, name = normName(f.name.value);
+        const err = !name ? t('err_required') : findCustomer(name, c.id) ? t('err_dup_customer') : '';
+        if (err) { $('#err').innerHTML = `<ul class="errorlist"><li>${h(err)}</li></ul>`; return; }
+        saveCustomer(c, name, f.contact.value.trim());
+        custEditing = false;
+        flash = { kind: 'success', text: t('customer_updated', { name }) };
+        history.replaceState(null, '', `customer.html?id=${c.id}`);
+        boot();
+      });
+      return;
+    }
+    const rows = world.orders.filter((o) => o.customer === c.name).sort((a, b) => b.job.localeCompare(a.job)).map((o) => {
+      const sum = FT.orderSummary(world, o), late = o.due < world.today && sum.code !== COMPLETE;
+      return `<tr><td>${orderLink(o.job, o.job)}</td><td>${h(o.custNo || '-')}</td><td>${o.due}${late ? ' ' + badge('overdue', t('overdue')) : ''}</td>
+        <td>${badge(sum.code.toLowerCase(), sum.code === IN_PROGRESS ? t('order_progress', sum) : t(sum.code))}</td></tr>`;
+    });
+    app.innerHTML = `${back}<div id="flash">${flashHtml()}</div><h1>${h(c.name)} <a class="button-secondary" href="customer.html?id=${c.id}&amp;edit=1">${h(t('edit'))}</a></h1>
+      <dl class="info"><div><dt>${h(t('cust_name'))}</dt><dd>${h(c.name)}</dd></div><div><dt>${h(t('cust_contact'))}</dt><dd>${h(c.contact || '-')}</dd></div>
+      <div><dt>${h(t('created_at'))}</dt><dd>${c.created ? fmtDT(c.created) : '-'}</dd></div></dl>
+      <h2>${h(t('nav_orders'))}</h2>
+      ${rows.length ? table([t('job_number'), t('customer_order_number'), t('due_date'), t('status')], rows, '') : `<p>${h(t('no_customer_orders'))}</p>`}`;
   }
 
   // ---------- orders ----------
@@ -205,7 +286,7 @@
     <button type="button" class="remove-step">${h(t('remove'))}</button></div>`;
   function pageNewOrder(app) {
     app.innerHTML = `<h1>${h(t('new_order'))}</h1><form id="f" novalidate><div class="card">
-      <div><label>${h(t('customer'))}</label><select name="customer">${CUSTOMERS.map((c) => `<option>${h(c)}</option>`).join('')}</select></div>
+      <div><label>${h(t('customer'))}</label>${customerSelect('')}</div>${newCustomerField()}
       <div><label>${h(t('customer_order_number'))}</label><input name="custNo"></div>
       <div><label>${h(t('due_date'))}</label><input type="date" name="due" required value="${FT.addDays(world.today, 14)}"></div>
       <div><label>${h(t('notes'))}</label><textarea name="notes" rows="3"></textarea></div></div>
@@ -221,14 +302,16 @@
         part: $('[name=part]', c).value.trim(), qty: Number($('[name=qty]', c).value), boxCount: Number($('[name=boxes]', c).value),
         route: $$('[name=route]', c).map((s) => Number(s.value)).filter(Boolean),
       }));
-      if (!f.due.value || !items.length || items.some((i) => !i.part || !(i.qty >= 1))) errs.push(t('err_required'));
+      const customer = chosenCustomer(f);
+      if (!customer || !f.due.value || !items.length || items.some((i) => !i.part || !(i.qty >= 1))) errs.push(t('err_required'));
       if (items.some((i) => !(i.boxCount >= 1))) errs.push(t('err_boxes'));
       if (items.some((i) => !i.route.length)) errs.push(t('err_route'));
       if (errs.length) { $('#err').innerHTML = `<ul class="errorlist">${errs.map((x) => `<li>${h(x)}</li>`).join('')}</ul>`; return; }
       const prefix = FT.jstStr(world.now).slice(2, 4) + FT.jstStr(world.now).slice(5, 7);
       const seq = Math.max(0, ...world.orders.filter((o) => o.job.startsWith(prefix + '-')).map((o) => Number(o.job.slice(5)))) + 1;
       const job = `${prefix}-${String(seq).padStart(3, '0')}`;
-      push('orders', { job, customer: f.customer.value, custNo: f.custNo.value.trim(), due: f.due.value, notes: f.notes.value.trim() });
+      ensureCustomer(customer);
+      push('orders', { job, customer, custNo: f.custNo.value.trim(), due: f.due.value, notes: f.notes.value.trim() });
       items.forEach((i, n) => push('items', { id: `${job}-${String(n + 1).padStart(2, '0')}`, order: job, no: n + 1, part: i.part, qty: i.qty, boxCount: i.boxCount, route: i.route }));
       location.href = `orders.html?created=${job}`;
     });
@@ -243,7 +326,7 @@
     const its = world.items.filter((i) => i.order === order.job);
     app.innerHTML = `<p><a href="order.html?job=${encodeURIComponent(order.job)}">&larr; ${h(order.job)}</a></p><h1>${h(t('edit_order', { job: order.job }))}</h1>
       <form id="f" novalidate><div class="card"><div><label>${h(t('job_number'))}</label><input value="${h(order.job)}" disabled></div>
-      <div><label>${h(t('customer'))}</label><select name="customer">${CUSTOMERS.map((c) => `<option${c === order.customer ? ' selected' : ''}>${h(c)}</option>`).join('')}</select></div>
+      <div><label>${h(t('customer'))}</label>${customerSelect(order.customer)}</div>${newCustomerField()}
       <div><label>${h(t('customer_order_number'))}</label><input name="custNo" value="${h(order.custNo)}"></div>
       <div><label>${h(t('due_date'))}</label><input type="date" name="due" required value="${order.due}"></div>
       <div><label>${h(t('notes'))}</label><textarea name="notes" rows="3">${h(order.notes)}</textarea></div></div>
@@ -254,7 +337,8 @@
     $('#f').addEventListener('submit', (e) => {
       e.preventDefault();
       const f = e.target, errs = [], kept = [], added = [], deleted = [];
-      const o = { customer: f.customer.value, custNo: f.custNo.value.trim(), due: f.due.value, notes: f.notes.value.trim() };
+      const o = { customer: chosenCustomer(f), custNo: f.custNo.value.trim(), due: f.due.value, notes: f.notes.value.trim() };
+      if (!o.customer) errs.push(t('err_required'));
       $$('.item-card', f).forEach((c) => {
         const it = c.dataset.id && world.items.find((x) => x.id === c.dataset.id);
         if (c.classList.contains('is-removed')) { if (it) deleted.push(it); return; }
@@ -275,6 +359,7 @@
       // Append one record per changed field (the log is never edited or deleted)
       const when = Date.now(), log = [];
       const add = (item, field, old, now) => { if (String(old ?? '') !== String(now ?? '')) log.push({ t: when, job: order.job, item, field, old: String(old ?? ''), new: String(now ?? ''), by: 'demo' }); };
+      ensureCustomer(o.customer);
       Object.keys(FIELD_NAMES).forEach((k) => add(null, FIELD_NAMES[k], order[k], o[k]));
       kept.forEach(({ it, v }) => {
         add(it.id, 'part_name', it.part, v.part); add(it.id, 'quantity', it.qty, v.qty); add(it.id, 'box_count', it.boxCount, v.boxCount);
@@ -313,9 +398,9 @@
     const seen = {};
     open.forEach((a) => { seen[a.item] = a.nth = (seen[a.item] || 0) + 1; });
     const itemOf = (id) => world.items.find((i) => i.id === id);
-    const shown = open.filter((a) => {
+    const shown = !q ? [] : open.filter((a) => {
       const it = itemOf(a.item), o = world.order(it.order);
-      return !q || [it.id, o.job, it.part, o.customer, a.box, a.tag].some((x) => x.toLowerCase().includes(q));
+      return [it.id, o.job, it.part, o.customer, a.box, a.tag].some((x) => x.toLowerCase().includes(q));
     });
     const free = world.items.filter((i) => open.filter((a) => a.item === i.id).length < i.boxCount);
     const rows = shown.map((a) => { const it = itemOf(a.item); return `<tr><td>${h(a.tag)}</td><td>${h(t('box_nth', { l: a.box, n: a.nth, t: it.boxCount }))}</td>
@@ -324,8 +409,6 @@
       <details class="replace-tag"><summary>${h(t('replace_tag'))}</summary><form data-replace="${h(a.id)}">
       <input type="text" name="uid" list="tag-uids" autocomplete="off" required placeholder="${h(t('new_tag_uid'))}">
       <label class="check"><input type="checkbox" name="lost" checked> ${h(t('mark_lost'))}</label><button type="submit" class="button">${h(t('replace'))}</button></form></details></td></tr>`; });
-    const hist = world.assignments.filter((a) => a.end != null).sort((a, b) => b.end - a.end).slice(0, 20).map((a) => { const it = itemOf(a.item);
-      return `<tr><td>${h(a.tag)}</td><td>${h(a.box)}</td><td>${orderLink(it.order, it.id)} ${h(it.part)}</td><td>${fmtDT(a.start)}</td><td>${fmtDT(a.end)}</td></tr>`; });
     const boxes = [...new Set(world.assignments.map((a) => a.box))];
     app.innerHTML = `<h1>${h(t('tags_title'))}</h1><div id="flash">${flashHtml()}</div>
       <form id="assign" class="card"><div><label>${h(t('item'))}</label><select name="item"><option value="">${h(t('choose'))}</option>${free.map((i) => {
@@ -337,9 +420,9 @@
       <datalist id="tag-uids">${tagList().map((u) => `<option value="${h(u)}">`).join('')}</datalist>
       <button type="submit" class="button">${h(t('link_tag'))}</button></form>
       <h2>${h(t('in_use'))}</h2><form method="get" class="filters"><div><label for="q">${h(t('search'))}</label>
-      <input type="search" id="q" name="q" value="${h(Q.get('q') || '')}" placeholder="${h(t('search_ph'))}"></div><button type="submit" class="button">${h(t('search'))}</button></form>
-      ${table([t('tag'), t('box'), t('item'), t('since_jst'), ''], rows, t('no_tags_in_use'))}
-      <h2>${h(t('history'))}</h2>${table([t('tag'), t('box'), t('item'), t('from_jst'), t('to_jst')], hist, t('no_history'))}`;
+      <input type="search" id="q" name="q" value="${h(Q.get('q') || '')}" placeholder="${h(t('search_ph'))}"></div><button type="submit" class="button">${h(t('search'))}</button> <a href="tag-history.html">${h(t('tag_history'))}</a></form>
+      <p>${h(t('tags_in_use_n', { n: open.length }))}</p>
+      ${!q ? '' : rows.length ? table([t('tag'), t('box'), t('item'), t('since_jst'), ''], rows, '') : `<p>${h(t('no_tags_match'))}</p>`}`;
     const done = (msg) => { flash = msg; refresh(); boot(); };
     $('#assign').addEventListener('submit', (e) => {
       e.preventDefault();
@@ -383,7 +466,7 @@
     let step = '';
     if (sim.tag) {
       const a = FT.resolveTag(world, sim.tag, world.now);
-      if (!a) step = `<p>${h(t('not_linked_tag', { uid: sim.tag }))}</p>`;
+      if (!a) step = `<p>${h(t('not_linked_tag', { uid: sim.tag }))} <a href="tags.html">${h(t('link_a_tag'))}</a></p>`;
       else {
         const it = itemOf(a.item), box = FT.itemStatus(world, it).boxes.find((b) => b.assignment && b.assignment.box === a.box), next = FT.nextAction(box);
         step = `<p>${h(t('tag_info', { uid: sim.tag, item: it.id, box: a.box, part: it.part }))} ${statusBadge(box.code)}</p>${next
@@ -394,16 +477,12 @@
       step = `<div class="card">${step}</div>`;
     }
     const devOpts = DEVICES.map((d) => `<option${d === sim.device ? ' selected' : ''}>${h(d)}</option>`).join('');
-    const actions = PROCESSES.flatMap((p) => ACTIONS[p.kind].map((ty) => `<option value="${p.id}:${ty}">${h(pname(p) + ' - ' + t(ty))}</option>`)).join('');
     const last = [...world.events].sort((a, b) => b.t - a.t || b.id - a.id).slice(0, 10).map((e) =>
       `<tr><td>${fmtDT(e.t, true)}</td><td>${h(e.tag)}</td><td>${h(pname(world.proc(e.proc)))}</td><td>${h(t(e.type))}</td><td>${h(e.device)}</td></tr>`);
     const picks = `<datalist id="tag-picks">${open.map((a) => `<option value="${h(a.tag)}">${h(`${a.tag} - ${a.item} - ${t('box_n', { l: a.box })} - ${itemOf(a.item).part}`)}</option>`).join('')}</datalist>`;
     app.innerHTML = `<h1>${h(t('sim_title'))}</h1><div id="flash">${flashHtml()}</div>
       <form id="pick" class="card"><div><label>${h(t('device'))}</label><select name="device">${devOpts}</select></div>
       <div><label>${h(t('tag'))}</label><input name="tag" list="tag-picks" autocomplete="off" placeholder="${h(t('search_or_pick'))}" value="${h(sim.tag)}"></div>${picks}</form>${step}
-      <details class="card"><summary>${h(t('other_action'))}</summary><form id="adv"><div><label>${h(t('tag_uid'))}</label><input name="tag" list="tag-picks" autocomplete="off" required value="${h(sim.tag)}"></div>
-      <div><label>${h(t('device'))}</label><select name="device">${devOpts}</select></div>
-      <div><label>${h(t('what_happened'))}</label><select name="action">${actions}</select></div><button type="submit" class="button">${h(t('record_event'))}</button></form></details>
       <h2>${h(t('last_10'))}</h2>${table([t('time_jst'), t('tag'), t('process'), t('action'), t('device')], last, t('no_events'))}`;
     const redraw = () => { refresh(); pageSimulate(app); };
     $('#pick').addEventListener('change', (e) => { sim.device = e.currentTarget.device.value; sim.tag = e.currentTarget.tag.value.trim().toUpperCase(); flash = null; redraw(); });
@@ -416,15 +495,28 @@
       const next = FT.nextAction(FT.itemStatus(world, it).boxes.find((b) => b.assignment && b.assignment.box === a.box));
       send(sim.device, sim.tag, next.proc.id, next.type);
     });
-    $('#adv').addEventListener('submit', (e) => {
-      e.preventDefault();
-      const f = e.target, [pid, ty] = f.action.value.split(':');
-      send(f.device.value, f.tag.value.trim().toUpperCase(), Number(pid), ty);
-    });
   }
 
-  // ---------- process board ----------
-  function pageBoard(app) {
+  // ---------- tag history ----------
+  function pageTagHistory(app) {
+    const p = { q: Q.get('q') || '', range: Q.get('range') || '3m', from: Q.get('from') || '', to: Q.get('to') || '' };
+    const d = FT.tagHistory(world, p), r = d.range, custom = r.key === 'custom';
+    const itemOf = (id) => world.items.find((i) => i.id === id);
+    const rows = d.rows.map((a) => { const it = itemOf(a.item);
+      return `<tr><td>${h(a.tag)}</td><td>${h(a.box)}</td><td>${orderLink(it.order, it.id)} ${h(it.part)}</td><td>${fmtDT(a.start)}</td><td>${a.end == null ? h(t('in_use')) : fmtDT(a.end)}</td></tr>`; });
+    const opt = (v, text) => `<option value="${v}"${v === r.key ? ' selected' : ''}>${h(text)}</option>`;
+    app.innerHTML = `<p><a href="tags.html">&larr; ${h(t('back_tags'))}</a></p><h1>${h(t('tag_history'))}</h1>
+      <form method="get" class="filters"><div><label for="q">${h(t('search'))}</label><input type="search" id="q" name="q" value="${h(p.q)}" placeholder="${h(t('tag_or_box'))}"></div>
+      <div><label for="range">${h(t('period'))}</label><select id="range" name="range" onchange="this.form.from.disabled = this.form.to.disabled = this.value !== 'custom'">${
+  opt('1m', t('range_1m'))}${opt('3m', t('range_3m'))}${opt('6m', t('range_6m'))}${opt('1y', t('range_1y'))}${opt('custom', t('range_custom'))}</select></div>
+      <div><label for="from">${h(t('date_from'))}</label><input type="date" id="from" name="from" value="${h(r.from)}"${custom ? '' : ' disabled'}></div>
+      <div><label for="to">${h(t('date_to'))}</label><input type="date" id="to" name="to" value="${h(r.to)}"${custom ? '' : ' disabled'}></div>
+      <button type="submit" class="button">${h(t('apply'))}</button></form>
+      ${rows.length ? table([t('tag'), t('box'), t('item'), t('from_jst'), t('to_jst')], rows, '') + (d.capped ? `<p>${h(t('history_cap', { n: d.cap }))}</p>` : '') : `<p>${h(t('no_history'))}</p>`}`;
+  }
+
+  // ---------- process board (on the home page) ----------
+  function boardHtml() {
     const flags = (e) => (e.late ? badge('overdue', t('overdue')) : `<small>${e.due}</small>`) + (e.stagnant ? ' ' + badge('stagnant', t('stagnant')) : '');
     const list = (rows, time) => (rows.length ? `<ul class="process-boxes">${rows.map((e) =>
       `<li>${orderLink(e.order.job, itemBox(e))} ${time(e) != null ? `<small>${fmtDur(time(e))}</small>` : ''} ${flags(e)}</li>`).join('')}</ul>` : '');
@@ -434,28 +526,32 @@
       ${list(c.running, (e) => e.runningFor)}${c.waiting.length ? `<h4>${h(t('waiting'))}</h4>${list(c.waiting, (e) => e.idle)}` : ''}</section>`;
     const cards = FT.processBoard(world);
     const grid = (rows, empty) => `<div class="board-grid">${rows.length ? rows.map(card).join('') : `<p>${h(empty)}</p>`}</div>`;
-    app.innerHTML = `<h1>${h(t('board_title'))}</h1><h2>${h(t('in_house'))}</h2>${grid(cards.filter((c) => !c.outsourced), t('no_in_house'))}
-      <h2>${h(t('outsourced'))}</h2>${grid(cards.filter((c) => c.outsourced), t('no_outsourced'))}`;
+    return `<h3>${h(t('in_house'))}</h3>${grid(cards.filter((c) => !c.outsourced), t('no_in_house'))}
+      <h3>${h(t('outsourced'))}</h3>${grid(cards.filter((c) => c.outsourced), t('no_outsourced'))}`;
   }
 
   // ---------- priorities ----------
   function pagePriorities(app) {
-    const all = FT.prioritiesRows(world), tier = FT.TIERS.includes(Q.get('tier')) ? Q.get('tier') : '';
+    const sort = Object.keys(FT.PRIORITY_SORTS).includes(Q.get('sort')) ? Q.get('sort') : 'risk';
+    const all = FT.prioritiesRows(world, sort), tier = FT.TIERS.includes(Q.get('tier')) ? Q.get('tier') : '';
     const rows = all.filter((r) => !tier || r.tier === tier).map((r) => `<tr><td>${orderLink(r.order.job, r.item.id + (r.multi ? ' - ' + t('box_n', { l: r.box.label }) : ''))}</td>
-      <td>${h(r.item.part)}</td><td>${h(r.order.customer)}</td><td>${r.order.due}</td><td>${r.daysLeft}</td><td>${r.slack}</td><td>${h(pname(r.proc))}</td>
+      <td>${h(r.item.part)}</td><td>${h(r.order.customer)}</td><td>${r.order.due}</td><td>${r.daysLeft}</td><td>${r.slack}</td><td>${h(pname(r.proc))}</td><td>${fmtDur(r.idle)}</td>
       <td>${badge('risk-' + r.tier.toLowerCase(), t(r.tier))}</td><td><ul class="reasons">${r.reasons.map((x) => `<li>${h(reasonText(x))}</li>`).join('')}</ul></td></tr>`);
-    const links = FT.TIERS.map((c) => `<a href="?tier=${c}" class="badge badge-risk-${c.toLowerCase()}${tier === c ? ' active' : ''}">${h(t(c))} (${all.filter((r) => r.tier === c).length})</a>`).join('');
-    app.innerHTML = `<h1>${h(t('prio_title'))}</h1><nav class="tier-filters"><a href="priorities.html"${tier ? '' : ' class="active"'}>${h(t('all'))} (${all.length})</a>${links}</nav>
-      ${rows.length ? table([t('item'), t('part'), t('customer'), t('due_date'), t('days_left'), t('slack'), t('current_process'), t('risk'), t('reasons')], rows, '') : `<p>${h(t('nothing_attention'))}</p>`}`;
+    const links = FT.TIERS.map((c) => `<a href="?tier=${c}&amp;sort=${sort}" class="badge badge-risk-${c.toLowerCase()}${tier === c ? ' active' : ''}">${h(t(c))} (${all.filter((r) => r.tier === c).length})</a>`).join('');
+    const opt = (v, text) => `<option value="${v}"${v === sort ? ' selected' : ''}>${h(text)}</option>`;
+    app.innerHTML = `<h1>${h(t('prio_title'))}</h1><nav class="tier-filters"><a href="?sort=${sort}"${tier ? '' : ' class="active"'}>${h(t('all'))} (${all.length})</a>${links}</nav>
+      <form method="get" class="filters">${tier ? `<input type="hidden" name="tier" value="${tier}">` : ''}<div><label for="sort">${h(t('sort_by'))}</label><select id="sort" name="sort" onchange="this.form.submit()">${
+  opt('risk', t('risk'))}${opt('process', t('current_process'))}${opt('waiting', t('idle_for'))}</select></div></form>
+      ${rows.length ? table([t('item'), t('part'), t('customer'), t('due_date'), t('days_left'), t('slack'), t('current_process'), t('idle_for'), t('risk'), t('reasons')], rows, '') : `<p>${h(t('nothing_attention'))}</p>`}`;
   }
 
   // ---------- start ----------
-  const PAGES = { home: pageHome, boxes: pageBoxes, orders: pageOrders, order: pageOrder, edit: pageEdit, new: pageNewOrder, tags: pageTags, simulate: pageSimulate, board: pageBoard, priorities: pagePriorities };
+  const PAGES = { home: pageHome, boxes: pageBoxes, orders: pageOrders, customers: pageCustomers, customer: pageCustomer, order: pageOrder, edit: pageEdit, new: pageNewOrder, tags: pageTags, 'tag-history': pageTagHistory, simulate: pageSimulate, priorities: pagePriorities };
   function boot() {
     refresh();
     shell();
     const page = document.body.dataset.page;
-    document.title = `${t(`nav_${{ home: 'home', order: 'orders', edit: 'orders', new: 'new', simulate: 'sim', priorities: 'prio' }[page] || page}`)} - ${t('brand')}`;
+    document.title = `${t(`nav_${{ home: 'home', order: 'orders', edit: 'orders', new: 'new', simulate: 'sim', priorities: 'prio', 'tag-history': 'tags', customer: 'customers' }[page] || page}`)} - ${t('brand')}`;
     PAGES[page]($('#app'));
   }
   document.addEventListener('DOMContentLoaded', () => {

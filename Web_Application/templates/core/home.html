@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load i18n duration %}
+{% load i18n %}
 
 {% block title %}{% trans "Home" %} - {% trans "Factory Tracker" %}{% endblock %}
 
@@ -19,75 +19,17 @@
       <a class="card counter counter-vendor{% if counters.vendor_overdue %} counter-overdue counter-late{% endif %}" href="{% url 'boxes' %}?status=at_vendor&amp;vendor_late=1"><strong>{{ counters.vendor_overdue }}</strong> {% trans "Vendor overdue" %}</a>
     </div>
 
-    <h2>{% trans "In-house now" %}</h2>
-    <div class="table-wrap">
-      <table class="table">
-        <thead>
-          <tr>
-            <th>{% trans "Item" %}</th>
-            <th>{% trans "Part" %}</th>
-            <th>{% trans "Customer" %}</th>
-            <th>{% trans "Current process" %}</th>
-            <th>{% trans "Status" %}</th>
-            <th>{% trans "Due date" %}</th>
-            <th>{% trans "Last scan (JST)" %}</th>
-            <th>{% trans "Idle for" %}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for e in in_house %}
-            <tr>
-              <td><a href="{% url 'order_detail' e.order.job_number %}">{% include "includes/item_box.html" with item=e.item multi=e.multi label=e.box_label %}</a></td>
-              <td>{{ e.item.part_name }}</td>
-              <td>{{ e.order.customer }}</td>
-              <td>{{ e.process }}</td>
-              <td><span class="badge badge-{{ e.code|lower }}">{{ e.label }}</span></td>
-              <td>
-                {{ e.due_date|date:"Y-m-d" }}
-                {% if e.late %}<span class="badge badge-overdue">{% trans "Overdue" %}</span>{% endif %}
-              </td>
-              <td>{{ e.last_event_at|date:"Y-m-d H:i"|default:"-" }}</td>
-              <td>{% if e.idle %}{{ e.idle|duration }}{% else %}-{% endif %}{% if e.stagnant %} <span class="badge badge-stagnant">{% trans "Stagnant" %}</span>{% endif %}</td>
-            </tr>
-          {% empty %}
-            <tr><td colspan="8">{% trans "Nothing in the factory right now." %}</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
+    <h2>{% trans "Process board" %}</h2>
+    <h3>{% trans "In-house" %}</h3>
+    <div class="board-grid">
+      {% for card in in_house %}{% include "tracking/_process_card.html" %}
+      {% empty %}<p>{% trans "No in-house processes." %}</p>{% endfor %}
     </div>
 
-    <h2>{% trans "At vendors" %}</h2>
-    <div class="table-wrap">
-      <table class="table">
-        <thead>
-          <tr>
-            <th>{% trans "Item" %}</th>
-            <th>{% trans "Part" %}</th>
-            <th>{% trans "Vendor" %}</th>
-            <th>{% trans "Process" %}</th>
-            <th>{% trans "Out since (JST)" %}</th>
-            <th>{% trans "Days out" %}</th>
-            <th>{% trans "Due back" %}</th>
-            <th>{% trans "Late by" %}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for e in at_vendor %}
-            <tr>
-              <td><a href="{% url 'order_detail' e.order.job_number %}">{% include "includes/item_box.html" with item=e.item multi=e.multi label=e.box_label %}</a></td>
-              <td>{{ e.item.part_name }}</td>
-              <td>{{ e.vendor|default:"-" }}</td>
-              <td>{{ e.process }}</td>
-              <td>{{ e.started_at|date:"Y-m-d H:i"|default:"-" }}</td>
-              <td>{{ e.days_out|default_if_none:"-" }}</td>
-              <td>{% if e.due_back %}{{ e.due_back|date:"Y-m-d" }}{% else %}{% trans "No due date" %}{% endif %}</td>
-              <td>{% if e.late_days %}{% include "includes/late_by.html" with n=e.late_days %}{% endif %}</td>
-            </tr>
-          {% empty %}
-            <tr><td colspan="8">{% trans "Nothing is out at vendors." %}</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
+    <h3>{% trans "Outsourced" %}</h3>
+    <div class="board-grid">
+      {% for card in outsourced %}{% include "tracking/_process_card.html" %}
+      {% empty %}<p>{% trans "No outsourced processes." %}</p>{% endfor %}
     </div>
   {% endif %}
 {% endblock %}

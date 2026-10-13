@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Tag history" %} - {% trans "Factory Tracker" %}{% endblock %}
+
+{% block content %}
+  <p><a href="{% url 'tag_manage' %}">&larr; {% trans "Back to Tags" %}</a></p>
+  <h1>{% trans "Tag history" %}</h1>
+
+  <form method="get" class="filters">
+    <div>
+      <label for="q">{% trans "Search" %}</label>
+      <input type="search" id="q" name="q" value="{{ q }}" placeholder="{% trans 'Tag or box' %}">
+    </div>
+    <div>
+      <label for="range">{% trans "Period" %}</label>
+      <select id="range" name="range" onchange="this.form.from.disabled = this.form.to.disabled = this.value !== 'custom'">
+        {% for value, label in ranges %}<option value="{{ value }}"{% if value == range %} selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="from">{% trans "From" %}</label>
+      <input type="date" id="from" name="from" value="{{ d_from }}"{% if range != "custom" %} disabled{% endif %}>
+    </div>
+    <div>
+      <label for="to">{% trans "To" %}</label>
+      <input type="date" id="to" name="to" value="{{ d_to }}"{% if range != "custom" %} disabled{% endif %}>
+    </div>
+    <button type="submit" class="button">{% trans "Apply" %}</button>
+  </form>
+
+  {% if rows %}
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{% trans "Tag" %}</th>
+            <th>{% trans "Box" %}</th>
+            <th>{% trans "Item" %}</th>
+            <th>{% trans "From (JST)" %}</th>
+            <th>{% trans "To (JST)" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for a in rows %}
+            <tr>
+              <td>{{ a.tag }}</td>
+              <td>{{ a.box }}</td>
+              <td><a href="{% url 'order_detail' a.item.order.job_number %}">{{ a.item.item_code }}</a> {{ a.item.part_name }}</td>
+              <td>{{ a.start_at|date:"Y-m-d H:i" }}</td>
+              <td>{% if a.end_at %}{{ a.end_at|date:"Y-m-d H:i" }}{% else %}{% trans "In use" %}{% endif %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if capped %}<p>{% blocktrans %}Showing only the newest {{ cap }} records.{% endblocktrans %}</p>{% endif %}
+  {% else %}
+    <p>{% trans "No history yet." %}</p>
+  {% endif %}
+{% endblock %}

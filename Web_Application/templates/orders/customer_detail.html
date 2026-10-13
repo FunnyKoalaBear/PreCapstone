@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{{ customer.name }} - {% trans "Factory Tracker" %}{% endblock %}
+
+{% block content %}
+  <p><a href="{% url 'customer_list' %}">&larr; {% trans "Back to Customers" %}</a></p>
+  <h1>{{ customer.name }} <a class="button-secondary" href="{% url 'customer_edit' customer.pk %}">{% trans "Edit" %}</a></h1>
+
+  <dl class="info">
+    <div><dt>{% trans "name" as label %}{{ label|capfirst }}</dt><dd>{{ customer.name }}</dd></div>
+    <div><dt>{% trans "contact" as label %}{{ label|capfirst }}</dt><dd>{{ customer.contact|default:"-" }}</dd></div>
+    <div><dt>{% trans "created at" as label %}{{ label|capfirst }}</dt><dd>{{ customer.created_at|date:"Y-m-d H:i" }}</dd></div>
+  </dl>
+
+  <h2>{% trans "Orders" %}</h2>
+  {% if rows %}
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{% trans "Job number" %}</th>
+            <th>{% trans "Customer order number" %}</th>
+            <th>{% trans "Due date" %}</th>
+            <th>{% trans "Status" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+            <tr>
+              <td><a href="{% url 'order_detail' row.order.job_number %}">{{ row.order.job_number }}</a></td>
+              <td>{{ row.order.customer_order_number|default:"-" }}</td>
+              <td>
+                {{ row.order.due_date|date:"Y-m-d" }}
+                {% if row.late %}<span class="badge badge-overdue">{% trans "Overdue" %}</span>{% endif %}
+              </td>
+              <td><span class="badge badge-{{ row.code|lower }}">{{ row.label }}</span></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p>{% trans "This customer has no orders yet." %}</p>
+  {% endif %}
+{% endblock %}

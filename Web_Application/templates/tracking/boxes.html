@@ -1,11 +1,24 @@
 {% extends "base.html" %}
 {% load i18n duration %}
 
-{% block title %}{% trans "Boxes" %} - {% trans "Factory Tracker" %}{% endblock %}
+{% block title %}{{ title }} - {% trans "Factory Tracker" %}{% endblock %}
 
 {% block content %}
   <p><a href="{% url 'home' %}">&larr; {% trans "Back to Home" %}</a></p>
-  <h1>{% trans "Boxes" %}{% if filters %} <small>- {{ filters }}</small>{% endif %}</h1>
+  <h1>{{ title }}</h1>
+
+  <form method="get" class="filters">
+    {% for k, v in keep.items %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+    <div>
+      <label for="sort">{% trans "Sort by" %}</label>
+      <select id="sort" name="sort" onchange="this.form.submit()">
+        {% for value, label in sort_choices %}
+          <option value="{{ value }}"{% if value == sort %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <noscript><button type="submit" class="button">{% trans "Apply" %}</button></noscript>
+  </form>
 
   {% if rows %}
     <div class="table-wrap">
@@ -37,7 +50,7 @@
               <td>
                 {% if e.late %}<span class="badge badge-overdue">{% trans "Overdue" %}</span>{% endif %}
                 {% if e.stagnant %}<span class="badge badge-stagnant">{% trans "Stagnant" %}</span>{% endif %}
-                {% if e.late_days %}<span class="badge badge-overdue">{% trans "Vendor late" %}</span> {% include "includes/late_by.html" with n=e.late_days %}{% endif %}
+                {% if e.late_days %}<span class="badge badge-overdue">{% trans "Vendor overdue" %}</span> {% include "includes/late_by.html" with n=e.late_days %}{% endif %}
               </td>
             </tr>
           {% endfor %}
@@ -45,6 +58,6 @@
       </table>
     </div>
   {% else %}
-    <p>{% trans "No boxes match this filter." %}</p>
+    <p>{% trans "Nothing matches this filter." %}</p>
   {% endif %}
 {% endblock %}

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n duration %}
 
 {% block title %}{% trans "Priorities" %} - {% trans "Factory Tracker" %}{% endblock %}
 
@@ -7,11 +7,24 @@
   <h1>{% trans "Priorities" %}</h1>
 
   <nav class="tier-filters">
-    <a href="{% url 'priorities' %}"{% if not tier %} class="active"{% endif %}>{% trans "All" %} ({{ total }})</a>
+    <a href="{% url 'priorities' %}?sort={{ sort }}"{% if not tier %} class="active"{% endif %}>{% trans "All" %} ({{ total }})</a>
     {% for code, css, name, n in tiers %}
-      <a href="?tier={{ code }}" class="badge badge-risk-{{ css }}{% if tier == code %} active{% endif %}">{{ name }} ({{ n }})</a>
+      <a href="?tier={{ code }}&amp;sort={{ sort }}" class="badge badge-risk-{{ css }}{% if tier == code %} active{% endif %}">{{ name }} ({{ n }})</a>
     {% endfor %}
   </nav>
+
+  <form method="get" class="filters">
+    {% if tier %}<input type="hidden" name="tier" value="{{ tier }}">{% endif %}
+    <div>
+      <label for="sort">{% trans "Sort by" %}</label>
+      <select id="sort" name="sort" onchange="this.form.submit()">
+        {% for value, label in sort_choices %}
+          <option value="{{ value }}"{% if value == sort %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <noscript><button type="submit" class="button">{% trans "Apply" %}</button></noscript>
+  </form>
 
   {% if rows %}
     <div class="table-wrap">
@@ -25,6 +38,7 @@
             <th>{% trans "Days left" %}</th>
             <th>{% trans "Slack" %}</th>
             <th>{% trans "Current process" %}</th>
+            <th>{% trans "Idle for" %}</th>
             <th>{% trans "Risk" %}</th>
             <th>{% trans "Reasons" %}</th>
           </tr>
@@ -39,6 +53,7 @@
               <td>{{ r.days_left }}</td>
               <td>{{ r.slack }}</td>
               <td>{{ r.process|default:"-" }}</td>
+              <td>{% if r.idle %}{{ r.idle|duration }}{% else %}-{% endif %}</td>
               <td><span class="badge badge-risk-{{ r.tier|lower }}">{{ r.label }}</span></td>
               <td><ul class="reasons">{% for t in r.reasons %}<li>{{ t }}</li>{% endfor %}</ul></td>
             </tr>

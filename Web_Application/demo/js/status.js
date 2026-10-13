@@ -24,7 +24,7 @@ const FT = (() => {
     const assignments = [...seed.assignments, ...(st.assignments || [])].map((a) => (ended[a.id] != null ? { ...a, end: ended[a.id] } : a));
     const w = {
       now, today, procs: PROCESSES, assignments,
-      orders: [...seed.orders, ...(st.orders || [])].map((o) => ({ ...o, ...(st.orderEdits || {})[o.job] })),
+      orders: [...seed.orders, ...(st.orders || [])].map((o) => { const x = { ...o, ...(st.orderEdits || {})[o.job] }; return { ...x, customer: (st.renames || {})[x.customer] || x.customer }; }),
       items: [...seed.items, ...(st.items || [])].filter((i) => !(st.deleted || []).includes(i.id)).map((i) => ({ ...i, ...(st.itemEdits || {})[i.id] })),
       changes: st.changes || [],
       events: [...seed.events, ...(st.events || [])], inactive: new Set(st.inactive || []),
@@ -227,31 +227,57 @@ const FT = (() => {
   function homeData(w) {
     const boxes = activeBoxes(w);
     const count = (c) => boxes.filter((e) => e.code === c).length;
-    const inHouse = boxes.filter((e) => e.code === WAITING || e.code === IN_PROGRESS).sort((a, b) =>
-      (!a.stagnant - !b.stagnant) || (a.stagnant && b.stagnant ? b.idle - a.idle : 0) || (a.due < b.due ? -1 : a.due > b.due ? 1 : 0)
-      || a.item.id.localeCompare(b.item.id) || (a.boxLabel || '').localeCompare(b.boxLabel || ''));
-    const atVendor = boxes.filter((e) => e.code === AT_VENDOR).sort((a, b) => b.lateDays - a.lateDays || (a.started == null) - (b.started == null) || a.started - b.started);
     return {
-      inHouse, atVendor,
       counters: {
         in_progress: count(IN_PROGRESS), waiting: count(WAITING), at_vendor: count(AT_VENDOR), not_started: count(NOT_STARTED),
         stagnant: boxes.filter((e) => e.stagnant).length, overdue: new Set(boxes.filter((e) => e.late).map((e) => e.order.job)).size,
-        vendor_overdue: atVendor.filter((e) => e.lateDays).length,
+        vendor_overdue: boxes.filter((e) => e.lateDays).length,
       },
     };
   }
 
-  // views.boxes: the boxes page rows for the given filters (the same rows the home counters count)
+  // views.boxes: the result-list rows for the given filters and sort (the same rows the home counters count)
+  const BOX_SORTS = {
+    process: (a, b) => (a.proc ? 0 : 1) - (b.proc ? 0 : 1) || (a.proc ? a.proc.name : '').localeCompare(b.proc ? b.proc.name : '') || a.due.localeCompare(b.due),
+    due: (a, b) => a.due.localeCompare(b.due) || a.order.job.localeCompare(b.order.job) || a.item.id.localeCompare(b.item.id) || (a.boxLabel || '').localeCompare(b.boxLabel || ''),
+    customer: (a, b) => a.order.customer.localeCompare(b.order.customer) || a.due.localeCompare(b.due) || a.order.job.localeCompare(b.order.job),
+    waiting: (a, b) => (a.idle == null) - (b.idle == null) || (b.idle || 0) - (a.idle || 0) || a.due.localeCompare(b.due),
+  };
   function boxesPage(w, f) {
     let rows = activeBoxes(w);
     if (f.status) rows = rows.filter((e) => e.code === f.status);
     if (f.stagnant) rows = rows.filter((e) => e.stagnant);
     if (f.vendorLate) rows = rows.filter((e) => e.lateDays);
-    return rows;
+    return rows.sort(BOX_SORTS[f.sort] || BOX_SORTS.due);
+  }
+
+  // views.tag_history: range edges in JST (bad custom dates fall back to 3m) and the overlapping assignments, newest first
+  const HISTORY_DAYS = { '1m': 30, '3m': 91, '6m': 182, '1y': 365 };
+  const HISTORY_CAP = 200;
+  const validDay = (d) => /^\d{4}-\d{2}-\d{2}$/.test(d || '') && !Number.isNaN(dayNum(d)) && addDays(d, 0) === d;
+  const jstMidnight = (d) => Date.parse(`${d}T00:00:00+09:00`);
+  function historyRange(w, p) {
+    if (p.range === 'custom' && validDay(p.from) && validDay(p.to) && p.from <= p.to) {
+      return { key: 'custom', start: jstMidnight(p.from), end: jstMidnight(addDays(p.to, 1)), from: p.from, to: p.to };
+    }
+    const key = HISTORY_DAYS[p.range] ? p.range : '3m';
+    return { key, start: w.now - HISTORY_DAYS[key] * DAY, end: w.now, from: '', to: '' };
+  }
+  function tagHistory(w, p) {
+    const r = historyRange(w, p), q = (p.q || '').trim().toLowerCase();
+    const rows = w.assignments.filter((a) => a.start < r.end && (a.end == null || a.end >= r.start)
+      && (!q || a.tag.toLowerCase().includes(q) || a.box.toLowerCase().includes(q))).sort((a, b) => b.start - a.start);
+    return { range: r, rows: rows.slice(0, HISTORY_CAP), capped: rows.length > HISTORY_CAP, cap: HISTORY_CAP };
   }
 
   // views.priorities: one row per started or linked unfinished box, most urgent first
-  function prioritiesRows(w) {
+  const PRIORITY_SORTS = {
+    risk: (a, b) => TIERS.indexOf(a.tier) - TIERS.indexOf(b.tier) || a.slack - b.slack,
+    process: (a, b) => (a.proc ? 0 : 1) - (b.proc ? 0 : 1) || (a.proc ? a.proc.name : '').localeCompare(b.proc ? b.proc.name : '') || PRIORITY_SORTS.risk(a, b),
+    waiting: (a, b) => (a.idle == null) - (b.idle == null) || (b.idle || 0) - (a.idle || 0) || PRIORITY_SORTS.risk(a, b),
+  };
+  function prioritiesRows(w, sort) {
+    const idle = new Map(activeBoxes(w).map((e) => [`${e.item.id}|${e.boxLabel}`, e.idle]));
     const rows = [];
     w.items.forEach((item) => {
       const st = itemStatus(w, item);
@@ -259,10 +285,10 @@ const FT = (() => {
       st.boxes.forEach((box) => {
         const a = box.assignment;
         if (box.code === COMPLETE || !a || (a.end != null && box.code === NOT_STARTED)) return;
-        rows.push({ item, order, box, multi: st.boxes.length > 1, proc: box.current, ...priority(w, order, box) });
+        rows.push({ item, order, box, multi: st.boxes.length > 1, proc: box.current, idle: idle.get(`${item.id}|${box.label}`), ...priority(w, order, box) });
       });
     });
-    return rows.sort((a, b) => TIERS.indexOf(a.tier) - TIERS.indexOf(b.tier) || a.slack - b.slack);
+    return rows.sort(PRIORITY_SORTS[sort] || PRIORITY_SORTS.risk);
   }
 
   // forms.OrderItemForm: boxes already linked (open or ended) and whether the item has any scan
@@ -305,7 +331,7 @@ const FT = (() => {
 
   return {
     NOT_STARTED, WAITING, IN_PROGRESS, AT_VENDOR, COMPLETE, TIERS, jstStr, jstDate, dayNum, addDays, dueBack, daysLate, makeWorld,
-    eventsForBox, itemStatus, orderSummary, idleFor, isStagnant, nextAction, timeline, priority, activeBoxes, processBoard, homeData, boxesPage,
+    eventsForBox, itemStatus, orderSummary, idleFor, isStagnant, nextAction, timeline, priority, activeBoxes, processBoard, homeData, boxesPage, BOX_SORTS, PRIORITY_SORTS, tagHistory,
     prioritiesRows, linkedBoxes, itemHasEvents, resolveTag, openOf, assignTag, replaceTag, current,
   };
 })();

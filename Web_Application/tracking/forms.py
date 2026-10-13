@@ -1,4 +1,5 @@
 from django import forms
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from django.db.models import Count, F, Q
@@ -7,19 +8,22 @@ from django.utils.translation import gettext
 from orders.models import OrderItem, Process
 
 from .models import Event, ScannerDevice, TagAssignment
+from .services import resolve_tag
 
 
 class SimulateScanForm(forms.Form):
-    tag_uid = forms.CharField(
-        label=_('Tag UID'), max_length=100, widget=forms.TextInput(attrs={'list': 'tag-uids', 'autocomplete': 'off'}),
-    )
+    tag_uid = forms.CharField(label=_('Tag UID'), max_length=100)
     device = forms.ModelChoiceField(label=_('Device'), queryset=ScannerDevice.objects.filter(active=True))
     action = forms.ChoiceField(label=_('What happened'))
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # One option per process and event type that is valid for its kind
-        self.processes = {str(p.pk): p for p in Process.objects.order_by('kind', 'name')}
+        # Active processes, plus any inactive one in the route of the posted tag's item
+        uid = self.data.get('tag_uid', '') if self.is_bound else ''
+        a = resolve_tag(uid, timezone.now()) if uid.strip() else None
+        keep = Q(pk__in=a.item.steps.values('process')) if a else Q()
+        self.processes = {str(p.pk): p for p in Process.objects.filter(Q(active=True) | keep).order_by('kind', 'name')}
         self.fields['action'].choices = [
             (f'{p.pk}:{t}', f'{p} - {Event.Type(t).label}')
             for p in self.processes.values()
@@ -49,9 +53,7 @@ class AssignTagForm(forms.Form):
     box_label = forms.CharField(
         label=_('Box label'), max_length=100, widget=forms.TextInput(attrs={'list': 'box-labels', 'autocomplete': 'off'}),
     )
-    tag_uid = forms.CharField(
-        label=_('Tag UID'), max_length=100, widget=forms.TextInput(attrs={'list': 'tag-uids', 'autocomplete': 'off'}),
-    )
+    tag_uid = forms.CharField(label=_('Tag UID'), max_length=100)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

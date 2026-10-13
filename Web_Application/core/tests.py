@@ -57,34 +57,49 @@ class HomeDashboardTests(TestCase):
         self.client.force_login(User.objects.create_user('s', password='x', is_staff=True))
         return self.client.get('/')
 
+    def card(self, r, group, name):
+        return next(c for c in r.context[group] if c['process'].name == name)
+
     def test_staff_only_content(self):
         r = self.client.get('/')
         self.assertContains(r, 'Dashboard coming soon.')
+        self.assertNotContains(r, 'Process board')
+        self.assertContains(self.home(), 'Process board')
+
+    def test_home_shows_board_cards_and_not_the_old_tables(self):
+        _, uid = self.make_item([self.material, self.milling])
+        record_event(self.device, uid, self.material, 'ARRIVED')
+        r = self.home()
+        self.assertContains(r, 'process-card', count=2)  # Milling and Plating
+        self.assertContains(r, 'Outsourced')
         self.assertNotContains(r, 'In-house now')
-        self.assertContains(self.home(), 'In-house now')
+        self.assertNotContains(r, 'At vendors')
+        self.assertNotContains(r, '<table')
+        self.assertEqual(self.client.get('/board/').status_code, 404)
 
     def test_arrived_with_pending_next_step_is_waiting_in_house(self):
         _, uid = self.make_item([self.material, self.milling])
         record_event(self.device, uid, self.material, 'ARRIVED')
         r = self.home()
-        self.assertEqual([e['code'] for e in r.context['in_house']], ['WAITING'])
+        milling = self.card(r, 'in_house', 'Milling')
+        self.assertEqual(([e['code'] for e in milling['waiting']], milling['running']), (['WAITING'], []))
         self.assertEqual(r.context['counters']['waiting'], 1)
-        self.assertEqual(r.context['at_vendor'], [])
+        self.assertEqual(self.card(r, 'outsourced', 'Plating')['running'], [])
 
     def test_sent_out_shows_at_vendor_with_vendor_name(self):
         _, uid = self.make_item([self.plating])
         record_event(self.device, uid, self.plating, 'SENT_OUT')
         r = self.home()
-        self.assertEqual(r.context['in_house'], [])
-        self.assertEqual(r.context['at_vendor'][0]['vendor'], 'Acme Plating')
+        self.assertEqual(self.card(r, 'in_house', 'Milling')['waiting'], [])
+        self.assertEqual(self.card(r, 'outsourced', 'Plating')['running'][0]['vendor'], 'Acme Plating')
         self.assertContains(r, 'Acme Plating')
 
     def test_completed_orders_do_not_appear(self):
         _, uid = self.make_item([self.material])
         record_event(self.device, uid, self.material, 'ARRIVED')
         r = self.home()
-        self.assertEqual((r.context['in_house'], r.context['at_vendor']), ([], []))
-        self.assertContains(r, 'Nothing in the factory right now.')
+        self.assertEqual([(len(c['running']), len(c['waiting'])) for c in r.context['in_house'] + r.context['outsourced']], [(0, 0), (0, 0)])
+        self.assertEqual(sum(r.context['counters'][k] for k in ('in_progress', 'waiting', 'at_vendor', 'not_started')), 0)
 
     def test_overdue_counts_an_order_once(self):
         order = Order.objects.create(customer=self.customer, due_date=timezone.localdate() - timedelta(days=2))
@@ -99,8 +114,7 @@ class HomeDashboardTests(TestCase):
         r = self.home()
         self.assertEqual(r.context['counters']['in_progress'], 1)
         self.assertEqual(r.context['counters']['not_started'], 0)
-        self.assertEqual([(e['item'], e['code'], e['process']) for e in r.context['in_house']],
-                         [(item, 'IN_PROGRESS', self.milling)])
+        self.assertEqual([(e['item'], e['code']) for e in self.card(r, 'in_house', 'Milling')['running']], [(item, 'IN_PROGRESS')])
         self.assertContains(r, item.item_code)
 
     def test_active_step_with_earlier_step_unscanned_is_in_progress(self):
@@ -108,15 +122,14 @@ class HomeDashboardTests(TestCase):
         record_event(self.device, uid, self.milling, 'STARTED')
         r = self.home()
         self.assertEqual(r.context['counters']['in_progress'], 1)
-        self.assertEqual(r.context['in_house'][0]['code'], 'IN_PROGRESS')
+        self.assertEqual(self.card(r, 'in_house', 'Milling')['running'][0]['code'], 'IN_PROGRESS')
 
     def test_sent_out_past_lead_time_is_late_and_counted(self):
         item = self.send_out(10, 7)
         r = self.home()
-        e = r.context['at_vendor'][0]
+        e = r.context['outsourced'][-1]['running'][0]
         self.assertEqual((e['late_days'], r.context['counters']['vendor_overdue']), (3, 1))
         self.assertEqual(e['due_back'], timezone.localdate() - timedelta(days=3))
-        self.assertContains(r, '3 days')
         detail = self.client.get(f'/orders/{item.order.job_number}/')
         self.assertContains(detail, 'Late by 3 days')
         self.assertContains(detail, 'due back')
@@ -124,26 +137,17 @@ class HomeDashboardTests(TestCase):
     def test_sent_out_today_is_not_late(self):
         self.send_out(0, 7)
         r = self.home()
-        e = r.context['at_vendor'][0]
+        e = r.context['outsourced'][-1]['running'][0]
         self.assertEqual((e['late_days'], r.context['counters']['vendor_overdue']), (0, 0))
         self.assertEqual(e['due_back'], timezone.localdate() + timedelta(days=7))
 
     def test_no_lead_days_is_never_late(self):
         self.send_out(60, None)
         r = self.home()
-        e = r.context['at_vendor'][0]
+        e = r.context['outsourced'][-1]['running'][0]
         self.assertEqual((e['due_back'], e['late_days'], r.context['counters']['vendor_overdue']), (None, 0, 0))
-        self.assertContains(r, 'No due date')
 
-    def test_late_items_sort_first(self):
-        oldest = self.send_out(20, None, 'P1')   # oldest but no due date
-        late3 = self.send_out(10, 7, 'P2')
-        late5 = self.send_out(12, 7, 'P3')
-        r = self.home()
-        self.assertEqual([e['item'] for e in r.context['at_vendor']], [late5, late3, oldest])
-        self.assertEqual(r.context['counters']['vendor_overdue'], 2)
-
-    def test_stagnant_counter_and_sort_order(self):
+    def test_stagnant_counter(self):
         now = timezone.now()
         fresh, fresh_uid = self.make_item([self.material, self.milling], due_days=1, since=now - timedelta(days=9))
         old, old_uid = self.make_item([self.material, self.milling], due_days=20, since=now - timedelta(days=9))
@@ -152,8 +156,7 @@ class HomeDashboardTests(TestCase):
             record_event(self.device, uid, self.material, 'ARRIVED', occurred_at=now - ago)
         r = self.home()
         self.assertEqual(r.context['counters']['stagnant'], 2)
-        self.assertEqual([e['item'] for e in r.context['in_house']], [older, old, fresh])
-        self.assertContains(r, 'Idle for')
+        self.assertEqual([e['item'] for e in self.card(r, 'in_house', 'Milling')['waiting']], [older, old, fresh])  # longest idle first
 
     def test_split_item_has_one_row_per_box_and_counters_count_boxes(self):
         item, uid1 = self.make_item([self.material, self.milling])
@@ -166,7 +169,8 @@ class HomeDashboardTests(TestCase):
         record_event(self.device, uid1, self.milling, 'STARTED')
         record_event(self.device, 'T2X', self.material, 'ARRIVED', occurred_at=now - timedelta(days=2))
         r = self.home()
-        rows = r.context['in_house']
+        milling = self.card(r, 'in_house', 'Milling')
+        rows = milling['waiting'] + milling['running']
         self.assertEqual([(e['box_label'], e['code'], e['stagnant'], e['multi']) for e in rows],
                          [('BX2', 'WAITING', True, True), ('B1', 'IN_PROGRESS', False, True)])
         c = r.context['counters']
@@ -183,7 +187,7 @@ class HomeDashboardTests(TestCase):
                                      start_at=now - timedelta(days=9))
         record_event(self.device, uid1, proc, 'SENT_OUT')
         record_event(self.device, 'T2Y', proc, 'SENT_OUT', occurred_at=now - timedelta(days=6))
-        rows = self.home().context['at_vendor']
+        rows = [c for c in self.home().context['outsourced'] if c['process'] == proc][0]['running']
         self.assertEqual([(e['box_label'], e['late_days'] > 0) for e in rows], [('BY2', True), ('B1', False)])
 
 
@@ -302,7 +306,7 @@ class LanguageTests(RawTestCase):
 
     def test_main_pages_work_in_both_languages(self):
         order = self.staff_data()
-        urls = ['/', '/orders/', '/orders/new/', f'/orders/{order.job_number}/', '/tags/', '/simulate/', '/priorities/', '/boxes/', '/board/']
+        urls = ['/', '/orders/', '/orders/new/', f'/orders/{order.job_number}/', '/tags/', '/simulate/', '/priorities/', '/boxes/']
         for lang in ('ja', 'en'):
             self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = lang
             for url in urls:
@@ -312,7 +316,7 @@ class LanguageTests(RawTestCase):
         order = self.staff_data()
         r = self.client.get(f'/orders/{order.job_number}/')
         self.assertContains(r, '受注一覧に戻る')
-        self.assertContains(self.client.get('/board/'), '工程ボード')
+        self.assertContains(self.client.get('/'), '工程ボード')
         self.assertContains(self.client.get('/tags/'), 'タグを紐付ける')
 
     def test_admin_login_has_the_switch(self):

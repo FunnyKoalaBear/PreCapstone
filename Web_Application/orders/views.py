@@ -1,7 +1,7 @@
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.translation import gettext as _
@@ -12,8 +12,8 @@ from tracking.status import (
     order_summary, timeline,
 )
 
-from .forms import OrderForm, OrderItemFormSet
-from .models import Order, OrderChange
+from .forms import CustomerForm, OrderForm, OrderItemFormSet
+from .models import Customer, Order, OrderChange
 
 SORTS = {
     'due': ('due_date', 'job_number'),
@@ -22,6 +22,41 @@ SORTS = {
 }
 SORT_LABELS = [('due', gettext_lazy('Due date')), ('newest', gettext_lazy('Newest')), ('customer', gettext_lazy('Customer'))]
 STATUS_CODES = [NOT_STARTED, IN_PROGRESS, COMPLETE]
+
+
+@staff_member_required
+def customer_list(request):
+    form = CustomerForm(request.POST or None)
+    if request.method == 'POST' and form.is_valid():
+        customer = form.save()
+        messages.success(request, _('Customer %(name)s added.') % {'name': customer.name})
+        return redirect('customer_list')
+    q = request.GET.get('q', '').strip()
+    customers = Customer.objects.annotate(order_count=Count('order')).order_by('name')
+    if q:
+        customers = customers.filter(name__icontains=q)
+    return render(request, 'orders/customer_list.html', {'form': form, 'customers': customers, 'q': q})
+
+
+@staff_member_required
+def customer_detail(request, pk):
+    customer = get_object_or_404(Customer, pk=pk)
+    today, rows = timezone.localdate(), []
+    for o in customer.order_set.prefetch_related('items').order_by('-job_number'):
+        code, label = order_summary(o)
+        rows.append({'order': o, 'code': code, 'label': label, 'late': o.due_date < today and code != COMPLETE})
+    return render(request, 'orders/customer_detail.html', {'customer': customer, 'rows': rows})
+
+
+@staff_member_required
+def customer_edit(request, pk):
+    customer = get_object_or_404(Customer, pk=pk)
+    form = CustomerForm(request.POST or None, instance=customer)
+    if request.method == 'POST' and form.is_valid():
+        form.save()
+        messages.success(request, _('Customer %(name)s updated.') % {'name': customer.name})
+        return redirect('customer_detail', pk=customer.pk)
+    return render(request, 'orders/customer_edit.html', {'form': form, 'customer': customer})
 
 
 @staff_member_required

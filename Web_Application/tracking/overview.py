@@ -49,6 +49,14 @@ def process_board(now=None, today=None):
         waiting = [e for e in boxes if e['process'] == p and e['code'] == WAITING]
         running.sort(key=lambda e: (e['running_for'] is None, longest(e['running_for'])))
         waiting.sort(key=lambda e: (e['idle'] is None, longest(e['idle'])))
+        if not p.active and not (running or waiting):  # retired and idle: hide the card
+            continue
         cards.append({'process': p, 'outsourced': p.kind == Process.Kind.OUTSOURCED, 'running': running,
                       'waiting': waiting, 'queue': len(waiting) >= QUEUE_WAITING})
     return cards
+
+
+def board_groups(now=None, today=None):
+    """The process board cards split into (in_house, outsourced)."""
+    cards = process_board(now, today)
+    return [c for c in cards if not c['outsourced']], [c for c in cards if c['outsourced']]

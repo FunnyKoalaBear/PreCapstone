@@ -14,10 +14,14 @@
     <noscript><button type="submit" class="button">{% trans "Show next step" %}</button></noscript>
   </form>
 
+  {% if form.errors %}
+    <div class="card">{{ form.non_field_errors }}{% for field in form %}{{ field.errors }}{% endfor %}</div>
+  {% endif %}
+
   {% if step %}
     <div class="card">
       {% if step.state == "unassigned" %}
-        <p>{% blocktrans with uid=uid %}Tag {{ uid }} is not linked to any item: the event would be saved but match no item. Use "Other action" below to send it anyway.{% endblocktrans %}</p>
+        <p>{% blocktrans with uid=uid %}Tag {{ uid }} is not linked to any item.{% endblocktrans %} <a href="{% url 'tag_manage' %}">{% trans "Link a tag" %}</a></p>
       {% else %}
         <p>
           {% blocktrans with uid=uid item=step.assignment.item.item_code box=step.assignment.box.label part=step.assignment.item.part_name %}Tag {{ uid }}: item {{ item }}, box {{ box }}, {{ part }}{% endblocktrans %}
@@ -38,18 +42,6 @@
       {% endif %}
     </div>
   {% endif %}
-
-  <details class="card"{% if form.errors or request.method == "POST" %} open{% endif %}>
-    <summary>{% trans "Other action (test a mistake)" %}</summary>
-    <form method="post">
-      {% csrf_token %}
-      {{ form }}
-      <datalist id="tag-uids">
-        {% for uid, label in picks %}<option value="{{ uid }}">{% endfor %}
-      </datalist>
-      <button type="submit" class="button">{% trans "Record event" %}</button>
-    </form>
-  </details>
 
   <h2>{% trans "Last 10 events" %}</h2>
   <div class="table-wrap">

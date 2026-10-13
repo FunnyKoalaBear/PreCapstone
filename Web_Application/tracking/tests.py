@@ -128,6 +128,100 @@ class RecordEventTests(TestCase):
         self.assertEqual(self.client.get('/simulate/').status_code, 200)
 
 
+class TagSearchAndHistoryTests(TestCase):
+    def setUp(self):
+        order = Order.objects.create(customer=Customer.objects.create(name='C'), due_date=timezone.localdate())
+        self.item = OrderItem.objects.create(order=order, part_name='Gear', quantity=1, box_count=9)
+        self.now = timezone.now()
+        self.client.force_login(User.objects.create_user('s', password='x', is_staff=True))
+
+    def link(self, uid, box, start_days, end_days=None):
+        """An assignment that began start_days ago and ended end_days ago (open when None)."""
+        return TagAssignment.objects.create(
+            tag=Tag.objects.get_or_create(uid=uid)[0], box=Box.objects.get_or_create(label=box)[0], item=self.item,
+            start_at=self.now - timedelta(days=start_days), end_at=None if end_days is None else self.now - timedelta(days=end_days))
+
+    def history(self, **params):
+        r = self.client.get('/tags/history/', params)
+        self.assertEqual(r.status_code, 200)
+        return [a.tag.uid for a in r.context['rows']], r
+
+    def test_in_use_shows_count_without_rows_until_searched(self):
+        self.link('AA11', 'BX1', 5)
+        self.link('BB22', 'BX2', 6)
+        r = self.client.get('/tags/')
+        self.assertEqual((r.context['open'], r.context['in_use']), ([], 2))
+        self.assertContains(r, '2 tags in use.')
+        self.assertNotContains(r, '<table')
+        self.assertContains(r, 'href="/tags/history/"')
+        r = self.client.get('/tags/', {'q': 'bb22'})
+        self.assertEqual([a.tag.uid for a in r.context['open']], ['BB22'])
+        self.assertContains(r, 'Since (JST)')
+        self.assertContains(self.client.get('/tags/', {'q': 'zzz'}), 'No tags in use match this search.')
+
+    def test_release_keeps_the_search(self):
+        a = self.link('AA11', 'BX1', 5)
+        r = self.client.post('/tags/', {'action': 'release', 'assignment': a.pk, 'q': 'aa'})
+        self.assertRedirects(r, '/tags/?q=aa')
+        self.assertRedirects(self.client.post('/tags/', {'action': 'release', 'assignment': self.link('CC33', 'BX3', 1).pk}), '/tags/')
+
+    def test_history_page_is_staff_only(self):
+        self.client.logout()
+        self.assertEqual(self.client.get('/tags/history/').status_code, 302)
+
+    def test_history_ranges_overlap_rule(self):
+        self.link('D10', 'B10', 20, 10)      # inside every range
+        self.link('D100', 'B100', 120, 100)  # 3-6 months ago
+        self.link('D200', 'B200', 250, 200)  # 6-12 months ago
+        self.link('D400', 'B400', 500, 400)  # older than a year
+        self.link('OPEN', 'BOP', 400)        # open since long ago: overlaps everything
+        self.link('NEW', 'BNW', 2)           # open, started recently
+        expect = {'1m': {'D10', 'OPEN', 'NEW'}, '3m': {'D10', 'OPEN', 'NEW'}, '6m': {'D10', 'D100', 'OPEN', 'NEW'},
+                  '1y': {'D10', 'D100', 'D200', 'OPEN', 'NEW'}}
+        for key, uids in expect.items():
+            self.assertEqual(set(self.history(range=key)[0]), uids, key)
+        self.assertEqual(set(self.history()[0]), expect['3m'])
+        self.assertEqual(set(self.history(range='bogus')[0]), expect['3m'])
+
+    def test_history_is_newest_first_and_shows_in_use(self):
+        self.link('OLD1', 'B1', 30, 20)
+        self.link('NEW1', 'B2', 3)
+        uids, r = self.history()
+        self.assertEqual(uids, ['NEW1', 'OLD1'])
+        self.assertContains(r, 'In use')
+        self.assertContains(r, f'href="/orders/{self.item.order.job_number}/"')
+
+    def test_history_custom_range_and_fallbacks(self):
+        self.link('D10', 'B10', 20, 10)
+        self.link('D100', 'B100', 120, 100)
+        day = lambda n: timezone.localtime(self.now - timedelta(days=n)).date().isoformat()
+        uids, r = self.history(range='custom', **{'from': day(125), 'to': day(95)})
+        self.assertEqual(uids, ['D100'])
+        self.assertContains(r, 'value="custom" selected')
+        self.assertEqual(self.history(range='custom', **{'from': day(25), 'to': day(5)})[0], ['D10'])
+        edge = self.history(range='custom', **{'from': day(100), 'to': day(100)})[0]  # the end day is included
+        self.assertEqual(edge, ['D100'])
+        for params in ({'from': 'x', 'to': day(5)}, {'from': day(5)}, {'from': day(5), 'to': day(50)}):
+            uids, r = self.history(range='custom', **params)
+            self.assertEqual(uids, ['D10'], params)  # 3m fallback
+            self.assertEqual(r.context['range'], '3m')
+
+    def test_history_search_by_tag_and_box(self):
+        self.link('AB12', 'SHELF-1', 5, 2)
+        self.link('CD34', 'SHELF-2', 5, 2)
+        self.assertEqual(self.history(q='ab1')[0], ['AB12'])
+        self.assertEqual(self.history(q='shelf-2')[0], ['CD34'])
+        self.assertEqual(sorted(self.history(q='SHELF')[0]), ['AB12', 'CD34'])
+        self.assertEqual(self.history(q='nothing')[0], [])
+
+    def test_history_cap(self):
+        for i in range(201):
+            self.link(f'T{i:03d}', f'X{i:03d}', 10, 5)
+        uids, r = self.history()
+        self.assertEqual((len(uids), r.context['capped']), (200, True))
+        self.assertContains(r, 'Showing only the newest 200 records.')
+
+
 class TagManageTests(TestCase):
     def setUp(self):
         self.proc = Process.objects.create(name='Mat', kind=K.MATERIAL)
@@ -195,7 +289,7 @@ class TagManageTests(TestCase):
         assign_tag(self.item1, 'B1', 'AB')
         assign_tag(self.item1, 'B2', 'CD')
         self.client.force_login(User.objects.create_user('s', password='x', is_staff=True))
-        r = self.client.get('/tags/')
+        r = self.client.get('/tags/', {'q': 'b'})
         self.assertContains(r, 'Box B1 (1 of 2)')
         self.assertContains(r, 'Box B2 (2 of 2)')
 
@@ -311,6 +405,58 @@ class PriorityTests(TestCase):
         only = self.client.get('/priorities/?tier=OVERDUE').context['rows']
         self.assertEqual([r['tier'] for r in only], ['OVERDUE'])
         self.assertEqual(len(self.client.get('/priorities/?tier=bogus').context['rows']), 2)
+
+    def idle_scan(self, item, hours_ago):
+        Event.objects.create(device=self.device, tag_uid=item.tagassignment_set.get().tag.uid, event_type=E.STARTED,
+                             process=self.procs[K.MACHINING], occurred_at=timezone.now() - timedelta(hours=hours_ago))
+
+    def sorted_rows(self, query=''):
+        self.client.force_login(User.objects.get_or_create(username='s', is_staff=True)[0])
+        return self.client.get('/priorities/' + query).context['rows']
+
+    def test_sort_options_and_fallback(self):
+        a = self.make(-5)  # overdue, never scanned (no idle)
+        b = self.make(30)
+        c = self.make(10, (K.OUTSOURCED,))
+        d = self.make(2)
+        e = self.make(20)
+        for item, h in ((b, 5), (d, 50), (e, 20)):
+            self.idle_scan(item, h)
+        items = lambda q: [r['item'] for r in self.sorted_rows(q)]
+        self.assertEqual(items(''), items('?sort=risk'))
+        self.assertEqual(items('?sort=risk')[0], a)  # overdue first
+        self.assertEqual(items('?sort=waiting'), [d, e, b, a, c][:3] + items('?sort=waiting')[3:])  # longest idle first, unscanned last
+        self.assertEqual(set(items('?sort=waiting')[3:]), {a, c})
+        procs = [r['process'].name if r['process'] else '' for r in self.sorted_rows('?sort=process')]
+        self.assertEqual(procs, sorted(procs))
+        self.assertEqual(procs[0], K.MACHINING)
+        for bad in ('?sort=bogus', '?sort='):
+            self.assertEqual(items(bad), items('?sort=risk'))
+
+    def test_process_sort_breaks_ties_by_risk(self):
+        far = self.make(30)
+        near = self.make(-2)
+        mid = self.make(2)
+        self.assertEqual([r['item'] for r in self.sorted_rows('?sort=process')], [near, mid, far])
+
+    def test_tier_filter_works_with_sort_and_is_kept_by_the_form(self):
+        self.make(-5)
+        late = self.make(-1)
+        self.make(30)
+        self.idle_scan(late, 10)
+        self.client.force_login(User.objects.create_user('s', password='x', is_staff=True))
+        r = self.client.get('/priorities/?tier=OVERDUE&sort=waiting')
+        self.assertEqual([x['item'] for x in r.context['rows']][0], late)
+        self.assertEqual({x['tier'] for x in r.context['rows']}, {'OVERDUE'})
+        self.assertContains(r, '<input type="hidden" name="tier" value="OVERDUE">')
+        self.assertContains(r, '<option value="waiting" selected>')
+        self.assertContains(r, 'href="?tier=CRITICAL&amp;sort=waiting"')
+
+    def test_idle_column_shows_duration(self):
+        item = self.make(10)
+        self.idle_scan(item, 5)
+        rows = self.sorted_rows()
+        self.assertGreaterEqual(rows[0]['idle'], timedelta(hours=5))
 
     def test_priorities_one_row_per_linked_box_with_own_risk(self):
         item = self.make(1, (K.MACHINING, K.MACHINING))
@@ -544,7 +690,6 @@ class BoxesPageTests(OverviewBase):
 
     def test_staff_only(self):
         self.assertEqual(self.client.get('/boxes/').status_code, 302)
-        self.assertEqual(self.client.get('/board/').status_code, 302)
 
     def test_filters_and_invalid_values(self):
         self.scenario()
@@ -564,7 +709,55 @@ class BoxesPageTests(OverviewBase):
         self.assertContains(r, 'href="/tags/"')
         self.assertContains(r, 'Back to Home')
         self.assertContains(self.client.get('/boxes/?status=waiting&stagnant=1'), 'Waiting, Stagnant')
-        self.assertContains(self.client.get('/boxes/?status=in_progress&stagnant=1'), 'No boxes match this filter.')
+        self.assertContains(self.client.get('/boxes/?status=in_progress&stagnant=1'), 'Nothing matches this filter.')
+
+    def test_titles_say_what_the_list_shows(self):
+        self.scenario()
+        self.staff()
+        for query, title in (('?status=in_progress', 'In progress'), ('?status=waiting', 'Waiting'), ('?status=at_vendor', 'At vendor'),
+                             ('?status=not_started', 'Not started'), ('?stagnant=1', 'Stagnant'),
+                             ('?status=at_vendor&vendor_late=1', 'Vendor overdue'), ('', 'Active boxes')):
+            r = self.client.get('/boxes/' + query)
+            self.assertEqual(r.context['title'], title)
+            self.assertContains(r, f'<h1>{title}</h1>')
+            self.assertContains(r, f'<title>{title} - Factory Tracker</title>')
+        self.assertNotContains(self.client.get('/boxes/?status=waiting&stagnant=1'), '<h1>Boxes')
+
+    def test_sort_options_and_fallback(self):
+        self.scenario()
+        other = Customer.objects.create(name='AAA')
+        order = Order.objects.create(customer=other, due_date=timezone.localdate() + timedelta(days=30))
+        OrderItem.objects.create(order=order, part_name='Z', quantity=1)
+        self.staff()
+        due = [(r['due_date'], r['order'].job_number) for r in self.rows('?sort=due')]
+        self.assertEqual(due, sorted(due))
+        self.assertEqual(self.rows('?sort=due')[0]['due_date'], timezone.localdate() - timedelta(days=2))
+        procs = [r['process'].name if r['process'] else None for r in self.rows('?sort=process')]
+        named = [p for p in procs if p]
+        self.assertEqual((named, procs[len(named):]), (sorted(named), [None] * (len(procs) - len(named))))
+        self.assertEqual(named[0], 'Cut')
+        customers = [str(r['order'].customer) for r in self.rows('?sort=customer')]
+        self.assertEqual((customers, customers[0]), (sorted(customers), 'AAA'))
+        idles = [r['idle'] for r in self.rows('?sort=waiting')]
+        known = [i for i in idles if i is not None]
+        self.assertEqual((known, idles[len(known):]), (sorted(known, reverse=True), [None] * (len(idles) - len(known))))
+        self.assertGreater(len(known), 1)
+        for bad in ('?sort=bogus', '?sort='):
+            self.assertEqual(self.client.get('/boxes/' + bad).context['sort'], 'due')
+            key = lambda rows: [(r['item'].pk, r['box_label']) for r in rows]
+            self.assertEqual(key(self.rows(bad)), key(self.rows('?sort=due')))
+
+    def test_sort_control_keeps_filters(self):
+        self.scenario()
+        self.staff()
+        r = self.client.get('/boxes/?status=waiting&stagnant=1&sort=customer')
+        self.assertContains(r, '<input type="hidden" name="status" value="waiting">')
+        self.assertContains(r, '<input type="hidden" name="stagnant" value="1">')
+        self.assertContains(r, '<option value="customer" selected>')
+
+    def test_board_page_is_gone(self):
+        self.staff()
+        self.assertEqual(self.client.get('/board/').status_code, 404)
 
     def test_home_counters_equal_page_rows(self):
         self.scenario()
@@ -610,17 +803,42 @@ class ProcessBoardTests(OverviewBase):
         self.assertTrue(weld['queue'])
         self.assertEqual(([b['box_label'] for b in paint['running']], paint['outsourced']), (['LV1'], True))
 
-    def test_board_page_groups_and_highlights(self):
-        self.build()
+
+class InactiveProcessBoardTests(OverviewBase):
+    def test_board_hides_an_unused_inactive_process_but_not_one_with_boxes(self):
+        unused = Process.objects.create(name='Unused', kind=K.MACHINING, active=False)
+        self.item([self.cut, self.weld], uids=['W1'])
+        self.scan('W1', self.cut, E.STARTED, 3)
+        self.scan('W1', self.cut, E.FINISHED, 2)  # waiting at Weld
+        self.weld.active = False
+        self.weld.save()
+        names = [c['process'].name for c in process_board(self.now)]
+        self.assertIn('Weld', names)
+        self.assertNotIn('Unused', names)
+        self.assertIn('Cut', names)
         self.staff()
-        r = self.client.get('/board/')
-        self.assertEqual([c['process'].name for c in r.context['in_house']], ['Cut', 'Weld'])
-        self.assertEqual([c['process'].name for c in r.context['outsourced']], ['Paint'])
-        self.assertContains(r, 'queue-building', count=1)
-        self.assertContains(r, 'Queue building', count=1)
-        self.assertContains(r, 'PV')
-        self.assertContains(r, 'href="/orders/')
-        self.assertContains(r, 'Process board')
+        r = self.client.get('/')
+        self.assertContains(r, 'Weld')
+        self.assertNotContains(r, unused.name)
+        self.weld.active = True
+        self.weld.save()
+
+    def test_inactive_process_without_boxes_is_hidden_when_idle(self):
+        self.weld.active = False
+        self.weld.save()
+        self.assertNotIn('Weld', [c['process'].name for c in process_board(self.now)])
+
+    def test_simulate_confirm_accepts_an_inactive_process_in_the_route_only(self):
+        item = self.item([self.cut], uids=['S1'])
+        other = Process.objects.create(name='Other', kind=K.MACHINING, active=False)
+        self.cut.active = False
+        self.cut.save()
+        self.staff()
+        post = lambda proc: self.client.post('/simulate/', {'tag_uid': 's1', 'device': self.device.pk, 'action': f'{proc.pk}:STARTED'})
+        self.assertEqual(post(other).status_code, 200)  # inactive and not in the route
+        self.assertEqual(post(self.cut).status_code, 302)  # inactive but in the route
+        self.assertEqual(Event.objects.get().process, self.cut)
+        self.assertEqual(item.steps.count(), 1)
 
 
 class ReplaceTagTests(OverviewBase):
@@ -681,7 +899,7 @@ class ReplaceTagTests(OverviewBase):
         self.item([self.cut], uids=['OTHER'])
         self.staff()
         uids = lambda q: [a.tag.uid for a in self.client.get('/tags/', {'q': q}).context['open']]
-        self.assertEqual(sorted(uids('')), ['OLD', 'OTHER'])
+        self.assertEqual(uids(''), [])  # no query: no rows
         self.assertEqual(uids('old'), ['OLD'])
         self.assertEqual(uids('LOTHER'), ['OTHER'])  # box label
         self.assertEqual(uids(self.item1.part_name), ['OLD'])
@@ -692,7 +910,7 @@ class ReplaceTagTests(OverviewBase):
         self.assertFalse(Tag.objects.get(uid='OLD').active)
         r = self.client.post('/tags/', {'action': 'replace', 'assignment': self.item1.tagassignment_set.last().pk, 'new_uid': 'other'}, follow=True)
         self.assertContains(r, 'already in use')
-        self.assertContains(self.client.get('/tags/'), 'Mark the old tag as lost')
+        self.assertContains(self.client.get('/tags/', {'q': 'other'}), 'Mark the old tag as lost')
 
     def test_replace_without_checkbox_keeps_tag_active(self):
         self.staff()
@@ -722,7 +940,9 @@ class ReplaceTagTests(OverviewBase):
         r = self.client.get('/simulate/', {'tag': 'old', 'device': self.device.pk})
         self.assertEqual(r.context['step']['label'], 'Arrived - Mat')
         self.assertContains(r, '<option value="%d:ARRIVED" selected>Arrived - Mat</option>' % self.mat.pk)
-        self.assertContains(r, 'Other action (test a mistake)')
+        self.assertNotContains(r, 'Other action')
+        self.assertNotContains(r, 'Record event')
+        self.assertNotContains(r, 'tag-uids')
         self.assertContains(r, f'OLD - {self.item1.item_code} - box LOLD - {self.item1.part_name}')
         self.assertContains(r, 'Confirm')
         r = self.client.post('/simulate/', {'tag_uid': 'OLD', 'device': self.device.pk, 'action': r.context['step']['value']})
@@ -740,13 +960,19 @@ class ReplaceTagTests(OverviewBase):
         self.assertNotContains(r, 'id="next-action"')
         r = self.client.get('/simulate/', {'tag': 'ghost', 'device': self.device.pk})
         self.assertEqual(r.context['step']['state'], 'unassigned')
-        self.assertContains(r, 'match no item')
+        self.assertContains(r, 'is not linked to any item.')
+        self.assertContains(r, 'href="/tags/"')
+        self.assertNotContains(r, 'Other action')
 
-    def test_simulate_advanced_section_can_still_send_a_wrong_scan(self):
+    def test_simulate_page_has_no_other_action_section(self):
         self.staff()
-        r = self.client.post('/simulate/', {'tag_uid': 'OLD', 'device': self.device.pk, 'action': f'{self.cut.pk}:FINISHED'})
-        self.assertRedirects(r, '/simulate/')  # skipped steps are still accepted
-        self.assertEqual(Event.objects.get().event_type, 'FINISHED')
+        r = self.client.get('/simulate/')
+        for text in ('Other action', 'test a mistake', 'Record event', '<details'):
+            self.assertNotContains(r, text)
+
+    def test_simulate_invalid_post_shows_errors_and_saves_nothing(self):
+        self.staff()
         r = self.client.post('/simulate/', {'tag_uid': 'OLD', 'device': self.device.pk, 'action': '999:ARRIVED'})
         self.assertEqual(r.status_code, 200)
-        self.assertContains(r, '<details class="card" open>')
+        self.assertContains(r, 'errorlist')
+        self.assertFalse(Event.objects.exists())

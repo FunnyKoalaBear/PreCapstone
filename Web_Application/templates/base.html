@@ -14,8 +14,8 @@
     <nav class="site-nav">
       <a href="{% url 'home' %}">{% trans "Home" %}</a>
       {% if request.user.is_staff %}<a href="{% url 'order_list' %}">{% trans "Orders" %}</a>{% endif %}
+      {% if request.user.is_staff %}<a href="{% url 'customer_list' %}">{% trans "Customers" %}</a>{% endif %}
       {% if request.user.is_staff %}<a href="{% url 'order_create' %}">{% trans "New order" %}</a>{% endif %}
-      {% if request.user.is_staff %}<a href="{% url 'board' %}">{% trans "Process board" %}</a>{% endif %}
       {% if request.user.is_staff %}<a href="{% url 'priorities' %}">{% trans "Priorities" %}</a>{% endif %}
       {% if request.user.is_staff %}<a href="{% url 'tag_manage' %}">{% trans "Tags" %}</a>{% endif %}
       {% if request.user.is_staff %}<a href="{% url 'simulate' %}">{% trans "Simulate scan" %}</a>{% endif %}

@@ -1,8 +1,13 @@
+from datetime import date, datetime, time, timedelta
+from urllib.parse import urlencode
+
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.core.exceptions import ValidationError
+from django.db.models import Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import gettext as _
 from django.utils.translation import gettext_lazy
@@ -11,7 +16,7 @@ from orders.models import OrderItem
 
 from .forms import AssignTagForm, PickTagForm, SimulateScanForm
 from .models import Box, Event, Tag, TagAssignment
-from .overview import active_boxes, process_board
+from .overview import active_boxes
 from .priority import TIER_LABELS, TIERS, priority
 from .services import assign_tag, record_event, release_assignment, replace_tag, resolve_tag
 from .status import AT_VENDOR, COMPLETE, IN_PROGRESS, NOT_STARTED, WAITING, current_row, item_status, next_action
@@ -34,7 +39,7 @@ def _next_step(uid):
 
 @staff_member_required
 def simulate(request):
-    form = SimulateScanForm(request.POST or None, initial={'tag_uid': request.GET.get('tag', ''), 'device': request.GET.get('device')})
+    form = SimulateScanForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
         d = form.cleaned_data
         try:
@@ -60,6 +65,12 @@ def simulate(request):
     })
 
 
+def _tags_url(request):
+    """The Tags page URL, keeping the search a release/replace form was posted from."""
+    q = request.POST.get('q', '').strip()
+    return reverse('tag_manage') + (f'?{urlencode({"q": q})}' if q else '')
+
+
 @staff_member_required
 def tag_manage(request):
     form = AssignTagForm(request.POST if request.POST.get('action') == 'assign' else None)
@@ -70,7 +81,7 @@ def tag_manage(request):
                 raise Http404
             a = release_assignment(get_object_or_404(TagAssignment, pk=pk, end_at__isnull=True))
             messages.success(request, _('Tag %(tag)s released from box %(box)s.') % {'tag': a.tag, 'box': a.box})
-            return redirect('tag_manage')
+            return redirect(_tags_url(request))
         if request.POST.get('action') == 'replace':
             pk = request.POST.get('assignment', '')
             if not pk.isdigit():
@@ -82,7 +93,7 @@ def tag_manage(request):
                 messages.error(request, ' '.join(e.messages))
             else:
                 messages.success(request, _('Tag %(old)s replaced by %(new)s in box %(box)s.') % {'old': old.tag, 'new': new.tag, 'box': new.box})
-            return redirect('tag_manage')
+            return redirect(_tags_url(request))
         if form.is_valid():
             d = form.cleaned_data
             try:
@@ -99,21 +110,71 @@ def tag_manage(request):
     seen = {}
     for a in open_:  # position of the box within its item
         seen[a.item_id] = a.nth = seen.get(a.item_id, 0) + 1
-    q = request.GET.get('q', '').strip().lower()
+    q, in_use = request.GET.get('q', '').strip().lower(), len(open_)
     if q:
         hay = lambda a: [a.item.item_code, a.item.order.job_number, a.item.part_name, a.item.order.customer.name, a.box.label, a.tag.uid]
         open_ = [a for a in open_ if any(q in h.lower() for h in hay(a))]
     return render(request, 'tracking/tag_manage.html', {
         'form': form,
-        'open': open_, 'q': q,
-        'history': assignments.filter(end_at__isnull=False).order_by('-end_at')[:20],
+        'open': open_ if q else [], 'q': q, 'in_use': in_use,
         'tag_uids': Tag.objects.filter(active=True).values_list('uid', flat=True),
         'box_labels': Box.objects.filter(active=True).values_list('label', flat=True),
     })
 
 
+HISTORY_RANGES = [
+    ('1m', 30, gettext_lazy('Last month')), ('3m', 91, gettext_lazy('Last 3 months')),
+    ('6m', 182, gettext_lazy('Last 6 months')), ('1y', 365, gettext_lazy('Last year')),
+]
+HISTORY_CAP = 200
+
+
+def _history_range(request, now):
+    """(range key, start, end, from text, to text); bad custom dates fall back to 3 months."""
+    key = request.GET.get('range')
+    if key == 'custom':
+        try:
+            d1, d2 = date.fromisoformat(request.GET.get('from', '')), date.fromisoformat(request.GET.get('to', ''))
+        except ValueError:
+            d1 = d2 = None
+        if d1 and d2 and d1 <= d2:
+            aware = lambda d: timezone.make_aware(datetime.combine(d, time.min))  # JST via TIME_ZONE
+            return key, aware(d1), aware(d2 + timedelta(days=1)), d1.isoformat(), d2.isoformat()
+        key = '3m'
+    days = {k: n for k, n, _label in HISTORY_RANGES}
+    if key not in days:
+        key = '3m'
+    return key, now - timedelta(days=days[key]), now, '', ''
+
+
+@staff_member_required
+def tag_history(request):
+    now = timezone.now()
+    key, start, end, d_from, d_to = _history_range(request, now)
+    q = request.GET.get('q', '').strip()
+    rows = TagAssignment.objects.select_related('tag', 'box', 'item__order').filter(
+        Q(end_at__isnull=True) | Q(end_at__gte=start), start_at__lt=end)
+    if q:
+        rows = rows.filter(Q(tag__uid__icontains=q) | Q(box__label__icontains=q))
+    rows = list(rows.order_by('-start_at', '-pk')[:HISTORY_CAP + 1])
+    return render(request, 'tracking/tag_history.html', {
+        'rows': rows[:HISTORY_CAP], 'capped': len(rows) > HISTORY_CAP, 'cap': HISTORY_CAP, 'q': q, 'range': key,
+        'ranges': [(k, label) for k, _n, label in HISTORY_RANGES] + [('custom', gettext_lazy('Custom'))],
+        'd_from': d_from, 'd_to': d_to,
+    })
+
+
+PRIORITY_SORTS = {
+    'risk': lambda r: (TIERS.index(r['tier']), r['slack']),
+    'process': lambda r: (r['process'].name if r['process'] else '￿', TIERS.index(r['tier']), r['slack']),
+    'waiting': lambda r: (r['idle'] is None, -r['idle'].total_seconds() if r['idle'] else 0, TIERS.index(r['tier']), r['slack']),
+}
+PRIORITY_SORT_CHOICES = [('risk', gettext_lazy('Risk')), ('process', gettext_lazy('Current process')), ('waiting', gettext_lazy('Idle for'))]
+
+
 @staff_member_required
 def priorities(request):
+    idle = {(e['item'].pk, e['box_label']): e['idle'] for e in active_boxes()}
     rows = []
     for item in OrderItem.objects.select_related('order__customer').order_by('order__due_date'):
         st = item_status(item)
@@ -127,14 +188,16 @@ def priorities(request):
             rows.append({
                 'item': item, 'status': box, 'process': row.step.process if row else None,
                 'box_label': box.label, 'multi': len(st.boxes) > 1, **p, 'label': TIER_LABELS[p['tier']],
+                'idle': idle.get((item.pk, box.label)),
             })
-    rows.sort(key=lambda r: (TIERS.index(r['tier']), r['slack']))
+    sort = request.GET.get('sort') if request.GET.get('sort') in PRIORITY_SORTS else 'risk'
+    rows.sort(key=PRIORITY_SORTS[sort])
     counts = {t: sum(r['tier'] == t for r in rows) for t in TIERS}
     tier = request.GET.get('tier', '')
     if tier in TIERS:
         rows = [r for r in rows if r['tier'] == tier]
     return render(request, 'tracking/priorities.html', {
-        'rows': rows, 'tier': tier, 'total': sum(counts.values()),
+        'rows': rows, 'tier': tier, 'total': sum(counts.values()), 'sort': sort, 'sort_choices': PRIORITY_SORT_CHOICES,
         'tiers': [(t, t.lower(), TIER_LABELS[t], counts[t]) for t in TIERS],
     })
 
@@ -145,25 +208,36 @@ BOX_STATUSES = {
 }
 
 
+BOX_SORTS = {
+    'process': lambda e: (e['process'].name if e['process'] else '￿', e['due_date'], e['order'].job_number, e['item'].item_no),
+    'due': lambda e: (e['due_date'], e['order'].job_number, e['item'].item_no, e['box_label'] or ''),
+    'customer': lambda e: (str(e['order'].customer), e['due_date'], e['order'].job_number, e['item'].item_no),
+    'waiting': lambda e: (e['idle'] is None, -e['idle'].total_seconds() if e['idle'] else 0, e['due_date'], e['order'].job_number),
+}
+BOX_SORT_CHOICES = [
+    ('process', gettext_lazy('Current process')), ('due', gettext_lazy('Due date')),
+    ('customer', gettext_lazy('Customer')), ('waiting', gettext_lazy('Idle for')),
+]
+
+
 @staff_member_required
 def boxes(request):
     status, stagnant, vendor_late = request.GET.get('status'), request.GET.get('stagnant') == '1', request.GET.get('vendor_late') == '1'
+    sort = request.GET.get('sort') if request.GET.get('sort') in BOX_SORTS else 'due'
     rows, parts = active_boxes(), []
     if status in BOX_STATUSES:
         rows = [r for r in rows if r['code'] == BOX_STATUSES[status][0]]
+    if vendor_late:
+        rows = [r for r in rows if r['late_days']]
+        parts.append(_('Vendor overdue'))
+    elif status in BOX_STATUSES:
         parts.append(BOX_STATUSES[status][1])
     if stagnant:
         rows = [r for r in rows if r['stagnant']]
         parts.append(_('Stagnant'))
-    if vendor_late:
-        rows = [r for r in rows if r['late_days']]
-        parts.append(_('Vendor late'))
-    return render(request, 'tracking/boxes.html', {'rows': rows, 'filters': ', '.join(map(str, parts))})
-
-
-@staff_member_required
-def board(request):
-    cards = process_board()
-    return render(request, 'tracking/board.html', {
-        'in_house': [c for c in cards if not c['outsourced']], 'outsourced': [c for c in cards if c['outsourced']],
+    rows.sort(key=BOX_SORTS[sort])
+    keep = {k: v for k, v in (('status', status), ('stagnant', '1' if stagnant else ''), ('vendor_late', '1' if vendor_late else '')) if v}
+    return render(request, 'tracking/boxes.html', {
+        'rows': rows, 'title': ', '.join(map(str, parts)) or _('Active boxes'), 'sort': sort,
+        'sort_choices': BOX_SORT_CHOICES, 'keep': keep,
     })

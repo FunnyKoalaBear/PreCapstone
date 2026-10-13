@@ -4,8 +4,8 @@ const TEXTS = {
   brand: ['工程進捗管理', 'Factory Tracker'], footer: ['工程進捗管理（デモ）', 'Factory Tracker (demo)'],
   banner: ['これはサンプルデータによるデモです。変更はこのブラウザにのみ保存されます。', 'This is a demo with sample data. Changes are saved only in this browser.'],
   reset_demo: ['デモデータをリセット', 'Reset demo data'],
-  nav_home: ['ホーム', 'Home'], nav_orders: ['受注一覧', 'Orders'], nav_new: ['新規受注', 'New order'], nav_boxes: ['箱一覧', 'Boxes'],
-  nav_board: ['工程ボード', 'Process board'], nav_prio: ['優先度', 'Priorities'], nav_tags: ['タグ管理', 'Tags'], nav_sim: ['スキャンのシミュレーション', 'Simulate scan'],
+  nav_home: ['ホーム', 'Home'], nav_orders: ['受注一覧', 'Orders'], nav_new: ['新規受注', 'New order'], nav_customers: ['得意先', 'Customers'],
+  nav_prio: ['優先度', 'Priorities'], nav_tags: ['タグ管理', 'Tags'], nav_sim: ['スキャンのシミュレーション', 'Simulate scan'],
   // statuses, kinds, events, tiers
   NOT_STARTED: ['未着手', 'Not started'], WAITING: ['待機中', 'Waiting'], IN_PROGRESS: ['作業中', 'In progress'], AT_VENDOR: ['外注中', 'At vendor'], COMPLETE: ['完了', 'Complete'],
   pending: ['未処理', 'Pending'], in_progress: ['作業中', 'In progress'], at_vendor: ['外注中', 'At vendor'], done: ['完了', 'Done'],
@@ -15,7 +15,7 @@ const TEXTS = {
   // common words
   item: ['品目', 'Item'], part: ['品名', 'Part'], customer: ['得意先', 'Customer'], status: ['状態', 'Status'], due_date: ['納期', 'Due date'], notes: ['備考', 'Notes'],
   process: ['工程', 'Process'], current_process: ['現在の工程', 'Current process'], box: ['箱', 'Box'], tag: ['タグ', 'Tag'], vendor: ['外注先', 'Vendor'],
-  overdue: ['納期遅れ', 'Overdue'], stagnant: ['滞留', 'Stagnant'], vendor_late: ['外注遅れ', 'Vendor late'], idle_for: ['滞留時間', 'Idle for'],
+  overdue: ['納期遅れ', 'Overdue'], stagnant: ['滞留', 'Stagnant'], idle_for: ['滞留時間', 'Idle for'],
   search: ['検索', 'Search'], all: ['すべて', 'All'], apply: ['適用', 'Apply'], remove: ['削除', 'Remove'], confirm: ['確定', 'Confirm'], device: ['読取端末', 'Device'],
   action: ['操作', 'Action'], time_jst: ['時刻（JST）', 'Time (JST)'], job_number: ['製番', 'Job number'], customer_order_number: ['客先注文番号', 'Customer order number'],
   not_linked_yet: ['未紐付け', 'Not linked yet'], link_a_tag: ['タグを紐付ける', 'Link a tag'], back_home: ['ホームに戻る', 'Back to Home'], back_orders: ['受注一覧に戻る', 'Back to Orders'],
@@ -25,12 +25,15 @@ const TEXTS = {
   dur_dh: ['{d}日{h}時間', '{d}d {h}h'], dur_hm: ['{h}時間{m}分', '{h}h {m}m'], dur_m: ['{m}分', '{m}m'], dur_lt1: ['1分未満', '<1m'],
   // home
   home_title: ['ホーム', 'Home'], overdue_orders: ['納期遅れの受注', 'Overdue orders'], vendor_overdue: ['外注遅れ', 'Vendor overdue'],
-  in_house_now: ['社内の現在状況', 'In-house now'], at_vendors: ['外注中', 'At vendors'], last_scan: ['最終スキャン（JST）', 'Last scan (JST)'],
-  nothing_factory: ['現在、社内に作業中の箱はありません。', 'Nothing in the factory right now.'],
-  out_since: ['外注出し日（JST）', 'Out since (JST)'], days_out: ['外注日数', 'Days out'], due_back: ['戻り予定日', 'Due back'], late_by: ['遅れ', 'Late by'],
-  no_due_date: ['戻り予定なし', 'No due date'], nothing_vendor: ['外注中の箱はありません。', 'Nothing is out at vendors.'],
+  // customers
+  cust_name: ['名称', 'Name'], cust_contact: ['連絡先', 'Contact'], add_customer: ['得意先を追加', 'Add customer'], num_orders: ['受注数', 'Number of orders'],
+  customer_added: ['得意先 {name} を追加しました。', 'Customer {name} added.'], err_dup_customer: ['この名称の得意先は既に登録されています。', 'A customer with this name already exists.'],
+  back_customers: ['得意先一覧に戻る', 'Back to Customers'], edit_customer: ['得意先 {name} を編集', 'Edit customer {name}'],
+  customer_updated: ['得意先 {name} を更新しました。', 'Customer {name} updated.'], no_customer_orders: ['この得意先の受注はまだありません。', 'This customer has no orders yet.'],
+  customer_missing: ['得意先が見つかりません。', 'Customer not found.'], created_at: ['作成日時', 'Created at'],
+  new_customer: ['新規得意先', 'New customer'], no_customers_match: ['該当する得意先はありません。', 'No customers match.'],
   // boxes page
-  boxes_title: ['箱一覧', 'Boxes'], no_boxes_match: ['条件に一致する箱はありません。', 'No boxes match this filter.'],
+  active_boxes: ['進行中の箱', 'Active boxes'], no_match: ['条件に一致するものはありません。', 'Nothing matches this filter.'],
   // orders
   orders_title: ['受注一覧', 'Orders'], sort_by: ['並び順', 'Sort by'], newest: ['新しい順', 'Newest'], overdue_only: ['納期遅れのみ', 'Overdue only'],
   items: ['品目', 'Items'], no_orders: ['受注が見つかりません。', 'No orders found.'], order_progress: ['作業中（{total}品目中{done}品目が完了）', 'In progress ({done}/{total} items complete)'],
@@ -50,7 +53,12 @@ const TEXTS = {
   tags_title: ['タグ管理', 'Tags'], box_label: ['箱番号', 'Box label'], tag_uid: ['タグUID', 'Tag UID'], link_tag: ['タグを紐付ける', 'Link tag'], in_use: ['使用中', 'In use'],
   search_ph: ['品目、製番、品名、得意先、箱、タグ', 'Item, job, part, customer, box or tag'], since_jst: ['開始（JST）', 'Since (JST)'], release: ['タグを解除', 'Release'],
   replace_tag: ['タグを交換', 'Replace tag'], new_tag_uid: ['新しいタグUID', 'New tag UID'], mark_lost: ['旧タグを紛失扱いにする', 'Mark the old tag as lost'], replace: ['交換', 'Replace'],
-  no_tags_in_use: ['使用中のタグはありません。', 'No tags in use.'], history: ['紐付け履歴', 'History'], from_jst: ['開始（JST）', 'From (JST)'], to_jst: ['終了（JST）', 'To (JST)'],
+from_jst: ['開始（JST）', 'From (JST)'], to_jst: ['終了（JST）', 'To (JST)'],
+  tags_in_use_n: ['使用中のタグ: {n} 件', ['{n} tag in use.', '{n} tags in use.']], no_tags_match: ['該当する使用中のタグはありません。', 'No tags in use match this search.'],
+  tag_history: ['タグの紐付け履歴', 'Tag history'], back_tags: ['タグ管理に戻る', 'Back to Tags'], tag_or_box: ['タグまたは箱', 'Tag or box'], period: ['期間', 'Period'],
+  range_1m: ['直近1か月', 'Last month'], range_3m: ['直近3か月', 'Last 3 months'], range_6m: ['直近6か月', 'Last 6 months'], range_1y: ['直近1年', 'Last year'],
+  range_custom: ['期間を指定', 'Custom'], date_from: ['開始日', 'From'], date_to: ['終了日', 'To'],
+  history_cap: ['新しい順に {n} 件のみ表示しています。', 'Showing only the newest {n} records.'],
   no_history: ['履歴はまだありません。', 'No history yet.'], item_opt: ['{code} - {part}（{total}箱中{n}箱を紐付け済み）', '{code} - {part} ({n} of {total} boxes linked)'],
   box_nth: ['箱 {l}（{t}個中{n}個目）', 'Box {l} ({n} of {t})'], pick_item: ['品目を選択してください。', 'Choose an item.'],
   m_linked: ['タグ {tag} を箱 {box}（品目 {item}）に紐付けました。', 'Tag {tag} linked to box {box}, item {item}.'],
@@ -75,11 +83,10 @@ const TEXTS = {
   item_added: ['品目の追加', 'Item added'], item_deleted: ['品目の削除', 'Item deleted'], // CHECK: noun forms, my choice
   // simulate
   sim_title: ['スキャンのシミュレーション', 'Simulate scan'], search_or_pick: ['タグを検索または選択', 'Search or pick a tag'],
-  not_linked_tag: ['タグ {uid} は品目に紐付いていません。イベントは保存されますが、どの品目にも結び付きません。送信するには下の「その他の操作」を使ってください。',
-    'Tag {uid} is not linked to any item: the event would be saved but match no item. Use "Other action" below to send it anyway.'],
+  not_linked_tag: ['タグ {uid} は品目に紐付いていません。', 'Tag {uid} is not linked to any item.'],
   tag_info: ['タグ {uid}: 品目 {item}、箱 {box}、{part}', 'Tag {uid}: item {item}, box {box}, {part}'],
   box_finished: ['この箱は全工程を完了しています。スキャンする操作はありません。', 'This box has finished its whole route. Nothing left to scan.'],
-  what_happened: ['実施した操作', 'What happened'], other_action: ['その他の操作（誤操作のテスト）', 'Other action (test a mistake)'], record_event: ['イベントを記録', 'Record event'],
+  what_happened: ['実施した操作', 'What happened'],
   last_10: ['直近10件のイベント', 'Last 10 events'],
   m_saved: ['保存しました: 箱 {box}、品目 {item}、状態: {status}', 'Saved: box {box}, item {item}, status: {status}'],
   m_nomatch: ['イベントを保存しましたが、タグ {uid} に該当する品目がありません。', 'Event saved, but tag {uid} matches no item.'],
