@@ -8,11 +8,13 @@
 #include "buzzer.hpp"
 #include "display.hpp"
 #include "wifi.hpp"
+#include "server_client.hpp"
 
 
 struct button_task_args_t {
     BUTTON *button;
     BUZZER *buzzer;
+    SERVER_CLIENT *server;
 };
 
 //test push
@@ -25,6 +27,7 @@ static void button_task(void *argument)
         
         if (args->button->clicked()) {
             args->buzzer->on();
+            args->server->send_scan("Hi esp");
         }
         else args->buzzer->off();
 
@@ -34,6 +37,18 @@ static void button_task(void *argument)
     
     vTaskDelete(NULL);
 }
+
+// static void send_scan_task(void *argument) {
+
+//     auto *args = static_cast<send_scan_task_args_t *>(argument);
+
+//     while (true) {  
+
+//     }
+
+//     vTaskDelete(NULL);
+// }
+
 
 static void rfid_task(void *argument)
 {
@@ -48,15 +63,15 @@ static void rfid_task(void *argument)
 
 extern "C" void app_main()
 {
-    WIFI wifi; 
-    wifi.init(); 
 
     //starting projecct
     printf("APP MAIN\n");
+    WIFI wifi; 
     RFID rfid;
     BUTTON button;
     BUZZER buzzer;
     DISPLAY display;
+    SERVER_CLIENT server;
 
     //display first: rfid.init() retries forever if the PN532 isn't connected
     if (display.init()) {
@@ -64,12 +79,14 @@ extern "C" void app_main()
     }
 
     //initializing classes
+    wifi.init(); 
     button.init();
     rfid.init();
     buzzer.init();
+    server.send_scan("hi FROM ESP"); 
 
     //creating tasks 
-    static button_task_args_t button_args{ &button, &buzzer };
+    static button_task_args_t button_args{ &button, &buzzer, &server };
     xTaskCreate(button_task, "Button Click", 2048 , &button_args, 5, nullptr); 
 
     int rfid_param = 43;
