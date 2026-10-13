@@ -1,0 +1,18 @@
+py -m venv .venv 
+.\.venv\Scripts\Activate.ps1
+pip list
+
+
+starting server: 
+uvicorn main:app --reload
+curl.exe -X POST http://127.0.0.1:8000/record_scan -H "Content-Type: application/json" -d '{\"uid\": \"NEW REQUEST\"}'
+
+
+hosting laptop server publicly on wlan
+
+On terminal to start server: 
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+
+On powershell: 
+New-NetFirewallRule -DisplayName "FastAPI 8000" -Direction Inbound -Protocol TCP -LocalPort 8000 -Action Allow -Profile Private,Public -RemoteAddress LocalSubnet
+
