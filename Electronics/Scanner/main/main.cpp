@@ -7,6 +7,7 @@
 #include "button.hpp"
 #include "buzzer.hpp"
 #include "display.hpp"
+#include "wifi.hpp"
 
 
 struct button_task_args_t {
@@ -47,6 +48,9 @@ static void rfid_task(void *argument)
 
 extern "C" void app_main()
 {
+    WIFI wifi; 
+    wifi.init(); 
+
     //starting projecct
     printf("APP MAIN\n");
     RFID rfid;

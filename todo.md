@@ -3,20 +3,26 @@
 ## Server (Factory_Server)
 - [ ] Tidy `db.py`: return `conn, cur`, pass the uid not the model, drop leftover cursor
 - [ ] Move to a connection pool (`ThreadedConnectionPool`, maxconn ~20)
-- [ ] Decide how this server connects to the Django dashboard (Event log)
+- [ ] MERGE DECISION with the friend: scan ingest endpoint in Django (`record_event`) vs FastAPI writing to Django's tables; agree the JSON contract (uid, process, event_type or derived)
+- [ ] Decide what sets `process` and `event_type` for a real scan (fixed per scanner, chosen on the scanner, or derived next step)
 - [ ] Test 10 simultaneous requests
 
 ## Security
-- [ ] `scanners` table: name, key hash, active flag, last_seen
-- [ ] `require_scanner` dependency checking `X-API-Key`, return 401 on failure
-- [ ] Record which scanner sent each scan
+- [ ] Reuse Django's `ScannerDevice` (api_key, active, last_seen) instead of a new `scanners` table (pending merge decision)
+- [ ] Check `X-API-Key` on the ingest endpoint, return 401 on failure
+- [ ] Store the ESP32's key in NVS (copy it from the Django admin page)
 - [ ] HTTPS plan (AWS cert, or self-signed cert embedded in firmware)
 - [ ] Store each scanner's key in NVS on the ESP32 (flash encryption for production)
 - [ ] Later: HMAC request signing, rate limiting
 
 ## Scanner firmware
-- [ ] WiFi connection component
-- [ ] `esp_http_client` POST with cJSON (migrate from `Client_Connection`)
+- [x] WiFi component written (`components/wifi`, compile-checked)
+- [x] WiFi wired into `main` and confirmed connecting on the GL.iNet Mango (ESP32 got 192.168.8.224)
+- [ ] Make the laptop server reachable: `uvicorn --host 0.0.0.0` + Windows firewall rule for port 8000
+- [ ] Add `espressif/cjson` (and later `espressif/mdns`) via `idf_component.yml`
+- [ ] `esp_http_client` POST with a hardcoded UID first, then real scans
+- [ ] Rework `RFID::scan()` to return each UID; hex-format it; debounce repeat reads
+- [ ] Check app size vs the 1 MB partition after adding WiFi/HTTP
 - [ ] mDNS resolve of the Pi, cache the IP, timeout and retry
 - [ ] Make `rfid.init()` non-blocking (or run it inside `rfid_task`)
 - [ ] Make `RFID`, `BUTTON`, `BUZZER`, `DISPLAY` in `app_main` `static`

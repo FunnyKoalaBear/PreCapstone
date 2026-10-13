@@ -11,3 +11,4 @@ public:
     bool connected() const;
     bool wait_connected(uint32_t timeout_ms) const;
 };
+

@@ -26,6 +26,9 @@ Board flash: 16MB physical chip; `sdkconfig` currently declares 2MB (`CONFIG_ESP
 
 ## Features
 
+### WiFi (station mode)
+`components/wifi` — joins a 2.4 GHz network, reconnects on its own, and exposes `connected()` / `wait_connected()` for the HTTP code to come. SSID and password are set under **Scanner WiFi** in `idf.py menuconfig` and live in the gitignored `sdkconfig`, not in source. Confirmed working: the board shows up in the GL.iNet Mango router's DHCP leases. Not sending any data yet.
+
 ### TFT display + touch scrollable list (ST7796S SPI, XPT2046 touch)
 `components/display` — drives a 4" 480x320 ST7796S over SPI2 (`espressif/esp_lcd_st7796`) with a hand-rolled 8x8 bitmap font (no LVGL yet). No framebuffer fits in RAM (no PSRAM on this board), so every draw streams straight over SPI in 16-row bands. `run_scrollable_list()` reads an XPT2046 touch controller on the same SPI bus (`espressif/esp_lcd_touch` + `atanisoft/esp_lcd_touch_xpt2046`, own CS pin, 1MHz) and lets a finger-drag scroll a vertical list, tracked from the drag's start point rather than frame deltas to avoid drift.
 - SPI clock: confirmed working on this board/breadboard at 40MHz (bumped up from an initial conservative 20MHz) — noticeably smoother scrolling, no visible tearing.

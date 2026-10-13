@@ -13,3 +13,5 @@ menu "Scanner WiFi"
         default 15000
 
 endmenu
+
+#This will add to the options showing up at idf.py menuconfig 

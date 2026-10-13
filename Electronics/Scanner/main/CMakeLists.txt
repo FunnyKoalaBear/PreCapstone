@@ -7,5 +7,5 @@ idf_component_register(SRCS "main.cpp"
                     button
                     buzzer
                     display
-
+                    wifi
                     )
