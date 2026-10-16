@@ -35,7 +35,7 @@ Windows 11, Python 3.13, VS Code. The developer is learning: explain each step b
 - Status is computed in tracking/status.py from events; never stored.
 - Events voided by a CORRECTION are ignored. Box events = events whose tag UID was assigned to that box at that time; item events = all its boxes' events.
 
-- All events are created through tracking/services.record_event (simulate page now, scan API later). Events are always saved, even for unassigned tags.
+- All events are created through tracking/services.record_event (simulate page now, scan API later). The scan API (POST /api/scan/) rejects unassigned tags; the simulate page still saves them.
 
 
 ## Translation rule

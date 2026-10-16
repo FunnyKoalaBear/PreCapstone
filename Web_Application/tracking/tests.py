@@ -1,3 +1,4 @@
+import json
 from datetime import date, datetime, timedelta
 from datetime import timezone as dt_timezone
 
@@ -976,3 +977,61 @@ class ReplaceTagTests(OverviewBase):
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, 'errorlist')
         self.assertFalse(Event.objects.exists())
+
+
+class ScanApiTests(TestCase):
+    def setUp(self):
+        self.device = ScannerDevice.objects.create(name='D')
+        self.mat = Process.objects.create(name='Mat', kind=K.MATERIAL)
+        self.mach = Process.objects.create(name='Mach', kind=K.MACHINING)
+        order = Order.objects.create(customer=Customer.objects.create(name='C'), due_date=timezone.now().date())
+        self.item = OrderItem.objects.create(order=order, part_name='P', quantity=1)
+        RouteStep.objects.create(item=self.item, sequence=1, process=self.mat)
+        TagAssignment.objects.create(tag=Tag.objects.create(uid='AB12'), box=Box.objects.create(label='B1'), item=self.item)
+
+    def post(self, body=None, key='default', **kw):
+        body = {'tag_uid': 'ab12', 'process': self.mat.pk, 'event_type': 'ARRIVED'} if body is None else body
+        headers = {'HTTP_X_API_KEY': self.device.api_key if key == 'default' else key} if key is not None else {}
+        data = body if isinstance(body, str) else json.dumps(body)
+        return self.client.post('/api/scan/', data, content_type='application/json', **headers, **kw)
+
+    def test_no_key(self):
+        r = self.post(key=None)
+        self.assertEqual((r.status_code, r.json()), (401, {'ok': False, 'error': 'bad_key'}))
+
+    def test_wrong_key(self):
+        self.assertEqual(self.post(key='nope').status_code, 401)
+
+    def test_inactive_device(self):
+        self.device.active = False
+        self.device.save()
+        self.assertEqual(self.post().status_code, 401)
+        self.assertEqual(Event.objects.count(), 0)
+
+    def test_valid_scan(self):
+        r = self.post()
+        self.assertEqual(r.status_code, 200)
+        j = r.json()
+        self.assertEqual((j['ok'], j['tag_uid'], j['box'], j['item']), (True, 'AB12', 'B1', self.item.item_code))
+        self.assertEqual(j['event_id'], Event.objects.get().pk)
+        self.device.refresh_from_db()
+        self.assertIsNotNone(self.device.last_seen)
+
+    def test_unassigned_tag(self):
+        r = self.post({'tag_uid': 'ZZ', 'process': self.mat.pk, 'event_type': 'ARRIVED'})
+        self.assertEqual((r.status_code, r.json()), (404, {'ok': False, 'error': 'unassigned_tag'}))
+        self.assertEqual(Event.objects.count(), 0)
+        self.device.refresh_from_db()
+        self.assertIsNotNone(self.device.last_seen)
+
+    def test_wrong_process_kind(self):
+        r = self.post({'tag_uid': 'AB12', 'process': self.mach.pk, 'event_type': 'ARRIVED'})
+        self.assertEqual((r.status_code, r.json()['error']), (400, 'invalid'))
+        self.assertEqual(Event.objects.count(), 0)
+
+    def test_get_not_allowed(self):
+        self.assertEqual(self.client.get('/api/scan/', HTTP_X_API_KEY=self.device.api_key).status_code, 405)
+
+    def test_bad_json(self):
+        r = self.post('{not json')
+        self.assertEqual((r.status_code, r.json()['error']), (400, 'invalid'))

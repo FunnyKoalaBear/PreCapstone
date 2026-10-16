@@ -1,8 +1,9 @@
 from django.urls import path
 
-from . import views
+from . import api, views
 
 urlpatterns = [
+    path('api/scan/', api.scan, name='api_scan'),
     path('simulate/', views.simulate, name='simulate'),
     path('priorities/', views.priorities, name='priorities'),
     path('boxes/', views.boxes, name='boxes'),
