@@ -1,7 +1,5 @@
-asgiref==3.12.1
+# Direct dependencies only. Needs Python 3.12 or newer (Django 6.1).
 Django==6.1.2
-psycopg==3.3.6
-psycopg-binary==3.3.6
+# [binary] ships its own libpq; it has 64-bit ARM wheels, so the Pi needs no PostgreSQL dev packages.
+psycopg[binary]==3.3.6
 python-dotenv==1.2.4
-sqlparse==0.6.0
-tzdata==2026.5

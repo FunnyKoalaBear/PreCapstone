@@ -42,3 +42,8 @@ The script copies the chosen file to `.env.db`, which overrides the `DB_*` lines
 ```powershell
 .venv\Scripts\python manage.py runserver
 ```
+
+## Docs
+
+- [Setup (local and Raspberry Pi)](docs/setup.md)
+- [Scanner API for the ESP32 firmware](docs/scanner-api.md)
