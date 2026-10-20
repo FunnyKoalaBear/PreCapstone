@@ -20,6 +20,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Read secrets from .env
 load_dotenv(BASE_DIR / '.env')
+# DB profile chosen by scripts/db.ps1 overrides the DB_* lines of .env
+if (BASE_DIR / '.env.db').exists():
+    load_dotenv(BASE_DIR / '.env.db', override=True)
 
 
 # Quick-start development settings - unsuitable for production

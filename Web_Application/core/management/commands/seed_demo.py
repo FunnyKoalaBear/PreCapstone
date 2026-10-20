@@ -128,7 +128,7 @@ class Command(BaseCommand):
         scan('3E180A05', 'Assembly', 'STARTED', ago(hours=20))
         scan('3E180A05', 'Plating', 'SENT_OUT', ago(hours=18), d2)
         wrong = scan('3E180A05', 'Inspection', 'FINISHED', ago(hours=15))
-        fix = Event(device=d2, tag_uid='3E180A05', event_type=Event.Type.CORRECTION, corrects=wrong, occurred_at=ago(hours=14))
+        fix = Event(device=d2, tag_uid='3E180A05', event_type=Event.Type.CORRECTION, corrects=wrong, occurred_at=ago(hours=14), reason='Wrong scan')
         fix.full_clean()
         fix.save()
         Tag.objects.get_or_create(uid='B15D6B73')

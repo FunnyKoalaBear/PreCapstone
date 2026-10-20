@@ -30,18 +30,26 @@
               <th>{% trans "Action" %}</th>
               <th>{% trans "Process" %}</th>
               <th>{% trans "Device" %}</th>
+              {% if perms.tracking.correct_event %}<th></th>{% endif %}
             </tr>
           </thead>
           <tbody>
             {% for e in b.events %}
-              <tr>
+              <tr{% if e.voided_by %} class="event-voided"{% endif %}>
                 <td>{{ e.occurred_at|date:"Y-m-d H:i:s" }}</td>
-                <td>{{ e.get_event_type_display }}</td>
+                <td>{{ e.get_event_type_display }}
+                  {% if e.is_manual %}<span class="badge badge-manual">{% trans "Manual" %}</span>{% endif %}
+                  {% if e.voided_by %}<span class="badge badge-voided">{% trans "Voided" %}</span>{% endif %}
+                  {% if e.voided_by %}<div class="event-reason">{{ e.voided_by.reason }}</div>{% elif e.is_manual %}<div class="event-reason">{{ e.reason }}</div>{% endif %}
+                </td>
                 <td>{{ e.process|default_if_none:"-" }}</td>
                 <td>{{ e.device }}</td>
+                {% if perms.tracking.correct_event %}
+                  <td>{% if not e.voided_by %}<a class="button" href="{% url 'correct_event' e.pk %}?next={{ request.get_full_path|urlencode }}">{% trans "Correct" %}</a>{% endif %}</td>
+                {% endif %}
               </tr>
             {% empty %}
-              <tr><td colspan="4">{% trans "No events yet." %}</td></tr>
+              <tr><td colspan="5">{% trans "No events yet." %}</td></tr>
             {% endfor %}
           </tbody>
         </table>

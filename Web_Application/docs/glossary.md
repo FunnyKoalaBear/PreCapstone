@@ -111,3 +111,7 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | Before / After | 変更前 / 変更後 |
 | Item added / deleted (history) | 品目の追加 / 品目の削除 |
 | Route is locked (item has been scanned) | スキャン済みのため、工程順は変更できません |
+| Manual (event entered by hand) | 手動 |
+| Voided | 取消済み ? |
+| Void only / Void and replace | 取消のみ / 取消して置き換え |
+| Correct (an event) | 訂正 |

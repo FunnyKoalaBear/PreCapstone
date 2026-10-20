@@ -3,22 +3,23 @@ from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db.models import Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils import timezone
 from django.utils.translation import gettext as _
 from django.utils.translation import gettext_lazy
 
 from orders.models import OrderItem
 
-from .forms import AssignTagForm, PickTagForm, SimulateScanForm
+from .forms import AssignTagForm, CorrectEventForm, PickTagForm, SimulateScanForm
 from .models import Box, Event, Tag, TagAssignment
 from .overview import active_boxes
 from .priority import TIER_LABELS, TIERS, priority
-from .services import assign_tag, next_step, record_event, release_assignment, replace_tag, resolve_tag
+from .services import assign_tag, can_correct, correct_event as correct_event_service, next_step, record_event, release_assignment, replace_tag, resolve_tag
 from .status import AT_VENDOR, COMPLETE, IN_PROGRESS, NOT_STARTED, WAITING, current_row, item_status
 
 
@@ -33,6 +34,26 @@ def _next_step(uid):
         return {'state': 'finished', **info}
     etype, process = todo
     return {'state': 'next', 'value': f'{process.pk}:{etype}', 'label': f'{Event.Type(etype).label} - {process}', **info}
+
+
+@staff_member_required
+def correct_event(request, pk):
+    if not can_correct(request.user):
+        raise PermissionDenied
+    event = get_object_or_404(Event.objects.select_related('device', 'process'), pk=pk, event_type__in=Event.REQUIRED_KIND)
+    nxt = request.GET.get('next', '')
+    back = nxt if url_has_allowed_host_and_scheme(nxt, {request.get_host()}) else reverse('order_list')
+    form = CorrectEventForm(request.POST or None)
+    if request.method == 'POST' and form.is_valid():
+        d = form.cleaned_data
+        try:
+            correct_event_service(event, request.user, d['reason'], d['replacement'])
+        except ValidationError as e:
+            form.add_error(None, e)
+        else:
+            messages.success(request, _('Event corrected.'))
+            return redirect(back)
+    return render(request, 'tracking/correct_event.html', {'form': form, 'event': event, 'back': back})
 
 
 @staff_member_required

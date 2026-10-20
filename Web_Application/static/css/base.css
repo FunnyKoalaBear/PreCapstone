@@ -198,3 +198,10 @@ h1 .button-secondary, h2 .button-secondary {
 /* Order edit: notes and read-only route */
 .note { margin: 0.25rem 0; font-size: 0.875rem; color: var(--color-muted); }
 .route-readonly { margin: 0 0 0.25rem; padding-left: 1.25rem; }
+
+.event-voided td { color: var(--color-muted); }
+.event-voided td:not(:first-child):not(:last-child) { text-decoration: line-through; }
+.event-voided .event-reason { text-decoration: none; display: block; }
+.event-reason { font-size: 0.85rem; color: var(--color-muted); }
+.badge-manual { color: var(--status-waiting); }
+.badge-voided { color: var(--status-late); }

@@ -25,6 +25,18 @@ Then apply migrations:
 .venv\Scripts\python manage.py migrate
 ```
 
+### Switching database (Pi or local)
+
+Keep one file per profile next to `.env`: `.env.db.pi` and `.env.db.local`, each with only the `DB_*` lines (see `.env.db.example`). They are git-ignored. Then:
+
+```powershell
+scripts\db.ps1 pi       # use the Raspberry Pi database
+scripts\db.ps1 local    # use the local database
+scripts\db.ps1 status   # show the active profile
+```
+
+The script copies the chosen file to `.env.db`, which overrides the `DB_*` lines of `.env`. Restart `runserver` after switching.
+
 ## Run
 
 ```powershell

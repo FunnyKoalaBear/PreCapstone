@@ -66,3 +66,32 @@ class AssignTagForm(forms.Form):
         field.label_from_instance = lambda i: gettext('%(code)s - %(part)s (%(n)s of %(total)s boxes linked)') % {
             'code': i.item_code, 'part': i.part_name, 'n': i.linked, 'total': i.box_count,
         }
+
+
+class CorrectEventForm(forms.Form):
+    """Void one event, optionally replacing it with a manual event of the same time."""
+    reason = forms.CharField(label=_('Reason'), widget=forms.Textarea(attrs={'rows': 3}))
+    mode = forms.ChoiceField(label=_('Correction'), widget=forms.RadioSelect, initial='void',
+                             choices=[('void', _('Void only')), ('replace', _('Void and replace'))])
+    replacement = forms.ChoiceField(label=_('Replace with'), required=False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # One option per active process and event type valid for its kind
+        self.processes = {str(p.pk): p for p in Process.objects.filter(active=True).order_by('kind', 'name')}
+        self.fields['replacement'].choices = [('', '---------')] + [
+            (f'{p.pk}:{t}', f'{Event.Type(t).label} - {p}')
+            for p in self.processes.values() for t, kind in Event.REQUIRED_KIND.items() if kind == p.kind
+        ]
+
+    def clean(self):
+        data = super().clean()
+        if data.get('mode') == 'replace':
+            if not data.get('replacement'):
+                self.add_error('replacement', _('Choose the replacement event.'))
+            else:
+                pk, event_type = data['replacement'].split(':')
+                data['replacement'] = {'process': self.processes[pk], 'event_type': event_type}
+        else:
+            data['replacement'] = None
+        return data

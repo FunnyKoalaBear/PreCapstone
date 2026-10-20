@@ -70,7 +70,7 @@ def _window(a):
 def _live(q):
     """Events matching q, minus those voided by a CORRECTION, oldest first."""
     corrected = Event.objects.filter(event_type=Event.Type.CORRECTION).values('corrects_id')
-    return Event.objects.filter(q).exclude(pk__in=corrected).order_by('occurred_at', 'pk')
+    return Event.objects.filter(q).exclude(pk__in=corrected).exclude(event_type=Event.Type.CORRECTION).order_by('occurred_at', 'pk')
 
 
 def events_for_box(assignments):
@@ -79,6 +79,18 @@ def events_for_box(assignments):
     for a in assignments:
         q |= _window(a)
     return _live(q) if q else Event.objects.none()
+
+
+def events_with_voids(assignments):
+    """Like events_for_box but voided events are kept, each with .voided_by (its CORRECTION or None)."""
+    q = Q()
+    for a in assignments:
+        q |= _window(a)
+    events = list(Event.objects.filter(q).exclude(event_type=Event.Type.CORRECTION).select_related('process', 'device').order_by('occurred_at', 'pk')) if q else []
+    voids = {c.corrects_id: c for c in Event.objects.filter(event_type=Event.Type.CORRECTION, corrects__in=events)}
+    for e in events:
+        e.voided_by = voids.get(e.pk)
+    return events
 
 
 def events_for_assignment(assignment):

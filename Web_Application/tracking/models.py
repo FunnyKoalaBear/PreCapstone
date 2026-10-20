@@ -1,5 +1,6 @@
 import secrets
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import F, Q
@@ -128,17 +129,25 @@ class Event(models.Model):
     corrects = models.ForeignKey(
         'self', on_delete=models.PROTECT, null=True, blank=True, verbose_name=_('corrects'),
     )
+    reason = models.TextField(_('reason'), blank=True)
+    is_manual = models.BooleanField(_('manual'), default=False)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, verbose_name=_('created by'),
+    )
 
     class Meta:
         verbose_name = _('event')
         verbose_name_plural = _('events')
         ordering = ['occurred_at']
+        permissions = [('correct_event', _('Can correct events'))]
 
     def __str__(self):
         return f'{self.occurred_at:%Y-%m-%d %H:%M} {self.event_type} {self.tag_uid}'
 
     def clean(self):
         self.tag_uid = self.tag_uid.strip().upper()
+        if (self.event_type == self.Type.CORRECTION or self.is_manual) and not self.reason.strip():
+            raise ValidationError({'reason': _('A reason is required.')})
         if self.event_type == self.Type.CORRECTION:
             if not self.corrects_id:
                 raise ValidationError({'corrects': _('A correction must reference the event it corrects.')})

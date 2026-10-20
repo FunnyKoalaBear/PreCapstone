@@ -1,4 +1,4 @@
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.utils import timezone
 from django.utils.translation import gettext as _
@@ -90,3 +90,38 @@ def replace_tag(assignment, new_uid, mark_lost=True):
             old.tag.active = False
             old.tag.save(update_fields=['active'])
         return new
+
+
+def can_correct(user):
+    """Only users holding the correct_event permission (superusers included) may correct events."""
+    return user.is_active and user.has_perm('tracking.correct_event')
+
+
+def correct_event(event, user, reason, replacement=None):
+    """Void an event with a CORRECTION, optionally adding a manual replacement; the original is never touched."""
+    if not can_correct(user):
+        raise PermissionDenied
+    reason = reason.strip()
+    with transaction.atomic():
+        original = Event.objects.select_for_update().get(pk=event.pk)
+        if original.event_type == Event.Type.CORRECTION:
+            raise ValidationError(_('A correction cannot be corrected.'))
+        if Event.objects.filter(event_type=Event.Type.CORRECTION, corrects=original).exists():
+            raise ValidationError(_('This event is already voided.'))
+        correction = Event(
+            device=original.device, tag_uid=original.tag_uid, event_type=Event.Type.CORRECTION,
+            corrects=original, occurred_at=timezone.now(), reason=reason, created_by=user,
+        )
+        correction.full_clean()
+        new = None
+        if replacement:
+            new = Event(
+                device=original.device, tag_uid=original.tag_uid, process=replacement['process'],
+                event_type=replacement['event_type'], occurred_at=original.occurred_at,
+                is_manual=True, reason=reason, created_by=user,
+            )
+            new.full_clean()
+        correction.save()
+        if new:
+            new.save()
+    return correction, new

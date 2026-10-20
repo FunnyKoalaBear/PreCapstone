@@ -4,6 +4,7 @@ from . import api, views
 
 urlpatterns = [
     path('api/scan/', api.scan, name='api_scan'),
+    path('events/<int:pk>/correct/', views.correct_event, name='correct_event'),
     path('simulate/', views.simulate, name='simulate'),
     path('priorities/', views.priorities, name='priorities'),
     path('boxes/', views.boxes, name='boxes'),

@@ -2,8 +2,8 @@ import json
 from datetime import date, datetime, timedelta
 from datetime import timezone as dt_timezone
 
-from django.contrib.auth.models import User
-from django.core.exceptions import ValidationError
+from django.contrib.auth.models import Permission, User
+from django.core.exceptions import PermissionDenied, ValidationError
 from types import SimpleNamespace
 
 from django.test import override_settings
@@ -16,7 +16,7 @@ from .forms import AssignTagForm
 from .models import Box, Event, ScannerDevice, Tag, TagAssignment
 from .overview import active_boxes, process_board
 from .priority import priority
-from .services import assign_tag, record_event, release_assignment, replace_tag
+from .services import assign_tag, correct_event, record_event, release_assignment, replace_tag
 from .status import AT_VENDOR, COMPLETE, IN_PROGRESS, NOT_STARTED, WAITING, BoxStatus, ItemStatus, _roll_up, events_for_item, days_late, next_action, due_back, idle_for, is_stagnant, item_status, timeline
 
 E = Event.Type
@@ -1086,3 +1086,93 @@ class ScanApiTests(TestCase):
 
     def test_auto_bad_key(self):
         self.assertEqual(self.auto(key='nope').status_code, 401)
+
+
+class CorrectEventTests(TestCase):
+    def setUp(self):
+        self.now = timezone.now()
+        self.mat = Process.objects.create(name='Mat', kind=K.MATERIAL)
+        self.mach = Process.objects.create(name='Mach', kind=K.MACHINING)
+        order = Order.objects.create(customer=Customer.objects.create(name='C'), due_date=self.now.date())
+        self.item = OrderItem.objects.create(order=order, part_name='P', quantity=1)
+        for i, p in enumerate((self.mat, self.mach), 1):
+            RouteStep.objects.create(item=self.item, sequence=i, process=p)
+        self.start = self.now - timedelta(hours=10)
+        TagAssignment.objects.create(tag=Tag.objects.create(uid='AB12'), box=Box.objects.create(label='B'), item=self.item, start_at=self.start)
+        self.device = ScannerDevice.objects.create(name='D')
+        self.event = Event.objects.create(device=self.device, tag_uid='AB12', event_type=E.ARRIVED, process=self.mat, occurred_at=self.start + timedelta(hours=1))
+        self.user = User.objects.create_user('planner', password='x', is_staff=True)
+        self.user.user_permissions.add(Permission.objects.get(codename='correct_event'))
+
+    def code(self):
+        return item_status(self.item).code
+
+    def test_void_is_ignored_by_status(self):
+        self.assertEqual(self.code(), WAITING)
+        correction, new = correct_event(self.event, self.user, 'wrong scan')
+        self.assertIsNone(new)
+        self.assertEqual((correction.corrects, correction.created_by, correction.process), (self.event, self.user, None))
+        self.assertEqual(self.code(), NOT_STARTED)
+
+    def test_void_and_replace_keeps_original_time(self):
+        _, new = correct_event(self.event, self.user, 'wrong type', {'process': self.mach, 'event_type': E.STARTED})
+        self.assertEqual((new.occurred_at, new.is_manual, new.reason, new.created_by), (self.event.occurred_at, True, 'wrong type', self.user))
+        self.assertEqual(self.code(), IN_PROGRESS)
+
+    def test_reason_required(self):
+        with self.assertRaises(ValidationError):
+            correct_event(self.event, self.user, '  ')
+        self.assertEqual(Event.objects.count(), 1)
+
+    def test_manual_event_needs_reason(self):
+        with self.assertRaises(ValidationError):
+            Event(device=self.device, tag_uid='AB12', event_type=E.ARRIVED, process=self.mat, is_manual=True).full_clean()
+
+    def test_double_void_refused(self):
+        correct_event(self.event, self.user, 'x')
+        with self.assertRaises(ValidationError):
+            correct_event(self.event, self.user, 'again')
+        self.assertEqual(Event.objects.count(), 2)
+
+    def test_correction_cannot_be_corrected(self):
+        correction, _ = correct_event(self.event, self.user, 'x')
+        with self.assertRaises(ValidationError):
+            correct_event(correction, self.user, 'y')
+
+    def test_user_without_permission_refused(self):
+        other = User.objects.create_user('op', password='x', is_staff=True)
+        with self.assertRaises(PermissionDenied):
+            correct_event(self.event, other, 'x')
+        self.assertEqual(Event.objects.count(), 1)
+
+    def test_superuser_allowed(self):
+        root = User.objects.create_superuser('root', password='x')
+        correct_event(self.event, root, 'x')
+
+    def test_original_row_unchanged(self):
+        before = Event.objects.filter(pk=self.event.pk).values().get()
+        correct_event(self.event, self.user, 'x', {'process': self.mat, 'event_type': E.ARRIVED})
+        self.assertEqual(Event.objects.filter(pk=self.event.pk).values().get(), before)
+
+    def test_correct_page_flow(self):
+        self.client.force_login(self.user)
+        url = f'/events/{self.event.pk}/correct/'
+        self.assertEqual(self.client.get(url).status_code, 200)
+        r = self.client.post(url, {'reason': '', 'mode': 'void'})
+        self.assertEqual((r.status_code, Event.objects.count()), (200, 1))
+        r = self.client.post(url, {'reason': 'oops', 'mode': 'replace', 'replacement': f'{self.mach.pk}:STARTED'})
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(Event.objects.count(), 3)
+
+    def test_correct_page_forbidden_without_permission(self):
+        self.client.force_login(User.objects.create_user('op', password='x', is_staff=True))
+        self.assertEqual(self.client.get(f'/events/{self.event.pk}/correct/').status_code, 403)
+
+    def test_detail_shows_voided_and_manual(self):
+        correct_event(self.event, self.user, 'bad scan', {'process': self.mat, 'event_type': E.ARRIVED})
+        self.client.force_login(self.user)
+        html = self.client.get(f'/orders/{self.item.order.job_number}/').content.decode()
+        self.assertIn('event-voided', html)
+        self.assertIn('bad scan', html)
+        self.assertIn('Manual', html)
+        self.assertIn('Correct', html)

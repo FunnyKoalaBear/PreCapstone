@@ -7,3 +7,6 @@ staticfiles/
 media/
 body.json
 *.dump
+.env.db
+.env.db.pi
+.env.db.local
