@@ -174,6 +174,19 @@ class OrderDetailTests(TestCase):
         self.assertContains(r, 'Arrived')
         self.assertContains(r, 'Done')
 
+    def test_shows_step_table_and_chart(self):
+        mach = Process.objects.create(name='Mach', kind=K.MACHINING)
+        RouteStep.objects.create(item=self.item, sequence=2, process=mach)
+        dev = ScannerDevice.objects.create(name='D')
+        record_event(dev, 'AB', self.proc, 'ARRIVED')
+        record_event(dev, 'AB', mach, 'STARTED')
+        r = self.client.get(self.url)
+        for text in ('Time spent', 'Waited before', 'Timeline', 'gantt-bar gantt-instant', 'gantt-bar gantt-in_progress', 'gantt-now'):
+            self.assertContains(r, text)
+
+    def test_chart_empty_without_events(self):
+        self.assertNotContains(self.client.get(self.url), 'gantt-bar')
+
 
 class BoxViewTests(TestCase):
     def setUp(self):

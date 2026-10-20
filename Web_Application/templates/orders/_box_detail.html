@@ -1,25 +1,68 @@
 {% load i18n duration %}
-      <ol class="timeline">
-        {% for s in b.steps %}
-          {% if s.wait_before %}<li class="timeline-wait">{% blocktrans with d=s.wait_before|duration %}waited {{ d }}{% endblocktrans %}</li>{% endif %}
-          <li class="timeline-step timeline-{{ s.row.state }}">
-            <span class="timeline-marker">{{ s.row.step.sequence }}</span>
-            <div class="timeline-body">
-              <strong>{{ s.row.step.process }}{% if s.row.step.process.vendor_name %} ({{ s.row.step.process.vendor_name }}){% endif %}</strong>
-              <span class="badge badge-{{ s.row.state }}">{{ s.label }}</span>
-              {% if s.due_back %}
-                <small>{% blocktrans with d=s.due_back|date:"Y-m-d" %}due back {{ d }}{% endblocktrans %}</small>
-                {% if s.late_days %}<span class="badge badge-overdue">{% blocktrans count counter=s.late_days %}Late by {{ counter }} day{% plural %}Late by {{ counter }} days{% endblocktrans %}</span>{% endif %}
-              {% endif %}
-              <div class="timeline-times">
-                {% trans "Started" %}: {{ s.row.started_at|date:"Y-m-d H:i"|default:"-" }}
-                &middot; {% trans "Finished" %}: {{ s.row.finished_at|date:"Y-m-d H:i"|default:"-" }}
-                {% if s.duration %}&middot; {{ s.duration|duration }}{% if s.running %} {% trans "so far" %}{% endif %}{% endif %}
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{% trans "Process" %}</th>
+              <th>{% trans "Status" %}</th>
+              <th>{% trans "Started" %}</th>
+              <th>{% trans "Finished" %}</th>
+              <th>{% trans "Time spent" %}</th>
+              <th>{% trans "Waited before" %}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in b.steps %}
+              <tr>
+                <td>{{ s.row.step.process }}</td>
+                <td><span class="badge badge-{{ s.row.state }}">{{ s.label }}</span>{% if s.late_days %} <span class="badge badge-overdue">{% blocktrans count counter=s.late_days %}Late by {{ counter }} day{% plural %}Late by {{ counter }} days{% endblocktrans %}</span>{% endif %}</td>
+                <td>{{ s.row.started_at|date:"Y-m-d H:i"|default:"-" }}</td>
+                <td>{{ s.row.finished_at|date:"Y-m-d H:i"|default:"-" }}</td>
+                <td>{% if s.duration %}{{ s.duration|duration }}{% if s.running %} {% trans "so far" %}{% endif %}{% else %}-{% endif %}</td>
+                <td>{% if s.wait_before %}{{ s.wait_before|duration }}{% else %}-{% endif %}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <h{% if single %}3{% else %}4{% endif %}>{% trans "Timeline" %}</h{% if single %}3{% else %}4{% endif %}>
+      {% if b.chart %}
+        <div class="gantt">
+          {% for s in b.steps %}
+            {% with bar=s.bar %}
+              <div class="gantt-row{% if s.current %} gantt-current{% endif %}">
+                <div class="gantt-name">
+                  {{ s.row.step.process }}{% if s.row.step.process.vendor_name %} ({{ s.row.step.process.vendor_name }}){% endif %}
+                  {% if s.due_back %}<small>{% blocktrans with d=s.due_back|date:"Y-m-d" %}due back {{ d }}{% endblocktrans %}</small>{% endif %}
+                  {% if s.late_days %}<span class="badge badge-overdue">{% blocktrans count counter=s.late_days %}Late by {{ counter }} day{% plural %}Late by {{ counter }} days{% endblocktrans %}</span>{% endif %}
+                </div>
+                <div class="gantt-track">
+                  {% if bar.wait_width %}<span class="gantt-wait" style="--left:{{ bar.wait_left|stringformat:'.2f' }}%;--w:{{ bar.wait_width|stringformat:'.2f' }}%" title="{% blocktrans with d=s.wait_before|duration %}waited {{ d }}{% endblocktrans %}"></span>{% endif %}
+                  {% if bar.kind != "pending" %}
+                    {% blocktrans asvar desc with p=s.row.step.process l=s.label a=s.row.started_at|date:"Y-m-d H:i"|default:"-" f=s.row.finished_at|date:"Y-m-d H:i"|default:"-" d=s.duration|duration|default:"-" %}{{ p }}, {{ l }}: started {{ a }}, finished {{ f }}, time spent {{ d }}{% endblocktrans %}
+                    <span class="gantt-bar gantt-{{ bar.kind }}" style="--left:{{ bar.left|stringformat:'.2f' }}%;--w:{{ bar.width|stringformat:'.2f' }}%" title="{{ desc }}" aria-label="{{ desc }}"></span>
+                  {% endif %}
+                  {% if b.chart.now_pct is not None %}<span class="gantt-now" style="--left:{{ b.chart.now_pct|stringformat:'.2f' }}%"></span>{% endif %}
+                </div>
               </div>
-            </div>
-          </li>
-        {% endfor %}
-      </ol>
+            {% endwith %}
+          {% endfor %}
+          <div class="gantt-row gantt-axis">
+            <div class="gantt-name"></div>
+            <div class="gantt-ticks"><span>{{ b.chart.start|date:"Y-m-d H:i" }}</span><span>{{ b.chart.mid|date:"Y-m-d H:i" }}</span><span>{{ b.chart.end|date:"Y-m-d H:i" }}</span></div>
+          </div>
+          <p class="gantt-legend">
+            <span class="gantt-key gantt-done"></span>{% trans "Done" %}
+            <span class="gantt-key gantt-in_progress"></span>{% trans "In progress" %}
+            <span class="gantt-key gantt-at_vendor"></span>{% trans "At vendor" %}
+            <span class="gantt-key gantt-wait"></span>{% trans "Waited before" %}
+            {% if b.chart.now_pct is not None %}<span class="gantt-key gantt-now-key"></span>{% trans "Now" %}{% endif %}
+          </p>
+        </div>
+      {% else %}
+        <p>{% trans "No events yet." %}</p>
+      {% endif %}
 
       {% if single %}<h3>{% trans "Event history" %}</h3>{% else %}<h4>{% trans "Event history" %}</h4>{% endif %}
       <div class="table-wrap">

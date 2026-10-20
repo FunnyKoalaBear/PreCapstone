@@ -115,3 +115,7 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | Voided | 取消済み ? |
 | Void only / Void and replace | 取消のみ / 取消して置き換え |
 | Correct (an event) | 訂正 |
+| Time spent | 所要時間 |
+| Waited before | 直前の待ち時間 |
+| Timeline | タイムライン |
+| Now | 現在 |

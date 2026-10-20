@@ -5,6 +5,8 @@
   --color-muted: #6b7785;
   --color-primary: #2563eb;
   --color-border: #d9dee5;
+  --gantt-track-bg: #eef0f3;
+  --gantt-vendor-stripe: #a78bfa;
 
   --status-waiting: #d97706;
   --status-in-progress: #2563eb;

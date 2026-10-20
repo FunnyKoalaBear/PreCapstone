@@ -17,7 +17,7 @@ from .models import Box, Event, ScannerDevice, Tag, TagAssignment
 from .overview import active_boxes, process_board
 from .priority import priority
 from .services import assign_tag, correct_event, record_event, release_assignment, replace_tag
-from .status import AT_VENDOR, COMPLETE, IN_PROGRESS, NOT_STARTED, WAITING, BoxStatus, ItemStatus, _roll_up, events_for_item, days_late, next_action, due_back, idle_for, is_stagnant, item_status, timeline
+from .status import gantt, AT_VENDOR, COMPLETE, IN_PROGRESS, NOT_STARTED, WAITING, BoxStatus, ItemStatus, _roll_up, events_for_item, days_late, next_action, due_back, idle_for, is_stagnant, item_status, timeline
 
 E = Event.Type
 K = Process.Kind
@@ -309,6 +309,50 @@ class DueBackTests(TestCase):
         self.assertEqual((days_late(date(2030, 1, 7), today), days_late(today, today), days_late(None, today)), (3, 0, 0))
 
 
+class GanttTests(TestCase):
+    def setUp(self):
+        self.t0 = datetime(2026, 1, 1, 9, 0, tzinfo=dt_timezone.utc)
+
+    def row(self, state, start=None, end=None):
+        from .status import StepRow
+        h = lambda x: None if x is None else self.t0 + timedelta(hours=x)
+        return StepRow(None, state, h(start), h(end))
+
+    def test_finished_steps_and_wait_gap(self):
+        g = gantt([self.row('done', 0, 2), self.row('done', 4, 8)])
+        a, b = g['rows']
+        self.assertEqual((a['kind'], a['left'], a['width'], a['wait_left']), ('done', 0, 25, None))
+        self.assertEqual((b['left'], b['width'], b['wait_left'], b['wait_width']), (50, 50, 25, 25))
+        self.assertIsNone(g['now_pct'])
+
+    def test_running_step_ends_at_now(self):
+        g = gantt([self.row('done', 0, 2), self.row('in_progress', 2)], now=self.t0 + timedelta(hours=4))
+        run = g['rows'][1]
+        self.assertEqual((run['kind'], run['left'], run['width'], run['wait_width'], g['now_pct'], g['end']), ('in_progress', 50, 50, None, 100, self.t0 + timedelta(hours=4)))
+
+    def test_single_instant_step(self):
+        g = gantt([self.row('done', 1, 1)], now=self.t0 + timedelta(hours=5))
+        self.assertEqual((g['rows'][0]['kind'], g['rows'][0]['left'], g['start'], g['end']), ('instant', 0, g['end'], g['start']))
+
+    def test_no_wait_without_positive_gap(self):
+        g = gantt([self.row('done', 0, 2), self.row('done', 2, 3), self.row('done', 1, 4)])
+        self.assertEqual([r['wait_width'] for r in g['rows']], [None, None, None])
+
+    def test_pending_steps_and_no_started(self):
+        self.assertIsNone(gantt([self.row('pending'), self.row('pending')]))
+        g = gantt([self.row('done', 0, 1), self.row('pending')])
+        self.assertEqual(g['rows'][1]['kind'], 'pending')
+
+    def test_zero_span_does_not_divide_by_zero(self):
+        g = gantt([self.row('done', 0, 0), self.row('done', 0, 0)])
+        self.assertEqual([r['kind'] for r in g['rows']], ['instant', 'instant'])
+
+    def test_bars_at_least_one_percent(self):
+        g = gantt([self.row('done', 0, 0.01), self.row('done', 50, 100)])
+        self.assertGreaterEqual(g['rows'][0]['width'], 1)
+        self.assertLessEqual(g['rows'][0]['left'] + g['rows'][0]['width'], 100)
+
+
 class TimelineTests(TestCase):
     def setUp(self):
         self.t0 = datetime(2026, 1, 1, 9, 0, tzinfo=dt_timezone.utc)
@@ -328,7 +372,14 @@ class TimelineTests(TestCase):
 
     def test_running_at_vendor(self):
         t = timeline([self.row('at_vendor', 0)], now=self.t0 + timedelta(hours=5))[0]
-        self.assertTrue(t['running'])
+        self.assertEqual((t['running'], t['duration']), (True, timedelta(hours=5)))
+
+    def test_arrived_step_has_no_duration(self):
+        t = timeline([self.row('done', 2, 2)], now=self.t0 + timedelta(hours=9))[0]
+        self.assertIsNone(t['duration'])
+
+    def test_first_step_has_no_wait(self):
+        self.assertIsNone(timeline([self.row('done', 1, 2)])[0]['wait_before'])
 
     def test_unstarted_step(self):
         t = timeline([self.row('pending')])[0]

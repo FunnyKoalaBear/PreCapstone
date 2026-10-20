@@ -148,16 +148,26 @@ h1 .button-secondary, h2 .button-secondary {
 .warnings { margin: 0 0 0.75rem; padding-left: 1.25rem; color: var(--status-waiting); }
 .counter-late strong { color: var(--status-late); }
 
-/* Order timeline */
-.timeline { list-style: none; margin: 1rem 0; padding: 0 0 0 1.25rem; border-left: 2px solid var(--color-border); }
-.timeline-step { position: relative; display: flex; gap: 0.75rem; padding: 0.5rem 0; }
-.timeline-marker { position: absolute; left: -2.1rem; width: 1.6rem; height: 1.6rem; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--color-surface); border: 2px solid var(--color-muted); color: var(--color-muted); font-size: 0.8rem; }
-.timeline-in_progress .timeline-marker { border-color: var(--status-in-progress); color: var(--status-in-progress); }
-.timeline-at_vendor .timeline-marker { border-color: var(--status-at-vendor); color: var(--status-at-vendor); }
-.timeline-done .timeline-marker { border-color: var(--status-done); color: var(--status-done); }
-.timeline-body { min-width: 0; overflow-wrap: anywhere; }
-.timeline-times { color: var(--color-muted); font-size: 0.85rem; }
-.timeline-wait { color: var(--color-muted); font-size: 0.8rem; font-style: italic; padding: 0.1rem 0; }
+/* Order timeline (Gantt) */
+.gantt { margin: 1rem 0; }
+.gantt-row { display: grid; grid-template-columns: 12rem 1fr; gap: 0.75rem; align-items: center; padding: 0.25rem 0; }
+.gantt-name { min-width: 0; overflow-wrap: anywhere; }
+.gantt-current .gantt-name { font-weight: bold; }
+.gantt-track { position: relative; height: 1.25rem; background: var(--gantt-track-bg); border-radius: 0.25rem; }
+.gantt-bar, .gantt-wait { position: absolute; top: 0; bottom: 0; left: var(--left); width: var(--w); }
+.gantt-wait { background: var(--color-border); }
+.gantt-bar { border-radius: 0.2rem; }
+.gantt-done { background: var(--status-done); }
+.gantt-in_progress { background: var(--status-in-progress); }
+.gantt-at_vendor { background: repeating-linear-gradient(45deg, var(--status-at-vendor) 0 5px, var(--gantt-vendor-stripe) 5px 10px); }
+.gantt-instant { width: 0.75rem; margin-left: -0.375rem; background: var(--status-done); transform: scaleY(0.7) rotate(45deg); }
+.gantt-now { position: absolute; top: -0.2rem; bottom: -0.2rem; left: var(--left); width: 2px; background: var(--status-late); }
+.gantt-ticks { display: flex; justify-content: space-between; color: var(--color-muted); font-size: 0.8rem; }
+.gantt-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.75rem; color: var(--color-muted); font-size: 0.8rem; }
+.gantt-key { display: inline-block; width: 1rem; height: 0.6rem; margin-right: 0.25rem; border-radius: 0.15rem; }
+.gantt-key.gantt-wait { position: static; }
+.gantt-now-key { width: 2px; height: 0.9rem; background: var(--status-late); }
+@media (max-width: 640px) { .gantt-row { grid-template-columns: 1fr; gap: 0.15rem; } .gantt-axis .gantt-name { display: none; } }
 
 /* Risk badges and priority tier filters */
 .badge-risk-overdue { color: var(--risk-overdue); }

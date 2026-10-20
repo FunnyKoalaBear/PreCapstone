@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Factory Tracker\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-20 15:34+0900\n"
+"POT-Creation-Date: 2026-10-20 16:38+0900\n"
 "PO-Revision-Date: 2026-10-11 17:00+0900\n"
 "Last-Translator: Claude\n"
 "Language-Team: Japanese\n"
@@ -389,8 +389,8 @@ msgstr "スキャンのシミュレーション"
 msgid "Dashboard coming soon."
 msgstr "ダッシュボードは準備中です。"
 
-#: .\templates\core\home.html:13 .\tracking\status.py:17
-#: .\tracking\status.py:26 .\tracking\views.py:225
+#: .\templates\core\home.html:13 .\templates\orders\_box_detail.html:57
+#: .\tracking\status.py:17 .\tracking\status.py:26 .\tracking\views.py:225
 msgid "In progress"
 msgstr "作業中"
 
@@ -400,8 +400,8 @@ msgstr "作業中"
 msgid "Waiting"
 msgstr "待機中"
 
-#: .\templates\core\home.html:15 .\tracking\status.py:18
-#: .\tracking\status.py:27 .\tracking\views.py:226
+#: .\templates\core\home.html:15 .\templates\orders\_box_detail.html:58
+#: .\tracking\status.py:18 .\tracking\status.py:27 .\tracking\views.py:226
 msgid "At vendor"
 msgstr "外注中"
 
@@ -454,73 +454,109 @@ msgid "%(counter)s day"
 msgid_plural "%(counter)s days"
 msgstr[0] "%(counter)s日"
 
-#: .\templates\orders\_box_detail.html:4
-#, python-format
-msgid "waited %(d)s"
-msgstr "待ち時間 %(d)s"
+#: .\templates\orders\_box_detail.html:6 .\templates\orders\_box_detail.html:74
+#: .\templates\tracking\simulate.html:53
+msgid "Process"
+msgstr "工程"
+
+#: .\templates\orders\_box_detail.html:7
+#: .\templates\orders\customer_detail.html:25
+#: .\templates\orders\order_list.html:15 .\templates\orders\order_list.html:45
+#: .\templates\tracking\boxes.html:33
+msgid "Status"
+msgstr "状態"
+
+#: .\templates\orders\_box_detail.html:8 .\tracking\models.py:108
+msgid "Started"
+msgstr "開始"
+
+#: .\templates\orders\_box_detail.html:9 .\tracking\models.py:109
+msgid "Finished"
+msgstr "完了"
+
+#: .\templates\orders\_box_detail.html:10
+msgid "Time spent"
+msgstr "所要時間"
 
 #: .\templates\orders\_box_detail.html:11
-#, python-format
-msgid "due back %(d)s"
-msgstr "戻り予定 %(d)s"
+#: .\templates\orders\_box_detail.html:59
+msgid "Waited before"
+msgstr "直前の待ち時間"
 
-#: .\templates\orders\_box_detail.html:12
+#: .\templates\orders\_box_detail.html:18
+#: .\templates\orders\_box_detail.html:38
 #, python-format
 msgid "Late by %(counter)s day"
 msgid_plural "Late by %(counter)s days"
 msgstr[0] "%(counter)s日遅れ"
 
-#: .\templates\orders\_box_detail.html:15 .\tracking\models.py:108
-msgid "Started"
-msgstr "開始"
-
-#: .\templates\orders\_box_detail.html:16 .\tracking\models.py:109
-msgid "Finished"
-msgstr "完了"
-
-#: .\templates\orders\_box_detail.html:17
+#: .\templates\orders\_box_detail.html:21
 msgid "so far"
 msgstr "経過中"
 
-#: .\templates\orders\_box_detail.html:24
+#: .\templates\orders\_box_detail.html:29
+msgid "Timeline"
+msgstr "タイムライン"
+
+#: .\templates\orders\_box_detail.html:37
+#, python-format
+msgid "due back %(d)s"
+msgstr "戻り予定 %(d)s"
+
+#: .\templates\orders\_box_detail.html:41
+#, python-format
+msgid "waited %(d)s"
+msgstr "待ち時間 %(d)s"
+
+#: .\templates\orders\_box_detail.html:43
+#, python-format
+msgid "%(p)s, %(l)s: started %(a)s, finished %(f)s, time spent %(d)s"
+msgstr "%(p)s、%(l)s:開始 %(a)s、完了 %(f)s、所要時間 %(d)s"
+
+#: .\templates\orders\_box_detail.html:56 .\tracking\status.py:28
+msgid "Done"
+msgstr "完了"
+
+#: .\templates\orders\_box_detail.html:60
+msgid "Now"
+msgstr "現在"
+
+#: .\templates\orders\_box_detail.html:64
+#: .\templates\orders\_box_detail.html:95 .\templates\tracking\simulate.html:68
+msgid "No events yet."
+msgstr "履歴はまだありません。"
+
+#: .\templates\orders\_box_detail.html:67
 msgid "Event history"
 msgstr "履歴"
 
-#: .\templates\orders\_box_detail.html:29
+#: .\templates\orders\_box_detail.html:72
 #: .\templates\orders\order_detail.html:74
 #: .\templates\tracking\simulate.html:51
 msgid "Time (JST)"
 msgstr "時刻（JST）"
 
-#: .\templates\orders\_box_detail.html:30 .\templates\tracking\simulate.html:54
+#: .\templates\orders\_box_detail.html:73 .\templates\tracking\simulate.html:54
 msgid "Action"
 msgstr "操作"
 
-#: .\templates\orders\_box_detail.html:31 .\templates\tracking\simulate.html:53
-msgid "Process"
-msgstr "工程"
-
-#: .\templates\orders\_box_detail.html:32 .\templates\tracking\simulate.html:55
+#: .\templates\orders\_box_detail.html:75 .\templates\tracking\simulate.html:55
 #: .\tracking\forms.py:16 .\tracking\forms.py:44
 msgid "Device"
 msgstr "読取端末"
 
-#: .\templates\orders\_box_detail.html:41
+#: .\templates\orders\_box_detail.html:84
 msgid "Manual"
 msgstr "手動"
 
 # CHECK: 取消済み = voided by a correction
-#: .\templates\orders\_box_detail.html:42
+#: .\templates\orders\_box_detail.html:85
 msgid "Voided"
 msgstr "取消済み"
 
-#: .\templates\orders\_box_detail.html:48
+#: .\templates\orders\_box_detail.html:91
 msgid "Correct"
 msgstr "訂正"
-
-#: .\templates\orders\_box_detail.html:52 .\templates\tracking\simulate.html:68
-msgid "No events yet."
-msgstr "履歴はまだありません。"
 
 #: .\templates\orders\_item_card.html:4
 msgid "Cannot be removed because it has tags or scans."
@@ -570,12 +606,6 @@ msgstr "製番"
 #: .\templates\orders\order_list.html:42
 msgid "Customer order number"
 msgstr "客先注文番号"
-
-#: .\templates\orders\customer_detail.html:25
-#: .\templates\orders\order_list.html:15 .\templates\orders\order_list.html:45
-#: .\templates\tracking\boxes.html:33
-msgid "Status"
-msgstr "状態"
 
 # CHECK: 納期遅れ is marked unsure in the glossary (alternative: 遅延)
 #: .\templates\orders\customer_detail.html:35
@@ -1243,10 +1273,6 @@ msgstr "完了"
 #: .\tracking\status.py:25
 msgid "Pending"
 msgstr "未処理"
-
-#: .\tracking\status.py:28
-msgid "Done"
-msgstr "完了"
 
 #: .\tracking\status.py:137
 #, python-brace-format

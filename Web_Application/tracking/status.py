@@ -251,10 +251,43 @@ def timeline(rows, now=None):
         running = r.state in (STEP_IN_PROGRESS, STEP_AT_VENDOR) and r.started_at is not None
         end = now if running else r.finished_at
         duration = end - r.started_at if r.started_at and end else None
+        if duration == timedelta(0) and not running:
+            duration = None  # arrived steps start and finish together: no time spent
         wait = r.started_at - prev_end if r.started_at and prev_end else None
         out.append({'duration': duration, 'running': running, 'wait_before': wait if wait and wait >= timedelta(0) else None})
         prev_end = r.finished_at or prev_end
     return out
+
+
+def gantt(rows, now=None):
+    """Bar-chart layout for one item's rows, or None when no step has started."""
+    now = now or timezone.now()
+    started = [r.started_at for r in rows if r.started_at]
+    if not started:
+        return None
+    live = lambda r: r.state in (STEP_IN_PROGRESS, STEP_AT_VENDOR)
+    running = any(live(r) and r.started_at for r in rows)
+    start = min(started)
+    end = max([r.finished_at for r in rows if r.finished_at] + [now] * running + [start])
+    span = max((end - start).total_seconds(), 60)
+    pct = lambda t: min(max((t - start).total_seconds() / span * 100, 0), 100)
+    out, prev_end = [], None
+    for r in rows:
+        bar = {'kind': PENDING, 'left': 0, 'width': 0, 'wait_left': None, 'wait_width': None}
+        if r.started_at:
+            stop = now if live(r) else r.finished_at
+            left = pct(r.started_at)
+            if stop is None or (stop == r.started_at and not live(r)):
+                bar.update(kind='instant', left=left)
+            else:
+                width = max(pct(stop) - left, 1)
+                bar.update(kind=r.state if live(r) else DONE, left=min(left, 100 - width), width=width)
+            if prev_end and r.started_at > prev_end:
+                bar.update(wait_left=pct(prev_end), wait_width=pct(r.started_at) - pct(prev_end))
+        out.append(bar)
+        prev_end = r.finished_at or prev_end
+    mid = start + (end - start) / 2
+    return {'rows': out, 'start': start, 'mid': mid, 'end': end, 'now_pct': pct(now) if running else None}
 
 
 def idle_for(status, now=None):
