@@ -4,6 +4,7 @@ from django.utils import timezone
 from django.utils.translation import gettext as _
 
 from .models import Box, Event, Tag, TagAssignment
+from .status import item_status, next_action
 
 
 def resolve_tag(uid, moment):
@@ -14,6 +15,12 @@ def resolve_tag(uid, moment):
         .select_related('tag', 'box', 'item__order')
         .first()
     )
+
+
+def next_step(assignment):
+    """(box status, (event type, process) or None) for the box this assignment belongs to."""
+    box = next(b for b in item_status(assignment.item).boxes if b.assignment and b.assignment.box_id == assignment.box_id)
+    return box, next_action(box)
 
 
 def record_event(device, tag_uid, process, event_type, occurred_at=None):

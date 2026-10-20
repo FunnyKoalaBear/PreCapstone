@@ -1035,3 +1035,54 @@ class ScanApiTests(TestCase):
     def test_bad_json(self):
         r = self.post('{not json')
         self.assertEqual((r.status_code, r.json()['error']), (400, 'invalid'))
+
+    def auto(self, **kw):
+        return self.post({'tag_uid': 'ab12'}, **kw)
+
+    def add_machining_step(self):
+        RouteStep.objects.create(item=self.item, sequence=2, process=self.mach)
+
+    @override_settings(SCAN_REPEAT_SECONDS=0)
+    def test_auto_saves_next_steps_in_order(self):
+        self.add_machining_step()
+        j = self.auto().json()
+        self.assertEqual((j['state'], j['event_type'], j['process_id'], j['process_name']), ('recorded', 'ARRIVED', self.mat.pk, 'Mat'))
+        j = self.auto().json()
+        self.assertEqual((j['state'], j['event_type'], j['process_id']), ('recorded', 'STARTED', self.mach.pk))
+        self.assertEqual(Event.objects.count(), 2)
+
+    @override_settings(SCAN_REPEAT_SECONDS=0)
+    def test_auto_finished_box_saves_nothing(self):
+        self.auto()
+        r = self.auto()
+        self.assertEqual((r.status_code, r.json()['state']), (200, 'finished'))
+        self.assertEqual(Event.objects.count(), 1)
+
+    @override_settings(SCAN_REPEAT_SECONDS=60)
+    def test_auto_duplicate_inside_window(self):
+        self.add_machining_step()
+        self.auto()
+        r = self.auto()
+        self.assertEqual((r.status_code, r.json()['state']), (200, 'duplicate'))
+        self.assertEqual(Event.objects.count(), 1)
+        self.assertEqual(self.post().json()['state'], 'recorded')
+
+    def test_only_one_of_process_or_event_type(self):
+        for body in ({'tag_uid': 'AB12', 'process': self.mat.pk}, {'tag_uid': 'AB12', 'event_type': 'ARRIVED'}):
+            r = self.post(body)
+            self.assertEqual((r.status_code, r.json()['error']), (400, 'invalid'))
+        self.assertEqual(Event.objects.count(), 0)
+
+    def test_explicit_mode_reply(self):
+        j = self.post().json()
+        self.assertEqual((j['state'], j['event_type'], j['process_id']), ('recorded', 'ARRIVED', self.mat.pk))
+
+    def test_auto_unassigned_tag(self):
+        r = self.post({'tag_uid': 'ZZ'})
+        self.assertEqual((r.status_code, r.json()['error']), (404, 'unassigned_tag'))
+        self.assertEqual(Event.objects.count(), 0)
+        self.device.refresh_from_db()
+        self.assertIsNotNone(self.device.last_seen)
+
+    def test_auto_bad_key(self):
+        self.assertEqual(self.auto(key='nope').status_code, 401)

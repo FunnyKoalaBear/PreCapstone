@@ -18,8 +18,8 @@ from .forms import AssignTagForm, PickTagForm, SimulateScanForm
 from .models import Box, Event, Tag, TagAssignment
 from .overview import active_boxes
 from .priority import TIER_LABELS, TIERS, priority
-from .services import assign_tag, record_event, release_assignment, replace_tag, resolve_tag
-from .status import AT_VENDOR, COMPLETE, IN_PROGRESS, NOT_STARTED, WAITING, current_row, item_status, next_action
+from .services import assign_tag, next_step, record_event, release_assignment, replace_tag, resolve_tag
+from .status import AT_VENDOR, COMPLETE, IN_PROGRESS, NOT_STARTED, WAITING, current_row, item_status
 
 
 def _next_step(uid):
@@ -27,9 +27,7 @@ def _next_step(uid):
     a = resolve_tag(uid, timezone.now())
     if a is None:
         return {'state': 'unassigned'}
-    st = item_status(a.item)
-    box = next(b for b in st.boxes if b.assignment and b.assignment.box_id == a.box_id)
-    todo = next_action(box)
+    box, todo = next_step(a)
     info = {'assignment': a, 'status': box}
     if todo is None:
         return {'state': 'finished', **info}
