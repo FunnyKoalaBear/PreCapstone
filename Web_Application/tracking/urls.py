@@ -10,6 +10,7 @@ urlpatterns = [
     path('priorities/', views.priorities, name='priorities'),
     path('boxes/', views.boxes, name='boxes'),
     path('matrix/', RedirectView.as_view(pattern_name='home', query_string=True), name='matrix'),
+    path('analysis/', views.analysis, name='analysis'),
     path('results/', views.results_summary, name='results'),
     path('shipping/', views.shipping, name='shipping'),
     path('plan-vs-actual/', views.plan_summary, name='plan_summary'),

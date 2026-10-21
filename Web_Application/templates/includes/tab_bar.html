@@ -1,0 +1,7 @@
+<nav class="tabs" aria-label="{{ label }}">
+  {% for t in tabs %}
+    <a class="tab{% if t.key == tab %} is-active{% endif %}" href="{{ t.url }}"{% if t.key == tab %} aria-current="page"{% endif %}>
+      {% include "includes/tab_icon.html" with key=t.key %}<span>{{ t.label }}</span>
+    </a>
+  {% endfor %}
+</nav>

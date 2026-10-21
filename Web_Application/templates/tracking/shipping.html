@@ -7,7 +7,21 @@
   <h1>{% trans "Shipping" %}</h1>
 
   <h2>{% trans "Ready to ship" %}</h2>
-  {% scroll_panel %}
+  <form method="get" class="filters">
+    {% for name, value in month_hidden %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+    <div><label for="r_q">{% trans "Search" %}</label><input type="search" id="r_q" name="r_q" value="{{ r.r_q }}"></div>
+    <div>
+      <label for="r_customer">{% trans "Customer" %}</label>
+      <select id="r_customer" name="r_customer">
+        <option value="">{% trans "All" %}</option>
+        {% for c in customers %}<option value="{{ c.pk }}"{% if c.pk|stringformat:"s" == r.r_customer %} selected{% endif %}>{{ c.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div><label for="due_from">{% trans "Due from" %}</label><input type="date" id="due_from" name="due_from" value="{{ r.due_from }}"></div>
+    <div><label for="due_to">{% trans "Due to" %}</label><input type="date" id="due_to" name="due_to" value="{{ r.due_to }}"></div>
+    <button type="submit" class="button">{% trans "Apply" %}</button>
+  </form>
+  {% scroll_panel label=_("Ready to ship") %}
     <table class="table table-cards">
       <thead>
         <tr>
@@ -18,12 +32,12 @@
         </tr>
       </thead>
       <tbody>
-        {% for r in ready %}
+        {% for row in ready %}
           <tr>
-            <td data-label="{% trans 'Item' %}"><a href="{% url 'order_detail' r.order.job_number %}">{{ r.item.item_code }}</a></td>
-            <td data-label="{% trans 'Part name' %}">{{ r.item.part_name }}</td>
-            <td data-label="{% trans 'Customer' %}">{{ r.order.customer }}</td>
-            <td data-label="{% trans 'Due date' %}"><span>{{ r.order.due_date|date:"Y-m-d" }}{% if r.late %} <span class="badge badge-overdue">{% trans "Overdue" %}</span>{% endif %}</span></td>
+            <td data-label="{% trans 'Item' %}"><a href="{% url 'order_detail' row.order.job_number %}">{{ row.item.item_code }}</a></td>
+            <td data-label="{% trans 'Part name' %}">{{ row.item.part_name }}</td>
+            <td data-label="{% trans 'Customer' %}">{{ row.order.customer }}</td>
+            <td data-label="{% trans 'Due date' %}"><span>{{ row.order.due_date|date:"Y-m-d" }}{% if row.late %} <span class="badge badge-overdue">{% trans "Overdue" %}</span>{% endif %}</span></td>
           </tr>
         {% empty %}
           <tr><td colspan="4">{% trans "Nothing is waiting to be shipped." %}</td></tr>
@@ -34,7 +48,21 @@
 
   <h2>{% trans "On-time delivery by month" %}</h2>
   <p class="note">{% trans "Shipped on or before the order due date, as a share of the items shipped that month." %}</p>
-  {% scroll_panel %}
+  <form method="get" class="filters">
+    {% for name, value in ready_hidden %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+    <div><label for="m_q">{% trans "Search" %}</label><input type="search" id="m_q" name="m_q" value="{{ m.m_q }}"></div>
+    <div>
+      <label for="m_customer">{% trans "Customer" %}</label>
+      <select id="m_customer" name="m_customer">
+        <option value="">{% trans "All" %}</option>
+        {% for c in customers %}<option value="{{ c.pk }}"{% if c.pk|stringformat:"s" == m.m_customer %} selected{% endif %}>{{ c.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div><label for="month_from">{% trans "From month" %}</label><input type="month" id="month_from" name="month_from" value="{{ m.month_from }}"></div>
+    <div><label for="month_to">{% trans "To month" %}</label><input type="month" id="month_to" name="month_to" value="{{ m.month_to }}"></div>
+    <button type="submit" class="button">{% trans "Apply" %}</button>
+  </form>
+  {% scroll_panel label=_("On-time delivery by month") %}
     <table class="table table-cards">
       <thead>
         <tr>
@@ -45,12 +73,12 @@
         </tr>
       </thead>
       <tbody>
-        {% for m in months %}
+        {% for row in months %}
           <tr>
-            <td data-label="{% trans 'Month' %}">{{ m.month }}</td>
-            <td data-label="{% trans 'Shipped' %}">{{ m.shipped }}</td>
-            <td data-label="{% trans 'On time' %}">{{ m.on_time }}</td>
-            <td data-label="{% trans 'On-time rate' %}">{{ m.rate }}%</td>
+            <td data-label="{% trans 'Month' %}">{{ row.month }}</td>
+            <td data-label="{% trans 'Shipped' %}">{{ row.shipped }}</td>
+            <td data-label="{% trans 'On time' %}">{{ row.on_time }}</td>
+            <td data-label="{% trans 'On-time rate' %}">{{ row.rate }}%</td>
           </tr>
         {% empty %}
           <tr><td colspan="4">{% trans "Nothing has been shipped yet." %}</td></tr>

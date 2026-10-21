@@ -1,0 +1,38 @@
+{% load i18n panels %}
+<p class="note">{% trans "Days counted from the finish of the previous step. Planned is the step's due date; actual is when the step finished. Only finished steps with a due date are counted. The overrun is how much longer the actual time was than planned." %}</p>
+{% if top %}
+  <ul class="summary-strip">
+    <li><span class="summary-label">{% trans "Worst step" %}</span> <strong>{{ top.0.process }}</strong> <span class="badge sev-{{ top.0.severity|default:'minor' }}">+{{ top.0.pct|floatformat:0 }}%</span></li>
+    <li><span class="summary-label">{% trans "Top 3 slowest" %}</span>
+      {% for r in top %}<span class="summary-item">{{ forloop.counter }}. {{ r.process }} <span class="badge sev-{{ r.severity|default:'minor' }}">+{{ r.pct|floatformat:0 }}%</span></span>{% endfor %}
+    </li>
+  </ul>
+{% endif %}
+{% scroll_panel label=_("Plan vs actual") %}
+  <table class="table table-cards">
+    <thead>
+      <tr>
+        <th>{% trans "Process" %}</th>
+        <th>{% trans "Steps" %}</th>
+        <th>{% trans "Average planned (days)" %}</th>
+        <th>{% trans "Average actual (days)" %}</th>
+        <th>{% trans "Average difference (days)" %}</th>
+        <th>{% trans "Overrun" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+        <tr{% if r.severity == 'severe' %} class="hot"{% endif %}>
+          <td data-label="{% trans 'Process' %}">{{ r.process }}</td>
+          <td data-label="{% trans 'Steps' %}">{{ r.n }}</td>
+          <td data-label="{% trans 'Average planned (days)' %}">{{ r.planned|floatformat:1 }}</td>
+          <td data-label="{% trans 'Average actual (days)' %}">{{ r.actual|floatformat:1 }}</td>
+          <td data-label="{% trans 'Average difference (days)' %}">{% if r.diff > 0 %}<span class="badge badge-overdue">+{{ r.diff|floatformat:1 }}</span>{% else %}{{ r.diff|floatformat:1 }}{% endif %}</td>
+          <td data-label="{% trans 'Overrun' %}">{% if r.pct is None %}-{% elif r.severity %}<span class="badge sev-{{ r.severity }}">{{ r.pct|floatformat:0 }}% &middot; {% if r.severity == 'severe' %}{% trans "Severe" %}{% elif r.severity == 'major' %}{% trans "Major" %}{% else %}{% trans "Minor" %}{% endif %}</span>{% else %}{{ r.pct|floatformat:0 }}%{% endif %}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6">{% trans "No finished steps with a due date yet." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endscroll_panel %}

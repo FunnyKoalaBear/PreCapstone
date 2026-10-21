@@ -384,6 +384,7 @@ class SeedDemoTests(TestCase):
             self.assertGreaterEqual(codes[code], 3, code)
         self.assertGreaterEqual(Order.objects.count(), 60)
         ready, months = shipping_overview()
+        rc = ready[0]['order'].customer
         self.assertGreaterEqual(len(months), 11)
         self.assertTrue(0 < min(m['rate'] for m in months) < max(m['rate'] for m in months) <= 100)
         self.assertTrue(Event.objects.filter(event_type='RESULT', defects__gt=0).exists())
@@ -408,6 +409,37 @@ class SeedDemoTests(TestCase):
         states = {c['state'] for r in data['rows'] for c in r['cells']}
         self.assertEqual(states, {'pending', 'in_progress', 'at_vendor', 'paused', 'done'})
         self.assertGreaterEqual(len(data['columns']), 6)
+
+    @override_settings(DEBUG=True)
+    def test_every_analysis_and_shipping_filter_and_highlight_has_data(self):
+        self.seed()
+        self.client.force_login(make_user('pl', 'Planner'))
+        get = lambda url, **q: self.client.get(url, q).context
+        plan = get('/analysis/', tab='plan', sort='delay')
+        self.assertGreaterEqual({r['severity'] for r in plan['rows']} - {''}, {'minor', 'major', 'severe'})
+        pcts = [r['pct'] for r in plan['rows'] if r['pct'] is not None]
+        self.assertEqual(pcts, sorted(pcts, reverse=True))
+        self.assertEqual(len(plan['top']), 3)
+        res = get('/analysis/', tab='results')
+        self.assertTrue(res['longest_wait'] and res['longest_processing'])
+        self.assertTrue(any(r['records'] and r['processing'] and r['wait'] for r in res['rows']))
+        everything = len(plan['rows'])
+        customer, vendor = Customer.objects.filter(name__startswith='DEMO ').first(), Vendor.objects.get(code='00131')
+        process = Process.objects.get(name__in=['Plating', 'DEMO Plating'])
+        for key, value in (('customer', customer.pk), ('vendor', vendor.pk), ('process', process.pk), ('date_from', timezone.localdate() - timedelta(days=120))):
+            rows = get('/analysis/', tab='plan', **{key: value})['rows']
+            self.assertTrue(0 < len(rows) <= everything, key)
+            self.assertTrue(get('/analysis/', tab='results', **{key: value})['rows'], key)
+        ready, months = shipping_overview()
+        rc = ready[0]['order'].customer
+        self.assertGreaterEqual(len(ready), 3)
+        self.assertTrue(shipping_overview(ready_customer=rc.pk)[0])
+        self.assertLess(len(shipping_overview(ready_customer=rc.pk)[0]), len(ready))
+        self.assertTrue(shipping_overview(ready_q=ready[0]['item'].part_name)[0])
+        due = ready[-1]['order'].due_date
+        self.assertTrue(shipping_overview(due_from=due, due_to=due)[0])
+        self.assertTrue(any(shipping_overview(month_customer=c.pk)[1] for c in Customer.objects.filter(name__startswith='DEMO ')))
+        self.assertEqual(len(shipping_overview(month_from=months[3]['month'], month_to=months[1]['month'])[1]), 3)
 
     def test_static_demo_data_matches_the_csv_files(self):
         js = (settings.BASE_DIR / 'demo' / 'js' / 'data.js').read_text(encoding='utf-8')
@@ -481,7 +513,7 @@ class ResponsiveLayoutTests(TestCase):
         item = OrderItem.objects.create(order=order, part_name='P', quantity=1)
         TagAssignment.objects.create(tag=Tag.objects.create(uid='CARD1'), box=Box.objects.create(label='BC'), item=item)
         Vendor.objects.create(code='00001', name='V', kind=Vendor.Kind.INTERNAL)
-        pages = {'/orders/': 1, '/orders/?tab=codes': 1, '/results/': 1, '/shipping/': 2, '/tags/?q=CARD1': 1}
+        pages = {'/orders/': 1, '/orders/?tab=codes': 1, '/analysis/?tab=results': 1, '/shipping/': 2, '/tags/?q=CARD1': 1}
         for url, tables in pages.items():
             html = self.client.get(url).content.decode()
             self.assertEqual(html.count('class="table table-cards"'), tables, url)

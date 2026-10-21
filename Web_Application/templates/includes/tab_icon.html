@@ -1,6 +1,8 @@
 <svg class="tab-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
   {% if key == 'orders' %}<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>
   {% elif key == 'new' %}<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>
+  {% elif key == 'results' %}<path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/>
+  {% elif key == 'plan' %}<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>
   {% elif key == 'import' %}<path d="M12 3v12M7 10l5 5 5-5M4 19h16"/>
   {% else %}<path d="M20 12l-8 8-9-9V3h8z"/><circle cx="7.5" cy="7.5" r="1"/>{% endif %}
 </svg>

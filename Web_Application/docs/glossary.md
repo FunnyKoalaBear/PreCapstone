@@ -262,3 +262,15 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | English | Japanese |
 |---|---|
 | Legend | 凡例 |
+
+## Terms added for Analysis and Shipping filters
+
+| English | Japanese |
+|---|---|
+| Analysis | 分析 |
+| Overrun | 超過率 |
+| Severe / Major / Minor | 重大 / 大 / 軽微 |
+| Worst step / Top 3 slowest | 最も遅い工程 / 遅い工程ワースト3 |
+| Longest wait / Longest processing | 最長の待ち時間 / 最長の加工時間 |
+| Biggest delay | 遅れが大きい順 |
+| From month / To month | 開始月 / 終了月 |

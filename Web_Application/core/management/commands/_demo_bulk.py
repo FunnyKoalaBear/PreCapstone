@@ -17,7 +17,7 @@ DUE_OFFSETS = (-6, -2, 1, 2, 3, 5, 8, 12, 18, 25, 40)
 
 CUSTOMERS = (('青葉精機', 'AO'), ('大和工業', 'YT'), ('富士エンジニアリング', 'FJ'), ('日の出産業', 'HD'))
 PLAN_DAYS = {'Material': 2, 'Milling': 2, 'Lathe': 2, 'Machining centre': 3, 'Grinding': 2, 'Deburring': 1, 'Inspection': 1, 'Assembly': 2}
-SLOW = {'Plating': 1.7, 'Grinding': 1.8, 'Inspection': 1.6, 'Heat treatment': 1.35}  # actual / planned time: the bottlenecks
+SLOW = {'Plating': 1.7, 'Grinding': 1.8, 'Inspection': 1.6, 'Heat treatment': 1.35, 'Coating': 1.2}  # actual / planned time: the bottlenecks
 DEFECT_RATE = {'Milling': 0.015, 'Lathe': 0.02, 'Machining centre': 0.02, 'Grinding': 0.05, 'Deburring': 0.03, 'Inspection': 0.01, 'Assembly': 0.03}
 MACHINES = {
     'Milling': ('Milling machine 1',), 'Lathe': ('Lathe 1', 'Lathe 2'), 'Machining centre': ('Machining centre 1', 'Machining centre 2'),

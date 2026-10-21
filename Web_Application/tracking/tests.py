@@ -1457,7 +1457,7 @@ class ResultTests(TestCase):
         self.assertEqual(self.client.post(self.url).status_code, 302)
         self.client.force_login(make_user('nobody'))
         self.assertEqual(self.client.post(self.url).status_code, 403)
-        self.assertEqual(self.client.get('/results/').status_code, 403)
+        self.assertEqual(self.client.get('/analysis/?tab=results').status_code, 403)
 
     def test_planner_can_void_a_result_but_not_replace_it(self):
         self.post()
@@ -1471,7 +1471,7 @@ class ResultTests(TestCase):
             correct_event(e, make_user('pl'), 'why', {'process': self.mill, 'event_type': E.STARTED})
         self.assertRedirects(self.client.post(url, {'reason': 'typo', 'mode': 'void'}), '/orders/')
         self.assertTrue(Event.objects.filter(event_type=E.CORRECTION, corrects=e).exists())
-        self.assertContains(self.client.get('/results/'), 'No results recorded yet.')
+        self.assertContains(self.client.get('/analysis/?tab=results'), 'No results recorded yet.')
         self.assertContains(self.client.get(self.detail), 'event-voided')
 
     def test_summary_totals_and_defect_rate_skip_voided_results(self):
@@ -1480,12 +1480,13 @@ class ResultTests(TestCase):
         record_result = __import__('tracking.services', fromlist=['record_result']).record_result
         gone = record_result(self.operator, self.a, self.mat, 100, 50)
         correct_event(gone, make_user('pl', 'Planner'), 'oops')
-        r = self.client.get('/results/')
-        self.assertEqual(r.context['rows'], [{'process': 'Mill', 'records': 2, 'quantity': 40, 'defects': 4, 'rate': 10.0}])
+        r = self.client.get('/analysis/?tab=results')
+        row, = r.context['rows']
+        self.assertEqual({k: row[k] for k in ('process', 'records', 'quantity', 'defects', 'rate')}, {'process': 'Mill', 'records': 2, 'quantity': 40, 'defects': 4, 'rate': 10.0})
         self.assertEqual((r.context['total']['quantity'], r.context['total']['rate']), (40, 10.0))
         self.assertContains(r, '10.0%')
         self.client.cookies['django_language'] = 'ja'
-        self.assertEqual(self.client.get('/results/').context['rows'][0]['process'], 'フライス')
+        self.assertEqual(self.client.get('/analysis/?tab=results').context['rows'][0]['process'], 'フライス')
 
     def test_scanner_api_does_not_accept_results_yet(self):
         r = self.client.post('/api/scan/', json.dumps({'tag_uid': 'RA', 'process': self.mill.pk, 'event_type': 'RESULT'}),
@@ -1557,17 +1558,17 @@ class PlanVsActualTests(TestCase):
         self.make(mill_due=-8, mill_done=7)       # planned 2, actual 3
         self.make(mill_due=-5, mill_done=7)       # planned 5, actual 3
         self.make(mill_due=None)                  # no plan: not counted
-        r = self.client.get('/plan-vs-actual/')
+        r = self.client.get('/analysis/?tab=plan')
         row, = r.context['rows']
         self.assertEqual((row['process'], row['n'], row['planned'], row['actual'], row['diff']), (self.mill, 3, 10 / 3, 10 / 3, 0))
         self.assertContains(r, '3.3')
 
     def test_empty_and_roles(self):
-        self.assertContains(self.client.get('/plan-vs-actual/'), 'No finished steps with a due date yet.')
+        self.assertContains(self.client.get('/analysis/?tab=plan'), 'No finished steps with a due date yet.')
         self.client.logout()
-        self.assertEqual(self.client.get('/plan-vs-actual/').status_code, 302)
+        self.assertEqual(self.client.get('/analysis/?tab=plan').status_code, 302)
         self.client.force_login(make_user('nobody'))
-        self.assertEqual(self.client.get('/plan-vs-actual/').status_code, 403)
+        self.assertEqual(self.client.get('/analysis/?tab=plan').status_code, 403)
 
 
 class StepStateTests(TestCase):
@@ -1964,3 +1965,55 @@ class ShippedTests(TestCase):
         self.assertEqual(self.client.get('/shipping/').status_code, 302)
         self.client.force_login(self.planner)
         self.assertContains(self.client.get('/'), 'href="/shipping/"')
+
+
+class AnalysisPageTests(TestCase):
+    def setUp(self):
+        self.client.force_login(make_user('op', 'Operator'))
+
+    def test_old_urls_redirect_to_their_tab_keeping_filters(self):
+        self.assertRedirects(self.client.get('/results/'), '/analysis/?tab=results')
+        self.assertRedirects(self.client.get('/plan-vs-actual/', {'customer': '3'}), '/analysis/?customer=3&tab=plan')
+
+    def test_tabs_nav_and_scroll_panel(self):
+        html = self.client.get('/analysis/?tab=plan').content.decode()
+        self.assertIn('class="tab is-active" href="/analysis/?tab=plan" aria-current="page"', html)
+        self.assertIn('href="/analysis/?tab=results"', html)
+        self.assertIn('class="scroll-panel"', html)
+        nav = html[html.index('id="site-nav"'):html.index('</nav>')]
+        self.assertIn('href="/analysis/"', nav)
+        self.assertNotIn('/results/', nav)
+        self.assertNotIn('/plan-vs-actual/', nav)
+        self.assertEqual(self.client.get('/analysis/?tab=bogus').context['tab'], 'results')
+
+    def test_tabs_keep_the_filters(self):
+        self.assertContains(self.client.get('/analysis/', {'tab': 'plan', 'customer': '5'}), 'href="/analysis/?tab=results&amp;customer=5"')
+
+    def test_severity_bands(self):
+        from .analysis import severity
+        self.assertEqual([severity(x) for x in (None, 0, 10, 11, 31, 61)], ['', '', '', 'minor', 'major', 'severe'])
+
+    def test_roles(self):
+        self.client.logout()
+        self.assertEqual(self.client.get('/analysis/').status_code, 302)
+        self.client.force_login(make_user('nobody'))
+        self.assertEqual(self.client.get('/analysis/').status_code, 403)
+
+
+class ShippingFilterTests(TestCase):
+    def setUp(self):
+        self.client.force_login(make_user('pl', 'Planner'))
+
+    def test_page_has_two_scroll_panels_and_both_filter_forms(self):
+        html = self.client.get('/shipping/').content.decode()
+        self.assertEqual(html.count('class="scroll-panel"'), 2)
+        for name in ('r_q', 'r_customer', 'due_from', 'due_to', 'm_q', 'm_customer', 'month_from', 'month_to'):
+            self.assertIn(f'name="{name}"', html)
+
+    def test_each_form_keeps_the_other_forms_values(self):
+        html = self.client.get('/shipping/', {'r_q': 'gear', 'month_from': '2026-01'}).content.decode()
+        self.assertIn('type="hidden" name="r_q" value="gear"', html)
+        self.assertIn('type="hidden" name="month_from" value="2026-01"', html)
+
+    def test_bad_month_text_is_ignored(self):
+        self.assertEqual(self.client.get('/shipping/', {'month_from': 'abc'}).status_code, 200)

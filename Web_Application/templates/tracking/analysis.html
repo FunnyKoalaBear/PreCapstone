@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% load i18n duration panels %}
+
+{% block title %}{% trans "Analysis" %} - {% trans "Factory Tracker" %}{% endblock %}
+
+{% block content %}
+  <h1>{% trans "Analysis" %}</h1>
+  {% trans "Analysis sections" as tabs_label %}
+  {% include "includes/tab_bar.html" with label=tabs_label %}
+
+  <form method="get" class="filters">
+    <input type="hidden" name="tab" value="{{ tab }}">
+    <div><label for="date_from">{% trans "From" %}</label><input type="date" id="date_from" name="date_from" value="{{ values.date_from }}"></div>
+    <div><label for="date_to">{% trans "To" %}</label><input type="date" id="date_to" name="date_to" value="{{ values.date_to }}"></div>
+    <div>
+      <label for="customer">{% trans "Customer" %}</label>
+      <select id="customer" name="customer">
+        <option value="">{% trans "All" %}</option>
+        {% for c in customers %}<option value="{{ c.pk }}"{% if c.pk|stringformat:"s" == values.customer %} selected{% endif %}>{{ c.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="process">{% trans "Process" %}</label>
+      <select id="process" name="process">
+        <option value="">{% trans "All" %}</option>
+        {% for p in processes %}<option value="{{ p.pk }}"{% if p.pk|stringformat:"s" == values.process %} selected{% endif %}>{{ p }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="vendor">{% trans "Vendor" %}</label>
+      <select id="vendor" name="vendor">
+        <option value="">{% trans "All" %}</option>
+        {% for v in vendors %}<option value="{{ v.pk }}"{% if v.pk|stringformat:"s" == values.vendor %} selected{% endif %}>{{ v }}</option>{% endfor %}
+      </select>
+    </div>
+    {% if tab == 'plan' %}
+      <div>
+        <label for="sort">{% trans "Sort by" %}</label>
+        <select id="sort" name="sort">
+          {% for value, label in sort_choices %}<option value="{{ value }}"{% if value == sort %} selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+    {% endif %}
+    <button type="submit" class="button">{% trans "Apply" %}</button>
+    {% if filtered %}<a href="?tab={{ tab }}">{% trans "Clear filters" %}</a>{% endif %}
+  </form>
+
+  {% if tab == 'plan' %}{% include "tracking/analysis_plan.html" %}{% else %}{% include "tracking/analysis_results.html" %}{% endif %}
+{% endblock %}
