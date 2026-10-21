@@ -1,6 +1,6 @@
 // Static demo of Factory Tracker: pages and UI. All data lives in this browser (localStorage); nothing is sent anywhere.
 (() => {
-  const KEY = 'ft_demo_v2', LANG_KEY = 'ft_lang';
+  const KEY = 'ft_demo_v3', LANG_KEY = 'ft_lang';
   const { NOT_STARTED, WAITING, IN_PROGRESS, AT_VENDOR, COMPLETE } = FT;
 
   // ---------- helpers ----------
@@ -16,6 +16,7 @@
   const badge = (cls, text) => `<span class="badge badge-${cls}">${h(text)}</span>`;
   const statusBadge = (code) => badge(code.toLowerCase(), t(code));
   const pname = (p) => (p ? (I18N.lang === 'ja' && p.ja ? p.ja : p.name) : '-');
+  const vname = (p) => (p && p.vendor ? `${p.vendor} ${VENDORS[p.vendor][I18N.lang === 'ja' ? 1 : 0]}` : '');
   const fmtDT = (ms, sec) => (ms == null ? '-' : FT.jstStr(ms).slice(0, sec ? 19 : 16));
   const orderLink = (job, text) => `<a href="order.html?job=${encodeURIComponent(job)}">${h(text)}</a>`;
   // templatetags/duration.py
@@ -216,7 +217,7 @@
       const r = s.row, back = r.state === 'at_vendor' ? FT.dueBack(r.started, r.proc.lead) : null, lateDays = FT.daysLate(back, world.today);
       return `${s.wait ? `<li class="timeline-wait">${h(t('waited', { d: fmtDur(s.wait) }))}</li>` : ''}
         <li class="timeline-step timeline-${r.state}"><span class="timeline-marker">${box.rows.indexOf(r) + 1}</span><div class="timeline-body">
-        <strong>${h(pname(r.proc))}${r.proc.vendor ? ` (${h(r.proc.vendor)})` : ''}</strong> ${badge(r.state, t(r.state))}
+        <strong>${h(pname(r.proc))}${vname(r.proc) ? ` (${h(vname(r.proc))})` : ''}</strong> ${badge(r.state, t(r.state))}
         ${back ? `<small>${h(t('due_back_d', { d: back }))}</small> ${lateDays ? badge('overdue', t('late_by_n', { n: lateDays })) : ''}` : ''}
         <div class="timeline-times">${h(t('started'))}: ${fmtDT(r.started)} &middot; ${h(t('finished'))}: ${fmtDT(r.finished)}
         ${s.duration ? `&middot; ${fmtDur(s.duration)}${s.running ? ' ' + h(t('so_far')) : ''}` : ''}</div></div></li>`;
@@ -521,7 +522,7 @@
     const list = (rows, time) => (rows.length ? `<ul class="process-boxes">${rows.map((e) =>
       `<li>${orderLink(e.order.job, itemBox(e))} ${time(e) != null ? `<small>${fmtDur(time(e))}</small>` : ''} ${flags(e)}</li>`).join('')}</ul>` : '');
     const card = (c) => `<section class="card process-card${c.queue ? ' queue-building' : ''}"><h3>${h(pname(c.proc))}
-      ${c.outsourced && c.proc.vendor ? `<small>${h(c.proc.vendor)}</small>` : ''} ${c.queue ? badge('queue', t('queue_building')) : ''}</h3>
+      ${c.outsourced && c.proc.vendor ? `<small>${h(vname(c.proc))}</small>` : ''} ${c.queue ? badge('queue', t('queue_building')) : ''}</h3>
       <p class="process-counts"><span><strong>${c.running.length}</strong> ${h(t('running'))}</span><span><strong>${c.waiting.length}</strong> ${h(t('waiting'))}</span></p>
       ${list(c.running, (e) => e.runningFor)}${c.waiting.length ? `<h4>${h(t('waiting'))}</h4>${list(c.waiting, (e) => e.idle)}` : ''}</section>`;
     const cards = FT.processBoard(world);

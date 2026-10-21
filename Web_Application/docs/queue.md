@@ -26,7 +26,7 @@ Order matters. [ ] todo, [x] done, [!] blocked. IDs match the feature tracker. E
 - [x] **F80 Material on order items**
   `OrderItem.material` (text, 100, blank). In the form, detail page and order search.
 
-- [ ] **F78 Demo data with our own codes**
+- [x] **F78 Demo data with our own codes**
   Update the seed script and the static demo (`demo/js/data.js` and the pages that show steps). Use `docs/demo-data/codes.csv`, `processes.csv` and `workers_machines.csv` (invented, in the two blocks) so the seed, the static demo and the CSV import agree. Never use the company's real codes or names.
 
 - [ ] **F42 CSV order import**

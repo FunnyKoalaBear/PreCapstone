@@ -22,7 +22,7 @@ Files (upload all of them, keeping the folder structure)
   css/theme.css     Colour variables (same as the app)
   css/base.css      Styles (same as the app, plus the demo banner)
   js/i18n.js        Japanese and English texts
-  js/data.js        Sample data (same scenarios as the seed_demo command)
+  js/data.js        Sample data (same scenarios, processes and vendor codes as seed_demo and docs/demo-data)
   js/status.js      Status, priority and overview rules ported from the Django app
   js/app.js         Pages and UI
 

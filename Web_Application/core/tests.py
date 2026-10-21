@@ -1,4 +1,5 @@
 import gettext
+import re
 from datetime import timedelta
 from io import StringIO
 
@@ -12,8 +13,9 @@ from django.utils import translation
 from django.utils import timezone
 
 from core.templatetags.duration import duration
+from core.management.commands.seed_demo import read_csv
 from core.testing import TestCase, make_user
-from orders.models import Customer, Order, OrderItem, Process, RouteStep
+from orders.models import Customer, Order, OrderItem, Process, RouteStep, Vendor
 from tracking.models import Box, Event, ScannerDevice, Tag, TagAssignment
 from tracking.priority import priority
 from tracking.services import record_event
@@ -317,8 +319,30 @@ class SeedDemoTests(TestCase):
         for e in events:
             self.assertEqual(e.process.kind, Event.REQUIRED_KIND[e.event_type], e)
         self.assertTrue(Event.objects.filter(event_type='CORRECTION').exists())
-        self.assertFalse(Process.objects.exclude(name__startswith='DEMO ').exists())
+        names = {r['name'] for r in read_csv('processes.csv')}
+        self.assertEqual(set(Process.objects.values_list('name', flat=True)), names)
 
+    @override_settings(DEBUG=True)
+    def test_seed_uses_csv_codes_and_new_fields(self):
+        self.seed()
+        codes = {r['code']: r['kind'] for r in read_csv('codes.csv')}
+        self.assertEqual({v.code: v.kind for v in Vendor.objects.all()}, codes)
+        for step in RouteStep.objects.select_related('vendor', 'process'):
+            self.assertIn(step.vendor.code, codes)
+            self.assertEqual(step.vendor.kind, {'MATERIAL': 'SUPPLIER', 'MACHINING': 'INTERNAL', 'OUTSOURCED': 'VENDOR'}[step.process.kind])
+        for v in Vendor.objects.all():
+            v.full_clean()
+        self.assertFalse(OrderItem.objects.filter(material='').exists())
+        self.assertEqual(RouteStep.objects.get(slip_number='SL-0412').process.name, 'Coating')
+
+    def test_static_demo_data_matches_the_csv_files(self):
+        js = (settings.BASE_DIR / 'demo' / 'js' / 'data.js').read_text(encoding='utf-8')
+        demo = re.findall(r"name: '([^']+)', ja: '([^']+)', kind: '(\w+)'", js)
+        self.assertEqual(demo, [(r['name'], r['name_ja'], r['kind']) for r in read_csv('processes.csv')])
+        codes = {r['code']: (r['name'], r['name_ja']) for r in read_csv('codes.csv')}
+        used = re.findall(r"vendor: '(\d{5})'", js)
+        self.assertTrue(used)
+        self.assertEqual({c: codes[c] for c in used}, {c: tuple(re.search(rf"'{c}': \['([^']+)', '([^']+)'\]", js).groups()) for c in used})
     @override_settings(DEBUG=True)
     def test_reset_removes_demo_data_and_keeps_real_data(self):
         real_proc = Process.objects.create(name='Cutting', kind=K.MATERIAL)
@@ -338,7 +362,7 @@ class SeedDemoTests(TestCase):
 
     @override_settings(DEBUG=True)
     def test_failed_seed_leaves_nothing_behind(self):
-        Process.objects.create(name='DEMO Cutting', kind=K.MATERIAL)  # wrong kind makes STARTED fail
+        Process.objects.create(name='Milling', kind=K.MATERIAL)  # wrong kind makes STARTED fail
         with self.assertRaises(Exception):
             self.seed()
         self.assertEqual((Customer.objects.count(), Order.objects.count(), Event.objects.count()), (0, 0, 0))
