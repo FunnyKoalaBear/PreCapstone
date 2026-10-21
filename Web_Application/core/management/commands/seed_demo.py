@@ -8,9 +8,9 @@ from django.db.models import Q
 from django.utils import timezone
 
 from orders.models import Customer, Order, OrderItem, Process, RouteStep, Vendor
-from tracking.models import Box, Event, ScannerDevice, Tag, TagAssignment
+from tracking.models import Box, Event, Machine, ScannerDevice, Tag, TagAssignment, Worker
 from tracking.services import record_event
-from tracking.status import item_status
+from tracking.status import DONE, item_status
 
 DATA_DIR = settings.BASE_DIR / 'docs' / 'demo-data'
 # default vendor code per process name, and lead days per vendor code (the CSV files carry neither)
@@ -21,6 +21,7 @@ DEFAULT_VENDOR = {
 }
 LEAD_DAYS = {'00131': 7, '00132': 10, '00133': 5, '00134': 5, '00135': 3, '00136': 3}
 MATERIALS = ('SS400', 'A5052', 'S45C', 'SUS304')
+MAX_RESULTS = 15  # finished steps that get a result
 
 
 def read_csv(name):
@@ -166,6 +167,28 @@ class Command(BaseCommand):
         scan('D795A680', 'Milling', 'FINISHED', ago(hours=22))
         scan('D795A680', 'Lathe', 'STARTED', ago(hours=1), d2)
 
+        self.add_results(created, d1)
         self.stdout.write(self.style.SUCCESS(f'Created {len(created)} demo orders:'))
         for label, item in created:
             self.stdout.write(f'  {item.order.job_number}  {label:<18} {item_status(item).code}')
+
+    def add_results(self, created, device):
+        """Quantity-done results for finished steps; about one in ten has 1-2 defects, work spread over the CSV workers and machines."""
+        people = read_csv('workers_machines.csv')
+        workers = [Worker.objects.get_or_create(name=r['name'], defaults={'name_ja': r['name_ja']})[0] for r in people if r['kind'] == 'WORKER']
+        machines = [Machine.objects.get_or_create(name=r['name'], defaults={'name_ja': r['name_ja']})[0] for r in people if r['kind'] == 'MACHINE']
+        n = 0
+        for _label, item in created:
+            for box in item_status(item).boxes:
+                for row in (r for r in box.rows if r.state == DONE and r.finished_at):
+                    if n == MAX_RESULTS:
+                        return
+                    machining = row.step.process.kind == Process.Kind.MACHINING
+                    event = Event(
+                        device=device, tag_uid=box.assignments[-1].tag.uid, process=row.step.process, event_type=Event.Type.RESULT,
+                        occurred_at=row.finished_at, quantity=item.quantity, defects=(1 + n % 2) if n % 7 == 3 else 0,
+                        worker=workers[n % len(workers)] if machining else None, machine=machines[n % len(machines)] if machining else None,
+                    )
+                    event.full_clean()
+                    event.save()
+                    n += 1

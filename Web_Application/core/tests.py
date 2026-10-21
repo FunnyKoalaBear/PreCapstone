@@ -16,7 +16,7 @@ from core.templatetags.duration import duration
 from core.management.commands.seed_demo import read_csv
 from core.testing import TestCase, make_user
 from orders.models import Customer, Order, OrderItem, Process, RouteStep, Vendor
-from tracking.models import Box, Event, ScannerDevice, Tag, TagAssignment
+from tracking.models import Box, Event, Machine, ScannerDevice, Tag, TagAssignment, Worker
 from tracking.overview import board_groups
 from tracking.priority import priority
 from tracking.services import record_event
@@ -318,7 +318,7 @@ class SeedDemoTests(TestCase):
     @override_settings(DEBUG=True)
     def test_every_event_uses_the_right_process_kind(self):
         self.seed()
-        events = Event.objects.exclude(event_type='CORRECTION').select_related('process')
+        events = Event.objects.exclude(event_type__in=['CORRECTION', 'RESULT']).select_related('process')
         self.assertTrue(events)
         for e in events:
             self.assertEqual(e.process.kind, Event.REQUIRED_KIND[e.event_type], e)
@@ -338,6 +338,17 @@ class SeedDemoTests(TestCase):
             v.full_clean()
         self.assertFalse(OrderItem.objects.filter(material='').exists())
         self.assertEqual(RouteStep.objects.get(slip_number='SL-0412').process.name, 'Coating')
+
+    @override_settings(DEBUG=True)
+    def test_seed_records_results_with_workers_and_machines(self):
+        self.seed()
+        results = Event.objects.filter(event_type='RESULT')
+        self.assertEqual(results.count(), 15)
+        self.assertEqual(set(results.values_list('quantity', flat=True)), {10})
+        self.assertEqual(results.filter(defects__gt=0).count(), 2)
+        self.assertGreater(results.exclude(worker=None).values('worker').distinct().count(), 2)
+        self.assertEqual(set(Worker.objects.values_list('name', flat=True)), {r['name'] for r in read_csv('workers_machines.csv') if r['kind'] == 'WORKER'})
+        self.assertEqual(Machine.objects.count(), len([r for r in read_csv('workers_machines.csv') if r['kind'] == 'MACHINE']))
 
     def test_static_demo_data_matches_the_csv_files(self):
         js = (settings.BASE_DIR / 'demo' / 'js' / 'data.js').read_text(encoding='utf-8')

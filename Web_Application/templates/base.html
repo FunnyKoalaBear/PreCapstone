@@ -18,6 +18,7 @@
       {% if can.planner %}<a href="{% url 'order_create' %}">{% trans "New order" %}</a>{% endif %}
       {% if can.planner %}<a href="{% url 'order_import' %}">{% trans "Import orders" %}</a>{% endif %}
       {% if can.operator %}<a href="{% url 'matrix' %}">{% trans "Progress matrix" %}</a>{% endif %}
+      {% if can.operator %}<a href="{% url 'results' %}">{% trans "Results" %}</a>{% endif %}
       {% if can.operator %}<a href="{% url 'priorities' %}">{% trans "Priorities" %}</a>{% endif %}
       {% if can.planner %}<a href="{% url 'tag_manage' %}">{% trans "Tags" %}</a>{% endif %}
       {% if can.planner %}<a href="{% url 'code_list' %}">{% trans "Codes" %}</a>{% endif %}

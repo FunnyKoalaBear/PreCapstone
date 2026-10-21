@@ -234,3 +234,9 @@ h1 .button-secondary, h2 .button-secondary {
 .matrix-legend { font-size: 0.875rem; color: var(--color-muted); }
 .matrix-key { display: inline-block; width: 0.9rem; height: 0.9rem; margin: 0 0.25rem 0 0.75rem; vertical-align: middle; border: 1px solid var(--color-border); }
 .matrix-key.matrix-current { background: var(--color-surface); }
+
+/* Record result form on the order detail page */
+.result-details { margin: 0.75rem 0; }
+.result-details summary { cursor: pointer; color: var(--color-primary); }
+.result-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: 0.5rem 1rem; align-items: end; margin-top: 0.5rem; }
+.result-form > div { display: flex; flex-direction: column; }

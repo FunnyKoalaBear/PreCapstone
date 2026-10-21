@@ -8,6 +8,7 @@ from django.utils.translation import gettext as _
 from django.utils.translation import gettext_lazy
 
 from core.permissions import OPERATOR, PLANNER, role_required
+from tracking.forms import ResultForm
 from tracking.status import (
     COMPLETE, IN_PROGRESS, LABELS, NOT_STARTED, STEP_LABELS, days_late, events_with_voids, gantt, item_status,
     order_summary, step_due_back, timeline,
@@ -189,10 +190,11 @@ def order_detail(request, job_number):
     for item in order.items.all():
         st = item_status(item)
         boxes = [_box_entry(b, today) for b in st.boxes]
+        linked = sum(b['open'] for b in boxes)
         items.append({
             'item': item, 'status': st, 'boxes': boxes,
             'single': item.box_count == 1 and len(boxes) == 1,
-            'linked': sum(b['open'] for b in boxes),
+            'linked': linked, 'result_form': ResultForm(item) if linked else None,
             'assignment': next((b['box'].assignment for b in boxes if b['open']), None),
         })
     return render(request, 'orders/order_detail.html', {

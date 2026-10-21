@@ -108,6 +108,8 @@ def correct_event(event, user, reason, replacement=None):
         original = Event.objects.select_for_update().get(pk=event.pk)
         if original.event_type == Event.Type.CORRECTION:
             raise ValidationError(_('A correction cannot be corrected.'))
+        if replacement and original.event_type == Event.Type.RESULT:
+            raise ValidationError(_('A result can only be voided. Record a new result instead.'))
         if Event.objects.filter(event_type=Event.Type.CORRECTION, corrects=original).exists():
             raise ValidationError(_('This event is already voided.'))
         correction = Event(
@@ -127,3 +129,14 @@ def correct_event(event, user, reason, replacement=None):
         if new:
             new.save()
     return correction, new
+
+
+def record_result(user, assignment, process, quantity, defects=0, worker=None, machine=None):
+    """Record how much was done at a step (and how much of it was defective) for the box of an assignment; never changes status."""
+    event = Event(
+        tag_uid=assignment.tag.uid, process=process, event_type=Event.Type.RESULT, quantity=quantity, defects=defects,
+        worker=worker, machine=machine, created_by=user,
+    )
+    event.full_clean()
+    event.save()
+    return event

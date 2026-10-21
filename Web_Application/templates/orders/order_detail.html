@@ -50,6 +50,19 @@
         <img class="drawing-preview" src="{% url 'item_drawing' entry.item.pk %}" alt="{% trans 'Drawing' %}">
       {% endif %}
 
+      <details class="result-details">
+        <summary>{% trans "Record result" %}</summary>
+        {% if entry.result_form %}
+          <form method="post" action="{% url 'record_result' entry.item.pk %}" class="result-form">
+            {% csrf_token %}
+            {{ entry.result_form }}
+            <button type="submit" class="button">{% trans "Record result" %}</button>
+          </form>
+        {% else %}
+          <p class="note">{% trans "Link a tag to a box of this item first." %}</p>
+        {% endif %}
+      </details>
+
       {% if entry.status.warnings %}
         <ul class="warnings">{% for w in entry.status.warnings %}<li>{{ w }}</li>{% endfor %}</ul>
       {% endif %}

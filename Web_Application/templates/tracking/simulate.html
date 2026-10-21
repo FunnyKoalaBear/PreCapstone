@@ -62,7 +62,7 @@
             <td>{{ e.tag_uid }}</td>
             <td>{{ e.process|default_if_none:"-" }}</td>
             <td>{{ e.get_event_type_display }}</td>
-            <td>{{ e.device }}</td>
+            <td>{{ e.device|default:'-' }}</td>
           </tr>
         {% empty %}
           <tr><td colspan="5">{% trans "No events yet." %}</td></tr>

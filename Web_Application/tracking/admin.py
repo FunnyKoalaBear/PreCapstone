@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.translation import gettext_lazy as _
 
-from .models import Box, Event, ScannerDevice, Tag, TagAssignment
+from .models import Box, Event, Machine, ScannerDevice, Tag, TagAssignment, Worker
 
 
 class OpenFilter(admin.SimpleListFilter):
@@ -51,9 +51,16 @@ class ScannerDeviceAdmin(admin.ModelAdmin):
     readonly_fields = ['api_key']
 
 
+@admin.register(Worker, Machine)
+class NamedResourceAdmin(admin.ModelAdmin):
+    list_display = ['name', 'name_ja', 'active']
+    list_filter = ['active']
+    search_fields = ['name', 'name_ja']
+
+
 @admin.register(Event)
 class EventAdmin(admin.ModelAdmin):
-    list_display = ['occurred_at', 'event_type', 'tag_uid', 'device', 'process']
+    list_display = ['occurred_at', 'event_type', 'tag_uid', 'device', 'process', 'worker', 'machine', 'quantity', 'defects']
     list_filter = ['event_type', 'device', 'process']
 
     def has_change_permission(self, request, obj=None):

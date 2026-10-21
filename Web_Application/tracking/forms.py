@@ -7,7 +7,7 @@ from django.utils.translation import gettext
 
 from orders.models import OrderItem, Process
 
-from .models import Event, ScannerDevice, TagAssignment
+from .models import Event, Machine, ScannerDevice, TagAssignment, Worker
 from .services import resolve_tag
 
 
@@ -75,8 +75,10 @@ class CorrectEventForm(forms.Form):
                              choices=[('void', _('Void only')), ('replace', _('Void and replace'))])
     replacement = forms.ChoiceField(label=_('Replace with'), required=False)
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, allow_replace=True, **kwargs):
         super().__init__(*args, **kwargs)
+        if not allow_replace:
+            self.fields['mode'].choices = [('void', _('Void only'))]
         # One option per active process and event type valid for its kind
         self.processes = {str(p.pk): p for p in Process.objects.filter(active=True).order_by('kind', 'name')}
         self.fields['replacement'].choices = [('', '---------')] + [
@@ -94,4 +96,29 @@ class CorrectEventForm(forms.Form):
                 data['replacement'] = {'process': self.processes[pk], 'event_type': event_type}
         else:
             data['replacement'] = None
+        return data
+
+
+class ResultForm(forms.Form):
+    """Quantity done and defects at one step of an item, for one of its linked boxes."""
+    box = forms.ChoiceField(label=_('Box'))
+    process = forms.ModelChoiceField(label=_('Process'), queryset=Process.objects.none())
+    worker = forms.ModelChoiceField(label=_('Worker'), queryset=Worker.objects.filter(active=True), required=False)
+    machine = forms.ModelChoiceField(label=_('Machine'), queryset=Machine.objects.filter(active=True), required=False)
+    quantity = forms.IntegerField(label=_('Quantity done'), min_value=1)
+    defects = forms.IntegerField(label=_('Defects'), min_value=0, initial=0, required=False)
+
+    def __init__(self, item, *args, **kwargs):
+        kwargs.setdefault('prefix', f'result{item.pk}')
+        super().__init__(*args, **kwargs)
+        self.item = item
+        self.assignments = {str(a.pk): a for a in item.tagassignment_set.filter(end_at__isnull=True).select_related('tag', 'box')}
+        self.fields['box'].choices = [(pk, a.box.label) for pk, a in self.assignments.items()]
+        self.fields['process'].queryset = Process.objects.filter(pk__in=item.steps.values('process')).order_by('name')
+        self.fields['quantity'].initial = item.quantity
+
+    def clean(self):
+        data = super().clean()
+        if data.get('box') in self.assignments:
+            data['assignment'] = self.assignments[data['box']]
         return data

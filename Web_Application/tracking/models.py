@@ -5,6 +5,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import F, Q
 from django.utils import timezone
+from django.utils.translation import get_language
 from django.utils.translation import gettext_lazy as _
 
 from orders.models import Process
@@ -83,6 +84,32 @@ class TagAssignment(models.Model):
             self.save(update_fields=['end_at'])
 
 
+class NamedResource(models.Model):
+    """Shared shape of Worker and Machine: a name, its Japanese name and an active flag."""
+    name = models.CharField(_('name'), max_length=100, unique=True)
+    name_ja = models.CharField(_('Japanese name'), max_length=100, blank=True)
+    active = models.BooleanField(_('active'), default=True)
+
+    class Meta:
+        abstract = True
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name_ja if self.name_ja and get_language().startswith('ja') else self.name
+
+
+class Worker(NamedResource):
+    class Meta(NamedResource.Meta):
+        verbose_name = _('worker')
+        verbose_name_plural = _('workers')
+
+
+class Machine(NamedResource):
+    class Meta(NamedResource.Meta):
+        verbose_name = _('machine')
+        verbose_name_plural = _('machines')
+
+
 def generate_api_key():
     return secrets.token_urlsafe(32)
 
@@ -110,6 +137,7 @@ class Event(models.Model):
         SENT_OUT = 'SENT_OUT', _('Sent out')
         RETURNED = 'RETURNED', _('Returned')
         CORRECTION = 'CORRECTION', _('Correction')
+        RESULT = 'RESULT', _('Result')
 
     # Required process kind per event type
     REQUIRED_KIND = {
@@ -122,7 +150,7 @@ class Event(models.Model):
 
     occurred_at = models.DateTimeField(_('occurred at'), default=timezone.now)
     received_at = models.DateTimeField(_('received at'), auto_now_add=True)
-    device = models.ForeignKey(ScannerDevice, on_delete=models.PROTECT, verbose_name=_('device'))
+    device = models.ForeignKey(ScannerDevice, on_delete=models.PROTECT, null=True, blank=True, verbose_name=_('device'))
     tag_uid = models.CharField(_('tag UID'), max_length=100)
     process = models.ForeignKey(Process, on_delete=models.PROTECT, null=True, blank=True, verbose_name=_('process'))
     event_type = models.CharField(_('event type'), max_length=20, choices=Type.choices)
@@ -134,6 +162,11 @@ class Event(models.Model):
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, verbose_name=_('created by'),
     )
+    # RESULT events only; defects are part of the quantity done
+    worker = models.ForeignKey(Worker, on_delete=models.PROTECT, null=True, blank=True, verbose_name=_('worker'))
+    machine = models.ForeignKey(Machine, on_delete=models.PROTECT, null=True, blank=True, verbose_name=_('machine'))
+    quantity = models.PositiveIntegerField(_('quantity done'), null=True, blank=True)
+    defects = models.PositiveIntegerField(_('defects'), null=True, blank=True)
 
     class Meta:
         verbose_name = _('event')
@@ -146,6 +179,12 @@ class Event(models.Model):
 
     def clean(self):
         self.tag_uid = self.tag_uid.strip().upper()
+        if not self.device_id and not self.created_by_id:
+            raise ValidationError({'device': _('An event needs a scanner device or a user.')})
+        if self.event_type == self.Type.RESULT:
+            self._clean_result()
+        elif self.worker_id or self.machine_id or self.quantity is not None or self.defects is not None:
+            raise ValidationError(_('Worker, machine, quantity and defects are only for results.'))
         if (self.event_type == self.Type.CORRECTION or self.is_manual) and not self.reason.strip():
             raise ValidationError({'reason': _('A reason is required.')})
         if self.event_type == self.Type.CORRECTION:
@@ -157,6 +196,16 @@ class Event(models.Model):
             kind = self.REQUIRED_KIND[self.event_type]
             if not self.process_id or self.process.kind != kind:
                 raise ValidationError({'process': _('This event type requires a process of kind: %(kind)s.') % {'kind': kind.label}})
+
+    def _clean_result(self):
+        if not self.process_id:
+            raise ValidationError({'process': _('A result needs a process.')})
+        if not self.quantity:
+            raise ValidationError({'quantity': _('The quantity done must be at least 1.')})
+        if self.defects is None:
+            self.defects = 0
+        if self.defects > self.quantity:
+            raise ValidationError({'defects': _('Defects cannot be more than the quantity done.')})
 
     def save(self, *args, **kwargs):
         if not self._state.adding:

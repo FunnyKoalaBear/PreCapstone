@@ -16,7 +16,7 @@ from orders.models import Customer, Order, OrderItem, Process, RouteStep, Vendor
 
 from .forms import AssignTagForm
 from .matrix import matrix as build_matrix
-from .models import Box, Event, ScannerDevice, Tag, TagAssignment
+from .models import Box, Event, Machine, ScannerDevice, Tag, TagAssignment, Worker
 from .overview import active_boxes, process_board
 from .priority import priority
 from .services import assign_tag, correct_event, record_event, release_assignment, replace_tag
@@ -1344,3 +1344,133 @@ class ProgressMatrixTests(TestCase):
 
     def test_empty_matrix(self):
         self.assertContains(self.client.get('/matrix/'), 'No unfinished items match.')
+
+
+class ResultTests(TestCase):
+    def setUp(self):
+        self.operator = make_user('op', 'Operator')
+        self.client.force_login(self.operator)
+        self.mat = Process.objects.create(name='Mat', kind=K.MATERIAL)
+        self.mill = Process.objects.create(name='Mill', name_ja='フライス', kind=K.MACHINING)
+        self.device = ScannerDevice.objects.create(name='D')
+        self.worker = Worker.objects.create(name='Sato Keiko', name_ja='佐藤 恵子')
+        self.machine = Machine.objects.create(name='Mill 1')
+        order = Order.objects.create(customer=Customer.objects.create(name='C'), due_date=timezone.localdate() + timedelta(days=9))
+        self.item = OrderItem.objects.create(order=order, part_name='Shaft', quantity=10, box_count=2)
+        for i, p in enumerate((self.mat, self.mill), 1):
+            RouteStep.objects.create(item=self.item, sequence=i, process=p)
+        self.a = TagAssignment.objects.create(tag=Tag.objects.create(uid='RA'), box=Box.objects.create(label='BA'), item=self.item,
+                                              start_at=timezone.now() - timedelta(days=2))
+        self.url = f'/items/{self.item.pk}/result/'
+        self.detail = f'/orders/{order.job_number}/'
+
+    def post(self, **kw):
+        data = {'result%d-box' % self.item.pk: self.a.pk, 'result%d-process' % self.item.pk: self.mill.pk,
+                'result%d-quantity' % self.item.pk: 10, 'result%d-defects' % self.item.pk: 1,
+                'result%d-worker' % self.item.pk: self.worker.pk, 'result%d-machine' % self.item.pk: self.machine.pk}
+        data.update({'result%d-%s' % (self.item.pk, k): v for k, v in kw.items()})
+        return self.client.post(self.url, data)
+
+    def results(self):
+        return Event.objects.filter(event_type=E.RESULT)
+
+    def test_result_event_rules(self):
+        base = dict(device=self.device, tag_uid='ra', event_type=E.RESULT)
+        Event(**base, process=self.mill, quantity=5).full_clean()
+        for bad in (dict(quantity=5), dict(process=self.mill), dict(process=self.mill, quantity=0),
+                    dict(process=self.mill, quantity=5, defects=6)):
+            with self.assertRaises(ValidationError, msg=bad):
+                Event(**base, **bad).full_clean()
+        with self.assertRaises(ValidationError):
+            Event(device=self.device, tag_uid='RA', event_type=E.STARTED, process=self.mill, worker=self.worker).full_clean()
+        with self.assertRaises(ValidationError):
+            Event(tag_uid='RA', event_type=E.RESULT, process=self.mill, quantity=1).full_clean()  # no device and no user
+        e = Event(**base, process=self.mill, quantity=5)
+        e.full_clean()
+        self.assertEqual(e.defects, 0)
+
+    def test_result_does_not_change_status_or_idle_time(self):
+        record_event(self.device, 'RA', self.mat, 'ARRIVED', occurred_at=timezone.now() - timedelta(hours=30))
+        before = item_status(self.item)
+        self.assertEqual(self.post().status_code, 302)
+        after = item_status(self.item)
+        self.assertEqual((before.code, before.last_event_at, [r.state for r in before.rows]), (after.code, after.last_event_at, [r.state for r in after.rows]))
+        self.assertFalse(events_for_item(self.item).filter(event_type=E.RESULT).exists())
+
+    def test_operator_records_a_result_and_it_shows_in_the_history(self):
+        r = self.post()
+        self.assertEqual((r.status_code, r['Location']), (302, self.detail))
+        e = self.results().get()
+        self.assertEqual((e.tag_uid, e.process, e.quantity, e.defects, e.worker, e.machine, e.created_by, e.device),
+                         ('RA', self.mill, 10, 1, self.worker, self.machine, self.operator, None))
+        page = self.client.get(self.detail)
+        self.assertContains(page, 'Result recorded.')
+        self.assertContains(page, '10 done, 1 defects')
+        self.assertContains(page, 'Sato Keiko')
+        self.assertContains(page, 'Record result')
+
+    def test_worker_and_machine_are_optional_and_bad_input_records_nothing(self):
+        self.assertEqual(self.post(worker='', machine='', defects='').status_code, 302)
+        e = self.results().get()
+        self.assertEqual((e.worker, e.machine, e.defects), (None, None, 0))
+        for bad in (dict(defects=11), dict(quantity=0), dict(quantity=''), dict(process=9999), dict(box=9999)):
+            self.post(**bad)
+        self.assertEqual(self.results().count(), 1)
+
+    def test_error_message_for_defects_above_quantity(self):
+        r = self.client.post(self.url, {'result%d-box' % self.item.pk: self.a.pk, 'result%d-process' % self.item.pk: self.mill.pk,
+                                        'result%d-quantity' % self.item.pk: 3, 'result%d-defects' % self.item.pk: 5}, follow=True)
+        self.assertContains(r, 'Defects cannot be more than the quantity done.')
+        self.assertFalse(self.results().exists())
+
+    def test_second_box_uses_its_own_tag(self):
+        b = TagAssignment.objects.create(tag=Tag.objects.create(uid='RB'), box=Box.objects.create(label='BB'), item=self.item)
+        self.post(box=b.pk)
+        self.assertEqual(self.results().get().tag_uid, 'RB')
+        self.assertContains(self.client.get(self.detail), 'BB')
+
+    def test_no_form_without_a_linked_box_and_roles(self):
+        self.a.release()
+        self.assertContains(self.client.get(self.detail), 'Link a tag to a box of this item first.')
+        self.assertNotContains(self.client.get(self.detail), self.url)
+        self.post()
+        self.assertFalse(self.results().exists())
+        self.client.logout()
+        self.assertEqual(self.client.post(self.url).status_code, 302)
+        self.client.force_login(make_user('nobody'))
+        self.assertEqual(self.client.post(self.url).status_code, 403)
+        self.assertEqual(self.client.get('/results/').status_code, 403)
+
+    def test_planner_can_void_a_result_but_not_replace_it(self):
+        self.post()
+        e = self.results().get()
+        self.client.force_login(make_user('pl', 'Planner'))
+        url = f'/events/{e.pk}/correct/'
+        page = self.client.get(url)
+        self.assertEqual(page.status_code, 200)
+        self.assertNotContains(page, 'Void and replace')
+        with self.assertRaises(ValidationError):
+            correct_event(e, make_user('pl'), 'why', {'process': self.mill, 'event_type': E.STARTED})
+        self.assertRedirects(self.client.post(url, {'reason': 'typo', 'mode': 'void'}), '/orders/')
+        self.assertTrue(Event.objects.filter(event_type=E.CORRECTION, corrects=e).exists())
+        self.assertContains(self.client.get('/results/'), 'No results recorded yet.')
+        self.assertContains(self.client.get(self.detail), 'event-voided')
+
+    def test_summary_totals_and_defect_rate_skip_voided_results(self):
+        self.post(quantity=10, defects=1)
+        self.post(quantity=30, defects=3)
+        record_result = __import__('tracking.services', fromlist=['record_result']).record_result
+        gone = record_result(self.operator, self.a, self.mat, 100, 50)
+        correct_event(gone, make_user('pl', 'Planner'), 'oops')
+        r = self.client.get('/results/')
+        self.assertEqual(r.context['rows'], [{'process': 'Mill', 'records': 2, 'quantity': 40, 'defects': 4, 'rate': 10.0}])
+        self.assertEqual((r.context['total']['quantity'], r.context['total']['rate']), (40, 10.0))
+        self.assertContains(r, '10.0%')
+        self.client.cookies['django_language'] = 'ja'
+        self.assertEqual(self.client.get('/results/').context['rows'][0]['process'], 'フライス')
+
+    def test_scanner_api_does_not_accept_results_yet(self):
+        r = self.client.post('/api/scan/', json.dumps({'tag_uid': 'RA', 'process': self.mill.pk, 'event_type': 'RESULT'}),
+                             content_type='application/json', HTTP_X_API_KEY=self.device.api_key)
+        self.assertEqual(r.status_code, 400)
+        self.assertFalse(self.results().exists())

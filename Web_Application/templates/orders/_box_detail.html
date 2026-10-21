@@ -74,6 +74,7 @@
               <th>{% trans "Time (JST)" %}</th>
               <th>{% trans "Action" %}</th>
               <th>{% trans "Process" %}</th>
+              <th>{% trans "Details" %}</th>
               <th>{% trans "Device" %}</th>
               {% if can.planner %}<th></th>{% endif %}
             </tr>
@@ -88,13 +89,14 @@
                   {% if e.voided_by %}<div class="event-reason">{{ e.voided_by.reason }}</div>{% elif e.is_manual %}<div class="event-reason">{{ e.reason }}</div>{% endif %}
                 </td>
                 <td>{{ e.process|default_if_none:"-" }}</td>
-                <td>{{ e.device }}</td>
+                <td>{% if e.event_type == "RESULT" %}{% blocktrans with q=e.quantity d=e.defects %}{{ q }} done, {{ d }} defects{% endblocktrans %}{% if e.worker %} &middot; {{ e.worker }}{% endif %}{% if e.machine %} &middot; {{ e.machine }}{% endif %}{% else %}-{% endif %}</td>
+                <td>{{ e.device|default:e.created_by|default:"-" }}</td>
                 {% if can.planner %}
                   <td>{% if not e.voided_by %}<a class="button" href="{% url 'correct_event' e.pk %}?next={{ request.get_full_path|urlencode }}">{% trans "Correct" %}</a>{% endif %}</td>
                 {% endif %}
               </tr>
             {% empty %}
-              <tr><td colspan="5">{% trans "No events yet." %}</td></tr>
+              <tr><td colspan="6">{% trans "No events yet." %}</td></tr>
             {% endfor %}
           </tbody>
         </table>

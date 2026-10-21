@@ -162,3 +162,13 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | Worker | 作業者 |
 | Actual qty / Defects | 実績数 / 不良数 |
 | Print sheet | 指示書を印刷 |
+
+## Terms added for results
+
+| English | Japanese |
+|---|---|
+| Results (page) | 作業実績 |
+| Record result | 実績を記録 |
+| Worker / Machine | 作業者 / 機械 |
+| Quantity done | 完了数量 |
+| Defect rate | 不良率 |

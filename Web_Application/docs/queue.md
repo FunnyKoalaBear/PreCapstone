@@ -49,7 +49,7 @@ Order matters. [ ] todo, [x] done, [!] blocked. IDs match the feature tracker. E
 - [ ] **F64 Extra states: paused, resumed, partial, cancelled** (website side only)
   Add event types and status rules; planner buttons on the order detail page; no scanner changes. Derived status stays computed from events. Cancelled orders leave the overdue lists.
 
-- [ ] **F65 Worker, machine, quantity and defects (website side)**
+- [x] **F65 Worker, machine, quantity and defects (website side)**
   `Worker` and `Machine` models (name, name_ja, active); demo names in `docs/demo-data/workers_machines.csv`.
   New event type RESULT (append-only, does not change step state): process, worker, machine (both optional), quantity done, defect count. "Record result" form on the order detail page for Operator and up (extend the F46 permissions). Corrections work as for other events (F47).
   Show results in the item history; per-process totals and defect rate on a simple summary page. The scanner can send RESULT later; no scanner changes now.

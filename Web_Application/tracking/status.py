@@ -61,6 +61,9 @@ class ItemStatus:
     boxes: list = field(default_factory=list)
 
 
+NO_STATUS_TYPES = (Event.Type.CORRECTION, Event.Type.RESULT)
+
+
 def _window(a):
     """Q for events on the assignment's tag while it was assigned."""
     q = Q(tag_uid=a.tag.uid, occurred_at__gte=a.start_at)
@@ -68,9 +71,9 @@ def _window(a):
 
 
 def _live(q):
-    """Events matching q, minus those voided by a CORRECTION, oldest first."""
+    """Scan events matching q, minus those voided by a CORRECTION, oldest first. RESULT events never change status."""
     corrected = Event.objects.filter(event_type=Event.Type.CORRECTION).values('corrects_id')
-    return Event.objects.filter(q).exclude(pk__in=corrected).exclude(event_type=Event.Type.CORRECTION).order_by('occurred_at', 'pk')
+    return Event.objects.filter(q).exclude(pk__in=corrected).exclude(event_type__in=NO_STATUS_TYPES).order_by('occurred_at', 'pk')
 
 
 def events_for_box(assignments):
@@ -86,7 +89,7 @@ def events_with_voids(assignments):
     q = Q()
     for a in assignments:
         q |= _window(a)
-    events = list(Event.objects.filter(q).exclude(event_type=Event.Type.CORRECTION).select_related('process', 'device').order_by('occurred_at', 'pk')) if q else []
+    events = list(Event.objects.filter(q).exclude(event_type=Event.Type.CORRECTION).select_related('process', 'device', 'worker', 'machine', 'created_by').order_by('occurred_at', 'pk')) if q else []
     voids = {c.corrects_id: c for c in Event.objects.filter(event_type=Event.Type.CORRECTION, corrects__in=events)}
     for e in events:
         e.voided_by = voids.get(e.pk)

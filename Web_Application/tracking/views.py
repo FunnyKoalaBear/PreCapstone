@@ -3,7 +3,7 @@ from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.db.models import Q
+from django.db.models import Count, Q, Sum
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -11,17 +11,17 @@ from django.utils.dateparse import parse_date
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils import timezone
 from django.utils.translation import gettext as _
-from django.utils.translation import gettext_lazy
+from django.utils.translation import get_language, gettext_lazy
 
 from core.permissions import ADMIN, OPERATOR, PLANNER, role_required
 from orders.models import Customer, OrderItem
 
-from .forms import AssignTagForm, CorrectEventForm, PickTagForm, SimulateScanForm
+from .forms import AssignTagForm, CorrectEventForm, PickTagForm, ResultForm, SimulateScanForm
 from .models import Box, Event, Tag, TagAssignment
 from .matrix import matrix as build_matrix
 from .overview import active_boxes
 from .priority import TIER_LABELS, TIERS, priority
-from .services import assign_tag, can_correct, correct_event as correct_event_service, next_step, record_event, release_assignment, replace_tag, resolve_tag
+from .services import assign_tag, can_correct, correct_event as correct_event_service, next_step, record_event, record_result, release_assignment, replace_tag, resolve_tag
 from .status import AT_VENDOR, COMPLETE, IN_PROGRESS, LABELS, NOT_STARTED, WAITING, current_row, item_status
 
 
@@ -42,10 +42,10 @@ def _next_step(uid):
 def correct_event(request, pk):
     if not can_correct(request.user):
         raise PermissionDenied
-    event = get_object_or_404(Event.objects.select_related('device', 'process'), pk=pk, event_type__in=Event.REQUIRED_KIND)
+    event = get_object_or_404(Event.objects.select_related('device', 'process'), pk=pk, event_type__in=[*Event.REQUIRED_KIND, Event.Type.RESULT])
     nxt = request.GET.get('next', '')
     back = nxt if url_has_allowed_host_and_scheme(nxt, {request.get_host()}) else reverse('order_list')
-    form = CorrectEventForm(request.POST or None)
+    form = CorrectEventForm(request.POST or None, allow_replace=event.event_type != Event.Type.RESULT)
     if request.method == 'POST' and form.is_valid():
         d = form.cleaned_data
         try:
@@ -284,3 +284,42 @@ def progress_matrix(request):
         'status_choices': [(c, LABELS[c]) for c in MATRIX_STATUSES],
         'more_url': '?' + urlencode({**keep, 'n': n + MATRIX_PAGE}),
     })
+
+
+@role_required(OPERATOR)
+def record_result_view(request, pk):
+    item = get_object_or_404(OrderItem.objects.select_related('order'), pk=pk)
+    back = redirect('order_detail', job_number=item.order.job_number)
+    if request.method != 'POST':
+        return back
+    form = ResultForm(item, request.POST)
+    if not form.is_valid():
+        messages.error(request, ' '.join(m for errs in form.errors.values() for m in errs))
+        return back
+    d = form.cleaned_data
+    try:
+        record_result(request.user, d['assignment'], d['process'], d['quantity'], d['defects'] or 0, d['worker'], d['machine'])
+    except ValidationError as e:
+        messages.error(request, ' '.join(e.messages))
+    else:
+        messages.success(request, _('Result recorded.'))
+    return back
+
+
+@role_required(OPERATOR)
+def results_summary(request):
+    voided = Event.objects.filter(event_type=Event.Type.CORRECTION).values('corrects_id')
+    rows = (
+        Event.objects.filter(event_type=Event.Type.RESULT).exclude(pk__in=voided)
+        .values('process__name', 'process__name_ja').annotate(records=Count('pk'), quantity=Sum('quantity'), defects=Sum('defects'))
+        .order_by('process__name')
+    )
+    ja = get_language().startswith('ja')
+    table = [{
+        'process': (r['process__name_ja'] if ja and r['process__name_ja'] else r['process__name']),
+        'records': r['records'], 'quantity': r['quantity'], 'defects': r['defects'],
+        'rate': r['defects'] * 100 / r['quantity'] if r['quantity'] else 0,
+    } for r in rows]
+    total = {'records': sum(r['records'] for r in table), 'quantity': sum(r['quantity'] for r in table), 'defects': sum(r['defects'] for r in table)}
+    total['rate'] = total['defects'] * 100 / total['quantity'] if total['quantity'] else 0
+    return render(request, 'tracking/results.html', {'rows': table, 'total': total})
