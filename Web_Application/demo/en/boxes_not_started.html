@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Not started - Factory Tracker (demo)</title>
+  <link rel="stylesheet" href="../static/css/theme.css">
+  <link rel="stylesheet" href="../static/css/base.css">
+  <link rel="stylesheet" href="../static/css/lang.css">
+  <script>document.documentElement.classList.add('js')</script>
+<link rel="stylesheet" href="../static/css/demo.css"></head>
+<body><div class="demo-banner" role="note"><strong>DEMO / sample data</strong> &mdash; invented data. Nothing you enter is saved.</div>
+  <header class="site-header">
+    <span class="brand">Factory Tracker</span>
+    <button type="button" class="nav-toggle" aria-controls="site-nav" aria-expanded="false" aria-label="Menu">&#9776;</button>
+    <nav class="site-nav" id="site-nav">
+      <a href="index.html">Home</a>
+      <a href="orders.html">Orders</a>
+      <a href="customers.html">Customers</a>
+      <a href="analysis_results.html">Analysis</a>
+      <a href="shipping.html">Shipping</a>
+      <a href="priorities.html">Priorities</a>
+      <a href="tags.html">Tags</a>
+      
+      
+    <a href="../ja/manual.html" lang="ja">使い方</a></nav>
+    
+
+
+
+
+    
+<span class="lang-switch"><a href="../ja/boxes_not_started.html">日本語</a><a href="../en/boxes_not_started.html" class="active" aria-current="true">English</a></span>
+
+  </header>
+  <main class="site-main">
+    
+    
+  <p><a href="index.html">&larr; Back to Home</a></p>
+  <h1>Not started</h1>
+
+  <form method="get" class="filters">
+    <input type="hidden" name="status" value="not_started">
+    <div>
+      <label for="sort">Sort by</label>
+      <select id="sort" name="sort">
+        
+          <option value="process">Current process</option>
+        
+          <option value="due" selected>Due date</option>
+        
+          <option value="customer">Customer</option>
+        
+          <option value="waiting" data-dir="desc">Idle for</option>
+        
+      </select>
+    </div>
+    <noscript><button type="submit" class="button">Apply</button></noscript>
+  </form>
+
+  
+    <div class="scroll-panel scroll-panel-first" tabindex="0">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Box</th>
+            <th>Part</th>
+            <th>Customer</th>
+            <th>Current process</th>
+            <th>Status</th>
+            <th>Due date</th>
+            <th>Idle for</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          
+            <tr data-f-sort-process="Material 2026-10-16" data-f-sort-due="2026-10-16 2610-045 1" data-f-sort-customer="DEMO 大和工業 2026-10-16" data-f-sort-waiting="-1">
+              <td><a href="order_2610-045.html">2610-045-01</a></td>
+              <td>DEMO-B38</td>
+              <td>クランプ</td>
+              <td>DEMO 大和工業</td>
+              <td>Material</td>
+              <td><span class="badge badge-not_started">Not started</span></td>
+              <td>2026-10-16</td>
+              <td>-</td>
+              <td>
+                <span class="badge badge-overdue">Overdue</span>
+                
+                
+              </td>
+            </tr>
+          
+            <tr data-f-sort-process="Material 2026-10-20" data-f-sort-due="2026-10-20 2610-044 1" data-f-sort-customer="DEMO 富士エンジニアリング 2026-10-20" data-f-sort-waiting="-1">
+              <td><a href="order_2610-044.html">2610-044-01</a></td>
+              <td>DEMO-B37</td>
+              <td>ナックル</td>
+              <td>DEMO 富士エンジニアリング</td>
+              <td>Material</td>
+              <td><span class="badge badge-not_started">Not started</span></td>
+              <td>2026-10-20</td>
+              <td>-</td>
+              <td>
+                <span class="badge badge-overdue">Overdue</span>
+                
+                
+              </td>
+            </tr>
+          
+            <tr data-f-sort-process="Milling 2026-10-23" data-f-sort-due="2026-10-23 2610-041 1" data-f-sort-customer="DEMO 日の出産業 2026-10-23" data-f-sort-waiting="-1">
+              <td><a href="order_2610-041.html">2610-041-01</a></td>
+              <td>DEMO-B34</td>
+              <td>ローラ</td>
+              <td>DEMO 日の出産業</td>
+              <td>Milling</td>
+              <td><span class="badge badge-not_started">Not started</span></td>
+              <td>2026-10-23</td>
+              <td>-</td>
+              <td>
+                
+                
+                
+              </td>
+            </tr>
+          
+            <tr data-f-sort-process="Milling 2026-10-24" data-f-sort-due="2026-10-24 2610-003 1" data-f-sort-customer="DEMO 北斗製作所 2026-10-24" data-f-sort-waiting="-1">
+              <td><a href="order_2610-003.html">2610-003-01</a></td>
+              <td>DEMO-03</td>
+              <td>ハウジング</td>
+              <td>DEMO 北斗製作所</td>
+              <td>Milling</td>
+              <td><span class="badge badge-not_started">Not started</span></td>
+              <td>2026-10-24</td>
+              <td>-</td>
+              <td>
+                
+                
+                
+              </td>
+            </tr>
+          
+            <tr data-f-sort-process="Material 2026-10-24" data-f-sort-due="2026-10-24 2610-042 1" data-f-sort-customer="DEMO 青葉精機 2026-10-24" data-f-sort-waiting="-1">
+              <td><a href="order_2610-042.html">2610-042-01</a></td>
+              <td>DEMO-B35</td>
+              <td>ブロック</td>
+              <td>DEMO 青葉精機</td>
+              <td>Material</td>
+              <td><span class="badge badge-not_started">Not started</span></td>
+              <td>2026-10-24</td>
+              <td>-</td>
+              <td>
+                
+                
+                
+              </td>
+            </tr>
+          
+            <tr data-f-sort-process="Material 2026-10-25" data-f-sort-due="2026-10-25 2610-043 1" data-f-sort-customer="DEMO 青葉精機 2026-10-25" data-f-sort-waiting="-1">
+              <td><a href="order_2610-043.html">2610-043-01</a></td>
+              <td>DEMO-B36</td>
+              <td>ディスク</td>
+              <td>DEMO 青葉精機</td>
+              <td>Material</td>
+              <td><span class="badge badge-not_started">Not started</span></td>
+              <td>2026-10-25</td>
+              <td>-</td>
+              <td>
+                
+                
+                
+              </td>
+            </tr>
+          
+            <tr data-f-sort-process="Milling 2026-10-30" data-f-sort-due="2026-10-30 2610-011 1" data-f-sort-customer="DEMO 東洋機械 2026-10-30" data-f-sort-waiting="-1">
+              <td><a href="order_2610-011.html">2610-011-01</a></td>
+              <td>Not linked yet <a href="tags.html">Link a tag</a></td>
+              <td>フレーム</td>
+              <td>DEMO 東洋機械</td>
+              <td>Milling</td>
+              <td><span class="badge badge-not_started">Not started</span></td>
+              <td>2026-10-30</td>
+              <td>-</td>
+              <td>
+                
+                
+                
+              </td>
+            </tr>
+          
+            <tr data-f-sort-process="Milling 2026-11-11" data-f-sort-due="2026-11-11 2610-007 1" data-f-sort-customer="DEMO 東洋機械 2026-11-11" data-f-sort-waiting="-1">
+              <td><a href="order_2610-007.html">2610-007-01</a></td>
+              <td>DEMO-07</td>
+              <td>ピン</td>
+              <td>DEMO 東洋機械</td>
+              <td>Milling</td>
+              <td><span class="badge badge-not_started">Not started</span></td>
+              <td>2026-11-11</td>
+              <td>-</td>
+              <td>
+                
+                
+                
+              </td>
+            </tr>
+          
+        </tbody>
+      </table>
+    </div>
+  
+
+  </main>
+  <footer class="site-footer">Factory Tracker</footer>
+  <script src="../static/js/nav.js"></script>
+<script src="../static/js/demo.js" defer></script></body>
+</html>

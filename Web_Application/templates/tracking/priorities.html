@@ -19,7 +19,7 @@
       <label for="sort">{% trans "Sort by" %}</label>
       <select id="sort" name="sort" onchange="this.form.submit()">
         {% for value, label in sort_choices %}
-          <option value="{{ value }}"{% if value == sort %} selected{% endif %}>{{ label }}</option>
+          <option value="{{ value }}"{% if value == 'waiting' %} data-dir="desc"{% endif %}{% if value == sort %} selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
     </div>
@@ -45,7 +45,7 @@
         </thead>
         <tbody>
           {% for r in rows %}
-            <tr>
+            <tr data-f-sort-risk="{{ r.risk_key }}" data-f-sort-process="{{ r.process.name|default:'~' }} {{ r.risk_key }}" data-f-sort-waiting="{% if r.idle %}{{ r.idle.total_seconds|floatformat:'0u' }}{% else %}-1{% endif %}">
               <td><a href="{% url 'order_detail' r.item.order.job_number %}">{% include "includes/item_box.html" with item=r.item multi=r.multi label=r.box_label %}</a></td>
               <td>{{ r.item.part_name }}</td>
               <td>{{ r.item.order.customer }}</td>

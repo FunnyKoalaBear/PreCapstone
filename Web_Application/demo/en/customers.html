@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Customers - Factory Tracker (demo)</title>
+  <link rel="stylesheet" href="../static/css/theme.css">
+  <link rel="stylesheet" href="../static/css/base.css">
+  <link rel="stylesheet" href="../static/css/lang.css">
+  <script>document.documentElement.classList.add('js')</script>
+<link rel="stylesheet" href="../static/css/demo.css"></head>
+<body><div class="demo-banner" role="note"><strong>DEMO / sample data</strong> &mdash; invented data. Nothing you enter is saved.</div>
+  <header class="site-header">
+    <span class="brand">Factory Tracker</span>
+    <button type="button" class="nav-toggle" aria-controls="site-nav" aria-expanded="false" aria-label="Menu">&#9776;</button>
+    <nav class="site-nav" id="site-nav">
+      <a href="index.html">Home</a>
+      <a href="orders.html">Orders</a>
+      <a href="customers.html">Customers</a>
+      <a href="analysis_results.html">Analysis</a>
+      <a href="shipping.html">Shipping</a>
+      <a href="priorities.html">Priorities</a>
+      <a href="tags.html">Tags</a>
+      
+      
+    <a href="../ja/manual.html" lang="ja">使い方</a></nav>
+    
+
+
+
+
+    
+<span class="lang-switch"><a href="../ja/customers.html">日本語</a><a href="../en/customers.html" class="active" aria-current="true">English</a></span>
+
+  </header>
+  <main class="site-main">
+    
+    
+  <h1>Customers</h1>
+
+  <form method="post" class="card">
+    
+    <div>
+    <label for="id_name">Name:</label>
+
+
+
+<input type="text" name="name" maxlength="200" required id="id_name">
+    
+</div>
+
+  <div>
+    <label for="id_contact">Contact:</label>
+
+
+
+<input type="text" name="contact" maxlength="200" id="id_contact">
+    
+      
+    
+</div>
+    <button type="submit" class="button">Add customer</button>
+  </form>
+
+  <form method="get" class="filters">
+    <div>
+      <label for="q">Search</label>
+      <input type="search" id="q" name="q" value="">
+    </div>
+    <button type="submit" class="button">Search</button>
+  </form>
+
+  <div class="scroll-panel" tabindex="0">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Contact</th>
+          <th>Number of orders</th>
+        </tr>
+      </thead>
+      <tbody>
+        
+          <tr>
+            <td><a href="customer_2.html">DEMO 北斗製作所</a></td>
+            <td>-</td>
+            <td>6</td>
+          </tr>
+        
+          <tr>
+            <td><a href="customer_4.html">DEMO 大和工業</a></td>
+            <td>-</td>
+            <td>27</td>
+          </tr>
+        
+          <tr>
+            <td><a href="customer_5.html">DEMO 富士エンジニアリング</a></td>
+            <td>-</td>
+            <td>20</td>
+          </tr>
+        
+          <tr>
+            <td><a href="customer_6.html">DEMO 日の出産業</a></td>
+            <td>-</td>
+            <td>36</td>
+          </tr>
+        
+          <tr>
+            <td><a href="customer_1.html">DEMO 東洋機械</a></td>
+            <td>-</td>
+            <td>7</td>
+          </tr>
+        
+          <tr>
+            <td><a href="customer_3.html">DEMO 青葉精機</a></td>
+            <td>-</td>
+            <td>33</td>
+          </tr>
+        
+      </tbody>
+    </table>
+  </div>
+
+  </main>
+  <footer class="site-footer">Factory Tracker</footer>
+  <script src="../static/js/nav.js"></script>
+<script src="../static/js/demo.js" defer></script></body>
+</html>

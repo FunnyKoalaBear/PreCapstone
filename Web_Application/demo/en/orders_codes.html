@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Orders - Factory Tracker (demo)</title>
+  <link rel="stylesheet" href="../static/css/theme.css">
+  <link rel="stylesheet" href="../static/css/base.css">
+  <link rel="stylesheet" href="../static/css/lang.css">
+  <script>document.documentElement.classList.add('js')</script>
+<link rel="stylesheet" href="../static/css/demo.css"></head>
+<body><div class="demo-banner" role="note"><strong>DEMO / sample data</strong> &mdash; invented data. Nothing you enter is saved.</div>
+  <header class="site-header">
+    <span class="brand">Factory Tracker</span>
+    <button type="button" class="nav-toggle" aria-controls="site-nav" aria-expanded="false" aria-label="Menu">&#9776;</button>
+    <nav class="site-nav" id="site-nav">
+      <a href="index.html">Home</a>
+      <a href="orders.html">Orders</a>
+      <a href="customers.html">Customers</a>
+      <a href="analysis_results.html">Analysis</a>
+      <a href="shipping.html">Shipping</a>
+      <a href="priorities.html">Priorities</a>
+      <a href="tags.html">Tags</a>
+      
+      
+    <a href="../ja/manual.html" lang="ja">使い方</a></nav>
+    
+
+
+
+
+    
+<span class="lang-switch"><a href="../ja/orders_codes.html">日本語</a><a href="../en/orders_codes.html" class="active" aria-current="true">English</a></span>
+
+  </header>
+  <main class="site-main">
+    
+    
+  <h1>Orders</h1>
+  
+  <nav class="tabs" aria-label="Orders sections">
+  
+    <a class="tab" href="orders.html">
+      <svg class="tab-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>
+  
+</svg>
+<span>Orders</span>
+    </a>
+  
+    <a class="tab" href="orders_new.html">
+      <svg class="tab-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>
+  
+</svg>
+<span>New order</span>
+    </a>
+  
+    <a class="tab" href="orders_import.html">
+      <svg class="tab-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <path d="M12 3v12M7 10l5 5 5-5M4 19h16"/>
+  
+</svg>
+<span>Import</span>
+    </a>
+  
+    <a class="tab is-active" href="orders_codes.html" aria-current="page">
+      <svg class="tab-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <path d="M20 12l-8 8-9-9V3h8z"/><circle cx="7.5" cy="7.5" r="1"/>
+</svg>
+<span>Codes</span>
+    </a>
+  
+</nav>
+
+  
+<form method="get" class="filters">
+  <input type="hidden" name="tab" value="codes">
+  <div>
+    <label for="q">Search</label>
+    <input type="search" id="q" name="q" value="">
+  </div>
+  <div>
+    <label for="kind">Kind</label>
+    <select id="kind" name="kind">
+      <option value="" selected>All</option><option value="INTERNAL">In-house</option><option value="EXTERNAL">External</option>
+    </select>
+  </div>
+  <label class="check"><input type="checkbox" name="inactive" value="1" data-f-show> Show inactive</label>
+  <button type="submit" class="button">Search</button>
+</form>
+
+
+<div class="scroll-panel scroll-panel-first" tabindex="0">
+  <table class="table table-cards">
+    <thead>
+      <tr>
+        <th>Code</th>
+        <th>Name</th>
+        <th>Japanese name</th>
+        <th>Kind</th>
+        <th>Lead days</th>
+        <th>Notes</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      
+        <tr data-f-kind="INTERNAL" data-f-inactive="">
+          <td data-label="Code">00011</td>
+          <td data-label="Name">Milling shop</td>
+          <td data-label="Japanese name">フライス加工</td>
+          <td data-label="Kind">Internal</td>
+          <td data-label="Lead days">-</td>
+          <td data-label="Notes">-</td>
+          <td data-label="Actions">
+            <form method="post" action="orders_codes.html?inactive=1" class="inline-actions">
+              
+              <input type="hidden" name="vendor" value="1">
+              <a href="orders_codes.html?inactive=1#code-form">Edit</a>
+              <button type="submit" name="action" value="deactivate" class="link-button">Deactivate</button>
+              
+            </form>
+          </td>
+        </tr>
+      
+        <tr data-f-kind="INTERNAL" data-f-inactive="">
+          <td data-label="Code">00012</td>
+          <td data-label="Name">Lathe shop</td>
+          <td data-label="Japanese name">旋盤加工</td>
+          <td data-label="Kind">Internal</td>
+          <td data-label="Lead days">-</td>
+          <td data-label="Notes">-</td>
+          <td data-label="Actions">
+            <form method="post" action="orders_codes.html?inactive=1" class="inline-actions">
+              
+              <input type="hidden" name="vendor" value="2">
+              <a href="orders_codes.html?inactive=1#code-form">Edit</a>
+              <button type="submit" name="action" value="deactivate" class="link-button">Deactivate</button>
+              
+            </form>
+          </td>
+        </tr>
+      
+        <tr data-f-kind="INTERNAL" data-f-inactive="">
+          <td data-label="Code">00013</td>
+          <td data-label="Name">Machining centre shop</td>
+          <td data-label="Japanese name">マシニング加工</td>
+          <td data-label="Kind">Internal</td>
+          <td data-label="Lead days">-</td>
+          <td data-label="Notes">-</td>
+          <td data-label="Actions">
+            <form method="post" action="orders_codes.html?inactive=1" class="inline-actions">
+              
+              <input type="hidden" name="vendor" value="3">
+              <a href="orders_codes.html?inactive=1#code-form">Edit</a>
+              <button type="submit" name="action" value="deactivate" class="link-button">Deactivate</button>
+              
+            </form>
+          </td>
+        </tr>
+      
+        <tr data-f-kind="INTERNAL" data-f-inactive="">
+          <td data-label="Code">00014</td>
+          <td data-label="Name">Grinding shop</td>
+          <td data-label="Japanese name">研削加工</td>
+          <td data-label="Kind">Internal</td>
+          <td data-label="Lead days">-</td>
+          <td data-label="Notes">-</td>
+          <td data-label="Actions">
+            <form method="post" action="orders_codes.html?inactive=1" class="inline-actions">
+              
+              <input type="hidden" name="vendor" value="4">
+              <a href="orders_codes.html?inactive=1#code-form">Edit</a>
+              <button type="submit" name="action" value="deactivate" class="link-button">Deactivate</button>
+              
+            </form>
+          </td>
+        </tr>
+      
+        <tr data-f-kind="INTERNAL" data-f-inactive="">
+          <td data-label="Code">00015</td>
+          <td data-label="Name">Deburring</td>
+          <td data-label="Japanese name">バリ取り</td>
+          <td data-label="Kind">Internal</td>
+          <td data-label="Lead days">-</td>
+          <td data-label="Notes">-</td>
+          <td data-label="Actions">
+            <form method="post" action="orders_codes.html?inactive=1" class="inline-actions">
+              
+              <input type="hidden" name="vendor" value="5">
+              <a href="orders_codes.html?inactive=1#code-form">Edit</a>
+              <button type="submit" name="action" value="deactivate" class="link-button">Deactivate</button>
+              
+            </form>
+          </td>
+        </tr>
+      
+        <tr data-f-kind="INTERNAL" data-f-inactive="">
+          <td data-label="Code">00016</td>
+          <td data-label="Name">Cutting shop</td>
+          <td data-label="Japanese name">切断加工</td>
+          <td data-label="Kind">Internal</td>
+          <td data-label="Lead days">-</td>
+          <td data-label="Notes">Saw and shear</td>
+          <td data-label="Actions">
+            <form method="post" action="orders_codes.html?inactive=1" class="inline-actions">
+              
+              <input type="hidden" name="vendor" value="17">
+              <a href="orders_codes.html?inactive=1#code-form">Edit</a>
+              <button type="submit" name="action" value="deactivate" class="link-button">Deactivate</button>
+              
+            </form>
+          </td>
+        </tr>
+      
+        <tr data-f-kind="INTERNAL" data-f-inactive="">
+          <td data-label="Code">00017</td>
+          <td data-label="Name">Polishing shop</td>
+          <td data-label="Japanese name">研磨加工</td>
+          <td data-label="Kind">Internal</td>
+          <td data-label="Lead days">-</td>
+          <td data-label="Notes">-</td>
+          <td data-label="Actions">
+            <form method="post" action="orders_codes.html?inactive=1" class="inline-actions">
+              
+              <input type="hidden" name="vendor" value="18">
+              <a href="orders_codes.html?inactive=1#code-form">Edit</a>
+              <button type="submit" name="action" value="deactivate" class="link-button">Deactivate</button>
+              
+            </form>
+          </td>
+        </tr>
+      
+        <tr data-f-kind="INTERNAL" data-f-inactive="">
+          <td data-label="Code">00020</td>
+          <td data-label="Name">Inspection</td>
+          <td data-label="Japanese name">検査</td>
+          <td data-label="Kind">Internal</td>
+          <td data-label="Lead days">-</td>
+          <td data-label="Notes">Final check before shipping</td>
+          <td data-label="Actions">
+            <form method="post" action="orders_codes.html?inactive=1" class="inline-actions">
+              
+              <input type="hidden" name="vendor" value="6">
+              <a href="orders_codes.html?inactive=1#code-form">Edit</a>
+              <button type="submit" name="action" value="deactivate" class="link-button">Deactivate</button>
+              
+            </form>
+          </td>
+        </tr>
+      
+        <tr data-f-kind="INTERNAL" data-f-inactive="">
+          <td data-label="Code">00021</td>
+          <td data-label="Name">Assembly</td>
+          <td data-label="Japanese name">組立</td>
+          <td data-label="Kind">Internal</td>
+          <td data-label="Lead days">-</td>
+          <td data-label="Notes">-</td>
+          <td data-label="Actions">
+            <form method="post" action="orders_codes.html?inactive=1" class="inline-actions">
+              
+              <input type="hidden" name="vendor" value="7">
+              <a href="orders_codes.html?inactive=1#code-form">Edit</a>
+              <button type="submit" name="action" value="deactivate" class="link-button">Deactivate</button>
+              
+            </form>
+          </td>
+        </tr>
+      
+        <tr data-f-kind="INTERNAL" data-f-inactive="">
+          <td data-label="Code">00022</td>
+          <td data-label="Name">Packing</td>
+          <td data-label="Japanese name">梱包</td>
+          <td data-label="Kind">Internal</td>
+          <td data-label="Lead days">-</td>
+          <td data-label="Notes">Boxes and foam in the shipping room</td>
+          <td data-label="Actions">
+            <form method="post" action="orders_codes.html?inactive=1" class="inline-actions">
+              
+              <input type="hidden" name="vendor" value="19">
+              <a href="orders_codes.html?inactive=1#code-form">Edit</a>
+              <button type="submit" name="action" value="deactivate" class="link-button">Deactivate</button>
+              
+            </form>
+          </td>
+        </tr>
+      
+        <tr data-f-kind="INTERNAL" data-f-inactive="">
+          <td data-label="Code">00023</td>
+          <td data-label="Name">Shipping desk</td>
+          <td data-label="Japanese name">出荷</td>
+          <td data-label="Kind">Internal</td>
+          <td data-label="Lead days">-</td>
+          <td data-label="Notes">-</td>
+          <td data-label="Actions">
+            <form method="post" action="orders_codes.html?inactive=1" class="inline-actions">
+              
+              <input type="hidden" name="vendor" value="20">
+              <a href="orders_codes.html?inactive=1#code-form">Edit</a>
+              <button type="submit" name="action" value="deactivate" class="link-button">Deactivate</button>
+              
+            </form>
+          </td>
+        </tr>
+      
+        <tr data-f-kind="EXTERNAL" data-f-inactive="">
+          <td data-label="Code">00101</td>
+          <td data-label="Name">Sample Steel Trading</td>
+          <td data-label="Japanese name">サンプル鋼材商事</td>
+          <td data-label="Kind">Supplier</td>
+          <td data-label="Lead days">-</td>
+          <td data-label="Notes">Main steel supplier, delivers in 2 days</td>
+          <td data-label="Actions">
+            <form method="post" action="orders_codes.html?inactive=1" class="inline-actions">
+              
+              <input type="hidden" name="vendor" value="8">
+              <a href="orders_codes.html?inactive=1#code-form">Edit</a>
+              <button type="submit" name="action" value="deactivate" class="link-button">Deactivate</button>
+              
+            </form>
+          </td>
+        </tr>
+      
+        <tr data-f-kind="EXTERNAL" data-f-inactive="">
+          <td data-label="Code">00102</td>
+          <td data-label="Name">Demo Metals Co.</td>
+          <td data-label="Japanese name">デモ金属</td>
+          <td data-label="Kind">Supplier</td>
+          <td data-label="Lead days">-</td>
+          <td data-label="Notes">-</td>
+          <td data-label="Actions">
+            <form method="post" action="orders_codes.html?inactive=1" class="inline-actions">
+              
+              <input type="hidden" name="vendor" value="9">
+              <a href="orders_codes.html?inactive=1#code-form">Edit</a>
+              <button type="submit" name="action" value="deactivate" class="link-button">Deactivate</button>
+              
+            </form>
+          </td>
+        </tr>
+      
+        <tr data-f-kind="EXTERNAL" data-f-inactive="">
+          <td data-label="Code">00103</td>
+          <td data-label="Name">Example Bar Supply</td>
+          <td data-label="Japanese name">サンプル棒鋼</td>
+          <td data-label="Kind">Supplier</td>
+          <td data-label="Lead days">-</td>
+          <td data-label="Notes">-</td>
+          <td data-label="Actions">
+            <form method="post" action="orders_codes.html?inactive=1" class="inline-actions">
+              
+              <input type="hidden" name="vendor" value="10">
+              <a href="orders_codes.html?inactive=1#code-form">Edit</a>
+              <button type="submit" name="action" value="deactivate" class="link-button">Deactivate</button>
+              
+            </form>
+          </td>
+        </tr>
+      
+        <tr data-f-kind="EXTERNAL" data-f-inactive="">
+          <td data-label="Code">00104</td>
+          <td data-label="Name">Sample Aluminium</td>
+          <td data-label="Japanese name">サンプルアルミ</td>
+          <td data-label="Kind">Supplier</td>
+          <td data-label="Lead days">-</td>
+          <td data-label="Notes">A5052 and A6061 sheets</td>
+          <td data-label="Actions">
+            <form method="post" action="orders_codes.html?inactive=1" class="inline-actions">
+              
+              <input type="hidden" name="vendor" value="21">
+              <a href="orders_codes.html?inactive=1#code-form">Edit</a>
+              <button type="submit" name="action" value="deactivate" class="link-button">Deactivate</button>
+              
+            </form>
+          </td>
+        </tr>
+      
+        <tr data-f-kind="EXTERNAL" data-f-inactive="">
+          <td data-label="Code">00105</td>
+          <td data-label="Name">Example Stainless</td>
+          <td data-label="Japanese name">エグザンプルステンレス</td>
+          <td data-label="Kind">Supplier</td>
+          <td data-label="Lead days">-</td>
+          <td data-label="Notes">SUS304 bar</td>
+          <td data-label="Actions">
+            <form method="post" action="orders_codes.html?inactive=1" class="inline-actions">
+              
+              <input type="hidden" name="vendor" value="22">
+              <a href="orders_codes.html?inactive=1#code-form">Edit</a>
+              <button type="submit" name="action" value="deactivate" class="link-button">Deactivate</button>
+              
+            </form>
+          </td>
+        </tr>
+      
+        <tr data-f-kind="EXTERNAL" data-f-inactive="">
+          <td data-label="Code">00106</td>
+          <td data-label="Name">Demo Plastics</td>
+          <td data-label="Japanese name">デモ樹脂</td>
+          <td data-label="Kind">Supplier</td>
+          <td data-label="Lead days">-</td>
+          <td data-label="Notes">-</td>
+          <td data-label="Actions">
+            <form method="post" action="orders_codes.html?inactive=1" class="inline-actions">
+              
+              <input type="hidden" name="vendor" value="23">
+              <a href="orders_codes.html?inactive=1#code-form">Edit</a>
+              <button type="submit" name="action" value="deactivate" class="link-button">Deactivate</button>
+              
+            </form>
+          </td>
+        </tr>
+      
+        <tr data-f-kind="EXTERNAL" data-f-inactive="">
+          <td data-label="Code">00131</td>
+          <td data-label="Name">Demo Plating Works</td>
+          <td data-label="Japanese name">デモメッキ工業</td>
+          <td data-label="Kind">Vendor</td>
+          <td data-label="Lead days">7</td>
+          <td data-label="Notes">Slow lately: allow 7 days</td>
+          <td data-label="Actions">
+            <form method="post" action="orders_codes.html?inactive=1" class="inline-actions">
+              
+              <input type="hidden" name="vendor" value="11">
+              <a href="orders_codes.html?inactive=1#code-form">Edit</a>
+              <button type="submit" name="action" value="deactivate" class="link-button">Deactivate</button>
+              
+            </form>
+          </td>
+        </tr>
+      
+        <tr data-f-kind="EXTERNAL" data-f-inactive="">
+          <td data-label="Code">00132</td>
+          <td data-label="Name">Sample Heat Treatment</td>
+          <td data-label="Japanese name">サンプル熱処理</td>
+          <td data-label="Kind">Vendor</td>
+          <td data-label="Lead days">10</td>
+          <td data-label="Notes">Batch furnace on Tuesdays and Fridays</td>
+          <td data-label="Actions">
+            <form method="post" action="orders_codes.html?inactive=1" class="inline-actions">
+              
+              <input type="hidden" name="vendor" value="12">
+              <a href="orders_codes.html?inactive=1#code-form">Edit</a>
+              <button type="submit" name="action" value="deactivate" class="link-button">Deactivate</button>
+              
+            </form>
+          </td>
+        </tr>
+      
+        <tr data-f-kind="EXTERNAL" data-f-inactive="">
+          <td data-label="Code">00133</td>
+          <td data-label="Name">Example Welding</td>
+          <td data-label="Japanese name">サンプル溶接</td>
+          <td data-label="Kind">Vendor</td>
+          <td data-label="Lead days">5</td>
+          <td data-label="Notes">Needs the drawing with weld symbols</td>
+          <td data-label="Actions">
+            <form method="post" action="orders_codes.html?inactive=1" class="inline-actions">
+              
+              <input type="hidden" name="vendor" value="13">
+              <a href="orders_codes.html?inactive=1#code-form">Edit</a>
+              <button type="submit" name="action" value="deactivate" class="link-button">Deactivate</button>
+              
+            </form>
+          </td>
+        </tr>
+      
+        <tr data-f-kind="EXTERNAL" data-f-inactive="">
+          <td data-label="Code">00134</td>
+          <td data-label="Name">Demo Coating</td>
+          <td data-label="Japanese name">デモ塗装</td>
+          <td data-label="Kind">Vendor</td>
+          <td data-label="Lead days">5</td>
+          <td data-label="Notes">-</td>
+          <td data-label="Actions">
+            <form method="post" action="orders_codes.html?inactive=1" class="inline-actions">
+              
+              <input type="hidden" name="vendor" value="14">
+              <a href="orders_codes.html?inactive=1#code-form">Edit</a>
+              <button type="submit" name="action" value="deactivate" class="link-button">Deactivate</button>
+              
+            </form>
+          </td>
+        </tr>
+      
+        <tr data-f-kind="EXTERNAL" data-f-inactive="">
+          <td data-label="Code">00135</td>
+          <td data-label="Name">Sample Polishing</td>
+          <td data-label="Japanese name">サンプル研磨</td>
+          <td data-label="Kind">Vendor</td>
+          <td data-label="Lead days">3</td>
+          <td data-label="Notes">-</td>
+          <td data-label="Actions">
+            <form method="post" action="orders_codes.html?inactive=1" class="inline-actions">
+              
+              <input type="hidden" name="vendor" value="15">
+              <a href="orders_codes.html?inactive=1#code-form">Edit</a>
+              <button type="submit" name="action" value="deactivate" class="link-button">Deactivate</button>
+              
+            </form>
+          </td>
+        </tr>
+      
+        <tr data-f-kind="EXTERNAL" data-f-inactive="">
+          <td data-label="Code">00136</td>
+          <td data-label="Name">Example Laser Cutting</td>
+          <td data-label="Japanese name">サンプルレーザー</td>
+          <td data-label="Kind">Vendor</td>
+          <td data-label="Lead days">3</td>
+          <td data-label="Notes">-</td>
+          <td data-label="Actions">
+            <form method="post" action="orders_codes.html?inactive=1" class="inline-actions">
+              
+              <input type="hidden" name="vendor" value="16">
+              <a href="orders_codes.html?inactive=1#code-form">Edit</a>
+              <button type="submit" name="action" value="deactivate" class="link-button">Deactivate</button>
+              
+            </form>
+          </td>
+        </tr>
+      
+        <tr data-f-kind="EXTERNAL" data-f-inactive="">
+          <td data-label="Code">00137</td>
+          <td data-label="Name">Demo Anodizing</td>
+          <td data-label="Japanese name">デモアルマイト</td>
+          <td data-label="Kind">Vendor</td>
+          <td data-label="Lead days">-</td>
+          <td data-label="Notes">Black and clear</td>
+          <td data-label="Actions">
+            <form method="post" action="orders_codes.html?inactive=1" class="inline-actions">
+              
+              <input type="hidden" name="vendor" value="24">
+              <a href="orders_codes.html?inactive=1#code-form">Edit</a>
+              <button type="submit" name="action" value="deactivate" class="link-button">Deactivate</button>
+              
+            </form>
+          </td>
+        </tr>
+      
+        <tr data-f-kind="EXTERNAL" data-f-inactive="">
+          <td data-label="Code">00138</td>
+          <td data-label="Name">Sample Casting</td>
+          <td data-label="Japanese name">サンプル鋳造</td>
+          <td data-label="Kind">Vendor</td>
+          <td data-label="Lead days">-</td>
+          <td data-label="Notes">-</td>
+          <td data-label="Actions">
+            <form method="post" action="orders_codes.html?inactive=1" class="inline-actions">
+              
+              <input type="hidden" name="vendor" value="25">
+              <a href="orders_codes.html?inactive=1#code-form">Edit</a>
+              <button type="submit" name="action" value="deactivate" class="link-button">Deactivate</button>
+              
+            </form>
+          </td>
+        </tr>
+      
+        <tr data-f-kind="EXTERNAL" data-f-inactive="">
+          <td data-label="Code">00139</td>
+          <td data-label="Name">Example Forging</td>
+          <td data-label="Japanese name">サンプル鍛造</td>
+          <td data-label="Kind">Vendor</td>
+          <td data-label="Lead days">-</td>
+          <td data-label="Notes">Minimum 20 pieces</td>
+          <td data-label="Actions">
+            <form method="post" action="orders_codes.html?inactive=1" class="inline-actions">
+              
+              <input type="hidden" name="vendor" value="26">
+              <a href="orders_codes.html?inactive=1#code-form">Edit</a>
+              <button type="submit" name="action" value="deactivate" class="link-button">Deactivate</button>
+              
+            </form>
+          </td>
+        </tr>
+      
+        <tr class="is-inactive" data-f-kind="EXTERNAL" data-f-inactive="1">
+          <td data-label="Code">00140 <span class="badge badge-cancelled">Inactive</span></td>
+          <td data-label="Name">Demo Painting Works</td>
+          <td data-label="Japanese name">デモ塗装工業</td>
+          <td data-label="Kind">Vendor</td>
+          <td data-label="Lead days">-</td>
+          <td data-label="Notes">Closed in 2026, use 00134</td>
+          <td data-label="Actions">
+            <form method="post" action="orders_codes.html?inactive=1" class="inline-actions">
+              
+              <input type="hidden" name="vendor" value="27">
+              <a href="orders_codes.html?inactive=1#code-form">Edit</a>
+              <button type="submit" name="action" value="reactivate" class="link-button">Reactivate</button>
+            </form>
+          </td>
+        </tr>
+      
+    </tbody>
+  </table>
+</div>
+
+<h2 id="code-form">Add a code</h2>
+<form method="post" action="orders_codes.html?inactive=1" class="card" data-code-form>
+  
+  
+  <div>
+    <label for="id_code">Code:</label>
+
+
+
+<input type="text" name="code" maxlength="5" inputmode="numeric" required id="id_code">
+    
+</div>
+
+  <div>
+    <label for="id_name">Name:</label>
+
+
+
+<input type="text" name="name" maxlength="200" required id="id_name">
+    
+</div>
+
+  <div>
+    <label for="id_name_ja">Japanese name:</label>
+
+
+
+<input type="text" name="name_ja" maxlength="200" id="id_name_ja">
+    
+</div>
+
+  <div>
+    <label for="id_kind">Kind:</label>
+
+
+
+<select name="kind" id="id_kind">
+  <option value="" selected>Suggested from the code</option>
+
+  <option value="INTERNAL">Internal</option>
+
+  <option value="SUPPLIER">Supplier</option>
+
+  <option value="VENDOR">Vendor</option>
+
+</select>
+    
+</div>
+
+  <div>
+    <label for="id_lead_days">Lead days:</label>
+
+
+
+<input type="number" name="lead_days" min="0" id="id_lead_days">
+    
+</div>
+
+  <div>
+    <label for="id_notes">Notes:</label>
+
+
+
+<textarea name="notes" cols="40" rows="2" id="id_notes">
+</textarea>
+    
+      
+    
+</div>
+  <p class="note">Codes 00000-00099 are in-house; 00100-00429 are external (vendor or supplier). The type is suggested from the code, and you can change it.</p>
+  <div class="form-actions">
+    <button type="submit" name="action" value="save" class="button">Add code</button>
+    
+  </div>
+</form>
+<script src="../static/js/codes.js"></script>
+
+  
+
+  </main>
+  <footer class="site-footer">Factory Tracker</footer>
+  <script src="../static/js/nav.js"></script>
+<script src="../static/js/demo.js" defer></script></body>
+</html>

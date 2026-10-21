@@ -43,5 +43,8 @@ Windows 11, Python 3.13, VS Code. The developer is learning: explain each step b
 - All events are created through tracking/services.record_event (simulate page now, scan API later). The scan API (POST /api/scan/) rejects unassigned tags; the simulate page still saves them.
 
 
+## Static demo
+- The demo (demo/) is generated, never hand-edited: run `python manage.py export_demo` after UI changes (it uses a scratch database with seed data only and fails on broken links). Row filters in the demo read `data-f-*` attributes on table rows; new filterable tables need them. The Japanese-only manual is docs/manual_ja.md; update it when a page or term changes.
+
 ## Translation rule
 - Every new user-visible string needs its Japanese translation in locale/ja using docs/glossary.md; then run makemessages and compilemessages (commit .po and .mo). No untranslated or fuzzy entries; add new terms to the glossary. Mark unsure choices with a `# CHECK: reason` translator comment.

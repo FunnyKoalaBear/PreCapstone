@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>作業中 - 工程進捗管理 (demo)</title>
+  <link rel="stylesheet" href="../static/css/theme.css">
+  <link rel="stylesheet" href="../static/css/base.css">
+  <link rel="stylesheet" href="../static/css/lang.css">
+  <script>document.documentElement.classList.add('js')</script>
+<link rel="stylesheet" href="../static/css/demo.css"></head>
+<body><div class="demo-banner" role="note"><strong>デモ / サンプルデータ</strong> &mdash; 架空のデータです。入力した内容は保存されません。</div>
+  <header class="site-header">
+    <span class="brand">工程進捗管理</span>
+    <button type="button" class="nav-toggle" aria-controls="site-nav" aria-expanded="false" aria-label="メニュー">&#9776;</button>
+    <nav class="site-nav" id="site-nav">
+      <a href="index.html">ホーム</a>
+      <a href="orders.html">受注一覧</a>
+      <a href="customers.html">得意先</a>
+      <a href="analysis_results.html">分析</a>
+      <a href="shipping.html">出荷</a>
+      <a href="priorities.html">優先度</a>
+      <a href="tags.html">タグ管理</a>
+      
+      
+    <a href="manual.html" lang="ja">使い方</a></nav>
+    
+
+
+
+
+    
+<span class="lang-switch"><a href="../ja/boxes_in_progress.html" class="active" aria-current="true">日本語</a><a href="../en/boxes_in_progress.html">English</a></span>
+
+  </header>
+  <main class="site-main">
+    
+    
+  <p><a href="index.html">&larr; ホームに戻る</a></p>
+  <h1>作業中</h1>
+
+  <form method="get" class="filters">
+    <input type="hidden" name="status" value="in_progress">
+    <div>
+      <label for="sort">並び順</label>
+      <select id="sort" name="sort">
+        
+          <option value="process">現在の工程</option>
+        
+          <option value="due" selected>納期</option>
+        
+          <option value="customer">得意先</option>
+        
+          <option value="waiting" data-dir="desc">滞留時間</option>
+        
+      </select>
+    </div>
+    <noscript><button type="submit" class="button">適用</button></noscript>
+  </form>
+
+  
+    <div class="scroll-panel scroll-panel-first" tabindex="0">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>品目</th>
+            <th>箱</th>
+            <th>品名</th>
+            <th>得意先</th>
+            <th>現在の工程</th>
+            <th>状態</th>
+            <th>納期</th>
+            <th>滞留時間</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          
+            <tr data-f-sort-process="Lathe 2026-10-19" data-f-sort-due="2026-10-19 2610-002 1" data-f-sort-customer="DEMO 東洋機械 2026-10-19" data-f-sort-waiting="7237">
+              <td><a href="order_2610-002.html">2610-002-01</a></td>
+              <td>DEMO-02</td>
+              <td>フランジ</td>
+              <td>DEMO 東洋機械</td>
+              <td>旋盤</td>
+              <td><span class="badge badge-in_progress">作業中</span></td>
+              <td>2026-10-19</td>
+              <td>2時間0分</td>
+              <td>
+                <span class="badge badge-overdue">納期遅れ</span>
+                
+                
+              </td>
+            </tr>
+          
+            <tr data-f-sort-process="Assembly 2026-10-23" data-f-sort-due="2026-10-23 2610-021 1" data-f-sort-customer="DEMO 大和工業 2026-10-23" data-f-sort-waiting="1836">
+              <td><a href="order_2610-021.html">2610-021-01</a></td>
+              <td>DEMO-B04</td>
+              <td>ブロック</td>
+              <td>DEMO 大和工業</td>
+              <td>組立</td>
+              <td><span class="badge badge-in_progress">作業中</span></td>
+              <td>2026-10-23</td>
+              <td>30分</td>
+              <td>
+                
+                
+                
+              </td>
+            </tr>
+          
+            <tr data-f-sort-process="Lathe 2026-10-24" data-f-sort-due="2026-10-24 2610-040 1" data-f-sort-customer="DEMO 富士エンジニアリング 2026-10-24" data-f-sort-waiting="1836">
+              <td><a href="order_2610-040.html">2610-040-01</a></td>
+              <td>DEMO-B33</td>
+              <td>カラー</td>
+              <td>DEMO 富士エンジニアリング</td>
+              <td>旋盤</td>
+              <td><span class="badge badge-in_progress">作業中</span></td>
+              <td>2026-10-24</td>
+              <td>30分</td>
+              <td>
+                
+                
+                
+              </td>
+            </tr>
+          
+            <tr data-f-sort-process="Inspection 2026-10-25" data-f-sort-due="2026-10-25 2609-017 1" data-f-sort-customer="DEMO 日の出産業 2026-10-25" data-f-sort-waiting="36036">
+              <td><a href="order_2609-017.html">2609-017-01</a></td>
+              <td>DEMO-B10</td>
+              <td>カラー</td>
+              <td>DEMO 日の出産業</td>
+              <td>検査</td>
+              <td><span class="badge badge-in_progress">作業中</span></td>
+              <td>2026-10-25</td>
+              <td>10時間0分</td>
+              <td>
+                
+                
+                
+              </td>
+            </tr>
+          
+            <tr data-f-sort-process="Assembly 2026-10-27" data-f-sort-due="2026-10-27 2610-008 1" data-f-sort-customer="DEMO 北斗製作所 2026-10-27" data-f-sort-waiting="64837">
+              <td><a href="order_2610-008.html">2610-008-01</a></td>
+              <td>DEMO-08</td>
+              <td>ギア</td>
+              <td>DEMO 北斗製作所</td>
+              <td>組立</td>
+              <td><span class="badge badge-in_progress">作業中</span></td>
+              <td>2026-10-27</td>
+              <td>18時間0分</td>
+              <td>
+                
+                
+                
+              </td>
+            </tr>
+          
+            <tr data-f-sort-process="Milling 2026-10-27" data-f-sort-due="2026-10-27 2610-025 1" data-f-sort-customer="DEMO 富士エンジニアリング 2026-10-27" data-f-sort-waiting="3636">
+              <td><a href="order_2610-025.html">2610-025-01</a></td>
+              <td>DEMO-B05</td>
+              <td>ハブ</td>
+              <td>DEMO 富士エンジニアリング</td>
+              <td>フライス</td>
+              <td><span class="badge badge-in_progress">作業中</span></td>
+              <td>2026-10-27</td>
+              <td>1時間0分</td>
+              <td>
+                
+                
+                
+              </td>
+            </tr>
+          
+            <tr data-f-sort-process="Lathe 2026-10-29" data-f-sort-due="2026-10-29 2610-010 1" data-f-sort-customer="DEMO 東洋機械 2026-10-29" data-f-sort-waiting="7237">
+              <td><a href="order_2610-010.html">2610-010-01</a></td>
+              <td>DEMO-09</td>
+              <td>新部品</td>
+              <td>DEMO 東洋機械</td>
+              <td>旋盤</td>
+              <td><span class="badge badge-in_progress">作業中</span></td>
+              <td>2026-10-29</td>
+              <td>2時間0分</td>
+              <td>
+                
+                
+                
+              </td>
+            </tr>
+          
+            <tr data-f-sort-process="Lathe 2026-10-30" data-f-sort-due="2026-10-30 2610-011 1" data-f-sort-customer="DEMO 東洋機械 2026-10-30" data-f-sort-waiting="3637">
+              <td><a href="order_2610-011.html">2610-011-01</a></td>
+              <td>DEMO-11</td>
+              <td>フレーム</td>
+              <td>DEMO 東洋機械</td>
+              <td>旋盤</td>
+              <td><span class="badge badge-in_progress">作業中</span></td>
+              <td>2026-10-30</td>
+              <td>1時間0分</td>
+              <td>
+                
+                
+                
+              </td>
+            </tr>
+          
+            <tr data-f-sort-process="Assembly 2026-10-30" data-f-sort-due="2026-10-30 2610-019 1" data-f-sort-customer="DEMO 富士エンジニアリング 2026-10-30" data-f-sort-waiting="1836">
+              <td><a href="order_2610-019.html">2610-019-01</a></td>
+              <td>DEMO-B15</td>
+              <td>ブロック</td>
+              <td>DEMO 富士エンジニアリング</td>
+              <td>組立</td>
+              <td><span class="badge badge-in_progress">作業中</span></td>
+              <td>2026-10-30</td>
+              <td>30分</td>
+              <td>
+                
+                
+                
+              </td>
+            </tr>
+          
+            <tr data-f-sort-process="Assembly 2026-11-01" data-f-sort-due="2026-11-01 2610-001 1" data-f-sort-customer="DEMO 東洋機械 2026-11-01" data-f-sort-waiting="3637">
+              <td><a href="order_2610-001.html">2610-001-01</a></td>
+              <td>DEMO-01</td>
+              <td>ブラケット</td>
+              <td>DEMO 東洋機械</td>
+              <td>組立</td>
+              <td><span class="badge badge-in_progress">作業中</span></td>
+              <td>2026-11-01</td>
+              <td>1時間0分</td>
+              <td>
+                
+                
+                
+              </td>
+            </tr>
+          
+            <tr data-f-sort-process="Inspection 2026-11-03" data-f-sort-due="2026-11-03 2610-016 1" data-f-sort-customer="DEMO 日の出産業 2026-11-03" data-f-sort-waiting="1836">
+              <td><a href="order_2610-016.html">2610-016-01</a></td>
+              <td>DEMO-B06</td>
+              <td>ディスク</td>
+              <td>DEMO 日の出産業</td>
+              <td>検査</td>
+              <td><span class="badge badge-in_progress">作業中</span></td>
+              <td>2026-11-03</td>
+              <td>30分</td>
+              <td>
+                
+                
+                
+              </td>
+            </tr>
+          
+            <tr data-f-sort-process="Grinding 2026-11-09" data-f-sort-due="2026-11-09 2610-014 1" data-f-sort-customer="DEMO 大和工業 2026-11-09" data-f-sort-waiting="108036">
+              <td><a href="order_2610-014.html">2610-014-01</a></td>
+              <td>DEMO-B12</td>
+              <td>カラー</td>
+              <td>DEMO 大和工業</td>
+              <td>研削</td>
+              <td><span class="badge badge-in_progress">作業中</span></td>
+              <td>2026-11-09</td>
+              <td>1日6時間</td>
+              <td>
+                
+                <span class="badge badge-stagnant">滞留</span>
+                
+              </td>
+            </tr>
+          
+            <tr data-f-sort-process="Deburring 2026-11-16" data-f-sort-due="2026-11-16 2610-035 1" data-f-sort-customer="DEMO 日の出産業 2026-11-16" data-f-sort-waiting="21636">
+              <td><a href="order_2610-035.html">2610-035-01</a></td>
+              <td>DEMO-B28</td>
+              <td>ステー</td>
+              <td>DEMO 日の出産業</td>
+              <td>バリ取り</td>
+              <td><span class="badge badge-in_progress">作業中</span></td>
+              <td>2026-11-16</td>
+              <td>6時間0分</td>
+              <td>
+                
+                
+                
+              </td>
+            </tr>
+          
+            <tr data-f-sort-process="Lathe 2026-12-01" data-f-sort-due="2026-12-01 2610-034 1" data-f-sort-customer="DEMO 大和工業 2026-12-01" data-f-sort-waiting="36036">
+              <td><a href="order_2610-034.html">2610-034-01</a></td>
+              <td>DEMO-B27</td>
+              <td>クランプ</td>
+              <td>DEMO 大和工業</td>
+              <td>旋盤</td>
+              <td><span class="badge badge-in_progress">作業中</span></td>
+              <td>2026-12-01</td>
+              <td>10時間0分</td>
+              <td>
+                
+                
+                
+              </td>
+            </tr>
+          
+        </tbody>
+      </table>
+    </div>
+  
+
+  </main>
+  <footer class="site-footer">工程進捗管理</footer>
+  <script src="../static/js/nav.js"></script>
+<script src="../static/js/demo.js" defer></script></body>
+</html>

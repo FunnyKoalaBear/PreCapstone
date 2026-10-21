@@ -506,7 +506,7 @@ class PriorityTests(TestCase):
         self.assertEqual([x['item'] for x in r.context['rows']][0], late)
         self.assertEqual({x['tier'] for x in r.context['rows']}, {'OVERDUE'})
         self.assertContains(r, '<input type="hidden" name="tier" value="OVERDUE">')
-        self.assertContains(r, '<option value="waiting" selected>')
+        self.assertContains(r, '<option value="waiting" data-dir="desc" selected>')
         self.assertContains(r, 'href="?tier=CRITICAL&amp;sort=waiting"')
 
     def test_idle_column_shows_duration(self):

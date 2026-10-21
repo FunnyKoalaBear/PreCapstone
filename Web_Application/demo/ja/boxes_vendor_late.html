@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>外注遅れ - 工程進捗管理 (demo)</title>
+  <link rel="stylesheet" href="../static/css/theme.css">
+  <link rel="stylesheet" href="../static/css/base.css">
+  <link rel="stylesheet" href="../static/css/lang.css">
+  <script>document.documentElement.classList.add('js')</script>
+<link rel="stylesheet" href="../static/css/demo.css"></head>
+<body><div class="demo-banner" role="note"><strong>デモ / サンプルデータ</strong> &mdash; 架空のデータです。入力した内容は保存されません。</div>
+  <header class="site-header">
+    <span class="brand">工程進捗管理</span>
+    <button type="button" class="nav-toggle" aria-controls="site-nav" aria-expanded="false" aria-label="メニュー">&#9776;</button>
+    <nav class="site-nav" id="site-nav">
+      <a href="index.html">ホーム</a>
+      <a href="orders.html">受注一覧</a>
+      <a href="customers.html">得意先</a>
+      <a href="analysis_results.html">分析</a>
+      <a href="shipping.html">出荷</a>
+      <a href="priorities.html">優先度</a>
+      <a href="tags.html">タグ管理</a>
+      
+      
+    <a href="manual.html" lang="ja">使い方</a></nav>
+    
+
+
+
+
+    
+<span class="lang-switch"><a href="../ja/boxes_vendor_late.html" class="active" aria-current="true">日本語</a><a href="../en/boxes_vendor_late.html">English</a></span>
+
+  </header>
+  <main class="site-main">
+    
+    
+  <p><a href="index.html">&larr; ホームに戻る</a></p>
+  <h1>外注遅れ</h1>
+
+  <form method="get" class="filters">
+    <input type="hidden" name="status" value="at_vendor"><input type="hidden" name="vendor_late" value="1">
+    <div>
+      <label for="sort">並び順</label>
+      <select id="sort" name="sort">
+        
+          <option value="process">現在の工程</option>
+        
+          <option value="due" selected>納期</option>
+        
+          <option value="customer">得意先</option>
+        
+          <option value="waiting" data-dir="desc">滞留時間</option>
+        
+      </select>
+    </div>
+    <noscript><button type="submit" class="button">適用</button></noscript>
+  </form>
+
+  
+    <div class="scroll-panel scroll-panel-first" tabindex="0">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>品目</th>
+            <th>箱</th>
+            <th>品名</th>
+            <th>得意先</th>
+            <th>現在の工程</th>
+            <th>状態</th>
+            <th>納期</th>
+            <th>滞留時間</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          
+            <tr data-f-sort-process="Coating 2026-10-26" data-f-sort-due="2026-10-26 2610-004 1" data-f-sort-customer="DEMO 北斗製作所 2026-10-26" data-f-sort-waiting="864048">
+              <td><a href="order_2610-004.html">2610-004-01</a></td>
+              <td>DEMO-04</td>
+              <td>カバー</td>
+              <td>DEMO 北斗製作所</td>
+              <td>塗装</td>
+              <td><span class="badge badge-at_vendor">外注中</span></td>
+              <td>2026-10-26</td>
+              <td>10日0時間</td>
+              <td>
+                
+                
+                <span class="badge badge-overdue">外注遅れ</span> <span class="badge badge-overdue">5日</span>
+
+              </td>
+            </tr>
+          
+            <tr data-f-sort-process="Plating 2026-10-30" data-f-sort-due="2026-10-30 2610-015 1" data-f-sort-customer="DEMO 富士エンジニアリング 2026-10-30" data-f-sort-waiting="1123248">
+              <td><a href="order_2610-015.html">2610-015-01</a></td>
+              <td>DEMO-B13</td>
+              <td>ジョイント</td>
+              <td>DEMO 富士エンジニアリング</td>
+              <td>メッキ</td>
+              <td><span class="badge badge-at_vendor">外注中</span></td>
+              <td>2026-10-30</td>
+              <td>13日0時間</td>
+              <td>
+                
+                
+                <span class="badge badge-overdue">外注遅れ</span> <span class="badge badge-overdue">6日</span>
+
+              </td>
+            </tr>
+          
+        </tbody>
+      </table>
+    </div>
+  
+
+  </main>
+  <footer class="site-footer">工程進捗管理</footer>
+  <script src="../static/js/nav.js"></script>
+<script src="../static/js/demo.js" defer></script></body>
+</html>

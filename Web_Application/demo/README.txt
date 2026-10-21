@@ -1,57 +1,44 @@
 Factory Tracker - static demo (工程進捗管理)
 ============================================
-A self-contained copy of the dashboard with sample data. It needs no server, no
-database and no internet: plain HTML, CSS and JavaScript only (no CDN, fonts or
-frameworks). Japanese is the default; the 日本語 / English switch is in the header.
+A copy of the real pages with sample data. It needs no server, no database and no
+internet: plain HTML, CSS and JavaScript. Do not edit these files by hand; they are
+generated.
 
-Files (upload all of them, keeping the folder structure)
---------------------------------------------------------
-  index.html        Home: counters (clickable) and the process board (running and waiting boxes per process)
-  boxes.html        Result list behind the counters, titled by its filter (?status=, ?stagnant=1, ?vendor_late=1)
-                    and sortable (?sort=process|due|customer|waiting; default due)
-  orders.html       Orders list: search, status filter, sort, overdue only
-  order.html        Order detail: timeline and event history per box (?job=...)
-  customers.html    Customers: add form (name, contact), search and order counts; new customers are saved in the browser
-  customer.html     Customer detail (?id=...): contact, orders; ?edit=1 edits name and contact (orders follow a rename)
-  new-order.html    New order, including the Boxes field and an optional "New customer" name
-  edit-order.html   Edit an order (?job=...): fields, items, box count; route locked after a scan; changes go to the order's Change history
-  tags.html         Link / release / replace tags; "In use" shows the count and lists tags only after a search
-  tag-history.html  Tag history: assignments overlapping a period (1 month, 3 months, 6 months, 1 year or custom dates), searchable by tag or box
-  simulate.html     Simulate a scan (next step only)
-  priorities.html   Priorities: risk tiers, slack and reasons; sortable (?sort=risk|process|waiting) with an idle-time column
-  css/theme.css     Colour variables (same as the app)
-  css/base.css      Styles (same as the app, plus the demo banner)
-  js/i18n.js        Japanese and English texts
-  js/data.js        Sample data (same scenarios, processes and vendor codes as seed_demo and docs/demo-data)
-  js/status.js      Status, priority and overview rules ported from the Django app
-  js/app.js         Pages and UI
+Refresh it (after any change to the site)
+-----------------------------------------
+    python manage.py export_demo
+
+The command builds a scratch database that holds only the seed_demo data, opens every
+page of the site as a planner, and writes this folder again. It stops with an error if a
+link is broken or a secret-looking word (password, token, localhost ...) appears.
+(Run `python manage.py seed_demo --reset` first if you also want your own dev database
+to hold the same demo data; the export itself never touches it.)
+
+Layout
+------
+  index.html      Sends the visitor to ja/index.html
+  ja/  en/        The same pages in Japanese and English (the 日本語 / English switch links
+                  to the same page in the other folder). ja/manual.html (使い方) exists
+                  only in Japanese.
+  static/         The site's own CSS and JavaScript, plus demo.css and demo.js
+
+What works in the demo
+----------------------
+- Every menu link and tab; order, customer, box and priority pages.
+- Search, filters and sorting, done in the browser (static/js/demo.js). The Analysis page
+  and the monthly on-time table are recalculated in the browser from the data embedded in
+  the page.
+- Scroll panels, the frozen first column of the progress matrix, the menu button.
+- Forms (new order, import, add/edit/deactivate code, tags, customers, corrections) and
+  links to files (PDF sheet, CSV export, drawings, edit pages) show "This is a demo,
+  nothing is saved" in the page's language.
 
 Upload to Neocities
 -------------------
-1. Log in to Neocities and open the dashboard ("Edit Site").
-2. Upload the twelve .html files to the top level of the site.
-3. Create the folders css and js (or drag the folders in) and upload the files above.
-4. Open https://<yoursite>.neocities.org/index.html. Staff can also open
-   index.html straight from a local copy of this folder; no server is needed.
+Upload the whole folder (index.html, ja, en, static) and open index.html. To try it
+locally: `python -m http.server` inside this folder, then http://localhost:8000/.
 
-How it behaves
---------------
-- All dates are relative to today, so the sample data always looks current.
-- Scans, new orders and tag changes are saved in each visitor's own browser
-  (localStorage), never on a server. If the browser blocks storage, the demo still
-  works but forgets changes when the page is reloaded.
-- "Reset demo data" in the top banner clears the saved changes. The language choice
-  is kept (it is saved separately). ?lang=en or ?lang=ja in the address also sets it.
-
-How it differs from the real app
---------------------------------
-- No login, no database, no admin site, no scanner API: everything runs in the browser.
-- Status rules are a JavaScript port of tracking/status.py, priority.py and overview.py.
-  If the Python rules change, update js/status.js too.
-- Sample data only (companies, parts and processes are made up). No drawing files.
-- There is no device management, and the edit page records a stand-in user
-  ("Demo user") in the change history; drawings keep only the chosen file name.
-- The simulate page reloads in place instead of using GET reloads, and the
-  language is switched without a page reload.
-- Process names show the Japanese name (name_ja) in Japanese and the English name
-  otherwise, like the app.
+Notes
+-----
+- The data is a snapshot of the day it was exported; run the command again to refresh the dates.
+- All names, parts, codes and customers are invented (seed_demo, docs/demo-data).

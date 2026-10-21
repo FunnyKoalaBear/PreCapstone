@@ -1,3 +1,5 @@
+import json
+
 from django.utils import timezone
 
 from orders.models import OrderItem
@@ -37,3 +39,15 @@ def shipping_overview(today=None, ready_customer=None, ready_q='', due_from=None
             m['on_time'] += shipped_on <= item.order.due_date
     rows = [{'month': k, **v, 'rate': round(100 * v['on_time'] / v['shipped'])} for k, v in sorted(months.items(), reverse=True)]
     return ready, rows
+
+
+def months_json():
+    """Every shipped item (month, customer, search text, on time?) as JSON for the static demo's month filters."""
+    out = []
+    for item in OrderItem.objects.select_related('order__customer'):
+        st = item_status(item)
+        if st.code == SHIPPED:
+            day = timezone.localtime(st.ship_event.occurred_at).date()
+            text = ' '.join((item.item_code, item.part_name, item.part_number, item.order.customer.name, item.order.customer_order_number)).lower()
+            out.append({'m': day.strftime('%Y-%m'), 'c': item.order.customer_id, 't': text, 'ok': int(day <= item.order.due_date)})
+    return json.dumps(out, ensure_ascii=False).replace('</', '<\\/')

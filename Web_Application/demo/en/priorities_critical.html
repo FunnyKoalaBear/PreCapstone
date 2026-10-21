@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Priorities - Factory Tracker (demo)</title>
+  <link rel="stylesheet" href="../static/css/theme.css">
+  <link rel="stylesheet" href="../static/css/base.css">
+  <link rel="stylesheet" href="../static/css/lang.css">
+  <script>document.documentElement.classList.add('js')</script>
+<link rel="stylesheet" href="../static/css/demo.css"></head>
+<body><div class="demo-banner" role="note"><strong>DEMO / sample data</strong> &mdash; invented data. Nothing you enter is saved.</div>
+  <header class="site-header">
+    <span class="brand">Factory Tracker</span>
+    <button type="button" class="nav-toggle" aria-controls="site-nav" aria-expanded="false" aria-label="Menu">&#9776;</button>
+    <nav class="site-nav" id="site-nav">
+      <a href="index.html">Home</a>
+      <a href="orders.html">Orders</a>
+      <a href="customers.html">Customers</a>
+      <a href="analysis_results.html">Analysis</a>
+      <a href="shipping.html">Shipping</a>
+      <a href="priorities.html">Priorities</a>
+      <a href="tags.html">Tags</a>
+      
+      
+    <a href="../ja/manual.html" lang="ja">使い方</a></nav>
+    
+
+
+
+
+    
+<span class="lang-switch"><a href="../ja/priorities_critical.html">日本語</a><a href="../en/priorities_critical.html" class="active" aria-current="true">English</a></span>
+
+  </header>
+  <main class="site-main">
+    
+    
+  <h1>Priorities</h1>
+
+  <nav class="tier-filters">
+    <a href="priorities.html?sort=risk">All (42)</a>
+    
+      <a href="priorities_overdue.html?sort=risk" class="badge badge-risk-overdue">Overdue (7)</a>
+    
+      <a href="priorities_critical.html?sort=risk" class="badge badge-risk-critical active">Critical (12)</a>
+    
+      <a href="priorities_watch.html?sort=risk" class="badge badge-risk-watch">Watch (2)</a>
+    
+      <a href="priorities_on_track.html?sort=risk" class="badge badge-risk-on_track">On track (21)</a>
+    
+  </nav>
+
+  <form method="get" class="filters">
+    <input type="hidden" name="tier" value="CRITICAL">
+    <div>
+      <label for="sort">Sort by</label>
+      <select id="sort" name="sort">
+        
+          <option value="risk" selected>Risk</option>
+        
+          <option value="process">Current process</option>
+        
+          <option value="waiting" data-dir="desc">Idle for</option>
+        
+      </select>
+    </div>
+    <noscript><button type="submit" class="button">Apply</button></noscript>
+  </form>
+
+  
+    <div class="scroll-panel scroll-panel-first" tabindex="0">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Part</th>
+            <th>Customer</th>
+            <th>Due date</th>
+            <th>Days left</th>
+            <th>Slack</th>
+            <th>Current process</th>
+            <th>Idle for</th>
+            <th>Risk</th>
+            <th>Reasons</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+            <tr data-f-sort-risk="149986" data-f-sort-process="Material 149986" data-f-sort-waiting="-1">
+              <td><a href="order_2610-042.html">2610-042-01</a></td>
+              <td>ブロック</td>
+              <td>DEMO 青葉精機</td>
+              <td>2026-10-24</td>
+              <td>2</td>
+              <td>-14</td>
+              <td>Material</td>
+              <td>-</td>
+              <td><span class="badge badge-risk-critical">Critical</span></td>
+              <td><ul class="reasons"><li>Due in 2 days, 6 steps left</li></ul></td>
+            </tr>
+          
+            <tr data-f-sort-risk="149989" data-f-sort-process="Lathe 149989" data-f-sort-waiting="1915">
+              <td><a href="order_2610-040.html">2610-040-01</a></td>
+              <td>カラー</td>
+              <td>DEMO 富士エンジニアリング</td>
+              <td>2026-10-24</td>
+              <td>2</td>
+              <td>-11</td>
+              <td>Lathe</td>
+              <td>31m</td>
+              <td><span class="badge badge-risk-critical">Critical</span></td>
+              <td><ul class="reasons"><li>Due in 2 days, 4 steps left</li></ul></td>
+            </tr>
+          
+            <tr data-f-sort-risk="149989" data-f-sort-process="Material 149989" data-f-sort-waiting="-1">
+              <td><a href="order_2610-043.html">2610-043-01</a></td>
+              <td>ディスク</td>
+              <td>DEMO 青葉精機</td>
+              <td>2026-10-25</td>
+              <td>3</td>
+              <td>-11</td>
+              <td>Material</td>
+              <td>-</td>
+              <td><span class="badge badge-risk-critical">Critical</span></td>
+              <td><ul class="reasons"><li>Due in 3 days, 5 steps left</li></ul></td>
+            </tr>
+          
+            <tr data-f-sort-risk="149990" data-f-sort-process="Heat treatment 149990" data-f-sort-waiting="86515">
+              <td><a href="order_2610-033.html">2610-033-01</a></td>
+              <td>ホルダ</td>
+              <td>DEMO 日の出産業</td>
+              <td>2026-10-23</td>
+              <td>1</td>
+              <td>-10</td>
+              <td>Heat treatment</td>
+              <td>1d 0h</td>
+              <td><span class="badge badge-risk-critical">Critical</span></td>
+              <td><ul class="reasons"><li>Due in 1 days, 3 steps left</li></ul></td>
+            </tr>
+          
+            <tr data-f-sort-risk="149991" data-f-sort-process="Welding 149991" data-f-sort-waiting="86515">
+              <td><a href="order_2610-029.html">2610-029-01</a></td>
+              <td>アーム</td>
+              <td>DEMO 青葉精機</td>
+              <td>2026-10-24</td>
+              <td>2</td>
+              <td>-9</td>
+              <td>Welding</td>
+              <td>1d 0h</td>
+              <td><span class="badge badge-risk-critical">Critical</span></td>
+              <td><ul class="reasons"><li>Due in 2 days, 4 steps left</li></ul></td>
+            </tr>
+          
+            <tr data-f-sort-risk="149996" data-f-sort-process="Plating 149996" data-f-sort-waiting="86515">
+              <td><a href="order_2610-028.html">2610-028-01</a></td>
+              <td>スペーサ</td>
+              <td>DEMO 富士エンジニアリング</td>
+              <td>2026-10-25</td>
+              <td>3</td>
+              <td>-4</td>
+              <td>Plating</td>
+              <td>1d 0h</td>
+              <td><span class="badge badge-risk-critical">Critical</span></td>
+              <td><ul class="reasons"><li>Due in 3 days, 2 steps left</li></ul></td>
+            </tr>
+          
+            <tr data-f-sort-risk="149996" data-f-sort-process="Milling 149996" data-f-sort-waiting="3715">
+              <td><a href="order_2610-025.html">2610-025-01</a></td>
+              <td>ハブ</td>
+              <td>DEMO 富士エンジニアリング</td>
+              <td>2026-10-27</td>
+              <td>5</td>
+              <td>-4</td>
+              <td>Milling</td>
+              <td>1h 1m</td>
+              <td><span class="badge badge-risk-critical">Critical</span></td>
+              <td><ul class="reasons"><li>Due in 5 days, 5 steps left</li></ul></td>
+            </tr>
+          
+            <tr data-f-sort-risk="149997" data-f-sort-process="Welding 149997" data-f-sort-waiting="345715">
+              <td><a href="order_2610-026.html">2610-026-01</a></td>
+              <td>ブロック</td>
+              <td>DEMO 青葉精機</td>
+              <td>2026-10-27</td>
+              <td>5</td>
+              <td>-3</td>
+              <td>Welding</td>
+              <td>4d 0h</td>
+              <td><span class="badge badge-risk-critical">Critical</span></td>
+              <td><ul class="reasons"><li>Due in 5 days, 4 steps left</li></ul></td>
+            </tr>
+          
+            <tr data-f-sort-risk="149997" data-f-sort-process="Deburring 149997" data-f-sort-waiting="50515">
+              <td><a href="order_2610-024.html">2610-024-01</a></td>
+              <td>ナックル</td>
+              <td>DEMO 大和工業</td>
+              <td>2026-10-27</td>
+              <td>5</td>
+              <td>-3</td>
+              <td>Deburring</td>
+              <td>14h 1m</td>
+              <td><span class="badge badge-risk-critical">Critical</span></td>
+              <td><ul class="reasons"><li>Due in 5 days, 4 steps left</li></ul></td>
+            </tr>
+          
+            <tr data-f-sort-risk="149998" data-f-sort-process="Milling 149998" data-f-sort-waiting="-1">
+              <td><a href="order_2610-041.html">2610-041-01</a></td>
+              <td>ローラ</td>
+              <td>DEMO 日の出産業</td>
+              <td>2026-10-23</td>
+              <td>1</td>
+              <td>-2</td>
+              <td>Milling</td>
+              <td>-</td>
+              <td><span class="badge badge-risk-critical">Critical</span></td>
+              <td><ul class="reasons"><li>Due in 1 days, 3 steps left</li></ul></td>
+            </tr>
+          
+            <tr data-f-sort-risk="149998" data-f-sort-process="Milling 149998" data-f-sort-waiting="-1">
+              <td><a href="order_2610-003.html">2610-003-01</a></td>
+              <td>ハウジング</td>
+              <td>DEMO 北斗製作所</td>
+              <td>2026-10-24</td>
+              <td>2</td>
+              <td>-2</td>
+              <td>Milling</td>
+              <td>-</td>
+              <td><span class="badge badge-risk-critical">Critical</span></td>
+              <td><ul class="reasons"><li>Due in 2 days, 4 steps left</li></ul></td>
+            </tr>
+          
+            <tr data-f-sort-risk="149999" data-f-sort-process="Assembly 149999" data-f-sort-waiting="1915">
+              <td><a href="order_2610-021.html">2610-021-01</a></td>
+              <td>ブロック</td>
+              <td>DEMO 大和工業</td>
+              <td>2026-10-23</td>
+              <td>1</td>
+              <td>-1</td>
+              <td>Assembly</td>
+              <td>31m</td>
+              <td><span class="badge badge-risk-critical">Critical</span></td>
+              <td><ul class="reasons"><li>Due in 1 days, 2 steps left</li></ul></td>
+            </tr>
+          
+        </tbody>
+      </table>
+    </div>
+  
+
+  </main>
+  <footer class="site-footer">Factory Tracker</footer>
+  <script src="../static/js/nav.js"></script>
+<script src="../static/js/demo.js" defer></script></body>
+</html>

@@ -1,9 +1,11 @@
+import json
 from dataclasses import dataclass
 from datetime import timedelta
 
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.utils.translation import get_language
+from django.utils.translation import gettext as _
 
 from orders.models import OrderItem, RouteStep
 
@@ -48,12 +50,14 @@ def step_facts(f):
                 step = row.step
                 if row.state != DONE or not row.finished_at or (f.process and step.process_id != f.process):
                     continue
-                if f.vendor and (step.vendor_id or step.process.default_vendor_id) != f.vendor:
+                vendor = step.vendor_id or step.process.default_vendor_id
+                if f.vendor and vendor != f.vendor:
                     continue
                 day = timezone.localdate(row.finished_at)
                 if (f.start and day < f.start) or (f.end and day > f.end):
                     continue
-                out.append({'process': step.process, **plan, 'processing': t['duration'], 'wait': t['wait_before']})
+                out.append({'process': step.process, **plan, 'processing': t['duration'], 'wait': t['wait_before'],
+                            'day': day, 'customer': item.order.customer_id, 'vendor': vendor})
     return out
 
 
@@ -96,7 +100,8 @@ def result_rows(f, facts):
     if f.start or f.end:
         events = [e for e in events if (not f.start or timezone.localdate(e.occurred_at) >= f.start) and (not f.end or timezone.localdate(e.occurred_at) <= f.end)]
     if f.customer or f.vendor:
-        events = _owned_by(events, f)
+        own = owners(events)
+        events = [e for e in events if (not f.customer or own[e.pk][0] == f.customer) and (not f.vendor or own[e.pk][1] == f.vendor)]
     groups = {}
     for e in events:
         g = groups.setdefault(e.process_id, {'process': e.process, 'records': 0, 'quantity': 0, 'defects': 0})
@@ -120,16 +125,45 @@ def result_rows(f, facts):
     return rows, total
 
 
-def _owned_by(events, f):
-    """Events whose box belongs to the customer / vendor of the filter (tag assignment at that moment, route step of the process)."""
+def owners(events):
+    """{event pk: (customer id, vendor id)} from the tag assignment at that moment and the route step of the process."""
     by_uid = {}
     for a in TagAssignment.objects.filter(tag__uid__in={e.tag_uid for e in events}).select_related('item__order', 'tag'):
         by_uid.setdefault(a.tag.uid, []).append(a)
     steps = {(s.item_id, s.process_id): s.vendor_id or s.process.default_vendor_id
              for s in RouteStep.objects.filter(item__in={a.item_id for v in by_uid.values() for a in v}).select_related('process')}
-    keep = []
+    out = {}
     for e in events:
         a = next((a for a in by_uid.get(e.tag_uid, []) if a.start_at <= e.occurred_at and (not a.end_at or a.end_at > e.occurred_at)), None)
-        if a and (not f.customer or a.item.order.customer_id == f.customer) and (not f.vendor or steps.get((a.item_id, e.process_id)) == f.vendor):
-            keep.append(e)
-    return keep
+        out[e.pk] = (a.item.order.customer_id, steps.get((a.item_id, e.process_id))) if a else (None, None)
+    return out
+
+
+def _secs(td):
+    return int(td.total_seconds()) if td is not None else None
+
+
+def facts_json():
+    """Every finished step and result as JSON, plus the labels, so the static demo can filter and total them in the browser."""
+    steps = step_facts(Filters())
+    corrected = Event.objects.filter(event_type=Event.Type.CORRECTION).values('corrects_id')
+    events = list(Event.objects.filter(event_type=Event.Type.RESULT).exclude(pk__in=corrected).select_related('process'))
+    own = owners(events)
+    procs = {x['process'].pk: _name(x['process']) for x in steps} | {e.process_id: _name(e.process) for e in events}
+    en = {x['process'].pk: x['process'].name for x in steps} | {e.process_id: e.process.name for e in events}
+    labels = {k: str(v) for k, v in {
+        'process': _('Process'), 'steps': _('Steps'), 'planned': _('Average planned (days)'), 'actual': _('Average actual (days)'),
+        'diff': _('Average difference (days)'), 'overrun': _('Overrun'), 'severe': _('Severe'), 'major': _('Major'), 'minor': _('Minor'),
+        'records': _('Records'), 'quantity': _('Quantity done'), 'defects': _('Defects'), 'rate': _('Defect rate'),
+        'processing': _('Average processing time'), 'wait': _('Average wait before'), 'total': _('Total'), 'longest': _('Longest'),
+        'worst': _('Worst step'), 'top3': _('Top 3 slowest'), 'longestProcessing': _('Longest processing'), 'longestWait': _('Longest wait'),
+        'noPlan': _('No finished steps with a due date yet.'), 'noResults': _('No results recorded yet.'),
+        'dh': _('%(d)dd %(h)dh'), 'hm': _('%(h)dh %(m)dm'), 'm': _('%(m)dm'), 'lt1m': _('<1m'),
+    }.items()}
+    return json.dumps({
+        'steps': [{'p': x['process'].pk, 'd': x['day'].isoformat(), 'c': x['customer'], 'v': x['vendor'], 'pl': x['planned'], 'ac': x['actual'],
+                   'df': x['diff'], 'pr': _secs(x['processing']), 'w': _secs(x['wait'])} for x in steps],
+        'results': [{'p': e.process_id, 'd': timezone.localdate(e.occurred_at).isoformat(), 'q': e.quantity, 'x': e.defects or 0,
+                     'c': own[e.pk][0], 'v': own[e.pk][1]} for e in events],
+        'processes': procs, 'en': en, 'sev': SEVERITY, 'labels': labels,
+    }, ensure_ascii=False).replace('</', '<\\/')

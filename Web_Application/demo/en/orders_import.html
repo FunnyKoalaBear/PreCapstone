@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Orders - Factory Tracker (demo)</title>
+  <link rel="stylesheet" href="../static/css/theme.css">
+  <link rel="stylesheet" href="../static/css/base.css">
+  <link rel="stylesheet" href="../static/css/lang.css">
+  <script>document.documentElement.classList.add('js')</script>
+<link rel="stylesheet" href="../static/css/demo.css"></head>
+<body><div class="demo-banner" role="note"><strong>DEMO / sample data</strong> &mdash; invented data. Nothing you enter is saved.</div>
+  <header class="site-header">
+    <span class="brand">Factory Tracker</span>
+    <button type="button" class="nav-toggle" aria-controls="site-nav" aria-expanded="false" aria-label="Menu">&#9776;</button>
+    <nav class="site-nav" id="site-nav">
+      <a href="index.html">Home</a>
+      <a href="orders.html">Orders</a>
+      <a href="customers.html">Customers</a>
+      <a href="analysis_results.html">Analysis</a>
+      <a href="shipping.html">Shipping</a>
+      <a href="priorities.html">Priorities</a>
+      <a href="tags.html">Tags</a>
+      
+      
+    <a href="../ja/manual.html" lang="ja">使い方</a></nav>
+    
+
+
+
+
+    
+<span class="lang-switch"><a href="../ja/orders_import.html">日本語</a><a href="../en/orders_import.html" class="active" aria-current="true">English</a></span>
+
+  </header>
+  <main class="site-main">
+    
+    
+  <h1>Orders</h1>
+  
+  <nav class="tabs" aria-label="Orders sections">
+  
+    <a class="tab" href="orders.html">
+      <svg class="tab-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>
+  
+</svg>
+<span>Orders</span>
+    </a>
+  
+    <a class="tab" href="orders_new.html">
+      <svg class="tab-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>
+  
+</svg>
+<span>New order</span>
+    </a>
+  
+    <a class="tab is-active" href="orders_import.html" aria-current="page">
+      <svg class="tab-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <path d="M12 3v12M7 10l5 5 5-5M4 19h16"/>
+  
+</svg>
+<span>Import</span>
+    </a>
+  
+    <a class="tab" href="orders_codes.html">
+      <svg class="tab-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <path d="M20 12l-8 8-9-9V3h8z"/><circle cx="7.5" cy="7.5" r="1"/>
+</svg>
+<span>Codes</span>
+    </a>
+  
+</nav>
+
+  
+  <p class="note">One row per item. Rows with the same customer and customer order number become one order. The file can be UTF-8 or Shift-JIS.</p>
+  <p class="note">Columns: <code>customer, customer_order_number, due_date, part_name, quantity, material, notes, route</code></p>
+  <p class="note">A route step is written <code>process:code</code> or <code>process:code:due_date</code>. Separate the steps with <code>|</code>.</p>
+
+  <form method="post" enctype="multipart/form-data" class="card">
+    
+    
+    <div><label for="file">CSV file</label><input type="file" id="file" name="file" accept=".csv,text/csv"></div>
+    <label class="check"><input type="checkbox" name="create_customers"><span>Create new customers</span></label>
+    <button type="submit" class="button">Check file</button>
+  </form>
+
+  
+
+  
+
+  </main>
+  <footer class="site-footer">Factory Tracker</footer>
+  <script src="../static/js/nav.js"></script>
+<script src="../static/js/demo.js" defer></script></body>
+</html>

@@ -441,14 +441,6 @@ class SeedDemoTests(TestCase):
         self.assertTrue(any(shipping_overview(month_customer=c.pk)[1] for c in Customer.objects.filter(name__startswith='DEMO ')))
         self.assertEqual(len(shipping_overview(month_from=months[3]['month'], month_to=months[1]['month'])[1]), 3)
 
-    def test_static_demo_data_matches_the_csv_files(self):
-        js = (settings.BASE_DIR / 'demo' / 'js' / 'data.js').read_text(encoding='utf-8')
-        demo = re.findall(r"name: '([^']+)', ja: '([^']+)', kind: '(\w+)'", js)
-        self.assertEqual(demo, [(r['name'], r['name_ja'], r['kind']) for r in read_csv('processes.csv')])
-        codes = {r['code']: (r['name'], r['name_ja']) for r in read_csv('codes.csv')}
-        used = re.findall(r"vendor: '(\d{5})'", js)
-        self.assertTrue(used)
-        self.assertEqual({c: codes[c] for c in used}, {c: tuple(re.search(rf"'{c}': \['([^']+)', '([^']+)'\]", js).groups()) for c in used})
     @override_settings(DEBUG=True)
     def test_reset_removes_demo_data_and_keeps_real_data(self):
         real_proc = Process.objects.create(name='Cutting', kind=K.MATERIAL)
@@ -804,3 +796,64 @@ class ScrollPanelTests(SimpleTestCase):
         for path in (settings.BASE_DIR / 'templates').rglob('*.html'):
             text = path.read_text(encoding='utf-8')
             self.assertLessEqual(text.count('<table'), text.count('{% scroll_panel'), path.name)
+
+
+class ExportDemoTests(TestCase):
+    def command(self):
+        from core.management.commands.export_demo import Command
+        return Command()
+
+    def test_canon_maps_app_urls_to_demo_pages(self):
+        from core.management.commands.export_demo import canon
+        self.assertEqual(canon('/')[0], 'index')
+        self.assertEqual(canon('/?current=1')[0], 'index_current')
+        self.assertEqual(canon('/orders/?tab=codes&q=x')[0], 'orders_codes')
+        self.assertEqual(canon('/orders/?late=1')[0], 'orders')
+        self.assertEqual(canon('/orders/2610-001/')[0], 'order_2610-001')
+        self.assertEqual(canon('/priorities/?tier=OVERDUE&sort=risk')[0], 'priorities_overdue')
+        self.assertEqual(canon('/boxes/?status=at_vendor&vendor_late=1')[0], 'boxes_vendor_late')
+        for gone in ('/orders/export/', '/orders/2610-001/edit/', '/items/3/drawing/', '/login/', '/dashboard/', '/matrix/'):
+            self.assertIsNone(canon(gone), gone)
+
+    def test_rewrite_makes_links_relative_and_disables_the_rest(self):
+        body = ('<html><head></head><body><nav class="site-nav" id="site-nav"><a href="/orders/">x</a></nav>'
+                '<link href="/static/css/base.css"><a href="/orders/?late=1">a</a><a href="/orders/export/">b</a>'
+                '<form action="/i18n/setlang/" method="post"><input type="hidden" name="csrfmiddlewaretoken" value="t"></form>'
+                '<form method="post"><input type="hidden" name="csrfmiddlewaretoken" value="t"></form><a href="?tier=WATCH">w</a></body></html>')
+        out = self.command().rewrite(body, 'en', 'priorities', {'orders', 'priorities_watch'}, '/priorities/')
+        self.assertIn('href="../static/css/base.css"', out)
+        self.assertIn('href="orders.html?late=1"', out)
+        self.assertIn('href="#" data-demo-link>b', out)
+        self.assertIn('href="priorities_watch.html"', out)
+        self.assertIn('class="demo-banner"', out)
+        self.assertIn('DEMO / sample data', out)
+        self.assertIn('../ja/priorities.html', out)
+        self.assertIn('href="../ja/manual.html" lang="ja">使い方', out)
+        for gone in ('csrf', 'setlang'):
+            self.assertNotIn(gone, out)
+
+    def test_markdown_subset(self):
+        from core.management.commands.export_demo import md_to_html
+        out = md_to_html('# T\n\n> note\n\n1. one\n2. **two**\n\n| a | b |\n|---|---|\n| `c` | d |\n\ntext\nmore')
+        for part in ('<h1>T</h1>', '<blockquote>note</blockquote>', '<ol><li>one</li><li><strong>two</strong></li></ol>', '<th>a</th>', '<td><code>c</code></td>', '<p>text<br>more</p>'):
+            self.assertIn(part, out)
+
+    def test_manual_is_japanese_and_uses_the_screen_terms(self):
+        text = (settings.BASE_DIR / 'docs' / 'manual_ja.md').read_text(encoding='utf-8')
+        self.assertFalse((settings.BASE_DIR / 'docs' / 'manual_en.md').exists())
+        for section in ('このシステムについて', '言語を切り替える', 'ホーム', '受注一覧', '優先度', '出荷', '分析', '用語集', 'よくある質問', 'スクリーンショット'):
+            self.assertIn(section, text)
+        with translation.override('ja'):
+            for term in ('Orders', 'New order', 'Import', 'Codes', 'Priorities', 'Shipping', 'Analysis', 'Results', 'Plan vs actual', 'Ready to ship',
+                         'On-time delivery by month', 'Create new customers', 'Check file', 'Show inactive', 'Add code', 'Deactivate'):
+                self.assertIn(translation.gettext(term), text, term)
+        self.assertEqual(text.count('\n## よくある質問'), 1)
+        self.assertGreaterEqual(text.count('**Q'), 5)
+        self.assertLessEqual(text.count('**Q'), 8)
+
+    def test_pages_carry_the_data_the_demo_needs_only_when_exporting(self):
+        self.client.force_login(make_user('pl', 'Planner'))
+        self.assertNotContains(self.client.get('/analysis/'), 'id="demo-facts"')
+        with override_settings(DEMO_EXPORT=True):
+            self.assertContains(self.client.get('/analysis/'), 'id="demo-facts"')
+            self.assertContains(self.client.get('/shipping/'), 'id="demo-facts"')

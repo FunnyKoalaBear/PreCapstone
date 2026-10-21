@@ -11,7 +11,7 @@
       {% for value, label in kinds %}<option value="{{ value }}"{% if value == kind %} selected{% endif %}>{{ label }}</option>{% endfor %}
     </select>
   </div>
-  <label class="check"><input type="checkbox" name="inactive" value="1"{% if show_inactive %} checked{% endif %}> {% trans "Show inactive" %}</label>
+  <label class="check"><input type="checkbox" name="inactive" value="1" data-f-show{% if show_inactive %} checked{% endif %}> {% trans "Show inactive" %}</label>
   <button type="submit" class="button">{% trans "Search" %}</button>
 </form>
 
@@ -31,7 +31,7 @@
     </thead>
     <tbody>
       {% for v in vendors %}
-        <tr{% if not v.active %} class="is-inactive"{% endif %}>
+        <tr{% if not v.active %} class="is-inactive"{% endif %} data-f-kind="{% if v.kind == 'INTERNAL' %}INTERNAL{% else %}EXTERNAL{% endif %}" data-f-inactive="{% if not v.active %}1{% endif %}">
           <td data-label="{{ l_code|capfirst }}">{{ v.code }}{% if not v.active %} <span class="badge badge-cancelled">{% trans "Inactive" %}</span>{% endif %}</td>
           <td data-label="{{ l_name|capfirst }}">{{ v.name }}</td>
           <td data-label="{% trans 'Japanese name' %}">{{ v.name_ja|default:"-" }}</td>
