@@ -1,3 +1,4 @@
+import csv
 import importlib
 import io
 import tempfile
@@ -20,10 +21,10 @@ from django.utils import timezone, translation
 from core.management.commands.seed_demo import read_csv
 from core.testing import TestCase, make_user
 from tracking.models import Box, ScannerDevice, Tag, TagAssignment
-from tracking.services import cancel_item, record_event
+from tracking.services import cancel_item, correct_event, record_event
 from tracking.status import step_due_back
 
-from . import importer
+from . import export, importer
 from .forms import OrderItemForm
 from .models import Customer, Order, OrderChange, OrderItem, Process, RouteStep, Vendor
 
@@ -709,6 +710,112 @@ class RouteCopyTests(TestCase):
         self.assertEqual(self.client.get('/orders/route-copy/', {'part_number': 'x'}).status_code, 403)
         self.client.logout()
         self.assertEqual(self.client.get('/orders/route-copy/').status_code, 302)
+
+
+
+class CsvExportTests(TestCase):
+    def setUp(self):
+        self.planner = make_user('pl', 'Planner')
+        self.client.force_login(self.planner)
+        self.vendor = Vendor.objects.create(code='00131', name='Demo Plating', kind=Vendor.Kind.VENDOR)
+        self.mat = Process.objects.create(name='Mat', kind=K.MATERIAL)
+        self.mill = Process.objects.create(name='Mill', kind=K.MACHINING)
+        self.plate = Process.objects.create(name='Plating', kind=K.OUTSOURCED, default_vendor=self.vendor)
+        self.device = ScannerDevice.objects.create(name='Bench 1')
+
+    def make(self, customer='Acme', part='Shaft', notes='', due=None, number=''):
+        order = Order.objects.create(customer=Customer.objects.get_or_create(name=customer)[0], due_date=due or timezone.localdate() + timedelta(days=10),
+                                     notes=notes, customer_order_number=number)
+        item = OrderItem.objects.create(order=order, part_name=part, quantity=4, material='S45C', part_number='ab-1', drawing_number='D-1', revision='B')
+        RouteStep.objects.create(item=item, sequence=1, process=self.mill)
+        RouteStep.objects.create(item=item, sequence=2, process=self.plate, due_date=date(2031, 4, 1))
+        return item
+
+    def csv_rows(self, response):
+        self.assertEqual(response.status_code, 200)
+        raw = b''.join(response.streaming_content)
+        self.assertTrue(raw.startswith(b'\xef\xbb\xbf'))
+        return list(csv.reader(io.StringIO(raw.decode('utf-8-sig'))))
+
+    def test_order_export_has_the_columns_and_one_row_per_item(self):
+        item = self.make(notes='Rush')
+        OrderItem.objects.create(order=item.order, part_name='Gear', quantity=1)
+        r = self.client.get('/orders/export/')
+        self.assertRegex(r['Content-Disposition'], r'^attachment; filename="orders_\d{8}\.csv"$')
+        rows = self.csv_rows(r)
+        self.assertEqual(rows[0], ['customer', 'customer_order_number', 'due_date', 'part_name', 'quantity', 'material', 'notes', 'route',
+                                   'part_number', 'drawing_number', 'revision', 'job_number', 'item_code', 'status'])
+        self.assertEqual(len(rows), 3)
+        shaft = dict(zip(rows[0], rows[1]))
+        self.assertEqual((shaft['customer'], shaft['part_name'], shaft['quantity'], shaft['notes']), ('Acme', 'Shaft', '4', 'Rush'))
+        self.assertEqual((shaft['part_number'], shaft['drawing_number'], shaft['revision']), ('AB-1', 'D-1', 'B'))
+        self.assertEqual((shaft['job_number'], shaft['item_code'], shaft['status']), (item.order.job_number, item.item_code, 'Not started'))
+        self.assertEqual(shaft['route'], 'Mill|Plating:00131:2031-04-01')
+
+    def test_filters_change_the_export(self):
+        self.make(customer='Acme', part='Shaft')
+        self.make(customer='Beta', part='Gear')
+        late = self.make(customer='Late Co', part='Plate', due=timezone.localdate() - timedelta(days=3))
+        parts = lambda **params: sorted(r[3] for r in self.csv_rows(self.client.get('/orders/export/', params))[1:])
+        self.assertEqual(parts(), ['Gear', 'Plate', 'Shaft'])
+        self.assertEqual(parts(q='gear'), ['Gear'])
+        self.assertEqual(parts(late='1'), ['Plate'])
+        self.assertEqual(parts(status='COMPLETE'), [])
+        self.assertContains(self.client.get('/orders/', {'q': 'gear'}), 'orders/export/?q=gear')
+        self.assertEqual(late.part_name, 'Plate')
+
+    def test_japanese_text_survives(self):
+        self.make(customer='東洋機械', part='ブラケット', notes='急ぎ / Rush')
+        row = self.csv_rows(self.client.get('/orders/export/'))[1]
+        self.assertEqual((row[0], row[3], row[6]), ('東洋機械', 'ブラケット', '急ぎ / Rush'))
+
+    def test_cells_that_look_like_formulas_are_escaped(self):
+        self.make(part='=HYPERLINK("http://x")', notes='-1+1')
+        row = self.csv_rows(self.client.get('/orders/export/'))[1]
+        self.assertEqual((row[3], row[6]), ('\'=HYPERLINK("http://x")', "'-1+1"))
+        self.assertEqual(export.safe('@SUM'), "'@SUM")
+        self.assertEqual(export.safe('plain'), 'plain')
+        self.assertEqual(export.safe(5), 5)
+
+    def test_event_export_lists_scans_cancellations_and_voids(self):
+        item = self.make()
+        a = TagAssignment.objects.create(tag=Tag.objects.create(uid='ex1'), box=Box.objects.create(label='B1'), item=item,
+                                         start_at=timezone.now() - timedelta(days=3))
+        wrong = record_event(self.device, 'EX1', self.mill, 'STARTED', occurred_at=timezone.now() - timedelta(days=2))[0]
+        record_event(self.device, 'EX1', self.mill, 'FINISHED', occurred_at=timezone.now() - timedelta(days=1))
+        correct_event(wrong, self.planner, 'wrong scan')
+        cancel_item(self.planner, item, 'withdrawn')
+        r = self.client.get(f'/orders/{item.order.job_number}/events.csv')
+        self.assertEqual(r['Content-Disposition'], f'attachment; filename="events_{item.order.job_number}.csv"')
+        rows = self.csv_rows(r)
+        self.assertEqual(rows[0], ['time_jst', 'event_type', 'process', 'device', 'tag_uid', 'voided', 'item_code'])
+        body = [dict(zip(rows[0], x)) for x in rows[1:]]
+        self.assertEqual([(x['event_type'], x['voided']) for x in body], [('Started', 'yes'), ('Finished', 'no'), ('Cancelled', 'no')])
+        self.assertEqual((body[0]['process'], body[0]['device'], body[0]['tag_uid'], body[0]['item_code']), ('Mill', 'Bench 1', 'EX1', item.item_code))
+        self.assertRegex(body[0]['time_jst'], r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$')
+        self.assertEqual(body[2]['device'], 'pl')
+        self.assertEqual(a.tag.uid, 'EX1')
+
+    def test_event_export_shows_the_process_code(self):
+        item = self.make()
+        TagAssignment.objects.create(tag=Tag.objects.create(uid='EX2'), box=Box.objects.create(label='B2'), item=item,
+                                     start_at=timezone.now() - timedelta(days=3))
+        record_event(self.device, 'EX2', self.plate, 'SENT_OUT', occurred_at=timezone.now() - timedelta(days=1))
+        rows = self.csv_rows(self.client.get(f'/orders/{item.order.job_number}/events.csv'))
+        self.assertEqual(rows[1][2], '00131 Plating')
+
+    def test_planner_only_and_buttons(self):
+        item = self.make()
+        urls = ['/orders/export/', f'/orders/{item.order.job_number}/events.csv']
+        self.assertContains(self.client.get(f'/orders/{item.order.job_number}/'), urls[1])
+        self.assertContains(self.client.get('/orders/'), urls[0])
+        self.client.force_login(make_user('op', 'Operator'))
+        self.assertNotContains(self.client.get(f'/orders/{item.order.job_number}/'), urls[1])
+        for url in urls:
+            self.assertEqual(self.client.get(url).status_code, 403)
+        self.client.logout()
+        for url in urls:
+            self.assertEqual(self.client.get(url).status_code, 302)
 
 
 DEMO_DIR = settings.BASE_DIR / 'docs' / 'demo-data'

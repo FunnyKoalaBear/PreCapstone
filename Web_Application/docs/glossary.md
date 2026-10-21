@@ -211,3 +211,11 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | Ready to ship | 出荷待ち |
 | Mark as shipped / Undo shipment | 出荷済みにする / 出荷を取り消す |
 | On-time rate | 納期遵守率 |
+
+## Terms added for CSV export
+
+| English | Japanese |
+|---|---|
+| Export CSV | CSV出力 |
+| Export events (CSV) | 履歴をCSV出力 |
+| yes / no | はい / いいえ |

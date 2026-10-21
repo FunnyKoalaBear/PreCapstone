@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Factory Tracker\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-21 18:54+0900\n"
+"POT-Creation-Date: 2026-10-21 19:03+0900\n"
 "PO-Revision-Date: 2026-10-11 17:00+0900\n"
 "Last-Translator: Claude\n"
 "Language-Team: Japanese\n"
@@ -46,6 +46,14 @@ msgstr "選択した工程を有効に戻す"
 #: .\orders\admin.py:55 .\orders\admin.py:67 .\tracking\admin.py:8
 msgid "status"
 msgstr "状態"
+
+#: .\orders\export.py:79
+msgid "yes"
+msgstr "はい"
+
+#: .\orders\export.py:79
+msgid "no"
+msgstr "いいえ"
 
 #: .\orders\forms.py:18 .\orders\models.py:14 .\orders\models.py:40
 #: .\orders\models.py:72 .\templates\orders\code_list.html:29
@@ -180,16 +188,16 @@ msgid "Material is too long (at most 100 characters)"
 msgstr "材質が長すぎます（100文字以内）"
 
 #: .\orders\importer.py:170 .\orders\pdf.py:64
-#: .\templates\orders\order_detail.html:34
+#: .\templates\orders\order_detail.html:35
 msgid "Part number"
 msgstr "品番"
 
-#: .\orders\importer.py:170 .\templates\orders\order_detail.html:35
+#: .\orders\importer.py:170 .\templates\orders\order_detail.html:36
 msgid "Drawing number"
 msgstr "図面番号"
 
 # CHECK: 改訂 (rev.) is my choice; alternatives: リビジョン, 版数
-#: .\orders\importer.py:170 .\templates\orders\order_detail.html:36
+#: .\orders\importer.py:170 .\templates\orders\order_detail.html:37
 msgid "Revision"
 msgstr "改訂"
 
@@ -471,24 +479,24 @@ msgid "The change history is append-only and cannot be deleted."
 msgstr "変更履歴は追記専用のため、削除できません。"
 
 #: .\orders\pdf.py:59 .\templates\orders\customer_detail.html:22
-#: .\templates\orders\order_list.html:40
+#: .\templates\orders\order_list.html:41
 msgid "Job number"
 msgstr "製番"
 
 # CHECK: 得意先 is marked unsure in the glossary (alternative: 顧客)
 #: .\orders\pdf.py:59 .\orders\views.py:27
-#: .\templates\orders\order_detail.html:13
+#: .\templates\orders\order_detail.html:14
 #: .\templates\orders\order_import.html:35
-#: .\templates\orders\order_list.html:41 .\templates\tracking\boxes.html:31
+#: .\templates\orders\order_list.html:42 .\templates\tracking\boxes.html:31
 #: .\templates\tracking\matrix.html:18 .\templates\tracking\priorities.html:36
 #: .\templates\tracking\shipping.html:16 .\tracking\views.py:245
 msgid "Customer"
 msgstr "得意先"
 
 #: .\orders\pdf.py:60 .\templates\orders\customer_detail.html:23
-#: .\templates\orders\order_detail.html:14
+#: .\templates\orders\order_detail.html:15
 #: .\templates\orders\order_import.html:35
-#: .\templates\orders\order_list.html:42
+#: .\templates\orders\order_list.html:43
 msgid "Customer order number"
 msgstr "客先注文番号"
 
@@ -499,9 +507,9 @@ msgstr "品名"
 
 #: .\orders\pdf.py:63 .\orders\views.py:27
 #: .\templates\orders\customer_detail.html:24
-#: .\templates\orders\order_detail.html:16
+#: .\templates\orders\order_detail.html:17
 #: .\templates\orders\order_import.html:35
-#: .\templates\orders\order_list.html:43 .\templates\tracking\boxes.html:34
+#: .\templates\orders\order_list.html:44 .\templates\tracking\boxes.html:34
 #: .\templates\tracking\priorities.html:37
 #: .\templates\tracking\shipping.html:17 .\tracking\views.py:244
 msgid "Due date"
@@ -517,7 +525,7 @@ msgid "Quantity"
 msgstr "数量"
 
 #: .\orders\pdf.py:66 .\orders\pdf.py:68
-#: .\templates\orders\order_detail.html:22
+#: .\templates\orders\order_detail.html:23
 msgid "Notes"
 msgstr "備考"
 
@@ -594,25 +602,25 @@ msgstr "受注 %(job)s を登録しました。"
 msgid "Order %(job)s updated."
 msgstr "受注 %(job)s を更新しました。"
 
-#: .\orders\views.py:258
+#: .\orders\views.py:264
 msgid "The upload expired. Choose the file again."
 msgstr ""
 "アップロードの有効期限が切れました。ファイルをもう一度選択してください。"
 
-#: .\orders\views.py:264
+#: .\orders\views.py:270
 #, python-format
 msgid "Imported %(orders)d orders with %(items)d items."
 msgstr "%(orders)d件の受注（%(items)d品目）を取り込みました。"
 
-#: .\orders\views.py:270
+#: .\orders\views.py:276
 msgid "Choose a CSV file."
 msgstr "CSVファイルを選択してください。"
 
-#: .\orders\views.py:272
+#: .\orders\views.py:278
 msgid "The file is too large (limit 2 MB)."
 msgstr "ファイルが大きすぎます（上限2MB）。"
 
-#: .\orders\views.py:274
+#: .\orders\views.py:280
 msgid "Could not read the file. Save it as UTF-8 or Shift-JIS CSV."
 msgstr ""
 "ファイルを読み込めません。UTF-8またはShift-JISのCSVで保存してください。"
@@ -789,7 +797,7 @@ msgstr[0] "%(counter)s日"
 
 #: .\templates\orders\_box_detail.html:14
 #: .\templates\orders\customer_detail.html:25
-#: .\templates\orders\order_list.html:15 .\templates\orders\order_list.html:45
+#: .\templates\orders\order_list.html:15 .\templates\orders\order_list.html:46
 #: .\templates\tracking\boxes.html:33 .\templates\tracking\matrix.html:11
 msgid "Status"
 msgstr "状態"
@@ -875,7 +883,7 @@ msgid "Event history"
 msgstr "履歴"
 
 #: .\templates\orders\_box_detail.html:83
-#: .\templates\orders\order_detail.html:133
+#: .\templates\orders\order_detail.html:134
 #: .\templates\tracking\simulate.html:51
 msgid "Time (JST)"
 msgstr "時刻（JST）"
@@ -1014,8 +1022,8 @@ msgstr "編集"
 
 # CHECK: 納期遅れ is marked unsure in the glossary (alternative: 遅延)
 #: .\templates\orders\customer_detail.html:35
-#: .\templates\orders\order_detail.html:19
-#: .\templates\orders\order_list.html:56 .\templates\tracking\_matrix.html:19
+#: .\templates\orders\order_detail.html:20
+#: .\templates\orders\order_list.html:57 .\templates\tracking\_matrix.html:19
 #: .\templates\tracking\boxes.html:51 .\templates\tracking\shipping.html:26
 #: .\tracking\priority.py:13
 msgid "Overdue"
@@ -1057,112 +1065,116 @@ msgstr "受注一覧に戻る"
 msgid "Print sheet"
 msgstr "指示書を印刷"
 
-#: .\templates\orders\order_detail.html:43
+#: .\templates\orders\order_detail.html:11
+msgid "Export events (CSV)"
+msgstr "履歴をCSV出力"
+
+#: .\templates\orders\order_detail.html:44
 #, python-format
 msgid "Box %(box)s, tag %(tag)s"
 msgstr "箱 %(box)s、タグ %(tag)s"
 
-#: .\templates\orders\order_detail.html:45
+#: .\templates\orders\order_detail.html:46
 msgid "No tag assigned."
 msgstr "タグが割り当てられていません。"
 
-#: .\templates\orders\order_detail.html:48
+#: .\templates\orders\order_detail.html:49
 #, python-format
 msgid "Boxes: %(n)s of %(t)s linked"
 msgstr "箱: %(t)s個中%(n)s個を紐付け済み"
 
-#: .\templates\orders\order_detail.html:52
+#: .\templates\orders\order_detail.html:53
 msgid "Open drawing"
 msgstr "図面を開く"
 
-#: .\templates\orders\order_detail.html:54
+#: .\templates\orders\order_detail.html:55
 msgid "No drawing"
 msgstr "図面なし"
 
-#: .\templates\orders\order_detail.html:58
+#: .\templates\orders\order_detail.html:59
 msgid "Drawing"
 msgstr "図面"
 
-#: .\templates\orders\order_detail.html:63
+#: .\templates\orders\order_detail.html:64
 #, python-format
 msgid "Shipped on %(d)s by %(u)s"
 msgstr "%(d)s に %(u)s が出荷しました"
 
-#: .\templates\orders\order_detail.html:64
+#: .\templates\orders\order_detail.html:65
 msgid "Undo shipment"
 msgstr "出荷を取り消す"
 
-#: .\templates\orders\order_detail.html:70
+#: .\templates\orders\order_detail.html:71
 msgid "Mark as shipped"
 msgstr "出荷済みにする"
 
-#: .\templates\orders\order_detail.html:76
+#: .\templates\orders\order_detail.html:77
 #, python-format
 msgid "Cancelled on %(d)s by %(u)s: %(r)s"
 msgstr "%(d)s に %(u)s がキャンセルしました: %(r)s"
 
-#: .\templates\orders\order_detail.html:77
+#: .\templates\orders\order_detail.html:78
 msgid "Undo cancellation"
 msgstr "キャンセルを取り消す"
 
-#: .\templates\orders\order_detail.html:81
-#: .\templates\orders\order_detail.html:87
+#: .\templates\orders\order_detail.html:82
+#: .\templates\orders\order_detail.html:88
 msgid "Cancel item"
 msgstr "品目をキャンセル"
 
-#: .\templates\orders\order_detail.html:85 .\tracking\forms.py:73
+#: .\templates\orders\order_detail.html:86 .\tracking\forms.py:73
 msgid "Reason"
 msgstr "理由"
 
-#: .\templates\orders\order_detail.html:93
-#: .\templates\orders\order_detail.html:98
+#: .\templates\orders\order_detail.html:94
+#: .\templates\orders\order_detail.html:99
 msgid "Record result"
 msgstr "実績を記録"
 
-#: .\templates\orders\order_detail.html:101
+#: .\templates\orders\order_detail.html:102
 msgid "Link a tag to a box of this item first."
 msgstr "先にこの品目の箱にタグを紐付けてください。"
 
-#: .\templates\orders\order_detail.html:115
+#: .\templates\orders\order_detail.html:116
 #, python-format
 msgid "Box %(l)s"
 msgstr "箱 %(l)s"
 
-#: .\templates\orders\order_detail.html:115
+#: .\templates\orders\order_detail.html:116
 msgid "(released)"
 msgstr "（解除済み）"
 
-#: .\templates\orders\order_detail.html:119
+#: .\templates\orders\order_detail.html:120
 msgid "Box not linked yet"
 msgstr "未紐付けの箱"
 
-#: .\templates\orders\order_detail.html:120 .\templates\tracking\boxes.html:43
+#: .\templates\orders\order_detail.html:121 .\templates\tracking\boxes.html:43
 #: .\templates\tracking\simulate.html:24
 msgid "Link a tag"
 msgstr "タグを紐付ける"
 
-#: .\templates\orders\order_detail.html:128
+#: .\templates\orders\order_detail.html:129
 msgid "Change history"
 msgstr "変更履歴"
 
-#: .\templates\orders\order_detail.html:134
+#: .\templates\orders\order_detail.html:135
 msgid "Changed by"
 msgstr "変更者"
 
 # CHECK: column header for the changed field; 変更内容 is my choice
-#: .\templates\orders\order_detail.html:135
+#: .\templates\orders\order_detail.html:136
 msgid "What"
 msgstr "変更内容"
 
-#: .\templates\orders\order_detail.html:136
+#: .\templates\orders\order_detail.html:137
 msgid "Before"
 msgstr "変更前"
 
-#: .\templates\orders\order_detail.html:137
+#: .\templates\orders\order_detail.html:138
 msgid "After"
 msgstr "変更後"
 
-#: .\templates\orders\order_detail.html:150
+#: .\templates\orders\order_detail.html:151
 msgid "No changes yet."
 msgstr "変更履歴はまだありません。"
 
@@ -1274,17 +1286,21 @@ msgstr "納期遅れのみ"
 msgid "Apply"
 msgstr "適用"
 
+#: .\templates\orders\order_list.html:34
+msgid "Export CSV"
+msgstr "CSV出力"
+
 # CHECK: 品目 is marked unsure in the glossary (alternative: 明細)
-#: .\templates\orders\order_list.html:44
+#: .\templates\orders\order_list.html:45
 msgid "Items"
 msgstr "品目"
 
-#: .\templates\orders\order_list.html:58
+#: .\templates\orders\order_list.html:59
 #, python-format
 msgid "(%(n)s boxes)"
 msgstr "（%(n)s箱）"
 
-#: .\templates\orders\order_list.html:62
+#: .\templates\orders\order_list.html:63
 msgid "No orders found."
 msgstr "受注が見つかりません。"
 

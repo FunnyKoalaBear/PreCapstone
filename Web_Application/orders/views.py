@@ -15,7 +15,7 @@ from tracking.status import (
     manual_actions, order_summary, step_due_back, timeline,
 )
 
-from . import importer, pdf
+from . import export, importer, pdf
 from .forms import CustomerForm, OrderForm, OrderItemFormSet
 from .models import Customer, Order, OrderChange, OrderItem, Vendor
 
@@ -136,10 +136,10 @@ def order_edit(request, job_number):
     return render(request, 'orders/order_form.html', {'form': form, 'formset': formset, 'order': order})
 
 
-@role_required(OPERATOR)
-def order_list(request):
-    q, status = request.GET.get('q', '').strip(), request.GET.get('status', '')
-    sort, late = request.GET.get('sort', 'due'), request.GET.get('late') == '1'
+def _filtered_orders(params):
+    """(rows, q, status, sort, late) for the order list; the CSV export reuses it so both show the same orders."""
+    q, status = params.get('q', '').strip(), params.get('status', '')
+    sort, late = params.get('sort', 'due'), params.get('late') == '1'
     if sort not in SORTS:
         sort = 'due'
     orders = Order.objects.select_related('customer').prefetch_related('items').order_by(*SORTS[sort])
@@ -157,6 +157,12 @@ def order_list(request):
             continue
         rows.append({'order': o, 'code': code, 'label': label, 'late': is_late, 'items': len(o.items.all()),
                      'boxes': sum(i.box_count for i in o.items.all()) if any(i.box_count > 1 for i in o.items.all()) else None})
+    return rows, q, status, sort, late
+
+
+@role_required(OPERATOR)
+def order_list(request):
+    rows, q, status, sort, late = _filtered_orders(request.GET)
     return render(request, 'orders/order_list.html', {
         'rows': rows, 'q': q, 'status': status, 'sort': sort, 'late': late,
         'status_choices': [(c, LABELS[c]) for c in STATUS_CODES], 'sort_choices': SORT_LABELS,
@@ -276,6 +282,18 @@ def order_import(request):
             request.session[SESSION_KEY] = {'text': text, 'create': create}
             preview = importer.parse(text, create)
     return render(request, 'orders/order_import.html', {'preview': preview, 'error': error})
+
+
+@role_required(PLANNER)
+def order_export(request):
+    rows = _filtered_orders(request.GET)[0]
+    return export.csv_response(f'orders_{timezone.localdate():%Y%m%d}.csv', export.ORDER_COLUMNS, export.order_rows(r['order'] for r in rows))
+
+
+@role_required(PLANNER)
+def order_events_export(request, job_number):
+    order = get_object_or_404(Order, job_number=job_number)
+    return export.csv_response(f'events_{order.job_number}.csv', export.EVENT_COLUMNS, export.event_rows(order))
 
 
 @role_required(PLANNER)

@@ -3,16 +3,6 @@ Order matters. [ ] todo, [!] blocked. Finished entries are deleted; git history 
 
 ## Queue
 
-- [ ] **F67 CSV export**
-  Why: take data into Excel; mirrors the CSV import (F42).
-  Decisions made:
-  - Two exports (Planner and up): the order list (button on the list page; respects the current search and filters) and the event history of one order (button on the detail page).
-  - Order list columns use the same names as the import (`customer`, `customer_order_number`, `due_date`, `part_name`, `quantity`, `material`, `notes`, `route`, plus `part_number`, `drawing_number`, `revision` if F70 is done) and add `job_number`, `item_code`, `status`.
-  - Event history columns: time (JST), event type, process code + name, device, tag UID, voided (yes/no).
-  - UTF-8 with BOM so Excel shows Japanese correctly. File names `orders_YYYYMMDD.csv` and `events_<job number>.csv`. Use the `csv` module with a streaming response.
-  - Never write a cell that starts with `= + - @` unescaped (prefix with a single quote) so Excel cannot run it as a formula.
-  Tests: filters change the export; Japanese text survives; a value starting with `=` is escaped; Operator gets 403.
-
 - [ ] **F40a Responsive layout: fluid layout and viewport tag**
   One commit. Add the viewport meta tag; make widths fluid (no fixed pixel widths on containers); no horizontal page scroll down to 360 px wide. Breakpoints: 768 px and 480 px, defined once in `theme.css`. Do not change colours or content.
 
