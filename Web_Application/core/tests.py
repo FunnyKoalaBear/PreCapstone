@@ -442,6 +442,27 @@ class ResponsiveLayoutTests(TestCase):
         self.assertIn('.table-cards [data-label]::before { content: attr(data-label)', theme)
         self.assertNotIn('table-cards', self.css('base.css'))
 
+    def test_menu_button_is_labelled_controls_the_nav_and_keeps_role_limited_links(self):
+        self.client.force_login(make_user('op', 'Operator'))
+        html = self.client.get('/orders/').content.decode()
+        self.assertIn('class="nav-toggle" aria-controls="site-nav" aria-expanded="false" aria-label="Menu"', html)
+        self.assertIn('<nav class="site-nav" id="site-nav">', html)
+        self.assertIn('js/nav.js', html)
+        self.assertIn('href="/orders/"', html)
+        self.assertNotIn('href="/customers/"', html)  # an Operator still only sees the links the role can use
+        self.client.force_login(make_user('pl', 'Planner'))
+        self.assertIn('href="/customers/"', self.client.get('/orders/').content.decode())
+
+    def test_menu_collapses_only_below_768px_and_only_when_javascript_runs(self):
+        theme, base = self.css('theme.css'), self.css('base.css')
+        block = re.search(r'@media \(max-width: 768px\) \{.*?\n\}', theme, re.S).group(0)
+        for rule in ('.site-header .nav-toggle { display: inline-block; }', '.js .site-nav { display: none; }', '.js .site-nav.is-open {'):
+            self.assertIn(rule, block)
+        self.assertNotIn('.site-nav { display: none', base)  # without JavaScript the links stay visible
+        js = (settings.BASE_DIR / 'static' / 'js' / 'nav.js').read_text(encoding='utf-8')
+        for part in ('aria-expanded', "e.key === 'Escape'", 'button.focus()'):
+            self.assertIn(part, js)
+
 
 class LanguageTests(RawTestCase):
     """Japanese by default, English one click away, choice remembered by cookie."""

@@ -3,9 +3,6 @@ Order matters. [ ] todo, [!] blocked. Finished entries are deleted; git history 
 
 ## Queue
 
-- [ ] **F40c Responsive layout: collapsible menu**
-  One commit, after F40a. Below 768 px the navigation collapses behind a menu button. It still shows only the links the user's role can use (F46). Plain JS, keyboard usable, the button has an accessible label.
-
 - [ ] **F40 Status colours**
   Why: states must be readable at a glance, in one place.
   Decisions made:

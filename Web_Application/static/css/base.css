@@ -23,6 +23,16 @@ body {
 
 .brand { font-weight: 700; }
 
+.nav-toggle {
+  display: none;
+  padding: 0.25rem 0.65rem;
+  background: var(--color-surface);
+  color: var(--color-primary);
+  border: 1px solid var(--color-primary);
+  font-size: 1.1rem;
+  line-height: 1.2;
+  cursor: pointer;
+}
 .site-nav { display: flex; flex-wrap: wrap; gap: 0.35rem 1rem; }
 .site-nav a { color: var(--color-primary); text-decoration: none; white-space: nowrap; }
 .site-nav a:hover { text-decoration: underline; }

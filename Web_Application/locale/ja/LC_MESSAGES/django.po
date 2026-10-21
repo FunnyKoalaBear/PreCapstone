@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Factory Tracker\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-21 19:14+0900\n"
+"POT-Creation-Date: 2026-10-21 19:21+0900\n"
 "PO-Revision-Date: 2026-10-11 17:00+0900\n"
 "Last-Translator: Claude\n"
 "Language-Team: Japanese\n"
@@ -639,8 +639,8 @@ msgid "Access denied"
 msgstr "アクセスできません"
 
 # CHECK: glossary marks 工程進捗管理 as unsure (product name)
-#: .\templates\403.html:4 .\templates\base.html:6 .\templates\base.html:13
-#: .\templates\base.html:40 .\templates\core\home.html:4
+#: .\templates\403.html:4 .\templates\base.html:6 .\templates\base.html:14
+#: .\templates\base.html:42 .\templates\core\home.html:4
 #: .\templates\orders\code_list.html:4
 #: .\templates\orders\customer_detail.html:4
 #: .\templates\orders\customer_edit.html:4
@@ -661,7 +661,7 @@ msgstr "工程進捗管理"
 msgid "Your account does not have the role needed for this page."
 msgstr "このページを表示するために必要な権限がありません。"
 
-#: .\templates\403.html:9 .\templates\base.html:15 .\templates\core\home.html:4
+#: .\templates\403.html:9 .\templates\base.html:17 .\templates\core\home.html:4
 #: .\templates\core\home.html:7
 msgid "Home"
 msgstr "ホーム"
@@ -674,63 +674,67 @@ msgstr "Django サイト管理"
 msgid "Django administration"
 msgstr "Django 管理サイト"
 
-#: .\templates\base.html:16 .\templates\orders\customer_detail.html:16
+#: .\templates\base.html:15
+msgid "Menu"
+msgstr "メニュー"
+
+#: .\templates\base.html:18 .\templates\orders\customer_detail.html:16
 #: .\templates\orders\order_list.html:4 .\templates\orders\order_list.html:7
 msgid "Orders"
 msgstr "受注一覧"
 
 # CHECK: 得意先 is marked unsure in the glossary (alternative: 顧客)
-#: .\templates\base.html:17 .\templates\orders\customer_list.html:4
+#: .\templates\base.html:19 .\templates\orders\customer_list.html:4
 #: .\templates\orders\customer_list.html:7
 msgid "Customers"
 msgstr "得意先"
 
-#: .\templates\base.html:18 .\templates\orders\order_form.html:4
+#: .\templates\base.html:20 .\templates\orders\order_form.html:4
 #: .\templates\orders\order_form.html:11 .\templates\orders\order_list.html:33
 msgid "New order"
 msgstr "新規受注"
 
-#: .\templates\base.html:19 .\templates\orders\order_import.html:4
+#: .\templates\base.html:21 .\templates\orders\order_import.html:4
 #: .\templates\orders\order_import.html:7
 msgid "Import orders"
 msgstr "受注の取り込み"
 
-#: .\templates\base.html:20 .\templates\core\home.html:21
+#: .\templates\base.html:22 .\templates\core\home.html:21
 #: .\templates\tracking\matrix.html:4 .\templates\tracking\matrix.html:7
 msgid "Progress matrix"
 msgstr "進捗マトリクス"
 
-#: .\templates\base.html:21 .\templates\tracking\results.html:4
+#: .\templates\base.html:23 .\templates\tracking\results.html:4
 #: .\templates\tracking\results.html:7
 msgid "Results"
 msgstr "作業実績"
 
-#: .\templates\base.html:22 .\templates\tracking\plan_summary.html:4
+#: .\templates\base.html:24 .\templates\tracking\plan_summary.html:4
 #: .\templates\tracking\plan_summary.html:7
 msgid "Plan vs actual"
 msgstr "計画と実績"
 
-#: .\templates\base.html:23 .\templates\tracking\shipping.html:4
+#: .\templates\base.html:25 .\templates\tracking\shipping.html:4
 #: .\templates\tracking\shipping.html:7
 msgid "Shipping"
 msgstr "出荷"
 
-#: .\templates\base.html:24 .\templates\tracking\priorities.html:4
+#: .\templates\base.html:26 .\templates\tracking\priorities.html:4
 #: .\templates\tracking\priorities.html:7
 msgid "Priorities"
 msgstr "優先度"
 
-#: .\templates\base.html:25 .\templates\tracking\tag_manage.html:4
+#: .\templates\base.html:27 .\templates\tracking\tag_manage.html:4
 #: .\templates\tracking\tag_manage.html:7
 msgid "Tags"
 msgstr "タグ管理"
 
-#: .\templates\base.html:26 .\templates\orders\code_list.html:4
+#: .\templates\base.html:28 .\templates\orders\code_list.html:4
 #: .\templates\orders\code_list.html:7
 msgid "Codes"
 msgstr "コード一覧"
 
-#: .\templates\base.html:27 .\templates\tracking\simulate.html:4
+#: .\templates\base.html:29 .\templates\tracking\simulate.html:4
 #: .\templates\tracking\simulate.html:7
 msgid "Simulate scan"
 msgstr "スキャンのシミュレーション"

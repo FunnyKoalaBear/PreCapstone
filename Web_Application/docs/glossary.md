@@ -219,3 +219,9 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | Export CSV | CSV出力 |
 | Export events (CSV) | 履歴をCSV出力 |
 | yes / no | はい / いいえ |
+
+## Terms added for the responsive menu
+
+| English | Japanese |
+|---|---|
+| Menu | メニュー |

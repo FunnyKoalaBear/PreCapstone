@@ -7,11 +7,13 @@
   <link rel="stylesheet" href="{% static 'css/theme.css' %}">
   <link rel="stylesheet" href="{% static 'css/base.css' %}">
   <link rel="stylesheet" href="{% static 'css/lang.css' %}">
+  <script>document.documentElement.classList.add('js')</script>
 </head>
 <body>
   <header class="site-header">
     <span class="brand">{% trans "Factory Tracker" %}</span>
-    <nav class="site-nav">
+    <button type="button" class="nav-toggle" aria-controls="site-nav" aria-expanded="false" aria-label="{% trans 'Menu' %}">&#9776;</button>
+    <nav class="site-nav" id="site-nav">
       <a href="{% url 'home' %}">{% trans "Home" %}</a>
       {% if can.operator %}<a href="{% url 'order_list' %}">{% trans "Orders" %}</a>{% endif %}
       {% if can.planner %}<a href="{% url 'customer_list' %}">{% trans "Customers" %}</a>{% endif %}
@@ -38,5 +40,6 @@
     {% block content %}{% endblock %}
   </main>
   <footer class="site-footer">{% trans "Factory Tracker" %}</footer>
+  <script src="{% static 'js/nav.js' %}"></script>
 </body>
 </html>

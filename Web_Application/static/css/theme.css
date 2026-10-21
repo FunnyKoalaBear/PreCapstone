@@ -40,6 +40,11 @@
   .gantt-row { grid-template-columns: 1fr; gap: 0.15rem; }
   .gantt-axis .gantt-name { display: none; }
 
+  /* The menu collapses behind a button (only when JavaScript runs, so the links stay reachable without it) */
+  .site-header .nav-toggle { display: inline-block; }
+  .js .site-nav { display: none; }
+  .js .site-nav.is-open { display: flex; flex-direction: column; flex-basis: 100%; }
+
   /* Tables marked table-cards turn into one card per row; the cell labels come from data-label */
   .table-cards thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   .table-cards, .table-cards tbody, .table-cards tfoot, .table-cards tr { display: block; }
