@@ -40,7 +40,7 @@ Order matters. [ ] todo, [x] done, [!] blocked. IDs match the feature tracker. E
   Fixed-height box with its own scroll and a frozen header and first column. Default: unfinished orders by due date, first 25, "Show more". Filters: status, customer, due range, overdue only. Option "start at current step". Click a row to open the order.
   Home shows a short version (most urgent 10) linking to the full page. Remove the old process board only when this works.
 
-- [ ] **F43 Order to PDF (work instruction sheet)**
+- [x] **F43 Order to PDF (work instruction sheet)**
   Use ReportLab and pypdf (pure Python: works on Windows and the Pi) with an embedded Japanese font (Noto Sans JP, OFL licence, bundled in static/fonts).
   Page 1 per item: job number, customer, customer PO, material, due date, quantity, notes. Route table: sequence, process, code + name (F73), step due date (F79), quantity, blank boxes for date / worker / notes, actual qty, defect qty. Optional QR of the item code.
   Page 2: the drawing (pdf pages appended; png/jpg scaled to fit) so duplex printing puts it on the back. No drawing -> no page 2.

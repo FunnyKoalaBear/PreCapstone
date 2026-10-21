@@ -153,3 +153,12 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | Progress matrix | 進捗マトリクス |
 | Current step | 現在の工程 |
 | Show more | さらに表示 |
+
+## Terms added for the work instruction sheet
+
+| English | Japanese |
+|---|---|
+| Work instruction sheet | 作業指示書 |
+| Worker | 作業者 |
+| Actual qty / Defects | 実績数 / 不良数 |
+| Print sheet | 指示書を印刷 |

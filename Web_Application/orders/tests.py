@@ -1,4 +1,5 @@
 import importlib
+import io
 import tempfile
 from datetime import date, datetime, timedelta
 
@@ -10,6 +11,9 @@ from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
+from pypdf import PdfReader
+from PIL import Image
+from reportlab.pdfgen import canvas
 from django.utils.datastructures import MultiValueDict
 from django.utils import timezone, translation
 
@@ -777,6 +781,95 @@ class DrawingViewTests(TestCase):
         self.assertEqual(self.client.get(self.url).status_code, 302)
         self.client.force_login(make_user('nobody'))
         self.assertEqual(self.client.get(self.url).status_code, 403)
+
+
+def make_pdf(pages):
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf)
+    for n in range(pages):
+        c.drawString(100, 700, f'DRAWING-PAGE-{n}')
+        c.showPage()
+    c.save()
+    return buf.getvalue()
+
+
+def make_png():
+    buf = io.BytesIO()
+    Image.new('RGB', (400, 200), 'white').save(buf, 'PNG')
+    return buf.getvalue()
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class OrderSheetTests(TestCase):
+    def setUp(self):
+        self.client.force_login(make_user('pl', 'Planner'))
+        self.vendor = Vendor.objects.create(code='00131', name='Demo Plating', name_ja='デモメッキ', kind=Vendor.Kind.VENDOR)
+        self.mat = Process.objects.create(name='Mat', kind=K.MATERIAL)
+        self.plate = Process.objects.create(name='Plating', name_ja='メッキ', kind=K.OUTSOURCED, default_vendor=self.vendor)
+        order = Order.objects.create(customer=Customer.objects.create(name='Acme Corp'), customer_order_number='PO-77',
+                                     due_date=date(2031, 5, 6), notes='Handle with care')
+        self.order = order
+        self.items = [self.item(order, 'Drive shaft', 5), self.item(order, 'Flange', 3)]
+        self.url = f'/orders/{order.job_number}/sheet/'
+
+    def item(self, order, part, qty):
+        item = OrderItem.objects.create(order=order, part_name=part, quantity=qty, material='S45C')
+        RouteStep.objects.create(item=item, sequence=1, process=self.mat)
+        RouteStep.objects.create(item=item, sequence=2, process=self.plate, vendor=self.vendor, due_date=date(2031, 4, 1), slip_number='S-9')
+        return item
+
+    def attach(self, item, name, data):
+        item.drawing_file.save(name, SimpleUploadedFile(name, data))
+
+    def pdf(self):
+        r = self.client.get(self.url)
+        self.assertEqual((r.status_code, r['Content-Type']), (200, 'application/pdf'))
+        return PdfReader(io.BytesIO(r.content))
+
+    def test_planner_only(self):
+        self.client.force_login(make_user('op', 'Operator'))
+        self.assertEqual(self.client.get(self.url).status_code, 403)
+        self.client.logout()
+        self.assertEqual(self.client.get(self.url).status_code, 302)
+
+    def test_button_on_detail_page_for_planners_only(self):
+        self.assertContains(self.client.get(f'/orders/{self.order.job_number}/'), self.url)
+        self.client.force_login(make_user('op', 'Operator'))
+        self.assertNotContains(self.client.get(f'/orders/{self.order.job_number}/'), self.url)
+
+    def test_one_page_per_item_without_drawings_with_details_and_embedded_font(self):
+        reader = self.pdf()
+        self.assertEqual(len(reader.pages), 2)
+        text = reader.pages[0].extract_text()
+        for expected in (self.items[0].item_code, 'Acme Corp', 'PO-77', 'Drive shaft', 'S45C', '2031-05-06', 'Handle with care',
+                         'Work instruction sheet', 'Mat', 'Plating', '00131 Demo Plating', '2031-04-01'):
+            self.assertIn(expected, text)
+        self.assertIn(self.items[1].item_code, reader.pages[1].extract_text())
+        self.assertIn(b'FontFile2', self.client.get(self.url).content)
+
+    def test_drawings_follow_their_sheet_so_duplex_puts_them_on_the_back(self):
+        self.attach(self.items[0], 'a.pdf', make_pdf(2))
+        self.attach(self.items[1], 'b.png', make_png())
+        reader = self.pdf()
+        # sheet + 2 drawing pages + a blank to keep the next sheet on a front; then sheet + image
+        self.assertEqual(len(reader.pages), 4 + 2)
+        self.assertIn('DRAWING-PAGE-0', reader.pages[1].extract_text())
+        self.assertIn('DRAWING-PAGE-1', reader.pages[2].extract_text())
+        self.assertEqual(reader.pages[3].extract_text().strip(), '')
+        self.assertIn(self.items[1].item_code, reader.pages[4].extract_text())
+
+    def test_japanese_text_is_written_in_japanese(self):
+        self.client.cookies['django_language'] = 'ja'
+        text = self.pdf().pages[0].extract_text()
+        self.assertIn('作業指示書', text)
+        self.assertIn('メッキ', text)
+        self.assertIn('00131 デモメッキ', text)
+
+    def test_unreadable_drawing_gives_a_note_page(self):
+        self.attach(self.items[0], 'bad.pdf', b'not a pdf')
+        reader = self.pdf()
+        self.assertEqual(len(reader.pages), 2 + 1)
+        self.assertIn('The drawing could not be read.', reader.pages[1].extract_text())
 
 
 class CustomerTests(TestCase):

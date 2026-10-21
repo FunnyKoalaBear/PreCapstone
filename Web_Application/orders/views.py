@@ -1,7 +1,7 @@
 from django.contrib import messages
 from django.db import transaction
 from django.db.models import Count, Q
-from django.http import FileResponse, Http404
+from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.translation import gettext as _
@@ -13,7 +13,7 @@ from tracking.status import (
     order_summary, step_due_back, timeline,
 )
 
-from . import importer
+from . import importer, pdf
 from .forms import CustomerForm, OrderForm, OrderItemFormSet
 from .models import Customer, Order, OrderChange, OrderItem, Vendor
 
@@ -251,3 +251,11 @@ def order_import(request):
             request.session[SESSION_KEY] = {'text': text, 'create': create}
             preview = importer.parse(text, create)
     return render(request, 'orders/order_import.html', {'preview': preview, 'error': error})
+
+
+@role_required(PLANNER)
+def order_sheet(request, job_number):
+    order = get_object_or_404(Order, job_number=job_number)
+    response = HttpResponse(pdf.order_pdf(order), content_type='application/pdf')
+    response['Content-Disposition'] = f'inline; filename="{order.job_number}.pdf"'
+    return response
