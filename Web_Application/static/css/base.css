@@ -189,17 +189,6 @@ h1 .button-secondary, h2 .button-secondary {
 .counters a.counter { display: block; text-decoration: none; }
 .counters a.counter:hover, .counters a.counter:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
 
-/* Process board */
-.board-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
-.board-grid .process-card { max-width: none; margin: 0; }
-.process-card.queue-building { border-color: var(--board-queue); background: var(--board-queue-bg); }
-.process-card h3 { margin: 0 0 0.5rem; }
-.process-card h3 small { color: var(--color-muted); font-weight: normal; }
-.process-counts { display: flex; gap: 1rem; margin: 0 0 0.5rem; color: var(--color-muted); }
-.process-counts strong { font-size: 1.5rem; color: var(--color-text); }
-.process-boxes { list-style: none; margin: 0 0 0.5rem; padding: 0; font-size: 0.9rem; }
-.process-boxes li { padding: 0.15rem 0; overflow-wrap: anywhere; }
-.badge-queue { color: var(--board-queue); }
 
 /* Replace-tag inline form and collapsible simulate section */
 .replace-tag { margin-top: 0.35rem; }
@@ -222,3 +211,26 @@ h1 .button-secondary, h2 .button-secondary {
 .account button:hover { text-decoration: underline; }
 
 .drawing-preview { max-width: 100%; max-height: 20rem; border: 1px solid var(--color-border); }
+
+/* Progress matrix */
+.matrix-scroll { max-height: 28rem; overflow: auto; border: 1px solid var(--color-border); background: var(--color-surface); }
+.matrix { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 0.875rem; }
+.matrix th, .matrix td { padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--color-border); border-right: 1px solid var(--color-border); text-align: left; vertical-align: top; }
+.matrix thead th { position: sticky; top: 0; z-index: 2; background: var(--color-surface); }
+.matrix .matrix-item { position: sticky; left: 0; z-index: 1; min-width: 15rem; background: var(--color-surface); font-weight: normal; }
+.matrix thead .matrix-item { z-index: 3; }
+.matrix .matrix-item small { display: block; color: var(--color-muted); }
+.matrix tbody tr[data-href] { cursor: pointer; }
+.matrix tbody tr:hover .matrix-item { background: var(--color-bg); }
+.matrix-cell { min-width: 7rem; }
+.matrix-cell small { display: block; color: var(--color-muted); }
+.matrix-pending { background: var(--matrix-pending-bg); }
+.matrix-in_progress { background: var(--matrix-in-progress-bg); }
+.matrix-at_vendor { background: var(--matrix-at-vendor-bg); }
+.matrix-done { background: var(--matrix-done-bg); }
+.matrix-empty { background: var(--color-surface); }
+.matrix-run { min-width: 0; text-align: center; }
+.matrix-current { outline: 2px solid var(--color-primary); outline-offset: -2px; }
+.matrix-legend { font-size: 0.875rem; color: var(--color-muted); }
+.matrix-key { display: inline-block; width: 0.9rem; height: 0.9rem; margin: 0 0.25rem 0 0.75rem; vertical-align: middle; border: 1px solid var(--color-border); }
+.matrix-key.matrix-current { background: var(--color-surface); }

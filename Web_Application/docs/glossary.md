@@ -145,3 +145,11 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | Preview | プレビュー |
 | Row (of a file) | 行 |
 | Error | エラー |
+
+## Terms added for the progress matrix
+
+| English | Japanese |
+|---|---|
+| Progress matrix | 進捗マトリクス |
+| Current step | 現在の工程 |
+| Show more | さらに表示 |

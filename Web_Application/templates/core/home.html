@@ -16,16 +16,8 @@
       <a class="card counter counter-vendor{% if counters.vendor_overdue %} counter-overdue counter-late{% endif %}" href="{% url 'boxes' %}?status=at_vendor&amp;vendor_late=1"><strong>{{ counters.vendor_overdue }}</strong> {% trans "Vendor overdue" %}</a>
     </div>
 
-    <h2>{% trans "Process board" %}</h2>
-    <h3>{% trans "In-house" %}</h3>
-    <div class="board-grid">
-      {% for card in in_house %}{% include "tracking/_process_card.html" %}
-      {% empty %}<p>{% trans "No in-house processes." %}</p>{% endfor %}
-    </div>
 
-    <h3>{% trans "Outsourced" %}</h3>
-    <div class="board-grid">
-      {% for card in outsourced %}{% include "tracking/_process_card.html" %}
-      {% empty %}<p>{% trans "No outsourced processes." %}</p>{% endfor %}
-    </div>
+    <h2>{% trans "Progress matrix" %}</h2>
+    {% include "tracking/_matrix.html" %}
+    <p><a href="{% url 'matrix' %}">{% trans "Show the full progress matrix" %}</a></p>
 {% endblock %}

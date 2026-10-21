@@ -1,1 +1,0 @@
-{% load i18n %}{% if b.late %}<span class="badge badge-overdue">{% trans "Overdue" %}</span>{% else %}<small>{{ b.due_date|date:"Y-m-d" }}</small>{% endif %}{% if b.stagnant %} <span class="badge badge-stagnant">{% trans "Stagnant" %}</span>{% endif %}

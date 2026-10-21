@@ -7,20 +7,22 @@ from django.db.models import Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils.dateparse import parse_date
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils import timezone
 from django.utils.translation import gettext as _
 from django.utils.translation import gettext_lazy
 
 from core.permissions import ADMIN, OPERATOR, PLANNER, role_required
-from orders.models import OrderItem
+from orders.models import Customer, OrderItem
 
 from .forms import AssignTagForm, CorrectEventForm, PickTagForm, SimulateScanForm
 from .models import Box, Event, Tag, TagAssignment
+from .matrix import matrix as build_matrix
 from .overview import active_boxes
 from .priority import TIER_LABELS, TIERS, priority
 from .services import assign_tag, can_correct, correct_event as correct_event_service, next_step, record_event, release_assignment, replace_tag, resolve_tag
-from .status import AT_VENDOR, COMPLETE, IN_PROGRESS, NOT_STARTED, WAITING, current_row, item_status
+from .status import AT_VENDOR, COMPLETE, IN_PROGRESS, LABELS, NOT_STARTED, WAITING, current_row, item_status
 
 
 def _next_step(uid):
@@ -259,4 +261,26 @@ def boxes(request):
     return render(request, 'tracking/boxes.html', {
         'rows': rows, 'title': ', '.join(map(str, parts)) or _('Active boxes'), 'sort': sort,
         'sort_choices': BOX_SORT_CHOICES, 'keep': keep,
+    })
+
+
+MATRIX_PAGE = 25
+MATRIX_STATUSES = [NOT_STARTED, WAITING, IN_PROGRESS, AT_VENDOR]
+
+
+@role_required(OPERATOR)
+def progress_matrix(request):
+    g = request.GET
+    status = g.get('status') if g.get('status') in MATRIX_STATUSES else ''
+    customer = int(g['customer']) if g.get('customer', '').isdigit() else None
+    due_from, due_to = parse_date(g.get('due_from', '')), parse_date(g.get('due_to', ''))
+    late, from_current = g.get('late') == '1', g.get('current') == '1'
+    n = min(max(int(g['n']), MATRIX_PAGE), 500) if g.get('n', '').isdigit() else MATRIX_PAGE
+    data = build_matrix(n, status, customer, due_from, due_to, late, from_current)
+    keep = {k: v for k, v in g.items() if k != 'n' and v}
+    return render(request, 'tracking/matrix.html', {
+        'matrix': data, 'status': status, 'customer': customer, 'due_from': g.get('due_from', ''), 'due_to': g.get('due_to', ''),
+        'late': late, 'from_current': from_current, 'customers': Customer.objects.order_by('name'),
+        'status_choices': [(c, LABELS[c]) for c in MATRIX_STATUSES],
+        'more_url': '?' + urlencode({**keep, 'n': n + MATRIX_PAGE}),
     })

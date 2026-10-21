@@ -17,6 +17,7 @@ from core.management.commands.seed_demo import read_csv
 from core.testing import TestCase, make_user
 from orders.models import Customer, Order, OrderItem, Process, RouteStep, Vendor
 from tracking.models import Box, Event, ScannerDevice, Tag, TagAssignment
+from tracking.overview import board_groups
 from tracking.priority import priority
 from tracking.services import record_event
 from tracking.status import days_late, due_back, is_stagnant, item_status
@@ -122,22 +123,26 @@ class HomeDashboardTests(TestCase):
         self.client.force_login(make_user('s', 'Admin'))
         return self.client.get('/')
 
+    def groups(self, group):
+        in_house, outsourced = board_groups()
+        return in_house if group == 'in_house' else outsourced
+
     def card(self, r, group, name):
-        return next(c for c in r.context[group] if c['process'].name == name)
+        return next(c for c in self.groups(group) if c['process'].name == name)
 
     def test_home_needs_login(self):
         self.assertRedirects(self.client.get('/'), '/login/?next=/')
-        self.assertContains(self.home(), 'Process board')
+        self.assertContains(self.home(), 'Progress matrix')
 
-    def test_home_shows_board_cards_and_not_the_old_tables(self):
-        _, uid = self.make_item([self.material, self.milling])
+    def test_home_shows_the_matrix_and_not_the_old_board(self):
+        item, uid = self.make_item([self.material, self.milling])
         record_event(self.device, uid, self.material, 'ARRIVED')
         r = self.home()
-        self.assertContains(r, 'process-card', count=2)  # Milling and Plating
-        self.assertContains(r, 'Outsourced')
-        self.assertNotContains(r, 'In-house now')
-        self.assertNotContains(r, 'At vendors')
-        self.assertNotContains(r, '<table')
+        self.assertContains(r, 'class="matrix"')
+        self.assertContains(r, item.item_code)
+        self.assertContains(r, 'href="/matrix/"')
+        for gone in ('Process board', 'process-card', 'In-house now', 'At vendors'):
+            self.assertNotContains(r, gone)
         self.assertEqual(self.client.get('/board/').status_code, 404)
 
     def test_arrived_with_pending_next_step_is_waiting_in_house(self):
@@ -161,7 +166,7 @@ class HomeDashboardTests(TestCase):
         _, uid = self.make_item([self.material])
         record_event(self.device, uid, self.material, 'ARRIVED')
         r = self.home()
-        self.assertEqual([(len(c['running']), len(c['waiting'])) for c in r.context['in_house'] + r.context['outsourced']], [(0, 0), (0, 0)])
+        self.assertEqual([(len(c['running']), len(c['waiting'])) for c in self.groups('in_house') + self.groups('outsourced')], [(0, 0), (0, 0)])
         self.assertEqual(sum(r.context['counters'][k] for k in ('in_progress', 'waiting', 'at_vendor', 'not_started')), 0)
 
     def test_overdue_counts_an_order_once(self):
@@ -190,7 +195,7 @@ class HomeDashboardTests(TestCase):
     def test_sent_out_past_lead_time_is_late_and_counted(self):
         item = self.send_out(10, 7)
         r = self.home()
-        e = r.context['outsourced'][-1]['running'][0]
+        e = self.groups('outsourced')[-1]['running'][0]
         self.assertEqual((e['late_days'], r.context['counters']['vendor_overdue']), (3, 1))
         self.assertEqual(e['due_back'], timezone.localdate() - timedelta(days=3))
         detail = self.client.get(f'/orders/{item.order.job_number}/')
@@ -200,7 +205,7 @@ class HomeDashboardTests(TestCase):
     def test_sent_out_today_is_not_late(self):
         self.send_out(0, 7)
         r = self.home()
-        e = r.context['outsourced'][-1]['running'][0]
+        e = self.groups('outsourced')[-1]['running'][0]
         self.assertEqual((e['late_days'], r.context['counters']['vendor_overdue']), (0, 0))
         self.assertEqual(e['due_back'], timezone.localdate() + timedelta(days=7))
 
@@ -208,13 +213,13 @@ class HomeDashboardTests(TestCase):
         item = self.send_out(3, 7)
         due = timezone.localdate() - timedelta(days=2)
         item.steps.update(due_date=due)
-        e = self.home().context['outsourced'][-1]['running'][0]
+        e = self.groups('outsourced')[-1]['running'][0]
         self.assertEqual((e['due_back'], e['late_days']), (due, 2))
 
     def test_no_lead_days_is_never_late(self):
         self.send_out(60, None)
         r = self.home()
-        e = r.context['outsourced'][-1]['running'][0]
+        e = self.groups('outsourced')[-1]['running'][0]
         self.assertEqual((e['due_back'], e['late_days'], r.context['counters']['vendor_overdue']), (None, 0, 0))
 
     def test_stagnant_counter(self):
@@ -245,7 +250,6 @@ class HomeDashboardTests(TestCase):
                          [('BX2', 'WAITING', True, True), ('B1', 'IN_PROGRESS', False, True)])
         c = r.context['counters']
         self.assertEqual((c['in_progress'], c['waiting'], c['not_started'], c['stagnant'], c['overdue']), (1, 1, 1, 1, 0))
-        self.assertContains(r, f'{item.item_code} - box BX2')
 
     def test_vendor_lateness_is_per_box(self):
         proc = Process.objects.create(name='Paint', kind=K.OUTSOURCED, vendor_name='V', vendor_lead_days=2)
@@ -257,7 +261,7 @@ class HomeDashboardTests(TestCase):
                                      start_at=now - timedelta(days=9))
         record_event(self.device, uid1, proc, 'SENT_OUT')
         record_event(self.device, 'T2Y', proc, 'SENT_OUT', occurred_at=now - timedelta(days=6))
-        rows = [c for c in self.home().context['outsourced'] if c['process'] == proc][0]['running']
+        rows = [c for c in self.groups('outsourced') if c['process'] == proc][0]['running']
         self.assertEqual([(e['box_label'], e['late_days'] > 0) for e in rows], [('BY2', True), ('B1', False)])
 
 
@@ -408,7 +412,7 @@ class LanguageTests(RawTestCase):
         order = self.staff_data()
         r = self.client.get(f'/orders/{order.job_number}/')
         self.assertContains(r, '受注一覧に戻る')
-        self.assertContains(self.client.get('/'), '工程ボード')
+        self.assertContains(self.client.get('/'), '進捗マトリクス')
         self.assertContains(self.client.get('/tags/'), 'タグを紐付ける')
 
     def test_admin_login_has_the_switch(self):

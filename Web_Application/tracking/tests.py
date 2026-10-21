@@ -6,13 +6,16 @@ from django.contrib.auth.models import User
 from django.core.exceptions import PermissionDenied, ValidationError
 from types import SimpleNamespace
 
+from unittest import mock
+
 from django.test import override_settings
 from django.utils import timezone
 
 from core.testing import TestCase, make_user
-from orders.models import Customer, Order, OrderItem, Process, RouteStep
+from orders.models import Customer, Order, OrderItem, Process, RouteStep, Vendor
 
 from .forms import AssignTagForm
+from .matrix import matrix as build_matrix
 from .models import Box, Event, ScannerDevice, Tag, TagAssignment
 from .overview import active_boxes, process_board
 from .priority import priority
@@ -1226,3 +1229,118 @@ class CorrectEventTests(TestCase):
         self.assertIn('bad scan', html)
         self.assertIn('Manual', html)
         self.assertIn('Correct', html)
+
+
+class ProgressMatrixTests(TestCase):
+    def setUp(self):
+        self.client.force_login(make_user('op', 'Operator'))
+        self.vendor = Vendor.objects.create(code='00131', name='Demo Plating', kind=Vendor.Kind.VENDOR)
+        self.mat = Process.objects.create(name='Mat', kind=K.MATERIAL)
+        self.mill = Process.objects.create(name='Mill', kind=K.MACHINING)
+        self.plate = Process.objects.create(name='Plate', kind=K.OUTSOURCED, default_vendor=self.vendor)
+        self.device = ScannerDevice.objects.create(name='D')
+        self.acme, self.beta = Customer.objects.create(name='Acme'), Customer.objects.create(name='Beta')
+        self.n = 0
+
+    def make(self, customer=None, days=10, route=None, part=None):
+        """An item due in `days` days, with a tag assigned; returns (item, uid)."""
+        self.n += 1
+        order = Order.objects.create(customer=customer or self.acme, due_date=timezone.localdate() + timedelta(days=days))
+        item = OrderItem.objects.create(order=order, part_name=part or f'Part{self.n}', quantity=1)
+        for i, proc in enumerate(route or [self.mat, self.mill, self.plate], 1):
+            RouteStep.objects.create(item=item, sequence=i, process=proc, vendor=proc.default_vendor)
+        uid = f'M{self.n}'
+        TagAssignment.objects.create(tag=Tag.objects.create(uid=uid), box=Box.objects.create(label=f'MB{self.n}'), item=item,
+                                     start_at=timezone.now() - timedelta(days=1))
+        return item, uid
+
+    def scan(self, uid, proc, etype):
+        record_event(self.device, uid, proc, etype)
+
+    def rows(self, **kw):
+        return build_matrix(**kw)['rows']
+
+    def test_needs_operator_login(self):
+        self.client.logout()
+        self.assertRedirects(self.client.get('/matrix/'), '/login/?next=/matrix/')
+        self.client.force_login(make_user('nobody'))
+        self.assertEqual(self.client.get('/matrix/').status_code, 403)
+        self.client.force_login(make_user('op'))
+        self.assertEqual(self.client.get('/matrix/').status_code, 200)
+
+    def test_unfinished_items_by_due_date_and_complete_ones_left_out(self):
+        later, _ = self.make(days=9)
+        sooner, _ = self.make(days=2)
+        done, uid = self.make(route=[self.mat])
+        self.scan(uid, self.mat, 'ARRIVED')
+        self.assertEqual([r['item'] for r in self.rows()], [sooner, later])
+
+    def test_finished_leading_steps_collapse_into_one_cell(self):
+        item, uid = self.make(route=[self.mat, self.mill, self.plate])
+        self.scan(uid, self.mat, 'ARRIVED')
+        self.scan(uid, self.mill, 'STARTED')
+        self.scan(uid, self.mill, 'FINISHED')
+        self.scan(uid, self.plate, 'SENT_OUT')
+        cells = self.rows()[0]['cells']
+        self.assertEqual([(c.get('run'), c['state']) for c in cells], [(2, 'done'), (None, 'at_vendor')])
+        self.assertEqual((cells[1]['process'], cells[1]['vendor'], cells[1]['current']), (self.plate, 'Demo Plating', True))
+        page = self.client.get('/matrix/')
+        self.assertContains(page, 'colspan="2"')
+        self.assertContains(page, 'Demo Plating')
+        self.assertContains(page, f'data-href="/orders/{item.order.job_number}/"')
+
+    def test_short_routes_are_padded_to_the_widest(self):
+        self.make(days=1, route=[self.mat])
+        self.make(days=2, route=[self.mat, self.mill, self.plate])
+        data = build_matrix()
+        self.assertEqual((len(data['columns']), [len(r['pad']) for r in data['rows']]), (3, [2, 0]))
+
+    def test_start_at_current_step_drops_finished_steps(self):
+        item, uid = self.make()
+        self.scan(uid, self.mat, 'ARRIVED')
+        self.scan(uid, self.mill, 'STARTED')
+        row = self.rows(from_current=True)[0]
+        self.assertEqual([(c['process'], c['current']) for c in row['cells']], [(self.mill, True), (self.plate, False)])
+        self.assertEqual(row['width'], 2)
+        page = self.client.get('/matrix/', {'current': '1'})
+        self.assertContains(page, '>Now<')
+        self.assertContains(page, '>+1<')
+
+    def test_filters(self):
+        a, uid_a = self.make(customer=self.acme, days=-2)
+        b, _ = self.make(customer=self.beta, days=5)
+        c, uid_c = self.make(customer=self.beta, days=20)
+        self.scan(uid_a, self.mat, 'ARRIVED')
+        self.scan(uid_c, self.mill, 'STARTED')
+        items = lambda **kw: [r['item'] for r in self.rows(**kw)]
+        self.assertEqual(items(status=NOT_STARTED), [b])
+        self.assertEqual(items(status=IN_PROGRESS), [c])
+        self.assertEqual(items(customer=self.beta.pk), [b, c])
+        self.assertEqual(items(late=True), [a])
+        self.assertEqual(items(due_from=timezone.localdate() + timedelta(days=3), due_to=timezone.localdate() + timedelta(days=10)), [b])
+        page = self.client.get('/matrix/', {'status': 'IN_PROGRESS', 'customer': self.beta.pk})
+        self.assertContains(page, c.item_code)
+        self.assertNotContains(page, b.item_code)
+        self.assertEqual(self.client.get('/matrix/', {'status': 'bogus', 'customer': 'x', 'due_from': 'zz'}).status_code, 200)
+
+    def test_show_more_pages_through_the_rows(self):
+        items = [self.make(days=i)[0] for i in range(3)]
+        data = build_matrix(limit=2)
+        self.assertEqual(([r['item'] for r in data['rows']], data['more']), (items[:2], True))
+        self.assertFalse(build_matrix(limit=3)['more'])
+        with mock.patch('tracking.views.MATRIX_PAGE', 2):
+            first = self.client.get('/matrix/', {'status': 'NOT_STARTED'})
+            self.assertContains(first, 'Show more')
+            self.assertContains(first, 'n=4')
+            self.assertContains(first, 'status=NOT_STARTED')
+            self.assertNotContains(first, items[2].item_code)
+            self.assertNotContains(self.client.get('/matrix/', {'n': 4}), 'Show more')
+
+    def test_home_shows_the_ten_most_urgent(self):
+        items = [self.make(days=i)[0] for i in range(12)]
+        r = self.client.get('/')
+        self.assertEqual([x['item'] for x in r.context['matrix']['rows']], items[:10])
+        self.assertContains(r, 'href="/matrix/"')
+
+    def test_empty_matrix(self):
+        self.assertContains(self.client.get('/matrix/'), 'No unfinished items match.')

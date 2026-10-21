@@ -35,7 +35,7 @@ Order matters. [ ] todo, [x] done, [!] blocked. IDs match the feature tracker. E
   Tests: clean file imports 7 orders and 10 items; each error row gives its expected message; the Shift-JIS file gives the same result.
   The real company format will arrive later: keep the column mapping in one place so it is easy to change.
 
-- [ ] **F66 Progress matrix (replaces the home process board)**
+- [x] **F66 Progress matrix (replaces the home process board)**
   Rows = unfinished items, columns = step 1..N; each cell shows that item's own process name (vendor name for outsourced steps), coloured by state with a legend (CSS variables only). Finished steps collapse into one compact cell.
   Fixed-height box with its own scroll and a frozen header and first column. Default: unfinished orders by due date, first 25, "Show more". Filters: status, customer, due range, overdue only. Option "start at current step". Click a row to open the order.
   Home shows a short version (most urgent 10) linking to the full page. Remove the old process board only when this works.

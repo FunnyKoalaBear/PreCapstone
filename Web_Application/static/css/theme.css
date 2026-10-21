@@ -16,8 +16,11 @@
 
   --stagnant-color: #be185d;
 
-  --board-queue: #c2410c;
-  --board-queue-bg: #fff7ed;
+  --matrix-pending-bg: #eef0f3;
+  --matrix-in-progress-bg: #dbeafe;
+  --matrix-at-vendor-bg: #ede9fe;
+  --matrix-done-bg: #dcfce7;
+
 
   --risk-overdue: #b91c1c;
   --risk-critical: #ea580c;

@@ -1,0 +1,45 @@
+{% load i18n static %}
+{% if matrix.rows %}
+  <div class="matrix-scroll">
+    <table class="matrix">
+      <thead>
+        <tr>
+          <th class="matrix-item">{% trans "Item" %}</th>
+          {% for _ in matrix.columns %}
+            <th>{% if matrix.from_current %}{% if forloop.first %}{% trans "Now" %}{% else %}+{{ forloop.counter0 }}{% endif %}{% else %}{{ forloop.counter }}{% endif %}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in matrix.rows %}
+          <tr data-href="{% url 'order_detail' r.order.job_number %}">
+            <th scope="row" class="matrix-item">
+              <a href="{% url 'order_detail' r.order.job_number %}">{{ r.item.item_code }}</a> {{ r.item.part_name }}
+              <span class="badge badge-{{ r.status.code|lower }}">{{ r.status.label }}</span>
+              {% if r.late %}<span class="badge badge-overdue">{% trans "Overdue" %}</span>{% endif %}
+              <small>{{ r.order.customer }} &middot; {{ r.order.due_date|date:"Y-m-d" }}</small>
+            </th>
+            {% for c in r.cells %}
+              {% if c.run %}
+                <td class="matrix-cell matrix-done matrix-run" colspan="{{ c.run }}" title="{% blocktrans count counter=c.run %}{{ counter }} step done{% plural %}{{ counter }} steps done{% endblocktrans %}">&#10003; {{ c.run }}</td>
+              {% else %}
+                <td class="matrix-cell matrix-{{ c.state }}{% if c.current %} matrix-current{% endif %}" title="{{ c.label }}">{{ c.process }}{% if c.vendor %}<small>{{ c.vendor }}</small>{% endif %}</td>
+              {% endif %}
+            {% endfor %}
+            {% for _ in r.pad %}<td class="matrix-cell matrix-empty"></td>{% endfor %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="matrix-legend">
+    <span class="matrix-key matrix-pending"></span>{% trans "Pending" %}
+    <span class="matrix-key matrix-in_progress"></span>{% trans "In progress" %}
+    <span class="matrix-key matrix-at_vendor"></span>{% trans "At vendor" %}
+    <span class="matrix-key matrix-done"></span>{% trans "Done" %}
+    <span class="matrix-key matrix-current"></span>{% trans "Current step" %}
+  </p>
+  <script src="{% static 'js/matrix.js' %}"></script>
+{% else %}
+  <p>{% trans "No unfinished items match." %}</p>
+{% endif %}
