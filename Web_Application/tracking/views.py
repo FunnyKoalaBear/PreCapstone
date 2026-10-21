@@ -22,8 +22,8 @@ from .matrix import matrix as build_matrix
 from .overview import active_boxes
 from .planning import process_averages
 from .priority import TIER_LABELS, TIERS, priority
-from .services import assign_tag, can_correct, correct_event as correct_event_service, next_step, record_event, record_result, release_assignment, replace_tag, resolve_tag
-from .status import AT_VENDOR, COMPLETE, IN_PROGRESS, LABELS, NOT_STARTED, WAITING, current_row, item_status
+from .services import assign_tag, can_correct, correct_event as correct_event_service, next_step, record_event, record_result, record_step_state, release_assignment, replace_tag, resolve_tag, cancel_item
+from .status import AT_VENDOR, CANCELLED, COMPLETE, IN_PROGRESS, LABELS, NOT_STARTED, PAUSED, WAITING, current_row, item_status
 
 
 def _next_step(uid):
@@ -43,10 +43,10 @@ def _next_step(uid):
 def correct_event(request, pk):
     if not can_correct(request.user):
         raise PermissionDenied
-    event = get_object_or_404(Event.objects.select_related('device', 'process'), pk=pk, event_type__in=[*Event.REQUIRED_KIND, Event.Type.RESULT])
+    event = get_object_or_404(Event.objects.select_related('device', 'process'), pk=pk, event_type__in=[t for t in Event.Type.values if t != Event.Type.CORRECTION])
     nxt = request.GET.get('next', '')
     back = nxt if url_has_allowed_host_and_scheme(nxt, {request.get_host()}) else reverse('order_list')
-    form = CorrectEventForm(request.POST or None, allow_replace=event.event_type != Event.Type.RESULT)
+    form = CorrectEventForm(request.POST or None, allow_replace=event.event_type in Event.REQUIRED_KIND)
     if request.method == 'POST' and form.is_valid():
         d = form.cleaned_data
         try:
@@ -200,6 +200,8 @@ def priorities(request):
     rows = []
     for item in OrderItem.objects.select_related('order__customer').order_by('order__due_date'):
         st = item_status(item)
+        if st.code == CANCELLED:
+            continue
         for box in st.boxes:
             a = box.assignment
             # Unlinked placeholders and finished boxes are left out
@@ -227,6 +229,7 @@ def priorities(request):
 BOX_STATUSES = {
     'in_progress': (IN_PROGRESS, gettext_lazy('In progress')), 'waiting': (WAITING, gettext_lazy('Waiting')),
     'at_vendor': (AT_VENDOR, gettext_lazy('At vendor')), 'not_started': (NOT_STARTED, gettext_lazy('Not started')),
+    'paused': (PAUSED, gettext_lazy('Paused')),
 }
 
 
@@ -266,7 +269,7 @@ def boxes(request):
 
 
 MATRIX_PAGE = 25
-MATRIX_STATUSES = [NOT_STARTED, WAITING, IN_PROGRESS, AT_VENDOR]
+MATRIX_STATUSES = [NOT_STARTED, WAITING, IN_PROGRESS, AT_VENDOR, PAUSED]
 
 
 @role_required(OPERATOR)
@@ -329,3 +332,35 @@ def results_summary(request):
 @role_required(OPERATOR)
 def plan_summary(request):
     return render(request, 'tracking/plan_summary.html', {'rows': process_averages()})
+
+
+STEP_ACTIONS = {
+    'pause': (Event.Type.PAUSED, gettext_lazy('Step paused.')),
+    'resume': (Event.Type.RESUMED, gettext_lazy('Step resumed.')),
+    'partial': (Event.Type.PARTIAL, gettext_lazy('Step marked partial.')),
+}
+
+
+@role_required(PLANNER)
+def item_action(request, pk):
+    """Planner buttons on the order page: pause, resume, mark partial (per box) or cancel the item."""
+    item = get_object_or_404(OrderItem.objects.select_related('order'), pk=pk)
+    back = redirect('order_detail', job_number=item.order.job_number)
+    if request.method != 'POST':
+        return back
+    action, reason = request.POST.get('action', ''), request.POST.get('reason', '')
+    try:
+        if action == 'cancel':
+            cancel_item(request.user, item, reason)
+            messages.success(request, _('Item %(item)s cancelled.') % {'item': item.item_code})
+        elif action in STEP_ACTIONS:
+            box = request.POST.get('box', '')
+            assignment = get_object_or_404(TagAssignment.objects.select_related('tag', 'box', 'item'), pk=box if box.isdigit() else 0, item=item, end_at__isnull=True)
+            event_type, done = STEP_ACTIONS[action]
+            record_step_state(request.user, assignment, event_type, reason)
+            messages.success(request, done)
+        else:
+            raise Http404
+    except ValidationError as e:
+        messages.error(request, ' '.join(e.messages))
+    return back

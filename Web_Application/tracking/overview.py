@@ -2,7 +2,7 @@ from django.utils import timezone
 
 from orders.models import OrderItem, Process
 
-from .status import AT_VENDOR, COMPLETE, IN_PROGRESS, WAITING, current_row, days_late, idle_for, is_stagnant, item_status, step_due_back
+from .status import AT_VENDOR, CANCELLED, COMPLETE, IN_PROGRESS, WAITING, current_row, days_late, idle_for, is_stagnant, item_status, step_due_back
 
 QUEUE_WAITING = 3  # waiting boxes at which a process card shows "queue building"
 
@@ -13,6 +13,8 @@ def active_boxes(now=None, today=None):
     out = []
     for item in OrderItem.objects.select_related('order__customer'):
         st = item_status(item)
+        if st.code == CANCELLED:
+            continue
         for box in st.boxes:
             if box.code == COMPLETE:
                 continue

@@ -46,7 +46,7 @@ Order matters. [ ] todo, [x] done, [!] blocked. IDs match the feature tracker. E
   Page 2: the drawing (pdf pages appended; png/jpg scaled to fit) so duplex printing puts it on the back. No drawing -> no page 2.
   Button "Print sheet" on the order detail page (Planner and up).
 
-- [ ] **F64 Extra states: paused, resumed, partial, cancelled** (website side only)
+- [x] **F64 Extra states: paused, resumed, partial, cancelled** (website side only)
   Add event types and status rules; planner buttons on the order detail page; no scanner changes. Derived status stays computed from events. Cancelled orders leave the overdue lists.
 
 - [x] **F65 Worker, machine, quantity and defects (website side)**

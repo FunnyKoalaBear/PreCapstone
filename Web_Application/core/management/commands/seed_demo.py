@@ -33,7 +33,7 @@ CUSTOMERS = ('東洋機械', '北斗製作所')
 # 4-byte tag UIDs of the demo scenarios (box labels stay DEMO-xx)
 DEMO_UIDS = (
     '0781DD5E', 'F8DF3064', '74BA7571', '8EFBD21A', '57E36722', 'FC3F61E6', '092C4B14',
-    '3E180A05', '03193FDF', '414D497D', 'C36F67C6', 'D795A680', 'B15D6B73',
+    '3E180A05', '03193FDF', '414D497D', 'C36F67C6', 'D795A680', 'B15D6B73', '5A1C9E02', '9B27F4D6',
 )
 
 
@@ -168,6 +168,17 @@ class Command(BaseCommand):
         scan('D795A680', 'Milling', 'FINISHED', ago(hours=22))
         scan('D795A680', 'Lathe', 'STARTED', ago(hours=1), d2)
 
+        # 11 Paused: milling started, then put on hold by the planner
+        make('Paused', c1, 'ベース', ['Material', 'Milling', 'Inspection'], 12, '5A1C9E02', 'DEMO-12', 'TY-2610-030')
+        scan('5A1C9E02', 'Material', 'ARRIVED', ago(hours=30))
+        scan('5A1C9E02', 'Milling', 'STARTED', ago(hours=6))
+        self.manual(d1, '5A1C9E02', procs['Milling'], Event.Type.PAUSED, ago(hours=2), 'Waiting for a tool')
+        # 12 Cancelled: the customer withdrew the order after the first step
+        gone = make('Cancelled', c2, 'リング', ['Milling', 'Lathe'], 5, '9B27F4D6', 'DEMO-13', 'HS-45040')
+        scan('9B27F4D6', 'Milling', 'STARTED', ago(hours=8))
+        self.manual(d2, '', None, Event.Type.CANCELLED, ago(hours=5), 'Withdrawn by the customer', item=gone)
+        # The healthy order's assembly is only partly done
+        self.manual(d1, '0781DD5E', procs['Assembly'], Event.Type.PARTIAL, ago(hours=1), 'Half of the pieces')
         self.add_results(created, d1)
         self.stdout.write(self.style.SUCCESS(f'Created {len(created)} demo orders:'))
         for label, item in created:
@@ -193,3 +204,10 @@ class Command(BaseCommand):
                     event.full_clean()
                     event.save()
                     n += 1
+
+    @staticmethod
+    def manual(device, uid, process, event_type, when, reason, item=None):
+        """A planner-style event (pause, partial or cancel) recorded straight into the log."""
+        event = Event(device=device, tag_uid=uid, process=process, event_type=event_type, occurred_at=when, reason=reason, item=item)
+        event.full_clean()
+        event.save()

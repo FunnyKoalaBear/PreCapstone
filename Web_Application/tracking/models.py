@@ -138,6 +138,13 @@ class Event(models.Model):
         RETURNED = 'RETURNED', _('Returned')
         CORRECTION = 'CORRECTION', _('Correction')
         RESULT = 'RESULT', _('Result')
+        PAUSED = 'PAUSED', _('Paused')
+        RESUMED = 'RESUMED', _('Resumed')
+        PARTIAL = 'PARTIAL', _('Partial')
+        CANCELLED = 'CANCELLED', _('Cancelled')
+
+    # Planner actions on the current step of a box; they need a process but no particular kind
+    STEP_STATE_TYPES = (Type.PAUSED, Type.RESUMED, Type.PARTIAL)
 
     # Required process kind per event type
     REQUIRED_KIND = {
@@ -151,7 +158,7 @@ class Event(models.Model):
     occurred_at = models.DateTimeField(_('occurred at'), default=timezone.now)
     received_at = models.DateTimeField(_('received at'), auto_now_add=True)
     device = models.ForeignKey(ScannerDevice, on_delete=models.PROTECT, null=True, blank=True, verbose_name=_('device'))
-    tag_uid = models.CharField(_('tag UID'), max_length=100)
+    tag_uid = models.CharField(_('tag UID'), max_length=100, blank=True)
     process = models.ForeignKey(Process, on_delete=models.PROTECT, null=True, blank=True, verbose_name=_('process'))
     event_type = models.CharField(_('event type'), max_length=20, choices=Type.choices)
     corrects = models.ForeignKey(
@@ -162,6 +169,8 @@ class Event(models.Model):
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, verbose_name=_('created by'),
     )
+    # CANCELLED events name the item (they have no tag)
+    item = models.ForeignKey('orders.OrderItem', on_delete=models.PROTECT, null=True, blank=True, verbose_name=_('item'))
     # RESULT events only; defects are part of the quantity done
     worker = models.ForeignKey(Worker, on_delete=models.PROTECT, null=True, blank=True, verbose_name=_('worker'))
     machine = models.ForeignKey(Machine, on_delete=models.PROTECT, null=True, blank=True, verbose_name=_('machine'))
@@ -181,21 +190,36 @@ class Event(models.Model):
         self.tag_uid = self.tag_uid.strip().upper()
         if not self.device_id and not self.created_by_id:
             raise ValidationError({'device': _('An event needs a scanner device or a user.')})
+        if not self.tag_uid and not self._tagless():
+            raise ValidationError({'tag_uid': _('A tag UID is required.')})
+        if self.event_type == self.Type.CANCELLED:
+            if not self.item_id or self.process_id:
+                raise ValidationError(_('A cancellation names an item and no process.'))
+        elif self.item_id:
+            raise ValidationError({'item': _('Only a cancellation names an item.')})
         if self.event_type == self.Type.RESULT:
             self._clean_result()
         elif self.worker_id or self.machine_id or self.quantity is not None or self.defects is not None:
             raise ValidationError(_('Worker, machine, quantity and defects are only for results.'))
-        if (self.event_type == self.Type.CORRECTION or self.is_manual) and not self.reason.strip():
+        if (self.event_type in (self.Type.CORRECTION, self.Type.CANCELLED) or self.is_manual) and not self.reason.strip():
             raise ValidationError({'reason': _('A reason is required.')})
         if self.event_type == self.Type.CORRECTION:
             if not self.corrects_id:
                 raise ValidationError({'corrects': _('A correction must reference the event it corrects.')})
             if self.process_id:
                 raise ValidationError({'process': _('A correction must not have a process.')})
+        elif self.event_type in self.STEP_STATE_TYPES and not self.process_id:
+            raise ValidationError({'process': _('This event type requires a process.')})
         elif self.event_type in self.REQUIRED_KIND:
             kind = self.REQUIRED_KIND[self.event_type]
             if not self.process_id or self.process.kind != kind:
                 raise ValidationError({'process': _('This event type requires a process of kind: %(kind)s.') % {'kind': kind.label}})
+
+    def _tagless(self):
+        """Only a cancellation, and the correction that voids one, may have no tag."""
+        if self.event_type == self.Type.CORRECTION and self.corrects_id:
+            return self.corrects.event_type == self.Type.CANCELLED
+        return self.event_type == self.Type.CANCELLED
 
     def _clean_result(self):
         if not self.process_id:

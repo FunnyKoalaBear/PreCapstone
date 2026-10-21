@@ -2,7 +2,7 @@ from django.utils import timezone
 
 from orders.models import OrderItem, Process
 
-from .status import COMPLETE, DONE, STEP_LABELS, current_row, item_status
+from .status import CANCELLED, COMPLETE, DONE, STEP_LABELS, current_row, item_status
 
 
 def _cells(status, from_current):
@@ -17,8 +17,9 @@ def _cells(status, from_current):
     cells = [{'state': DONE, 'label': STEP_LABELS[DONE], 'run': run}] if run else []
     for r in shown:
         vendor = r.step.effective_vendor
+        state = 'paused' if r.paused else r.state
         cells.append({
-            'state': r.state, 'label': STEP_LABELS[r.state], 'process': r.step.process, 'current': r is current,
+            'state': state, 'label': STEP_LABELS[state], 'partial': r.partial and r.state != DONE, 'process': r.step.process, 'current': r is current,
             'vendor': (vendor.display_name if vendor else r.step.process.vendor_name) if r.step.process.kind == Process.Kind.OUTSOURCED else '',
         })
     return cells, (len(shown) if from_current else len(rows))
@@ -39,7 +40,7 @@ def matrix(limit=25, status='', customer=None, due_from=None, due_to=None, late=
     rows, more = [], False
     for item in items.iterator(chunk_size=100):
         st = item_status(item)
-        if st.code == COMPLETE or (status and st.code != status):
+        if st.code in (COMPLETE, CANCELLED) or (status and st.code != status):
             continue
         if len(rows) == limit:
             more = True

@@ -11,8 +11,8 @@ from core.permissions import OPERATOR, PLANNER, role_required
 from tracking.forms import ResultForm
 from tracking.planning import step_plan
 from tracking.status import (
-    COMPLETE, IN_PROGRESS, LABELS, NOT_STARTED, STEP_LABELS, days_late, events_with_voids, gantt, item_status,
-    order_summary, step_due_back, timeline,
+    CANCELLED, COMPLETE, IN_PROGRESS, LABELS, MANUAL_BUTTONS, NOT_STARTED, STEP_LABELS, days_late, events_with_voids, gantt, item_status,
+    manual_actions, order_summary, step_due_back, timeline,
 )
 
 from . import importer, pdf
@@ -25,7 +25,7 @@ SORTS = {
     'customer': ('customer__name', 'due_date'),
 }
 SORT_LABELS = [('due', gettext_lazy('Due date')), ('newest', gettext_lazy('Newest')), ('customer', gettext_lazy('Customer'))]
-STATUS_CODES = [NOT_STARTED, IN_PROGRESS, COMPLETE]
+STATUS_CODES = [NOT_STARTED, IN_PROGRESS, COMPLETE, CANCELLED]
 
 
 @role_required(PLANNER)
@@ -48,7 +48,7 @@ def customer_detail(request, pk):
     today, rows = timezone.localdate(), []
     for o in customer.order_set.prefetch_related('items').order_by('-job_number'):
         code, label = order_summary(o)
-        rows.append({'order': o, 'code': code, 'label': label, 'late': o.due_date < today and code != COMPLETE})
+        rows.append({'order': o, 'code': code, 'label': label, 'late': o.due_date < today and code not in (COMPLETE, CANCELLED)})
     return render(request, 'orders/customer_detail.html', {'customer': customer, 'rows': rows})
 
 
@@ -151,7 +151,7 @@ def order_list(request):
     today, rows = timezone.localdate(), []
     for o in orders:
         code, label = order_summary(o)
-        is_late = o.due_date < today and code != COMPLETE
+        is_late = o.due_date < today and code not in (COMPLETE, CANCELLED)
         if (status in STATUS_CODES and code != status) or (late and not is_late):
             continue
         rows.append({'order': o, 'code': code, 'label': label, 'late': is_late, 'items': len(o.items.all()),
@@ -163,7 +163,8 @@ def order_list(request):
 
 
 def _step_entry(row, today, timing, plan, current=None):
-    entry = {'row': row, 'label': STEP_LABELS[row.state], 'due_back': None, 'late_days': 0, 'current': row.step == current, 'plan': plan, **timing}
+    state = 'paused' if row.paused else row.state
+    entry = {'row': row, 'label': STEP_LABELS[state], 'badge': state, 'due_back': None, 'late_days': 0, 'current': row.step == current, 'plan': plan, **timing}
     if row.state == 'at_vendor':
         entry['due_back'] = step_due_back(row.step, row.started_at)
         entry['late_days'] = days_late(entry['due_back'], today)
@@ -180,6 +181,7 @@ def _box_entry(b, today):
         'box': b, 'steps': steps, 'chart': chart,
         'events': events_with_voids(b.assignments) if a else [],
         'open': bool(a and a.end_at is None),
+        'actions': [MANUAL_BUTTONS[t] for t, _p in manual_actions(b)] if a and a.end_at is None else [],
     }
 
 
@@ -195,13 +197,13 @@ def order_detail(request, job_number):
         items.append({
             'item': item, 'status': st, 'boxes': boxes,
             'single': item.box_count == 1 and len(boxes) == 1,
-            'linked': linked, 'result_form': ResultForm(item) if linked else None,
+            'linked': linked, 'result_form': ResultForm(item) if linked else None, 'cancelled': st.cancel_event,
             'assignment': next((b['box'].assignment for b in boxes if b['open']), None),
         })
     return render(request, 'orders/order_detail.html', {
         'order': order, 'code': code, 'label': label, 'items': items,
         'changes': order.changes.select_related('changed_by'),
-        'late': order.due_date < timezone.localdate() and code != COMPLETE,
+        'late': order.due_date < timezone.localdate() and code not in (COMPLETE, CANCELLED),
     })
 
 

@@ -179,3 +179,11 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 |---|---|
 | Plan vs actual | 計画と実績 |
 | Average difference | 平均差 |
+
+## Terms added for paused, partial and cancelled
+
+| English | Japanese |
+|---|---|
+| Paused / Resume | 一時停止中 / 再開 |
+| Partial (step partly done) | 一部完了 |
+| Cancelled (item) | キャンセル済み |

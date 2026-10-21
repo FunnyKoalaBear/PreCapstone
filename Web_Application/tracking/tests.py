@@ -20,8 +20,8 @@ from .models import Box, Event, Machine, ScannerDevice, Tag, TagAssignment, Work
 from .overview import active_boxes, process_board
 from .planning import step_plan
 from .priority import priority
-from .services import assign_tag, correct_event, record_event, release_assignment, replace_tag
-from .status import gantt, AT_VENDOR, COMPLETE, IN_PROGRESS, NOT_STARTED, WAITING, BoxStatus, ItemStatus, _roll_up, events_for_item, days_late, next_action, due_back, idle_for, is_stagnant, item_status, timeline
+from .services import assign_tag, cancel_item, correct_event, record_event, record_step_state, release_assignment, replace_tag
+from .status import manual_actions, order_summary, gantt, AT_VENDOR, COMPLETE, IN_PROGRESS, NOT_STARTED, WAITING, BoxStatus, ItemStatus, _roll_up, events_for_item, days_late, next_action, due_back, idle_for, is_stagnant, item_status, timeline
 
 E = Event.Type
 K = Process.Kind
@@ -1551,3 +1551,258 @@ class PlanVsActualTests(TestCase):
         self.assertEqual(self.client.get('/plan-vs-actual/').status_code, 302)
         self.client.force_login(make_user('nobody'))
         self.assertEqual(self.client.get('/plan-vs-actual/').status_code, 403)
+
+
+class StepStateTests(TestCase):
+    """Paused, resumed, partial and cancelled: planner actions that never come from the scanner."""
+
+    def setUp(self):
+        self.planner = make_user('pl', 'Planner')
+        self.client.force_login(self.planner)
+        self.mat = Process.objects.create(name='Mat', kind=K.MATERIAL)
+        self.mill = Process.objects.create(name='Mill', kind=K.MACHINING)
+        self.plate = Process.objects.create(name='Plate', kind=K.OUTSOURCED, vendor_lead_days=2)
+        self.device = ScannerDevice.objects.create(name='D')
+        self.n = 0
+
+    def make(self, route=None, days=10, order=None):
+        self.n += 1
+        order = order or Order.objects.create(customer=Customer.objects.create(name=f'C{self.n}'), due_date=timezone.localdate() + timedelta(days=days))
+        item = OrderItem.objects.create(order=order, part_name=f'P{self.n}', quantity=3)
+        for i, p in enumerate(route or [self.mat, self.mill, self.plate], 1):
+            RouteStep.objects.create(item=item, sequence=i, process=p)
+        a = TagAssignment.objects.create(tag=Tag.objects.create(uid=f'ST{self.n}'), box=Box.objects.create(label=f'SB{self.n}'), item=item,
+                                         start_at=timezone.now() - timedelta(days=20))
+        return item, a
+
+    def scan(self, a, proc, etype, days=0, hours=0):
+        record_event(self.device, a.tag.uid, proc, etype, occurred_at=timezone.now() - timedelta(days=days, hours=hours))
+
+    def code(self, item):
+        return item_status(item).code
+
+    def running(self, days=1):
+        item, a = self.make()
+        self.scan(a, self.mat, 'ARRIVED', days=days + 1)
+        self.scan(a, self.mill, 'STARTED', days=days)
+        return item, a
+
+    # ----- events -----
+    def test_event_rules(self):
+        item, a = self.running()
+        ok = dict(created_by=self.planner, tag_uid=a.tag.uid)
+        Event(**ok, event_type=E.PAUSED, process=self.mill).full_clean()
+        with self.assertRaises(ValidationError):
+            Event(**ok, event_type=E.PAUSED).full_clean()  # needs a process
+        with self.assertRaises(ValidationError):
+            Event(created_by=self.planner, event_type=E.PAUSED, process=self.mill).full_clean()  # needs a tag
+        with self.assertRaises(ValidationError):
+            Event(created_by=self.planner, event_type=E.CANCELLED, item=item).full_clean()  # needs a reason
+        with self.assertRaises(ValidationError):
+            Event(created_by=self.planner, event_type=E.CANCELLED, reason='x').full_clean()  # needs an item
+        with self.assertRaises(ValidationError):
+            Event(created_by=self.planner, event_type=E.CANCELLED, reason='x', item=item, process=self.mill).full_clean()
+        with self.assertRaises(ValidationError):
+            Event(**ok, event_type=E.PAUSED, process=self.mill, item=item).full_clean()  # only a cancellation names an item
+        Event(created_by=self.planner, event_type=E.CANCELLED, reason='x', item=item).full_clean()
+
+    # ----- paused / resumed -----
+    def test_pause_and_resume_change_the_box_status(self):
+        item, a = self.running()
+        self.assertEqual(self.code(item), 'IN_PROGRESS')
+        record_step_state(self.planner, a, E.PAUSED)
+        st = item_status(item)
+        self.assertEqual((st.code, st.label, st.boxes[0].code, st.rows[1].paused, st.rows[1].state), ('PAUSED', 'Paused', 'PAUSED', True, 'in_progress'))
+        record_step_state(self.planner, a, E.RESUMED)
+        st = item_status(item)
+        self.assertEqual((st.code, st.rows[1].paused), ('IN_PROGRESS', False))
+
+    def test_paused_boxes_are_not_stagnant_or_vendor_late(self):
+        item, a = self.running(days=6)
+        self.assertTrue(is_stagnant(item_status(item)))
+        record_step_state(self.planner, a, E.PAUSED)
+        self.assertFalse(is_stagnant(item_status(item)))
+        out, b = self.make(route=[self.plate])
+        self.scan(b, self.plate, 'SENT_OUT', days=10)
+        late = lambda: [e['late_days'] for e in active_boxes() if e['item'] == out]
+        self.assertGreater(late()[0], 0)
+        record_step_state(self.planner, b, E.PAUSED)
+        self.assertEqual(late(), [0])
+        record_step_state(self.planner, b, E.RESUMED)
+        self.assertGreater(late()[0], 0)
+
+    def test_finishing_a_paused_step_completes_it(self):
+        item, a = self.running()
+        record_step_state(self.planner, a, E.PAUSED)
+        self.scan(a, self.mill, 'FINISHED')
+        row = item_status(item).rows[1]
+        self.assertEqual((row.state, row.paused), ('done', False))
+
+    def test_only_valid_actions_are_offered(self):
+        item, a = self.make()
+        box = lambda: item_status(item).boxes[0]
+        self.assertEqual(manual_actions(box()), [])  # nothing started
+        self.scan(a, self.mat, 'ARRIVED', days=2)
+        self.assertEqual(manual_actions(box()), [])  # waiting
+        self.scan(a, self.mill, 'STARTED', days=1)
+        self.assertEqual([t for t, _p in manual_actions(box())], [E.PAUSED, E.PARTIAL])
+        record_step_state(self.planner, a, E.PAUSED)
+        self.assertEqual([t for t, _p in manual_actions(box())], [E.RESUMED])
+        for bad in (E.PAUSED, E.PARTIAL):
+            with self.assertRaises(ValidationError):
+                record_step_state(self.planner, a, bad)
+        with self.assertRaises(PermissionDenied):
+            record_step_state(make_user('op', 'Operator'), a, E.RESUMED)
+
+    def test_voiding_a_pause_undoes_it(self):
+        item, a = self.running()
+        event = record_step_state(self.planner, a, E.PAUSED)
+        self.assertEqual(self.code(item), 'PAUSED')
+        correct_event(event, self.planner, 'pressed by mistake')
+        self.assertEqual(self.code(item), 'IN_PROGRESS')
+
+    # ----- partial -----
+    def test_partial_marks_the_step_until_it_finishes(self):
+        item, a = self.running()
+        record_step_state(self.planner, a, E.PARTIAL, 'half the batch')
+        st = item_status(item)
+        self.assertEqual((st.code, st.rows[1].partial, st.rows[1].state), ('IN_PROGRESS', True, 'in_progress'))
+        self.assertEqual(Event.objects.get(event_type=E.PARTIAL).reason, 'half the batch')
+        self.scan(a, self.mill, 'FINISHED')
+        row = item_status(item).rows[1]
+        self.assertEqual((row.state, row.partial), ('done', False))
+
+    # ----- cancelled -----
+    def test_cancel_rules(self):
+        item, a = self.running()
+        with self.assertRaises(ValidationError):
+            cancel_item(self.planner, item, '  ')
+        with self.assertRaises(PermissionDenied):
+            cancel_item(make_user('op', 'Operator'), item, 'x')
+        cancel_item(self.planner, item, 'customer withdrew')
+        st = item_status(item)
+        self.assertEqual((st.code, st.label, st.cancel_event.reason), ('CANCELLED', 'Cancelled', 'customer withdrew'))
+        with self.assertRaises(ValidationError):
+            cancel_item(self.planner, item, 'again')
+        done, b = self.make(route=[self.mat])
+        self.scan(b, self.mat, 'ARRIVED')
+        with self.assertRaises(ValidationError):
+            cancel_item(self.planner, done, 'too late')
+
+    def test_cancelled_items_leave_every_list_and_counter(self):
+        late_order = Order.objects.create(customer=Customer.objects.create(name='LateCo'), due_date=timezone.localdate() - timedelta(days=3))
+        item, a = self.make(order=late_order)
+        self.scan(a, self.mat, 'ARRIVED')
+        other, _ = self.make()
+        counters = lambda: self.client.get('/').context['counters']
+        self.assertEqual((counters()['overdue'], counters()['waiting'], counters()['not_started']), (1, 1, 1))
+        self.assertEqual({r['item'] for r in build_matrix()['rows']}, {item, other})
+        cancel_item(self.planner, item, 'withdrawn')
+        self.assertEqual((counters()['overdue'], counters()['waiting'], counters()['not_started']), (0, 0, 1))
+        self.assertEqual([r['item'] for r in build_matrix()['rows']], [other])
+        self.assertEqual({e['item'] for e in active_boxes()}, {other})
+        self.assertNotIn(item.item_code, self.client.get('/priorities/').content.decode())
+        rows = {r['order']: r for r in self.client.get('/orders/').context['rows']}
+        self.assertEqual((rows[late_order]['code'], rows[late_order]['late']), ('CANCELLED', False))
+        self.assertEqual([r['order'] for r in self.client.get('/orders/', {'late': '1'}).context['rows']], [])
+        self.assertEqual([r['order'] for r in self.client.get('/orders/', {'status': 'CANCELLED'}).context['rows']], [late_order])
+
+    def test_order_status_ignores_cancelled_items_until_all_are_cancelled(self):
+        order = Order.objects.create(customer=Customer.objects.create(name='Two'), due_date=timezone.localdate() + timedelta(days=5))
+        one, a = self.make(route=[self.mat], order=order)
+        two, _ = self.make(order=order)
+        self.scan(a, self.mat, 'ARRIVED')
+        self.assertEqual(order_summary(order)[0], 'IN_PROGRESS')
+        cancel_item(self.planner, two, 'drop')
+        self.assertEqual(order_summary(order)[0], 'COMPLETE')  # the only live item is done
+        three, _ = self.make(order=order)
+        cancel_item(self.planner, three, 'drop')
+        self.assertEqual(order_summary(order)[0], 'COMPLETE')
+        solo = Order.objects.create(customer=order.customer, due_date=timezone.localdate())
+        only, _ = self.make(order=solo)
+        cancel_item(self.planner, only, 'drop')
+        self.assertEqual(order_summary(solo), ('CANCELLED', 'Cancelled'))
+
+    def test_undoing_a_cancellation(self):
+        item, a = self.running()
+        event = cancel_item(self.planner, item, 'oops')
+        page = self.client.get(f'/orders/{item.order.job_number}/')
+        self.assertContains(page, 'Cancelled on')
+        self.assertContains(page, 'Undo cancellation')
+        self.assertContains(page, f'/events/{event.pk}/correct/')
+        url = f'/events/{event.pk}/correct/'
+        self.assertNotContains(self.client.get(url), 'Void and replace')
+        self.assertEqual(self.client.post(url, {'reason': 'mistake', 'mode': 'void'}).status_code, 302)
+        self.assertEqual(self.code(item), 'IN_PROGRESS')
+        cancel_item(self.planner, item, 'really this time')
+        self.assertEqual(self.code(item), 'CANCELLED')
+
+    # ----- views -----
+    def test_buttons_post_and_roles(self):
+        item, a = self.running()
+        url = f'/items/{item.pk}/action/'
+        detail = f'/orders/{item.order.job_number}/'
+        page = self.client.get(detail)
+        for label in ('Pause', 'Mark partial', 'Cancel item'):
+            self.assertContains(page, label)
+        self.assertNotContains(page, 'value="resume"')
+        r = self.client.post(url, {'action': 'pause', 'box': a.pk})
+        self.assertEqual((r.status_code, r['Location']), (302, detail))
+        self.assertEqual(self.code(item), 'PAUSED')
+        page = self.client.get(detail)
+        self.assertContains(page, 'Step paused.')
+        self.assertContains(page, 'badge-paused')
+        self.assertContains(page, 'value="resume"')
+        self.assertNotContains(page, 'value="pause"')
+        self.client.post(url, {'action': 'resume', 'box': a.pk})
+        self.client.post(url, {'action': 'partial', 'box': a.pk, 'reason': 'half'})
+        self.assertContains(self.client.get(detail), 'badge-partial')
+        self.client.post(url, {'action': 'cancel', 'reason': 'customer withdrew'})
+        self.assertEqual(self.code(item), 'CANCELLED')
+        self.assertContains(self.client.get(detail), 'badge-cancelled')
+
+    def test_bad_requests(self):
+        item, a = self.running()
+        other, b = self.make()
+        url = f'/items/{item.pk}/action/'
+        self.assertEqual(self.client.post(url, {'action': 'explode'}).status_code, 404)
+        self.assertEqual(self.client.post(url, {'action': 'pause', 'box': b.pk}).status_code, 404)  # another item's box
+        self.assertEqual(self.client.post(url, {'action': 'pause', 'box': 'x'}).status_code, 404)
+        self.client.post(url, {'action': 'resume', 'box': a.pk})  # not paused: message, no event
+        self.client.post(url, {'action': 'cancel', 'reason': ''})
+        self.assertFalse(Event.objects.filter(event_type__in=[E.RESUMED, E.CANCELLED]).exists())
+        self.assertEqual(self.client.get(url).status_code, 302)
+
+    def test_operators_cannot_use_the_buttons(self):
+        item, a = self.running()
+        self.client.force_login(make_user('op', 'Operator'))
+        self.assertEqual(self.client.post(f'/items/{item.pk}/action/', {'action': 'pause', 'box': a.pk}).status_code, 403)
+        page = self.client.get(f'/orders/{item.order.job_number}/')
+        self.assertNotContains(page, 'Cancel item')
+        self.assertNotContains(page, 'value="pause"')
+        self.client.logout()
+        self.assertEqual(self.client.post(f'/items/{item.pk}/action/', {}).status_code, 302)
+
+    def test_paused_shows_on_home_boxes_and_matrix(self):
+        item, a = self.running()
+        record_step_state(self.planner, a, E.PAUSED)
+        record_step_state(self.planner, a, E.RESUMED)
+        record_step_state(self.planner, a, E.PARTIAL)
+        record_step_state(self.planner, a, E.PAUSED)
+        self.assertEqual(self.client.get('/').context['counters']['paused'], 1)
+        self.assertContains(self.client.get('/'), 'counter-paused')
+        boxes = self.client.get('/boxes/', {'status': 'paused'})
+        self.assertEqual([e['item'] for e in boxes.context['rows']], [item])
+        self.assertContains(boxes, 'Paused')
+        row = build_matrix(status='PAUSED')['rows'][0]
+        self.assertEqual((row['cells'][1]['state'], row['cells'][1]['partial']), ('paused', True))
+        page = self.client.get('/matrix/', {'status': 'PAUSED'})
+        self.assertContains(page, 'matrix-paused')
+        self.assertContains(page, 'Partial')
+
+    def test_history_shows_the_new_events(self):
+        item, a = self.running()
+        record_step_state(self.planner, a, E.PARTIAL, 'half the batch')
+        page = self.client.get(f'/orders/{item.order.job_number}/')
+        self.assertContains(page, 'half the batch')
+        self.assertContains(page, '>Partial<')

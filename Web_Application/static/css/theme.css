@@ -13,6 +13,9 @@
   --status-done: #16a34a;
   --status-at-vendor: #7c3aed;
   --status-late: #dc2626;
+  --status-paused: #0e7490;
+  --status-partial: #0d9488;
+  --status-cancelled: #6b7785;
 
   --stagnant-color: #be185d;
 
@@ -20,6 +23,7 @@
   --matrix-in-progress-bg: #dbeafe;
   --matrix-at-vendor-bg: #ede9fe;
   --matrix-done-bg: #dcfce7;
+  --matrix-paused-bg: #cffafe;
 
 
   --risk-overdue: #b91c1c;

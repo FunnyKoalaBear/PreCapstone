@@ -23,7 +23,7 @@
               {% if c.run %}
                 <td class="matrix-cell matrix-done matrix-run" colspan="{{ c.run }}" title="{% blocktrans count counter=c.run %}{{ counter }} step done{% plural %}{{ counter }} steps done{% endblocktrans %}">&#10003; {{ c.run }}</td>
               {% else %}
-                <td class="matrix-cell matrix-{{ c.state }}{% if c.current %} matrix-current{% endif %}" title="{{ c.label }}">{{ c.process }}{% if c.vendor %}<small>{{ c.vendor }}</small>{% endif %}</td>
+                <td class="matrix-cell matrix-{{ c.state }}{% if c.current %} matrix-current{% endif %}" title="{{ c.label }}">{{ c.process }}{% if c.vendor %}<small>{{ c.vendor }}</small>{% endif %}{% if c.partial %}<small>{% trans "Partial" %}</small>{% endif %}</td>
               {% endif %}
             {% endfor %}
             {% for _ in r.pad %}<td class="matrix-cell matrix-empty"></td>{% endfor %}
@@ -36,6 +36,7 @@
     <span class="matrix-key matrix-pending"></span>{% trans "Pending" %}
     <span class="matrix-key matrix-in_progress"></span>{% trans "In progress" %}
     <span class="matrix-key matrix-at_vendor"></span>{% trans "At vendor" %}
+    <span class="matrix-key matrix-paused"></span>{% trans "Paused" %}
     <span class="matrix-key matrix-done"></span>{% trans "Done" %}
     <span class="matrix-key matrix-current"></span>{% trans "Current step" %}
   </p>

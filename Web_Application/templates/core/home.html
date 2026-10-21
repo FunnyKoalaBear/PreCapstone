@@ -10,6 +10,7 @@
       <a class="card counter counter-in_progress" href="{% url 'boxes' %}?status=in_progress"><strong>{{ counters.in_progress }}</strong> {% trans "In progress" %}</a>
       <a class="card counter counter-waiting" href="{% url 'boxes' %}?status=waiting"><strong>{{ counters.waiting }}</strong> {% trans "Waiting" %}</a>
       <a class="card counter counter-at_vendor" href="{% url 'boxes' %}?status=at_vendor"><strong>{{ counters.at_vendor }}</strong> {% trans "At vendor" %}</a>
+      <a class="card counter counter-paused" href="{% url 'boxes' %}?status=paused"><strong>{{ counters.paused }}</strong> {% trans "Paused" %}</a>
       <a class="card counter counter-not_started" href="{% url 'boxes' %}?status=not_started"><strong>{{ counters.not_started }}</strong> {% trans "Not started" %}</a>
       <a class="card counter counter-stagnant" href="{% url 'boxes' %}?stagnant=1"><strong>{{ counters.stagnant }}</strong> {% trans "Stagnant" %}</a>
       <a class="card counter counter-overdue" href="{% url 'order_list' %}?late=1"><strong>{{ counters.overdue }}</strong> {% trans "Overdue orders" %}</a>

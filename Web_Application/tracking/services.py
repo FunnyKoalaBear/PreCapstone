@@ -6,7 +6,7 @@ from django.utils.translation import gettext as _
 from core.permissions import PLANNER, has_role
 
 from .models import Box, Event, Tag, TagAssignment
-from .status import item_status, next_action
+from .status import CANCELLED, COMPLETE, item_status, manual_actions, next_action
 
 
 def resolve_tag(uid, moment):
@@ -108,8 +108,8 @@ def correct_event(event, user, reason, replacement=None):
         original = Event.objects.select_for_update().get(pk=event.pk)
         if original.event_type == Event.Type.CORRECTION:
             raise ValidationError(_('A correction cannot be corrected.'))
-        if replacement and original.event_type == Event.Type.RESULT:
-            raise ValidationError(_('A result can only be voided. Record a new result instead.'))
+        if replacement and original.event_type not in Event.REQUIRED_KIND:
+            raise ValidationError(_('This event can only be voided.'))
         if Event.objects.filter(event_type=Event.Type.CORRECTION, corrects=original).exists():
             raise ValidationError(_('This event is already voided.'))
         correction = Event(
@@ -137,6 +137,35 @@ def record_result(user, assignment, process, quantity, defects=0, worker=None, m
         tag_uid=assignment.tag.uid, process=process, event_type=Event.Type.RESULT, quantity=quantity, defects=defects,
         worker=worker, machine=machine, created_by=user,
     )
+    event.full_clean()
+    event.save()
+    return event
+
+
+def record_step_state(user, assignment, event_type, reason=''):
+    """Pause, resume or mark partial the current step of the box an assignment belongs to (planners only)."""
+    if not has_role(user, PLANNER):
+        raise PermissionDenied
+    box = next_step(assignment)[0]
+    process = next((p for t, p in manual_actions(box) if t == event_type), None)
+    if process is None:
+        raise ValidationError(_('This action is not available for this box right now.'))
+    event = Event(tag_uid=assignment.tag.uid, process=process, event_type=event_type, reason=reason.strip(), created_by=user)
+    event.full_clean()
+    event.save()
+    return event
+
+
+def cancel_item(user, item, reason):
+    """Cancel an item; undo it by voiding the event with a correction (planners only)."""
+    if not has_role(user, PLANNER):
+        raise PermissionDenied
+    code = item_status(item).code
+    if code == CANCELLED:
+        raise ValidationError(_('This item is already cancelled.'))
+    if code == COMPLETE:
+        raise ValidationError(_('A finished item cannot be cancelled.'))
+    event = Event(event_type=Event.Type.CANCELLED, item=item, reason=reason.strip(), created_by=user)
     event.full_clean()
     event.save()
     return event

@@ -1,4 +1,11 @@
 {% load i18n duration %}
+      {% if can.planner and b.actions %}
+        <form method="post" action="{% url 'item_action' b.box.assignment.item_id %}" class="step-actions">
+          {% csrf_token %}
+          <input type="hidden" name="box" value="{{ b.box.assignment.pk }}">
+          {% for value, label in b.actions %}<button type="submit" name="action" value="{{ value }}" class="button-secondary">{{ label }}</button>{% endfor %}
+        </form>
+      {% endif %}
       <div class="table-wrap">
         <table class="table">
           <thead>
@@ -17,7 +24,7 @@
             {% for s in b.steps %}
               <tr>
                 <td>{{ s.row.step.process }}{% if s.row.step.vendor_label %} <small>{{ s.row.step.vendor_label }}</small>{% endif %}</td>
-                <td><span class="badge badge-{{ s.row.state }}">{{ s.label }}</span>{% if s.late_days %} <span class="badge badge-overdue">{% blocktrans count counter=s.late_days %}Late by {{ counter }} day{% plural %}Late by {{ counter }} days{% endblocktrans %}</span>{% endif %}</td>
+                <td><span class="badge badge-{{ s.badge }}">{{ s.label }}</span>{% if s.row.partial and s.row.state != "done" %} <span class="badge badge-partial">{% trans "Partial" %}</span>{% endif %}{% if s.late_days %} <span class="badge badge-overdue">{% blocktrans count counter=s.late_days %}Late by {{ counter }} day{% plural %}Late by {{ counter }} days{% endblocktrans %}</span>{% endif %}</td>
                 <td>{{ s.row.step.due_date|date:"Y-m-d"|default:"-" }}{% if s.row.step.slip_number %} <small>{% blocktrans with n=s.row.step.slip_number %}slip {{ n }}{% endblocktrans %}</small>{% endif %}</td>
                 <td>{% if s.plan.planned is not None %}{{ s.plan.planned }} / {{ s.plan.actual|default_if_none:"-" }}{% if s.plan.diff is not None and s.plan.diff > 0 %} <span class="badge badge-overdue">+{{ s.plan.diff }}</span>{% endif %}{% else %}-{% endif %}</td>
                 <td>{{ s.row.started_at|date:"Y-m-d H:i"|default:"-" }}</td>
@@ -88,7 +95,7 @@
                 <td>{{ e.get_event_type_display }}
                   {% if e.is_manual %}<span class="badge badge-manual">{% trans "Manual" %}</span>{% endif %}
                   {% if e.voided_by %}<span class="badge badge-voided">{% trans "Voided" %}</span>{% endif %}
-                  {% if e.voided_by %}<div class="event-reason">{{ e.voided_by.reason }}</div>{% elif e.is_manual %}<div class="event-reason">{{ e.reason }}</div>{% endif %}
+                  {% if e.voided_by %}<div class="event-reason">{{ e.voided_by.reason }}</div>{% elif e.is_manual or e.reason %}<div class="event-reason">{{ e.reason }}</div>{% endif %}
                 </td>
                 <td>{{ e.process|default_if_none:"-" }}</td>
                 <td>{% if e.event_type == "RESULT" %}{% blocktrans with q=e.quantity d=e.defects %}{{ q }} done, {{ d }} defects{% endblocktrans %}{% if e.worker %} &middot; {{ e.worker }}{% endif %}{% if e.machine %} &middot; {{ e.machine }}{% endif %}{% else %}-{% endif %}</td>

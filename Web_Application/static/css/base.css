@@ -140,6 +140,10 @@ h1 .button-secondary, h2 .button-secondary {
 .badge-waiting { color: var(--status-waiting); }
 .badge-at_vendor { color: var(--status-at-vendor); }
 .badge-pending { color: var(--color-muted); }
+.badge-paused { color: var(--status-paused); }
+.badge-partial { color: var(--status-partial); }
+.badge-cancelled { color: var(--status-cancelled); text-decoration: line-through; }
+.counter-paused { border-top-color: var(--status-paused); }
 .badge-done { color: var(--status-done); }
 
 .card-wide { max-width: none; }
@@ -228,6 +232,7 @@ h1 .button-secondary, h2 .button-secondary {
 .matrix-in_progress { background: var(--matrix-in-progress-bg); }
 .matrix-at_vendor { background: var(--matrix-at-vendor-bg); }
 .matrix-done { background: var(--matrix-done-bg); }
+.matrix-paused { background: var(--matrix-paused-bg); }
 .matrix-empty { background: var(--color-surface); }
 .matrix-run { min-width: 0; text-align: center; }
 .matrix-current { outline: 2px solid var(--color-primary); outline-offset: -2px; }
@@ -240,3 +245,8 @@ h1 .button-secondary, h2 .button-secondary {
 .result-details summary { cursor: pointer; color: var(--color-primary); }
 .result-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: 0.5rem 1rem; align-items: end; margin-top: 0.5rem; }
 .result-form > div { display: flex; flex-direction: column; }
+
+/* Planner actions: pause buttons and cancel form */
+.step-actions { display: flex; gap: 0.5rem; margin: 0.5rem 0; }
+.cancel-form { display: flex; flex-direction: column; gap: 0.35rem; max-width: 28rem; margin-top: 0.5rem; }
+.cancelled-note { padding: 0.5rem 0.75rem; border-left: 4px solid var(--status-cancelled); background: var(--color-bg); }

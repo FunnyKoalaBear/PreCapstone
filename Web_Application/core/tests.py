@@ -319,7 +319,7 @@ class SeedDemoTests(TestCase):
     @override_settings(DEBUG=True)
     def test_every_event_uses_the_right_process_kind(self):
         self.seed()
-        events = Event.objects.exclude(event_type__in=['CORRECTION', 'RESULT']).select_related('process')
+        events = Event.objects.filter(event_type__in=Event.REQUIRED_KIND).select_related('process')
         self.assertTrue(events)
         for e in events:
             self.assertEqual(e.process.kind, Event.REQUIRED_KIND[e.event_type], e)
@@ -350,6 +350,15 @@ class SeedDemoTests(TestCase):
         self.assertGreater(results.exclude(worker=None).values('worker').distinct().count(), 2)
         self.assertEqual(set(Worker.objects.values_list('name', flat=True)), {r['name'] for r in read_csv('workers_machines.csv') if r['kind'] == 'WORKER'})
         self.assertEqual(Machine.objects.count(), len([r for r in read_csv('workers_machines.csv') if r['kind'] == 'MACHINE']))
+
+    @override_settings(DEBUG=True)
+    def test_seed_has_paused_partial_and_cancelled_examples(self):
+        self.seed()
+        self.assertEqual(self.status('ベース')[1].code, 'PAUSED')
+        self.assertEqual(self.status('リング')[1].code, 'CANCELLED')
+        self.assertTrue(any(r.partial for r in self.status('ブラケット')[1].rows))
+        self.seed('--reset')
+        self.assertEqual(Event.objects.filter(event_type='CANCELLED').count(), 1)
 
     @override_settings(DEBUG=True)
     def test_seed_gives_the_plan_vs_actual_page_some_rows(self):

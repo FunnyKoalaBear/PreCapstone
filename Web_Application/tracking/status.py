@@ -10,6 +10,7 @@ from django.utils.translation import gettext_lazy as _
 from .models import Event
 
 NOT_STARTED, WAITING, IN_PROGRESS, AT_VENDOR, COMPLETE = 'NOT_STARTED', 'WAITING', 'IN_PROGRESS', 'AT_VENDOR', 'COMPLETE'
+PAUSED, CANCELLED = 'PAUSED', 'CANCELLED'
 
 LABELS = {
     NOT_STARTED: _('Not started'),
@@ -17,6 +18,8 @@ LABELS = {
     IN_PROGRESS: _('In progress'),
     AT_VENDOR: _('At vendor'),
     COMPLETE: _('Complete'),
+    PAUSED: _('Paused'),
+    CANCELLED: _('Cancelled'),
 }
 
 PENDING, STEP_IN_PROGRESS, STEP_AT_VENDOR, DONE = 'pending', 'in_progress', 'at_vendor', 'done'
@@ -26,6 +29,7 @@ STEP_LABELS = {
     STEP_IN_PROGRESS: _('In progress'),
     STEP_AT_VENDOR: _('At vendor'),
     DONE: _('Done'),
+    'paused': _('Paused'),
 }
 
 
@@ -35,6 +39,8 @@ class StepRow:
     state: str = PENDING
     started_at: datetime | None = None
     finished_at: datetime | None = None
+    paused: bool = False
+    partial: bool = False
 
 
 @dataclass
@@ -59,9 +65,10 @@ class ItemStatus:
     warnings: list = field(default_factory=list)
     last_event_at: datetime | None = None
     boxes: list = field(default_factory=list)
+    cancel_event: object = None
 
 
-NO_STATUS_TYPES = (Event.Type.CORRECTION, Event.Type.RESULT)
+NO_STATUS_TYPES = (Event.Type.CORRECTION, Event.Type.RESULT, Event.Type.CANCELLED)
 
 
 def _window(a):
@@ -118,6 +125,18 @@ def _apply(event, rows, warnings):
         r = pick(PENDING)
         if r:
             r.state, r.started_at, r.finished_at = DONE, t, t
+    elif event.event_type == E.PAUSED:
+        r = next((x for x in cands if x.state in (STEP_IN_PROGRESS, STEP_AT_VENDOR) and not x.paused), None)
+        if r:
+            r.paused = True
+    elif event.event_type == E.RESUMED:
+        r = next((x for x in cands if x.paused), None)
+        if r:
+            r.paused = False
+    elif event.event_type == E.PARTIAL:
+        r = next((x for x in cands if x.state in (STEP_IN_PROGRESS, STEP_AT_VENDOR)), None)
+        if r:
+            r.partial = True
     elif event.event_type == E.STARTED:
         r = pick(PENDING)
         if r:
@@ -125,7 +144,7 @@ def _apply(event, rows, warnings):
     elif event.event_type == E.FINISHED:
         r = pick(STEP_IN_PROGRESS, PENDING)
         if r:
-            r.state, r.finished_at = DONE, t
+            r.state, r.finished_at, r.paused, r.partial = DONE, t, False, False
     elif event.event_type == E.SENT_OUT:
         r = pick(PENDING)
         if r:
@@ -133,7 +152,7 @@ def _apply(event, rows, warnings):
     elif event.event_type == E.RETURNED:
         r = pick(STEP_AT_VENDOR, PENDING)
         if r:
-            r.state, r.finished_at = DONE, t
+            r.state, r.finished_at, r.paused, r.partial = DONE, t, False, False
     else:
         return
     if not cands:
@@ -164,6 +183,8 @@ def _replay(steps, assignments, events):
         code = NOT_STARTED
     elif current is None:
         code = COMPLETE
+    elif current.paused:
+        code = PAUSED
     else:
         code = {STEP_IN_PROGRESS: IN_PROGRESS, STEP_AT_VENDOR: AT_VENDOR}.get(current.state, WAITING)
     assignment = assignments[-1] if assignments else None
@@ -190,7 +211,7 @@ def _roll_up(boxes):
         code, pick, last = boxes[0].code, boxes[0], boxes[0].last_event_at
     else:
         # Most active code wins; within a code, the most recently scanned box
-        code = next((c for c in (IN_PROGRESS, WAITING, AT_VENDOR) if c in codes), None)
+        code = next((c for c in (IN_PROGRESS, WAITING, AT_VENDOR, PAUSED) if c in codes), None)
         if code:
             pick = max((b for b in boxes if b.code == code), key=lambda b: (b.last_event_at is not None, b.last_event_at))
             last = pick.last_event_at
@@ -202,6 +223,13 @@ def _roll_up(boxes):
     return ItemStatus(code, LABELS[code], pick.current_step, pick.rows, warnings, last, boxes)
 
 
+def _cancel_event(item):
+    """The live CANCELLED event of an item, or None."""
+    corrected = Event.objects.filter(event_type=Event.Type.CORRECTION).values('corrects_id')
+    return (Event.objects.filter(event_type=Event.Type.CANCELLED, item=item).exclude(pk__in=corrected)
+            .select_related('created_by').order_by('-occurred_at', '-pk').first())
+
+
 def item_status(item):
     steps = _steps(item)
     assignments = item.tagassignment_set.select_related('tag', 'box').order_by('start_at', 'pk')
@@ -210,12 +238,18 @@ def item_status(item):
         groups.setdefault(a.box_id, []).append(a)
     boxes = [_replay(steps, g, list(events_for_box(g))) for g in groups.values()]
     boxes += [_replay(steps, [], []) for _ in range(max(item.box_count - len(boxes), 0 if boxes else 1))]
-    return _roll_up(boxes)
+    status = _roll_up(boxes)
+    if cancel := _cancel_event(item):
+        status.code, status.label, status.cancel_event = CANCELLED, LABELS[CANCELLED], cancel
+    return status
 
 
 def order_summary(order):
-    """(code, label): NOT_STARTED, IN_PROGRESS or COMPLETE for the whole order."""
+    """(code, label): NOT_STARTED, IN_PROGRESS, COMPLETE or CANCELLED (every item cancelled) for the whole order."""
     codes = [item_status(i).code for i in order.items.all()]
+    if codes and set(codes) == {CANCELLED}:
+        return CANCELLED, LABELS[CANCELLED]
+    codes = [c for c in codes if c != CANCELLED]  # cancelled items do not count
     done = codes.count(COMPLETE)
     if codes and done == len(codes):
         return COMPLETE, LABELS[COMPLETE]
@@ -323,3 +357,20 @@ def next_action(box):
     if row.state == STEP_AT_VENDOR:
         return E.RETURNED, row.step.process
     return {'MATERIAL': E.ARRIVED, 'MACHINING': E.STARTED, 'OUTSOURCED': E.SENT_OUT}[K], row.step.process
+
+
+# Planner buttons on a box: event type -> (form value, label)
+MANUAL_BUTTONS = {
+    Event.Type.PAUSED: ('pause', _('Pause')),
+    Event.Type.RESUMED: ('resume', _('Resume')),
+    Event.Type.PARTIAL: ('partial', _('Mark partial')),
+}
+
+
+def manual_actions(box):
+    """(event type, process) pairs a planner may record on the box's current step now."""
+    row = _current(box.rows)
+    if row is None or row.state not in (STEP_IN_PROGRESS, STEP_AT_VENDOR):
+        return []
+    E = Event.Type
+    return [(E.RESUMED, row.step.process)] if row.paused else [(E.PAUSED, row.step.process), (E.PARTIAL, row.step.process)]
