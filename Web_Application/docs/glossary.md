@@ -21,6 +21,7 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | Due date | 納期 |
 | Notes | 備考 |
 | Drawing | 図面 |
+| Open drawing / No drawing | 図面を開く / 図面なし |
 | Box | 箱 |
 | Box number / label | 箱番号 |
 | Tag | タグ |

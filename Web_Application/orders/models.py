@@ -106,6 +106,10 @@ class OrderItem(models.Model):
         return f'{self.item_code} {self.part_name}'
 
     @property
+    def drawing_is_image(self):
+        return self.drawing_file.name.lower().endswith(('.png', '.jpg', '.jpeg'))
+
+    @property
     def item_code(self):
         return f'{self.order.job_number}-{self.item_no:02d}'
 

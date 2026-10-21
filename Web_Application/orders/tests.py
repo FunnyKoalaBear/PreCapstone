@@ -394,6 +394,44 @@ class OrderEditTests(TestCase):
             self.assertContains(edit, words[2])
 
 
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class DrawingViewTests(TestCase):
+    def setUp(self):
+        order = Order.objects.create(customer=Customer.objects.create(name='Acme'), due_date=timezone.localdate())
+        self.item = OrderItem.objects.create(order=order, part_name='Shaft', quantity=1)
+        self.url = f'/items/{self.item.pk}/drawing/'
+        self.detail = f'/orders/{order.job_number}/'
+        self.client.force_login(make_user('op', 'Operator'))
+
+    def attach(self, name, data):
+        self.item.drawing_file.save(name, SimpleUploadedFile(name, data))
+
+    def test_no_drawing_shows_text_and_view_is_404(self):
+        self.assertContains(self.client.get(self.detail), 'No drawing')
+        self.assertEqual(self.client.get(self.url).status_code, 404)
+
+    def test_pdf_is_streamed_with_link_and_no_preview(self):
+        self.attach('a.pdf', b'%PDF-1.4 x')
+        r = self.client.get(self.url)
+        self.assertEqual((r.status_code, r['Content-Type'], b''.join(r.streaming_content)), (200, 'application/pdf', b'%PDF-1.4 x'))
+        html = self.client.get(self.detail).content.decode()
+        self.assertIn('Open drawing', html)
+        self.assertNotIn('drawing-preview', html)
+
+    def test_image_gets_inline_preview(self):
+        self.attach('a.png', b'PNG-data')
+        self.assertContains(self.client.get(self.detail), 'drawing-preview')
+        self.assertEqual(self.client.get(self.url)['Content-Type'], 'image/png')
+
+    def test_login_required_and_unknown_item_404(self):
+        self.attach('a.pdf', b'%PDF-1.4 x')
+        self.assertEqual(self.client.get('/items/9999/drawing/').status_code, 404)
+        self.client.logout()
+        self.assertEqual(self.client.get(self.url).status_code, 302)
+        self.client.force_login(make_user('nobody'))
+        self.assertEqual(self.client.get(self.url).status_code, 403)
+
+
 class CustomerTests(TestCase):
     def setUp(self):
         self.client.force_login(make_user('s', 'Admin'))

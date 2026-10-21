@@ -1,6 +1,7 @@
 from django.contrib import messages
 from django.db import transaction
 from django.db.models import Count, Q
+from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.translation import gettext as _
@@ -13,7 +14,7 @@ from tracking.status import (
 )
 
 from .forms import CustomerForm, OrderForm, OrderItemFormSet
-from .models import Customer, Order, OrderChange
+from .models import Customer, Order, OrderChange, OrderItem
 
 SORTS = {
     'due': ('due_date', 'job_number'),
@@ -196,3 +197,11 @@ def order_detail(request, job_number):
         'changes': order.changes.select_related('changed_by'),
         'late': order.due_date < timezone.localdate() and code != COMPLETE,
     })
+
+
+@role_required(OPERATOR)
+def item_drawing(request, pk):
+    item = get_object_or_404(OrderItem, pk=pk)
+    if not item.drawing_file:
+        raise Http404
+    return FileResponse(item.drawing_file.open('rb'), filename=item.drawing_file.name.rsplit('/', 1)[-1])

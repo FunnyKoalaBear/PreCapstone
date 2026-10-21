@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Factory Tracker\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-21 13:45+0900\n"
+"POT-Creation-Date: 2026-10-21 13:56+0900\n"
 "PO-Revision-Date: 2026-10-11 17:00+0900\n"
 "Last-Translator: Claude\n"
 "Language-Team: Japanese\n"
@@ -69,7 +69,7 @@ msgstr "この名称の得意先は既に登録されています。"
 msgid "New customer"
 msgstr "新規得意先"
 
-#: .\orders\forms.py:76 .\orders\models.py:159
+#: .\orders\forms.py:76 .\orders\models.py:163
 #: .\templates\orders\_item_card.html:21 .\templates\orders\_item_card.html:27
 msgid "Route"
 msgstr "工程順"
@@ -151,7 +151,7 @@ msgstr "空欄の場合は既定値を使います。"
 msgid "active"
 msgstr "有効"
 
-#: .\orders\models.py:43 .\orders\models.py:126 .\tracking\models.py:127
+#: .\orders\models.py:43 .\orders\models.py:130 .\tracking\models.py:127
 msgid "process"
 msgstr "工程"
 
@@ -175,7 +175,7 @@ msgstr "納期"
 msgid "notes"
 msgstr "備考"
 
-#: .\orders\models.py:59 .\orders\models.py:87 .\orders\models.py:142
+#: .\orders\models.py:59 .\orders\models.py:87 .\orders\models.py:146
 msgid "order"
 msgstr "受注"
 
@@ -214,74 +214,74 @@ msgid "order items"
 msgstr "受注品目"
 
 # CHECK: 品目 is marked unsure in the glossary (alternative: 明細)
-#: .\orders\models.py:124 .\orders\models.py:143 .\tracking\models.py:56
+#: .\orders\models.py:128 .\orders\models.py:147 .\tracking\models.py:56
 msgid "item"
 msgstr "品目"
 
-#: .\orders\models.py:125
+#: .\orders\models.py:129
 msgid "sequence"
 msgstr "順序"
 
 # CHECK: new term: 工程順ステップ is my choice
-#: .\orders\models.py:129
+#: .\orders\models.py:133
 msgid "route step"
 msgstr "工程順ステップ"
 
 # CHECK: new term: 工程順ステップ is my choice
-#: .\orders\models.py:130
+#: .\orders\models.py:134
 msgid "route steps"
 msgstr "工程順ステップ"
 
-#: .\orders\models.py:144
+#: .\orders\models.py:148
 msgid "item code"
 msgstr "品目コード"
 
 # CHECK: which field changed; 項目 is my choice
-#: .\orders\models.py:145
+#: .\orders\models.py:149
 msgid "field"
 msgstr "項目"
 
-#: .\orders\models.py:146
+#: .\orders\models.py:150
 msgid "before"
 msgstr "変更前"
 
-#: .\orders\models.py:147
+#: .\orders\models.py:151
 msgid "after"
 msgstr "変更後"
 
-#: .\orders\models.py:148
+#: .\orders\models.py:152
 msgid "changed at"
 msgstr "変更日時"
 
-#: .\orders\models.py:150
+#: .\orders\models.py:154
 msgid "changed by"
 msgstr "変更者"
 
 # CHECK: model name for the history rows; 受注変更 is my choice
-#: .\orders\models.py:154
+#: .\orders\models.py:158
 msgid "order change"
 msgstr "受注変更"
 
 # CHECK: model name for the history rows; 受注変更 is my choice
-#: .\orders\models.py:155
+#: .\orders\models.py:159
 msgid "order changes"
 msgstr "受注変更"
 
 # CHECK: history entry label; noun form 品目の追加 is my choice
-#: .\orders\models.py:159
+#: .\orders\models.py:163
 msgid "Item added"
 msgstr "品目の追加"
 
 # CHECK: history entry label; noun form 品目の削除 is my choice
-#: .\orders\models.py:159
+#: .\orders\models.py:163
 msgid "Item deleted"
 msgstr "品目の削除"
 
-#: .\orders\models.py:170
+#: .\orders\models.py:174
 msgid "The change history is append-only and cannot be changed."
 msgstr "変更履歴は追記専用のため、変更できません。"
 
-#: .\orders\models.py:174
+#: .\orders\models.py:178
 msgid "The change history is append-only and cannot be deleted."
 msgstr "変更履歴は追記専用のため、削除できません。"
 
@@ -289,40 +289,40 @@ msgstr "変更履歴は追記専用のため、削除できません。"
 msgid "File too large (maximum 10 MB)."
 msgstr "ファイルが大きすぎます（最大10MB）。"
 
-#: .\orders\views.py:23 .\templates\orders\customer_detail.html:24
+#: .\orders\views.py:24 .\templates\orders\customer_detail.html:24
 #: .\templates\orders\order_detail.html:15
 #: .\templates\orders\order_list.html:43 .\templates\tracking\boxes.html:34
 #: .\templates\tracking\priorities.html:37 .\tracking\views.py:237
 msgid "Due date"
 msgstr "納期"
 
-#: .\orders\views.py:23
+#: .\orders\views.py:24
 msgid "Newest"
 msgstr "新しい順"
 
 # CHECK: 得意先 is marked unsure in the glossary (alternative: 顧客)
-#: .\orders\views.py:23 .\templates\orders\order_detail.html:12
+#: .\orders\views.py:24 .\templates\orders\order_detail.html:12
 #: .\templates\orders\order_list.html:41 .\templates\tracking\boxes.html:31
 #: .\templates\tracking\priorities.html:36 .\tracking\views.py:238
 msgid "Customer"
 msgstr "得意先"
 
-#: .\orders\views.py:32
+#: .\orders\views.py:33
 #, python-format
 msgid "Customer %(name)s added."
 msgstr "得意先 %(name)s を追加しました。"
 
-#: .\orders\views.py:57
+#: .\orders\views.py:58
 #, python-format
 msgid "Customer %(name)s updated."
 msgstr "得意先 %(name)s を更新しました。"
 
-#: .\orders\views.py:71
+#: .\orders\views.py:72
 #, python-format
 msgid "Order %(job)s created."
 msgstr "受注 %(job)s を登録しました。"
 
-#: .\orders\views.py:128
+#: .\orders\views.py:129
 #, python-format
 msgid "Order %(job)s updated."
 msgstr "受注 %(job)s を更新しました。"
@@ -545,7 +545,7 @@ msgid "Event history"
 msgstr "履歴"
 
 #: .\templates\orders\_box_detail.html:72
-#: .\templates\orders\order_detail.html:74
+#: .\templates\orders\order_detail.html:80
 #: .\templates\tracking\simulate.html:51
 msgid "Time (JST)"
 msgstr "時刻（JST）"
@@ -688,50 +688,58 @@ msgstr "タグが割り当てられていません。"
 msgid "Boxes: %(n)s of %(t)s linked"
 msgstr "箱: %(t)s個中%(n)s個を紐付け済み"
 
-#: .\templates\orders\order_detail.html:42
+#: .\templates\orders\order_detail.html:43
+msgid "Open drawing"
+msgstr "図面を開く"
+
+#: .\templates\orders\order_detail.html:45
+msgid "No drawing"
+msgstr "図面なし"
+
+#: .\templates\orders\order_detail.html:49
 msgid "Drawing"
 msgstr "図面"
 
-#: .\templates\orders\order_detail.html:56
+#: .\templates\orders\order_detail.html:62
 #, python-format
 msgid "Box %(l)s"
 msgstr "箱 %(l)s"
 
-#: .\templates\orders\order_detail.html:56
+#: .\templates\orders\order_detail.html:62
 msgid "(released)"
 msgstr "（解除済み）"
 
-#: .\templates\orders\order_detail.html:60
+#: .\templates\orders\order_detail.html:66
 msgid "Box not linked yet"
 msgstr "未紐付けの箱"
 
-#: .\templates\orders\order_detail.html:61 .\templates\tracking\boxes.html:43
+#: .\templates\orders\order_detail.html:67 .\templates\tracking\boxes.html:43
 #: .\templates\tracking\simulate.html:24
 msgid "Link a tag"
 msgstr "タグを紐付ける"
 
-#: .\templates\orders\order_detail.html:69
+#: .\templates\orders\order_detail.html:75
 msgid "Change history"
 msgstr "変更履歴"
 
-#: .\templates\orders\order_detail.html:75
+#: .\templates\orders\order_detail.html:81
 msgid "Changed by"
 msgstr "変更者"
 
 # CHECK: column header for the changed field; 変更内容 is my choice
-#: .\templates\orders\order_detail.html:76
+#: .\templates\orders\order_detail.html:82
 msgid "What"
 msgstr "変更内容"
 
-#: .\templates\orders\order_detail.html:77
+#: .\templates\orders\order_detail.html:83
 msgid "Before"
 msgstr "変更前"
 
-#: .\templates\orders\order_detail.html:78
+#: .\templates\orders\order_detail.html:84
 msgid "After"
 msgstr "変更後"
 
-#: .\templates\orders\order_detail.html:91
+#: .\templates\orders\order_detail.html:97
 msgid "No changes yet."
 msgstr "変更履歴はまだありません。"
 

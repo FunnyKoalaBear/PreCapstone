@@ -219,3 +219,5 @@ h1 .button-secondary, h2 .button-secondary {
 .account { display: flex; gap: 0.5rem; align-items: center; }
 .account button { background: none; border: 0; padding: 0; color: var(--color-primary); cursor: pointer; font: inherit; }
 .account button:hover { text-decoration: underline; }
+
+.drawing-preview { max-width: 100%; max-height: 20rem; border: 1px solid var(--color-border); }

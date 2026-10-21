@@ -38,10 +38,16 @@
         {% else %}
           {% blocktrans with n=entry.linked t=entry.item.box_count %}Boxes: {{ n }} of {{ t }} linked{% endblocktrans %}
         {% endif %}
+        &middot;
         {% if entry.item.drawing_file %}
-          &middot; <a href="{{ entry.item.drawing_file.url }}" target="_blank" rel="noopener">{% trans "Drawing" %}</a>
+          <a href="{% url 'item_drawing' entry.item.pk %}" target="_blank" rel="noopener">{% trans "Open drawing" %}</a>
+        {% else %}
+          {% trans "No drawing" %}
         {% endif %}
       </p>
+      {% if entry.item.drawing_file and entry.item.drawing_is_image %}
+        <img class="drawing-preview" src="{% url 'item_drawing' entry.item.pk %}" alt="{% trans 'Drawing' %}">
+      {% endif %}
 
       {% if entry.status.warnings %}
         <ul class="warnings">{% for w in entry.status.warnings %}<li>{{ w }}</li>{% endfor %}</ul>

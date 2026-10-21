@@ -9,7 +9,7 @@ Order matters. [ ] todo, [x] done, [!] blocked. IDs match the feature tracker. E
   Operator: home, order list/detail, later the progress matrix. Planner: + new/edit order, Tags, event correction. Admin: + Simulate scan, /admin.
   Nav shows only links the user can use. Update existing tests; add one test per role and page group.
 
-- [ ] **F77 Drawing on the order detail page**
+- [x] **F77 Drawing on the order detail page**
   Per item: "Open drawing" link (new tab); inline preview for png/jpg; "No drawing" otherwise.
   Serve the file through a view that checks the role and streams it (FileResponse). Do not rely on the DEBUG-only media URL: it does not work on the Pi.
 
