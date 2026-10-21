@@ -18,6 +18,7 @@ from tracking.status import (
 from . import export, importer, pdf
 from .forms import CustomerForm, OrderForm, OrderItemFormSet
 from .models import Customer, Order, OrderChange, OrderItem, Vendor
+from .runs import previous_runs
 
 SORTS = {
     'due': ('due_date', 'job_number'),
@@ -202,7 +203,7 @@ def order_detail(request, job_number):
         boxes = [_box_entry(b, today) for b in st.boxes]
         linked = sum(b['open'] for b in boxes)
         items.append({
-            'item': item, 'status': st, 'boxes': boxes,
+            'item': item, 'status': st, 'boxes': boxes, 'runs': previous_runs(item),
             'single': item.box_count == 1 and len(boxes) == 1,
             'linked': linked, 'result_form': ResultForm(item) if linked else None, 'cancelled': st.cancel_event,
             'assignment': next((b['box'].assignment for b in boxes if b['open']), None),

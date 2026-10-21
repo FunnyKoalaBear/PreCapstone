@@ -38,6 +38,40 @@
         </p>
       {% endif %}
 
+      {% if entry.runs %}
+        <section class="runs">
+          <h3>{% trans "Previous runs of this part" %}</h3>
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>{% trans "Job number" %}</th>
+                  <th>{% trans "Finished" %}</th>
+                  <th>{% trans "Total days" %}</th>
+                  <th>{% trans "Time per step" %}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for run in entry.runs %}
+                  <tr>
+                    <td><a href="{% url 'order_detail' run.order.job_number %}">{{ run.item.item_code }}</a></td>
+                    <td>{{ run.finished|date:"Y-m-d"|default:"-" }}</td>
+                    <td>{{ run.total_days|default_if_none:"-" }}</td>
+                    <td>
+                      <ul class="run-steps">
+                        {% for s in run.steps %}
+                          <li>{{ s.process }}{% if s.vendor %} <small>{{ s.vendor }}</small>{% endif %}: {% if s.duration %}{{ s.duration|duration }}{% else %}-{% endif %}</li>
+                        {% endfor %}
+                      </ul>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      {% endif %}
+
       <p>
         {% if entry.single %}
           {% if entry.assignment %}

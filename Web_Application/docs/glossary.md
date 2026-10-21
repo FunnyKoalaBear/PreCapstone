@@ -225,3 +225,11 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | English | Japanese |
 |---|---|
 | Menu | メニュー |
+
+## Terms added for previous runs
+
+| English | Japanese |
+|---|---|
+| Previous runs of this part | この品番の過去の実績 |
+| Total days | 合計日数 |
+| Time per step | 工程ごとの所要時間 |

@@ -22,7 +22,7 @@ from core.management.commands.seed_demo import read_csv
 from core.testing import TestCase, make_user
 from tracking.models import Box, ScannerDevice, Tag, TagAssignment
 from tracking.services import cancel_item, correct_event, record_event
-from tracking.status import step_due_back
+from tracking.status import item_status, step_due_back, timeline
 
 from . import export, importer
 from .forms import OrderItemForm
@@ -816,6 +816,87 @@ class CsvExportTests(TestCase):
         self.client.logout()
         for url in urls:
             self.assertEqual(self.client.get(url).status_code, 302)
+
+
+
+class PreviousRunsTests(TestCase):
+    def setUp(self):
+        self.planner = make_user('pl', 'Planner')
+        self.client.force_login(self.planner)
+        self.device = ScannerDevice.objects.create(name='D')
+        self.vendor = Vendor.objects.create(code='00131', name='Demo Plating', kind=Vendor.Kind.VENDOR)
+        self.mill = Process.objects.create(name='Milling', kind=K.MACHINING)
+        self.plate = Process.objects.create(name='Plating', kind=K.OUTSOURCED, default_vendor=self.vendor)
+        self.customer = Customer.objects.create(name='C')
+        self.n = 0
+
+    def make(self, part_number='ab-1', finished=True, base=None):
+        """An item of the part; finished=True runs milling (2h) then plating (3 days out), starting at base."""
+        self.n += 1
+        order = Order.objects.create(customer=self.customer, due_date=date(2031, 1, 1))
+        item = OrderItem.objects.create(order=order, part_name=f'P{self.n}', quantity=3, part_number=part_number)
+        RouteStep.objects.create(item=item, sequence=1, process=self.mill)
+        RouteStep.objects.create(item=item, sequence=2, process=self.plate)
+        a = TagAssignment.objects.create(tag=Tag.objects.create(uid=f'PR{self.n}'), box=Box.objects.create(label=f'PB{self.n}'), item=item,
+                                         start_at=timezone.now() - timedelta(days=400))
+        if finished:
+            t = base or timezone.now() - timedelta(days=20)
+            at = lambda process, kind, delta: record_event(self.device, a.tag.uid, process, kind, occurred_at=t + delta)
+            at(self.mill, 'STARTED', timedelta(hours=1))
+            at(self.mill, 'FINISHED', timedelta(hours=3))
+            at(self.plate, 'SENT_OUT', timedelta(days=1))
+            at(self.plate, 'RETURNED', timedelta(days=4))
+        return item
+
+    def runs(self, item):
+        r = self.client.get(f'/orders/{item.order.job_number}/')
+        self.assertEqual(r.status_code, 200)
+        return r, r.context['items'][0]['runs']
+
+    def test_runs_are_newest_first_case_insensitive_and_limited_to_five(self):
+        old = [self.make('AB-1' if i % 2 else 'ab-1') for i in range(7)]
+        self.make('OTHER')
+        current = self.make('Ab-1', finished=False)
+        _r, runs = self.runs(current)
+        self.assertEqual([x['item'] for x in runs], list(reversed(old))[:5])
+
+    def test_current_item_later_items_and_cancelled_runs_are_left_out(self):
+        first = self.make()
+        gone = self.make(finished=False)
+        cancel_item(self.planner, gone, 'withdrawn')
+        current = self.make(finished=False)
+        self.make()  # created after the current item
+        self.assertEqual([x['item'] for x in self.runs(current)[1]], [first])
+
+    def test_durations_match_the_order_page_timeline_with_vendor_and_dates(self):
+        run = self.make(base=timezone.make_aware(datetime(2030, 12, 1, 12, 0)))
+        current = self.make(finished=False)
+        r, runs = self.runs(current)
+        expected = [t['duration'] for t in timeline(item_status(run).rows)]
+        self.assertEqual([s['duration'] for s in runs[0]['steps']], expected)
+        self.assertEqual(expected, [timedelta(hours=2), timedelta(days=3)])
+        self.assertEqual(runs[0]['steps'][1]['vendor'], '00131 Demo Plating')
+        self.assertEqual(runs[0]['total_days'], 4)  # first start to last return
+        finish = timezone.localdate(item_status(run).rows[1].finished_at)
+        self.assertEqual(runs[0]['finished'], finish)
+        for text in (run.item_code, f'{finish:%Y-%m-%d}', 'Milling', '2h 0m', 'Plating', '00131 Demo Plating', '3d 0h'):
+            self.assertContains(r, text)
+
+    def test_unfinished_run_has_no_finish_date(self):
+        run = self.make(finished=False)
+        record_event(self.device, TagAssignment.objects.get(item=run).tag.uid, self.mill, 'STARTED')
+        _r, runs = self.runs(self.make(finished=False))
+        self.assertEqual((runs[0]['item'], runs[0]['finished'], runs[0]['total_days']), (run, None, 0))
+
+    def test_box_is_hidden_without_runs_or_part_number(self):
+        alone = self.make(finished=False)
+        r, runs = self.runs(alone)
+        self.assertEqual(runs, [])
+        self.assertNotContains(r, 'Previous runs of this part')
+        nothing = self.make(part_number='', finished=False)
+        self.assertNotContains(self.runs(nothing)[0], 'Previous runs of this part')
+        r, runs = self.runs(self.make(finished=False))
+        self.assertContains(r, 'Previous runs of this part')
 
 
 DEMO_DIR = settings.BASE_DIR / 'docs' / 'demo-data'

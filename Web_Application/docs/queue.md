@@ -3,14 +3,6 @@ Order matters. [ ] todo, [!] blocked. Finished entries are deleted; git history 
 
 ## Queue
 
-- [ ] **F72 Previous runs of this part**
-  Why: lets a planner promise a date from what really happened last time (the company visit found dates cannot be promised reliably).
-  Decisions made:
-  - A box on the order detail page, per item with a part number (F70), listing the last 5 earlier items with the same part number (case-insensitive), newest first. Excludes the current item and cancelled ones. No earlier runs: hide the box.
-  - Each run shows: job number (link to that order), finish date (JST), and per process the actual duration (started to finished; for outsourced steps sent out to returned), with the vendor code and name (F73), and total days from first to last event.
-  - Reuse the duration calculation from F68; do not write a second one.
-  Tests: runs listed newest first; cancelled run skipped; durations match F68; box hidden when no runs.
-
 - [ ] **F45 Admin dashboard**
   Why: a management view beyond Django admin.
   Decisions made:
