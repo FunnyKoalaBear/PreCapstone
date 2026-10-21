@@ -1,51 +1,69 @@
-{% extends "base.html" %}
-{% load i18n panels %}
+{% load i18n panels static %}
+<form method="get" class="filters">
+  <input type="hidden" name="tab" value="codes">
+  <div>
+    <label for="q">{% trans "Search" %}</label>
+    <input type="search" id="q" name="q" value="{{ q }}">
+  </div>
+  <div>
+    <label for="kind">{% trans "kind" as label %}{{ label|capfirst }}</label>
+    <select id="kind" name="kind">
+      {% for value, label in kinds %}<option value="{{ value }}"{% if value == kind %} selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+  </div>
+  <label class="check"><input type="checkbox" name="inactive" value="1"{% if show_inactive %} checked{% endif %}> {% trans "Show inactive" %}</label>
+  <button type="submit" class="button">{% trans "Search" %}</button>
+</form>
 
-{% block title %}{% trans "Codes" %} - {% trans "Factory Tracker" %}{% endblock %}
-
-{% block content %}
-  <h1>{% trans "Codes" %}</h1>
-
-  <form method="get" class="filters">
-    <div>
-      <label for="q">{% trans "Search" %}</label>
-      <input type="search" id="q" name="q" value="{{ q }}">
-    </div>
-    <div>
-      <label for="kind">{% trans "kind" as label %}{{ label|capfirst }}</label>
-      <select id="kind" name="kind">
-        <option value="">{% trans "All" %}</option>
-        {% for value, label in kinds %}<option value="{{ value }}"{% if value == kind %} selected{% endif %}>{{ label }}</option>{% endfor %}
-      </select>
-    </div>
-    <button type="submit" class="button">{% trans "Search" %}</button>
-  </form>
-
-  {% trans "code" as l_code %}{% trans "name" as l_name %}{% trans "kind" as l_kind %}{% trans "lead days" as l_lead %}
-  {% scroll_panel %}
-    <table class="table table-cards">
-      <thead>
-        <tr>
-          <th>{% trans "code" as label %}{{ label|capfirst }}</th>
-          <th>{% trans "name" as label %}{{ label|capfirst }}</th>
-          <th>{% trans "Japanese name" %}</th>
-          <th>{% trans "kind" as label %}{{ label|capfirst }}</th>
-          <th>{% trans "lead days" as label %}{{ label|capfirst }}</th>
+{% trans "code" as l_code %}{% trans "name" as l_name %}{% trans "kind" as l_kind %}{% trans "lead days" as l_lead %}{% trans "notes" as l_notes %}
+{% scroll_panel first_col=True %}
+  <table class="table table-cards">
+    <thead>
+      <tr>
+        <th>{{ l_code|capfirst }}</th>
+        <th>{{ l_name|capfirst }}</th>
+        <th>{% trans "Japanese name" %}</th>
+        <th>{{ l_kind|capfirst }}</th>
+        <th>{{ l_lead|capfirst }}</th>
+        <th>{{ l_notes|capfirst }}</th>
+        <th>{% trans "Actions" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for v in vendors %}
+        <tr{% if not v.active %} class="is-inactive"{% endif %}>
+          <td data-label="{{ l_code|capfirst }}">{{ v.code }}{% if not v.active %} <span class="badge badge-cancelled">{% trans "Inactive" %}</span>{% endif %}</td>
+          <td data-label="{{ l_name|capfirst }}">{{ v.name }}</td>
+          <td data-label="{% trans 'Japanese name' %}">{{ v.name_ja|default:"-" }}</td>
+          <td data-label="{{ l_kind|capfirst }}">{{ v.get_kind_display }}</td>
+          <td data-label="{{ l_lead|capfirst }}">{{ v.lead_days|default_if_none:"-" }}</td>
+          <td data-label="{{ l_notes|capfirst }}">{{ v.notes|default:"-" }}</td>
+          <td data-label="{% trans 'Actions' %}">
+            <form method="post" action="{{ back }}" class="inline-actions">
+              {% csrf_token %}
+              <input type="hidden" name="vendor" value="{{ v.pk }}">
+              <a href="{{ back }}&amp;edit={{ v.pk }}#code-form">{% trans "Edit" %}</a>
+              {% if v.active %}<button type="submit" name="action" value="deactivate" class="link-button">{% trans "Deactivate" %}</button>
+              {% else %}<button type="submit" name="action" value="reactivate" class="link-button">{% trans "Reactivate" %}</button>{% endif %}
+            </form>
+          </td>
         </tr>
-      </thead>
-      <tbody>
-        {% for v in vendors %}
-          <tr>
-            <td data-label="{{ l_code|capfirst }}">{{ v.code }}</td>
-            <td data-label="{{ l_name|capfirst }}">{{ v.name }}</td>
-            <td data-label="{% trans 'Japanese name' %}">{{ v.name_ja|default:"-" }}</td>
-            <td data-label="{{ l_kind|capfirst }}">{{ v.get_kind_display }}</td>
-            <td data-label="{{ l_lead|capfirst }}">{{ v.lead_days|default_if_none:"-" }}</td>
-          </tr>
-        {% empty %}
-          <tr><td colspan="5">{% trans "No codes match." %}</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  {% endscroll_panel %}
-{% endblock %}
+      {% empty %}
+        <tr><td colspan="7">{% trans "No codes match." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endscroll_panel %}
+
+<h2 id="code-form">{% if editing %}{% blocktrans with code=editing.code %}Edit code {{ code }}{% endblocktrans %}{% else %}{% trans "Add a code" %}{% endif %}</h2>
+<form method="post" action="{{ back }}" class="card" data-code-form>
+  {% csrf_token %}
+  {% if editing %}<input type="hidden" name="vendor" value="{{ editing.pk }}">{% endif %}
+  {{ form }}
+  <p class="note">{% trans "Codes 00000-00099 are in-house; 00100-00429 are external (vendor or supplier). The type is suggested from the code, and you can change it." %}</p>
+  <div class="form-actions">
+    <button type="submit" name="action" value="save" class="button">{% if editing %}{% trans "Save changes" %}{% else %}{% trans "Add code" %}{% endif %}</button>
+    {% if editing %}<a class="button-secondary" href="{{ back }}">{% trans "Cancel" %}</a>{% endif %}
+  </div>
+</form>
+<script src="{% static 'js/codes.js' %}"></script>

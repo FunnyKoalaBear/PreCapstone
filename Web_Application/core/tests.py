@@ -34,7 +34,7 @@ class RoleTests(TestCase):
     """Page group -> lowest role allowed (Operator < Planner < Admin; superusers always pass)."""
     GROUPS = {
         'Operator': ['/', '/orders/', '/priorities/', '/boxes/'],
-        'Planner': ['/orders/new/', '/customers/', '/tags/', '/tags/history/'],
+        'Planner': ['/orders/?tab=new', '/customers/', '/tags/', '/tags/history/'],
         'Admin': ['/simulate/'],
     }
 
@@ -74,7 +74,7 @@ class RoleTests(TestCase):
         self.client.force_login(make_user('op', 'Operator'))
         html = self.client.get('/').content.decode()
         self.assertIn('href="/orders/"', html)
-        for hidden in ('/orders/new/', '/customers/', '/tags/', '/simulate/'):
+        for hidden in ('/orders/?tab=new', '/customers/', '/tags/', '/simulate/'):
             self.assertNotIn(f'href="{hidden}"', html)
         self.client.force_login(make_user('pl', 'Planner'))
         html = self.client.get('/').content.decode()
@@ -472,7 +472,7 @@ class ResponsiveLayoutTests(TestCase):
         item = OrderItem.objects.create(order=order, part_name='P', quantity=1)
         TagAssignment.objects.create(tag=Tag.objects.create(uid='CARD1'), box=Box.objects.create(label='BC'), item=item)
         Vendor.objects.create(code='00001', name='V', kind=Vendor.Kind.INTERNAL)
-        pages = {'/orders/': 1, '/codes/': 1, '/results/': 1, '/shipping/': 2, '/tags/?q=CARD1': 1}
+        pages = {'/orders/': 1, '/orders/?tab=codes': 1, '/results/': 1, '/shipping/': 2, '/tags/?q=CARD1': 1}
         for url, tables in pages.items():
             html = self.client.get(url).content.decode()
             self.assertEqual(html.count('class="table table-cards"'), tables, url)
@@ -696,7 +696,7 @@ class LanguageTests(RawTestCase):
 
     def test_main_pages_work_in_both_languages(self):
         order = self.staff_data()
-        urls = ['/', '/orders/', '/orders/new/', f'/orders/{order.job_number}/', '/tags/', '/simulate/', '/priorities/', '/boxes/']
+        urls = ['/', '/orders/', '/orders/?tab=new', f'/orders/{order.job_number}/', '/tags/', '/simulate/', '/priorities/', '/boxes/']
         for lang in ('ja', 'en'):
             self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = lang
             for url in urls:

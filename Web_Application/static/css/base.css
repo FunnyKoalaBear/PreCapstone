@@ -73,6 +73,21 @@ body {
 }
 .card input, .card select, .card textarea { width: 100%; padding: 0.4rem; border: 1px solid var(--color-border); }
 .card div { margin-bottom: 0.75rem; }
+/* A checkbox row inside a card: box at the left, text beside it (the .card input rule would stretch the box) */
+.card .check { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+.card .check input { width: auto; padding: 0; margin: 0; border: 0; }
+
+/* Tab bar of the Orders page */
+.tabs { display: flex; gap: 0.25rem; margin: 0 0 1rem; border-bottom: 2px solid var(--color-border); overflow-x: auto; }
+.tab { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.55rem 1rem; margin-bottom: -2px; color: var(--color-muted); text-decoration: none; border-bottom: 3px solid transparent; white-space: nowrap; }
+.tab:hover { color: var(--color-text); background: var(--color-bg); }
+.tab.is-active { color: var(--color-primary); font-weight: 700; background: var(--color-surface); border-bottom-color: var(--color-primary); }
+.tab:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -2px; }
+
+.inline-actions { display: flex; gap: 0.75rem; align-items: center; margin: 0; }
+.link-button { background: none; border: 0; padding: 0; color: var(--color-primary); cursor: pointer; font: inherit; }
+.link-button:hover { text-decoration: underline; }
+.is-inactive { color: var(--color-muted); }
 
 .button {
   padding: 0.5rem 1rem;

@@ -95,7 +95,8 @@ class OrderItemForm(forms.ModelForm):
         processes = Process.objects.filter(Q(active=True) | keep).order_by('kind', 'name')
         self.fields['route'].choices = [(p.pk, f'{p} ({p.get_kind_display()})') for p in processes]
         self.process_options = [(p.pk, f'{p} ({p.get_kind_display()})', p.default_vendor_id or '') for p in processes]
-        self.vendor_options = [(v.pk, str(v)) for v in Vendor.objects.all()]
+        used = Q(pk__in=item.steps.values('vendor')) if item.pk else Q()  # a deactivated code stays on routes that already use it
+        self.vendor_options = [(v.pk, str(v)) for v in Vendor.objects.filter(Q(active=True) | used)]
         self.route_extra = []
         self.locked = self.undeletable = False
         if item.pk:
@@ -185,3 +186,24 @@ class BaseOrderItemFormSet(BaseInlineFormSet):
 OrderItemFormSet = inlineformset_factory(
     Order, OrderItem, form=OrderItemForm, formset=BaseOrderItemFormSet, extra=0, can_delete=True, min_num=1, validate_min=True,
 )
+
+
+class VendorForm(forms.ModelForm):
+    class Meta:
+        model = Vendor
+        fields = ['code', 'name', 'name_ja', 'kind', 'lead_days', 'notes']
+        widgets = {'notes': forms.Textarea(attrs={'rows': 2})}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        kind = self.fields['kind']
+        kind.required = False
+        kind.choices = [('', _('Suggested from the code'))] + list(Vendor.Kind.choices)
+        self.fields['code'].widget.attrs.update(inputmode='numeric', maxlength=5)
+
+    def clean(self):
+        data = super().clean()
+        code = data.get('code', '')
+        if not data.get('kind') and code.isdigit():
+            data['kind'] = Vendor.Kind.INTERNAL if int(code) <= Vendor.RANGES[Vendor.Kind.INTERNAL][1] else Vendor.Kind.VENDOR
+        return data

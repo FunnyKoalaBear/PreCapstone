@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Orders" %} - {% trans "Factory Tracker" %}{% endblock %}
+
+{% block content %}
+  <h1>{% trans "Orders" %}</h1>
+  <nav class="tabs" aria-label="{% trans 'Orders sections' %}">
+    {% for t in tabs %}
+      <a class="tab{% if t.key == tab %} is-active{% endif %}" href="{{ t.url }}"{% if t.key == tab %} aria-current="page"{% endif %}>
+        {% include "includes/tab_icon.html" with key=t.key %}<span>{{ t.label }}</span>
+      </a>
+    {% endfor %}
+  </nav>
+  {% if tab == 'new' %}{% include "orders/tabs/new.html" %}
+  {% elif tab == 'import' %}{% include "orders/tabs/import.html" %}
+  {% elif tab == 'codes' %}{% include "orders/tabs/codes.html" %}
+  {% else %}{% include "orders/tabs/orders.html" %}{% endif %}
+{% endblock %}

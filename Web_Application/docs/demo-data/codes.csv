@@ -1,17 +1,28 @@
-﻿code,kind,name,name_ja
-00011,INTERNAL,Milling shop,フライス加工
-00012,INTERNAL,Lathe shop,旋盤加工
-00013,INTERNAL,Machining centre shop,マシニング加工
-00014,INTERNAL,Grinding shop,研削加工
-00015,INTERNAL,Deburring,バリ取り
-00020,INTERNAL,Inspection,検査
-00021,INTERNAL,Assembly,組立
-00101,SUPPLIER,Sample Steel Trading,サンプル鋼材商事
-00102,SUPPLIER,Demo Metals Co.,デモ金属
-00103,SUPPLIER,Example Bar Supply,サンプル棒鋼
-00131,VENDOR,Demo Plating Works,デモメッキ工業
-00132,VENDOR,Sample Heat Treatment,サンプル熱処理
-00133,VENDOR,Example Welding,サンプル溶接
-00134,VENDOR,Demo Coating,デモ塗装
-00135,VENDOR,Sample Polishing,サンプル研磨
-00136,VENDOR,Example Laser Cutting,サンプルレーザー
+﻿code,kind,name,name_ja,notes,active
+00011,INTERNAL,Milling shop,フライス加工,,yes
+00012,INTERNAL,Lathe shop,旋盤加工,,yes
+00013,INTERNAL,Machining centre shop,マシニング加工,,yes
+00014,INTERNAL,Grinding shop,研削加工,,yes
+00015,INTERNAL,Deburring,バリ取り,,yes
+00020,INTERNAL,Inspection,検査,Final check before shipping,yes
+00021,INTERNAL,Assembly,組立,,yes
+00101,SUPPLIER,Sample Steel Trading,サンプル鋼材商事,"Main steel supplier, delivers in 2 days",yes
+00102,SUPPLIER,Demo Metals Co.,デモ金属,,yes
+00103,SUPPLIER,Example Bar Supply,サンプル棒鋼,,yes
+00131,VENDOR,Demo Plating Works,デモメッキ工業,Slow lately: allow 7 days,yes
+00132,VENDOR,Sample Heat Treatment,サンプル熱処理,Batch furnace on Tuesdays and Fridays,yes
+00133,VENDOR,Example Welding,サンプル溶接,Needs the drawing with weld symbols,yes
+00134,VENDOR,Demo Coating,デモ塗装,,yes
+00135,VENDOR,Sample Polishing,サンプル研磨,,yes
+00136,VENDOR,Example Laser Cutting,サンプルレーザー,,yes
+00016,INTERNAL,Cutting shop,切断加工,Saw and shear,yes
+00017,INTERNAL,Polishing shop,研磨加工,,yes
+00022,INTERNAL,Packing,梱包,Boxes and foam in the shipping room,yes
+00023,INTERNAL,Shipping desk,出荷,,yes
+00104,SUPPLIER,Sample Aluminium,サンプルアルミ,A5052 and A6061 sheets,yes
+00105,SUPPLIER,Example Stainless,エグザンプルステンレス,SUS304 bar,yes
+00106,SUPPLIER,Demo Plastics,デモ樹脂,,yes
+00137,VENDOR,Demo Anodizing,デモアルマイト,Black and clear,yes
+00138,VENDOR,Sample Casting,サンプル鋳造,,yes
+00139,VENDOR,Example Forging,サンプル鍛造,Minimum 20 pieces,yes
+00140,VENDOR,Demo Painting Works,デモ塗装工業,"Closed in 2026, use 00134",no

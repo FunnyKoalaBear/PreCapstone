@@ -1,13 +1,18 @@
 from django.contrib import messages
+from django.contrib.auth.views import redirect_to_login
+from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import Count, Q
-from django.http import FileResponse, Http404, HttpResponse, JsonResponse
+from django.http import FileResponse, Http404, HttpResponse, HttpResponseRedirect, JsonResponse
+from django.http.response import HttpResponseBase
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import gettext as _
 from django.utils.translation import gettext_lazy
+from urllib.parse import urlencode
 
-from core.permissions import OPERATOR, PLANNER, role_required
+from core.permissions import OPERATOR, PLANNER, has_role, role_required
 from tracking.forms import ResultForm
 from tracking.planning import step_plan
 from tracking.status import (
@@ -16,7 +21,7 @@ from tracking.status import (
 )
 
 from . import export, importer, pdf
-from .forms import CustomerForm, OrderForm, OrderItemFormSet
+from .forms import CustomerForm, OrderForm, OrderItemFormSet, VendorForm
 from .models import Customer, Order, OrderChange, OrderItem, Vendor
 from .runs import previous_runs
 
@@ -62,20 +67,6 @@ def customer_edit(request, pk):
         messages.success(request, _('Customer %(name)s updated.') % {'name': customer.name})
         return redirect('customer_detail', pk=customer.pk)
     return render(request, 'orders/customer_edit.html', {'form': form, 'customer': customer})
-
-
-@role_required(PLANNER)
-def order_create(request):
-    data, files = request.POST or None, request.FILES or None
-    form, formset = OrderForm(data), OrderItemFormSet(data, files)
-    if request.method == 'POST' and form.is_valid() and formset.is_valid():
-        with transaction.atomic():
-            order = form.save()
-            formset.instance = order
-            formset.save()
-        messages.success(request, _('Order %(job)s created.') % {'job': order.job_number})
-        return redirect('order_list')
-    return render(request, 'orders/order_form.html', {'form': form, 'formset': formset})
 
 
 ORDER_FIELDS = ['customer', 'customer_order_number', 'due_date', 'notes']
@@ -161,13 +152,132 @@ def _filtered_orders(params):
     return rows, q, status, sort, late
 
 
-@role_required(OPERATOR)
-def order_list(request):
+def _tab_orders(request):
     rows, q, status, sort, late = _filtered_orders(request.GET)
-    return render(request, 'orders/order_list.html', {
+    return {
         'rows': rows, 'q': q, 'status': status, 'sort': sort, 'late': late,
         'status_choices': [(c, LABELS[c]) for c in STATUS_CODES], 'sort_choices': SORT_LABELS,
-    })
+    }
+
+
+def _tab_new(request):
+    data, files = request.POST or None, request.FILES or None
+    form, formset = OrderForm(data), OrderItemFormSet(data, files)
+    if request.method == 'POST' and form.is_valid() and formset.is_valid():
+        with transaction.atomic():
+            order = form.save()
+            formset.instance = order
+            formset.save()
+        messages.success(request, _('Order %(job)s created.') % {'job': order.job_number})
+        return redirect(_tab_url('orders', q=order.job_number))
+    return {'form': form, 'formset': formset}
+
+
+def _tab_import(request):
+    preview, error = None, None
+    if request.method == 'POST' and 'confirm' in request.POST:
+        saved = request.session.get(SESSION_KEY)
+        if not saved:
+            messages.error(request, _('The upload expired. Choose the file again.'))
+            return redirect(_tab_url('import'))
+        preview = importer.parse(saved['text'], saved['create'])
+        if preview.ok:
+            orders, items = importer.run_import(preview)
+            request.session.pop(SESSION_KEY, None)
+            messages.success(request, _('Imported %(orders)d orders with %(items)d items.') % {'orders': orders, 'items': items})
+            return redirect(_tab_url('orders'))
+    elif request.method == 'POST':
+        upload, create = request.FILES.get('file'), request.POST.get('create_customers') == 'on'
+        text = None
+        if not upload:
+            error = _('Choose a CSV file.')
+        elif upload.size > importer.MAX_BYTES:
+            error = _('The file is too large (limit 2 MB).')
+        elif (text := importer.decode(upload.read())) is None:
+            error = _('Could not read the file. Save it as UTF-8 or Shift-JIS CSV.')
+        if text is not None:
+            request.session[SESSION_KEY] = {'text': text, 'create': create}
+            preview = importer.parse(text, create)
+    return {'preview': preview, 'error': error}
+
+
+KIND_FILTERS = [('', gettext_lazy('All')), ('INTERNAL', gettext_lazy('In-house')), ('EXTERNAL', gettext_lazy('External'))]
+
+
+def _tab_codes(request):
+    g = request.GET
+    q, kind, show_inactive = g.get('q', '').strip(), g.get('kind', ''), g.get('inactive') == '1'
+    back = _tab_url('codes', q=q, kind=kind, inactive='1' if show_inactive else '')
+    if request.method == 'POST':
+        pk, action = request.POST.get('vendor', ''), request.POST.get('action')
+        target = get_object_or_404(Vendor, pk=pk) if pk.isdigit() else None
+        if action in ('deactivate', 'reactivate') and target:
+            target.active = action == 'reactivate'
+            target.save(update_fields=['active'])
+            done = _('Code %(code)s reactivated.') if target.active else _('Code %(code)s deactivated.')
+            messages.success(request, done % {'code': target.code})
+            return redirect(back)
+        form = VendorForm(request.POST, instance=target)
+        if form.is_valid():
+            vendor = form.save()
+            messages.success(request, (_('Code %(code)s updated.') if target else _('Code %(code)s added.')) % {'code': vendor.code})
+            return redirect(back)
+    else:
+        edit = g.get('edit', '')
+        target = Vendor.objects.filter(pk=edit).first() if edit.isdigit() else None
+        form = VendorForm(instance=target)
+    vendors = Vendor.objects.all() if show_inactive else Vendor.objects.filter(active=True)
+    if q:
+        vendors = vendors.filter(Q(code__icontains=q) | Q(name__icontains=q) | Q(name_ja__icontains=q))
+    if kind == 'EXTERNAL':
+        vendors = vendors.exclude(kind=Vendor.Kind.INTERNAL)
+    elif kind in Vendor.Kind.values:
+        vendors = vendors.filter(kind=kind)
+    return {'vendors': vendors, 'q': q, 'kind': kind, 'kinds': KIND_FILTERS, 'show_inactive': show_inactive,
+            'form': form, 'editing': target, 'back': back}
+
+
+# key, label, minimum role, handler
+TABS = [
+    ('orders', gettext_lazy('Orders'), OPERATOR, _tab_orders), ('new', gettext_lazy('New order'), PLANNER, _tab_new),
+    ('import', gettext_lazy('Import'), PLANNER, _tab_import), ('codes', gettext_lazy('Codes'), PLANNER, _tab_codes),
+]
+
+
+def _tab_url(tab, **params):
+    query = urlencode({**({'tab': tab} if tab != 'orders' else {}), **{k: v for k, v in params.items() if v}})
+    return reverse('order_list') + (f'?{query}' if query else '')
+
+
+def order_list(request):
+    """The Orders page: one URL, four tabs (?tab=orders|new|import|codes), each with its own minimum role."""
+    if not request.user.is_authenticated:
+        return redirect_to_login(request.get_full_path())
+    key = request.GET.get('tab')
+    key = key if key in {t[0] for t in TABS} else 'orders'
+    _key, _label, role, handler = next(t for t in TABS if t[0] == key)
+    if not has_role(request.user, role):
+        raise PermissionDenied
+    result = handler(request)
+    if isinstance(result, HttpResponseBase):
+        return result
+    tabs = [{'key': k, 'label': label, 'url': _tab_url(k)} for k, label, r, _h in TABS if has_role(request.user, r)]
+    return render(request, 'orders/hub.html', {'tab': key, 'tabs': tabs, **result})
+
+
+class RedirectKeepMethod(HttpResponseRedirect):
+    status_code = 308
+
+
+def _old_url(tab):
+    """Old page URL -> its tab; a POST is sent on with 308 so the form data still arrives."""
+    def view(request):
+        url = _tab_url(tab, **{k: v for k, v in request.GET.items() if k != 'tab'})
+        return RedirectKeepMethod(url) if request.method == 'POST' else redirect(url)
+    return view
+
+
+order_create, order_import, code_list = _old_url('new'), _old_url('import'), _old_url('codes')
 
 
 def _step_entry(row, today, timing, plan, current=None):
@@ -224,17 +334,6 @@ def item_drawing(request, pk):
 
 
 @role_required(PLANNER)
-def code_list(request):
-    q, kind = request.GET.get('q', '').strip(), request.GET.get('kind', '')
-    vendors = Vendor.objects.all()
-    if q:
-        vendors = vendors.filter(Q(code__icontains=q) | Q(name__icontains=q) | Q(name_ja__icontains=q))
-    if kind in Vendor.Kind.values:
-        vendors = vendors.filter(kind=kind)
-    return render(request, 'orders/code_list.html', {'vendors': vendors, 'q': q, 'kind': kind, 'kinds': Vendor.Kind.choices})
-
-
-@role_required(PLANNER)
 def route_copy(request):
     """Steps of the latest earlier, not cancelled item with this part number, as JSON for the order form."""
     part_number = request.GET.get('part_number', '').strip()
@@ -254,35 +353,6 @@ def route_copy(request):
 
 
 SESSION_KEY = 'order_import'
-
-
-@role_required(PLANNER)
-def order_import(request):
-    preview, error = None, None
-    if request.method == 'POST' and 'confirm' in request.POST:
-        saved = request.session.get(SESSION_KEY)
-        if not saved:
-            messages.error(request, _('The upload expired. Choose the file again.'))
-            return redirect('order_import')
-        preview = importer.parse(saved['text'], saved['create'])
-        if preview.ok:
-            orders, items = importer.run_import(preview)
-            request.session.pop(SESSION_KEY, None)
-            messages.success(request, _('Imported %(orders)d orders with %(items)d items.') % {'orders': orders, 'items': items})
-            return redirect('order_list')
-    elif request.method == 'POST':
-        upload, create = request.FILES.get('file'), request.POST.get('create_customers') == 'on'
-        text = None
-        if not upload:
-            error = _('Choose a CSV file.')
-        elif upload.size > importer.MAX_BYTES:
-            error = _('The file is too large (limit 2 MB).')
-        elif (text := importer.decode(upload.read())) is None:
-            error = _('Could not read the file. Save it as UTF-8 or Shift-JIS CSV.')
-        if text is not None:
-            request.session[SESSION_KEY] = {'text': text, 'create': create}
-            preview = importer.parse(text, create)
-    return render(request, 'orders/order_import.html', {'preview': preview, 'error': error})
 
 
 @role_required(PLANNER)

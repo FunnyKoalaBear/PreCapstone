@@ -1,18 +1,13 @@
-{% extends "base.html" %}
 {% load i18n panels %}
-
-{% block title %}{% trans "Import orders" %} - {% trans "Factory Tracker" %}{% endblock %}
-
-{% block content %}
-  <h1>{% trans "Import orders" %}</h1>
   <p class="note">{% trans "One row per item. Rows with the same customer and customer order number become one order. The file can be UTF-8 or Shift-JIS." %}</p>
-  <p class="note">{% trans "Columns: customer, customer_order_number, due_date, part_name, quantity, material, notes, route. Route steps look like Process:code or Process:code:due_date, separated by |." %}</p>
+  <p class="note">{% trans "Columns:" %} <code>customer, customer_order_number, due_date, part_name, quantity, material, notes, route</code></p>
+  <p class="note">{% blocktrans trimmed %}A route step is written <code>process:code</code> or <code>process:code:due_date</code>. Separate the steps with <code>|</code>.{% endblocktrans %}</p>
 
   <form method="post" enctype="multipart/form-data" class="card">
     {% csrf_token %}
     {% if error %}<ul class="errorlist"><li>{{ error }}</li></ul>{% endif %}
     <div><label for="file">{% trans "CSV file" %}</label><input type="file" id="file" name="file" accept=".csv,text/csv"></div>
-    <div><label class="check"><input type="checkbox" name="create_customers"{% if request.POST.create_customers %} checked{% endif %}> {% trans "Create new customers" %}</label></div>
+    <label class="check"><input type="checkbox" name="create_customers"{% if request.POST.create_customers %} checked{% endif %}><span>{% trans "Create new customers" %}</span></label>
     <button type="submit" class="button">{% trans "Check file" %}</button>
   </form>
 
@@ -57,4 +52,3 @@
       {% endscroll_panel %}
     {% endif %}
   {% endif %}
-{% endblock %}

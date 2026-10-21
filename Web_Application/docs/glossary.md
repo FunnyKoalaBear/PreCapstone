@@ -244,3 +244,15 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | Events recorded today | 本日記録されたイベント |
 | Scanners not seen in the last 24 hours | 24時間以内に通信のない読取端末 |
 | Open in admin | 管理画面で開く |
+
+## Terms added for the Orders tabs and codes
+
+| English | Japanese |
+|---|---|
+| Import (tab) | 取り込み |
+| In-house / External (code type filter) | 社内 / 外部 |
+| Inactive / Deactivate / Reactivate | 無効 / 無効にする / 有効に戻す |
+| Show inactive | 無効のコードも表示 |
+| Add a code / Add code | コードを追加 / コードを登録 |
+| Actions | 操作 |
+| Suggested from the code | コードから自動判定 |

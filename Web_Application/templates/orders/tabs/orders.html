@@ -1,12 +1,6 @@
-{% extends "base.html" %}
 {% load i18n panels %}
-
-{% block title %}{% trans "Orders" %} - {% trans "Factory Tracker" %}{% endblock %}
-
-{% block content %}
-  <h1>{% trans "Orders" %}</h1>
-
   <form method="get" class="filters">
+    <input type="hidden" name="tab" value="orders">
     <div>
       <label for="q">{% trans "Search" %}</label>
       <input type="search" id="q" name="q" value="{{ q }}">
@@ -30,8 +24,7 @@
     </div>
     <label class="check"><input type="checkbox" name="late" value="1"{% if late %} checked{% endif %}> {% trans "Overdue only" %}</label>
     <button type="submit" class="button">{% trans "Apply" %}</button>
-    {% if can.planner %}<a href="{% url 'order_create' %}">{% trans "New order" %}</a>
-    <a href="{% url 'order_export' %}?{{ request.GET.urlencode }}">{% trans "Export CSV" %}</a>{% endif %}
+    {% if can.planner %}<a href="{% url 'order_export' %}?{{ request.GET.urlencode }}">{% trans "Export CSV" %}</a>{% endif %}
   </form>
 
   {% scroll_panel first_col=True %}
@@ -65,4 +58,3 @@
       </tbody>
     </table>
   {% endscroll_panel %}
-{% endblock %}

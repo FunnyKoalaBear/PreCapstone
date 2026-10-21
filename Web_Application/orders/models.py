@@ -41,6 +41,8 @@ class Vendor(models.Model):
     name_ja = models.CharField(_('Japanese name'), max_length=200, blank=True)
     kind = models.CharField(_('kind'), max_length=20, choices=Kind.choices)
     lead_days = models.PositiveIntegerField(_('lead days'), null=True, blank=True)
+    notes = models.TextField(_('notes'), blank=True)
+    active = models.BooleanField(_('active'), default=True)
 
     class Meta:
         verbose_name = _('vendor')

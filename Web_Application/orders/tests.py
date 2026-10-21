@@ -25,7 +25,7 @@ from tracking.services import cancel_item, correct_event, record_event
 from tracking.status import item_status, step_due_back, timeline
 
 from . import export, importer
-from .forms import OrderItemForm
+from .forms import OrderItemForm, OrderItemFormSet
 from .models import Customer, Order, OrderChange, OrderItem, Process, RouteStep, Vendor
 
 K = Process.Kind
@@ -48,22 +48,22 @@ class OrderCreateTests(TestCase):
             if boxes:
                 data[f'items-{i}-box_count'] = boxes[0]
         data.update({f'items-{i}-DELETE': 'on' for i in deleted})
-        return self.client.post('/orders/new/', data)
+        return self.client.post('/orders/?tab=new', data)
 
     def login_staff(self):
         self.client.force_login(make_user('s', 'Admin'))
 
     def test_staff_only(self):
-        self.assertEqual(self.client.get('/orders/new/').status_code, 302)
+        self.assertEqual(self.client.get('/orders/?tab=new').status_code, 302)
         self.client.force_login(make_user('u', 'Operator'))
-        self.assertEqual(self.client.get('/orders/new/').status_code, 403)
+        self.assertEqual(self.client.get('/orders/?tab=new').status_code, 403)
         self.login_staff()
-        self.assertEqual(self.client.get('/orders/new/').status_code, 200)
+        self.assertEqual(self.client.get('/orders/?tab=new').status_code, 200)
 
     def test_valid_post_creates_order_and_two_items(self):
         self.login_staff()
         route = [self.material.pk]
-        self.assertRedirects(self.post([('Shaft', 5, route), ('Gear', 2, route)]), '/orders/')
+        self.assertRedirects(self.post([('Shaft', 5, route), ('Gear', 2, route)]), f'/orders/?q={Order.objects.latest("pk").job_number}')
         order = Order.objects.get()
         codes = [i.item_code for i in OrderItem.objects.order_by('item_no')]
         self.assertEqual(codes, [f'{order.job_number}-01', f'{order.job_number}-02'])
@@ -71,7 +71,7 @@ class OrderCreateTests(TestCase):
     def test_box_count_is_saved_and_defaults_to_one(self):
         self.login_staff()
         route = [self.material.pk]
-        self.assertRedirects(self.post([('Shaft', 5, route, 3), ('Gear', 2, route)]), '/orders/')
+        self.assertRedirects(self.post([('Shaft', 5, route, 3), ('Gear', 2, route)]), f'/orders/?q={Order.objects.latest("pk").job_number}')
         self.assertEqual(dict(OrderItem.objects.values_list('part_name', 'box_count')), {'Shaft': 3, 'Gear': 1})
 
     def test_box_count_below_one_is_rejected(self):
@@ -485,7 +485,7 @@ class OrderFormVendorTests(TestCase):
         self.mat = Process.objects.create(name='Mat', kind=K.MATERIAL)
         self.plate = Process.objects.create(name='Plate', kind=K.OUTSOURCED, default_vendor=self.vendor)
 
-    def post(self, route, vendors, url='/orders/new/'):
+    def post(self, route, vendors, url='/orders/?tab=new'):
         data = {
             'customer': Customer.objects.create(name=f'C{Customer.objects.count()}').pk, 'due_date': timezone.localdate() + timedelta(days=30),
             'items-TOTAL_FORMS': 1, 'items-INITIAL_FORMS': 0, 'items-MIN_NUM_FORMS': 1, 'items-MAX_NUM_FORMS': 1000,
@@ -503,7 +503,7 @@ class OrderFormVendorTests(TestCase):
         self.assertFalse(Order.objects.exists())
 
     def test_form_offers_vendors_and_process_default(self):
-        r = self.client.get('/orders/new/')
+        r = self.client.get('/orders/?tab=new')
         self.assertContains(r, 'name="items-0-route_vendor"')
         self.assertContains(r, f'data-vendor="{self.vendor.pk}"')
         self.assertContains(r, '00100 Acme')
@@ -541,7 +541,7 @@ class StepDueDateTests(TestCase):
             'items-0-part_name': 'Shaft', 'items-0-quantity': 1, 'items-0-route': route,
             'items-0-route_due': dues, 'items-0-route_slip': slips,
         }
-        return self.client.post('/orders/new/', data)
+        return self.client.post('/orders/?tab=new', data)
 
     def test_due_date_and_slip_saved_per_step_with_blank_rows_skipped(self):
         r = self.post([self.mat.pk, '', self.plate.pk], ['', '2031-02-03', '2031-02-04'], ['', 'x', ' S-1 '])
@@ -554,7 +554,7 @@ class StepDueDateTests(TestCase):
         self.assertFalse(Order.objects.exists())
 
     def test_form_has_inputs_and_detail_shows_values(self):
-        self.assertContains(self.client.get('/orders/new/'), 'name="items-0-route_due"')
+        self.assertContains(self.client.get('/orders/?tab=new'), 'name="items-0-route_due"')
         self.post([self.plate.pk], ['2031-02-04'], ['S-1'])
         page = self.client.get(f'/orders/{Order.objects.get().job_number}/')
         self.assertContains(page, '2031-02-04')
@@ -588,15 +588,15 @@ class MaterialTests(TestCase):
         return d
 
     def test_material_saved_shown_and_optional(self):
-        self.assertEqual(self.client.post('/orders/new/', self.data()).status_code, 302)
+        self.assertEqual(self.client.post('/orders/?tab=new', self.data()).status_code, 302)
         item = OrderItem.objects.get()
         self.assertEqual(item.material, 'SS400')
         self.assertContains(self.client.get(f'/orders/{item.order.job_number}/'), 'SS400')
-        self.assertContains(self.client.get('/orders/new/'), 'name="items-0-material"')
-        self.assertEqual(self.client.post('/orders/new/', self.data(material='')).status_code, 302)
+        self.assertContains(self.client.get('/orders/?tab=new'), 'name="items-0-material"')
+        self.assertEqual(self.client.post('/orders/?tab=new', self.data(material='')).status_code, 302)
 
     def test_edit_logs_material_change(self):
-        self.client.post('/orders/new/', self.data())
+        self.client.post('/orders/?tab=new', self.data())
         item = OrderItem.objects.get()
         self.client.post(f'/orders/{item.order.job_number}/edit/', self.data(item, 'A5052'))
         change = OrderChange.objects.get(field='material')
@@ -622,32 +622,32 @@ class PartNumberTests(TestCase):
         return d
 
     def test_fields_saved_shown_and_optional(self):
-        self.client.post('/orders/new/', self.data(part_number=' ab-12 ', drawing_number='D-9', revision='B'))
+        self.client.post('/orders/?tab=new', self.data(part_number=' ab-12 ', drawing_number='D-9', revision='B'))
         item = OrderItem.objects.get()
         self.assertEqual((item.part_number, item.drawing_number, item.revision), ('AB-12', 'D-9', 'B'))
         page = self.client.get(f'/orders/{item.order.job_number}/')
         for text in ('AB-12', 'D-9', 'Revision'):
             self.assertContains(page, text)
-        self.assertEqual(self.client.post('/orders/new/', self.data()).status_code, 302)
+        self.assertEqual(self.client.post('/orders/?tab=new', self.data()).status_code, 302)
         self.assertEqual(OrderItem.objects.exclude(pk=item.pk).get().part_number, '')
 
     def test_search_finds_by_part_and_drawing_number(self):
-        self.client.post('/orders/new/', self.data(part_number='ab-12', drawing_number='DWG-77'))
-        self.client.post('/orders/new/', self.data(part_number='ZZ-1'))
+        self.client.post('/orders/?tab=new', self.data(part_number='ab-12', drawing_number='DWG-77'))
+        self.client.post('/orders/?tab=new', self.data(part_number='ZZ-1'))
         job = OrderItem.objects.get(part_number='AB-12').order.job_number
         for q in ('ab-1', 'dwg-77'):
             rows = self.client.get('/orders/', {'q': q}).context['rows']
             self.assertEqual([r['order'].job_number for r in rows], [job])
 
     def test_edit_logs_revision_change(self):
-        self.client.post('/orders/new/', self.data(revision='A'))
+        self.client.post('/orders/?tab=new', self.data(revision='A'))
         item = OrderItem.objects.get()
         self.client.post(f'/orders/{item.order.job_number}/edit/', self.data(item, revision='B'))
         change = OrderChange.objects.get(field='revision')
         self.assertEqual((change.old_value, change.new_value, str(change.field_label)), ('A', 'B', 'revision'))
 
     def test_sheet_shows_the_numbers(self):
-        self.client.post('/orders/new/', self.data(part_number='AB-12', drawing_number='D-9', revision='C'))
+        self.client.post('/orders/?tab=new', self.data(part_number='AB-12', drawing_number='D-9', revision='C'))
         job = OrderItem.objects.get().order.job_number
         text = PdfReader(io.BytesIO(self.client.get(f'/orders/{job}/sheet/').content)).pages[0].extract_text()
         for expected in ('AB-12', 'D-9 / C'):
@@ -705,7 +705,7 @@ class RouteCopyTests(TestCase):
         self.assertEqual((len(data['steps']), data['skipped']), (1, 1))
 
     def test_planner_only_and_button_in_the_form(self):
-        self.assertContains(self.client.get('/orders/new/'), 'class="copy-route')
+        self.assertContains(self.client.get('/orders/?tab=new'), 'class="copy-route')
         self.client.force_login(make_user('op', 'Operator'))
         self.assertEqual(self.client.get('/orders/route-copy/', {'part_number': 'x'}).status_code, 403)
         self.client.logout()
@@ -920,21 +920,21 @@ class CsvImportTests(TestCase):
         data = {'file': SimpleUploadedFile(name, raw if raw is not None else (DEMO_DIR / name).read_bytes())}
         if create:
             data['create_customers'] = 'on'
-        return self.client.post('/orders/import/', data)
+        return self.client.post('/orders/?tab=import', data)
 
     def confirm(self):
-        return self.client.post('/orders/import/', {'confirm': '1'})
+        return self.client.post('/orders/?tab=import', {'confirm': '1'})
 
     def rows(self, response):
         return {r.number: r for r in response.context['preview'].rows}
 
     def test_planner_only(self):
         self.client.logout()
-        self.assertEqual(self.client.get('/orders/import/').status_code, 302)
+        self.assertEqual(self.client.get('/orders/?tab=import').status_code, 302)
         self.client.force_login(make_user('op', 'Operator'))
-        self.assertEqual(self.client.get('/orders/import/').status_code, 403)
+        self.assertEqual(self.client.get('/orders/?tab=import').status_code, 403)
         self.client.force_login(make_user('pl', 'Planner'))
-        self.assertContains(self.client.get('/orders/import/'), 'name="file"')
+        self.assertContains(self.client.get('/orders/?tab=import'), 'name="file"')
 
     def test_clean_file_imports_seven_orders_and_ten_items(self):
         self.customers()
@@ -1029,11 +1029,11 @@ class CsvImportTests(TestCase):
         self.assertEqual(importer.parse('').file_errors, ['The file is empty.'])
         self.assertContains(self.upload(raw=b'customer,route\nA,B\n'), 'Missing column: due_date')
         self.assertContains(self.upload(raw=b'customer,customer_order_number,due_date,part_name,quantity,route\n'), 'The file has no data rows.')
-        self.assertContains(self.client.post('/orders/import/', {}), 'Choose a CSV file.')
+        self.assertContains(self.client.post('/orders/?tab=import', {}), 'Choose a CSV file.')
         self.assertEqual(Order.objects.count(), 0)
 
     def test_confirm_without_upload_does_nothing(self):
-        self.assertRedirects(self.confirm(), '/orders/import/')
+        self.assertRedirects(self.confirm(), '/orders/?tab=import')
 
 
 class CodeListTests(TestCase):
@@ -1042,14 +1042,14 @@ class CodeListTests(TestCase):
         Vendor.objects.create(code='00150', name='Plating Co', name_ja='めっき工業', kind=Vendor.Kind.VENDOR, lead_days=5)
 
     def codes(self, query=''):
-        return [v.code for v in self.client.get('/codes/' + query).context['vendors']]
+        return [v.code for v in self.client.get('/orders/?tab=codes' + query.replace('?', '&')).context['vendors']]
 
     def test_roles(self):
-        self.assertEqual(self.client.get('/codes/').status_code, 302)
+        self.assertEqual(self.client.get('/orders/?tab=codes').status_code, 302)
         self.client.force_login(make_user('op', 'Operator'))
-        self.assertEqual(self.client.get('/codes/').status_code, 403)
+        self.assertEqual(self.client.get('/orders/?tab=codes').status_code, 403)
         self.client.force_login(make_user('pl', 'Planner'))
-        self.assertEqual(self.client.get('/codes/').status_code, 200)
+        self.assertEqual(self.client.get('/orders/?tab=codes').status_code, 200)
 
     def test_search_by_code_name_and_kind(self):
         self.client.force_login(make_user('pl', 'Planner'))
@@ -1202,7 +1202,7 @@ class CustomerTests(TestCase):
             'items-MIN_NUM_FORMS': 1, 'items-MAX_NUM_FORMS': 1000, 'items-0-part_name': 'P', 'items-0-quantity': 1,
             'items-0-route': [self.mat.pk], **fields,
         }
-        return self.client.post('/orders/new/', data)
+        return self.client.post('/orders/?tab=new', data)
 
     def test_page_is_staff_only_and_in_the_nav(self):
         self.assertContains(self.client.get('/orders/'), 'href="/customers/"')
@@ -1239,7 +1239,7 @@ class CustomerTests(TestCase):
 
     def test_order_with_only_a_new_name_creates_customer_and_order(self):
         r = self.order_post(new_customer='  Fresh  Client ')
-        self.assertRedirects(r, '/orders/')
+        self.assertRedirects(r, f'/orders/?q={Order.objects.latest("pk").job_number}')
         self.assertEqual(Order.objects.get().customer.name, 'Fresh Client')
         self.assertEqual(Customer.objects.count(), 1)
 
@@ -1251,7 +1251,7 @@ class CustomerTests(TestCase):
 
     def test_typed_name_matching_an_existing_customer_reuses_it(self):
         c = Customer.objects.create(name='Acme Corp')
-        self.assertRedirects(self.order_post(new_customer='acme  CORP'), '/orders/')
+        self.assertRedirects(self.order_post(new_customer='acme  CORP'), f'/orders/?q={Order.objects.latest("pk").job_number}')
         self.assertEqual((Order.objects.get().customer, Customer.objects.count()), (c, 1))
 
     def test_neither_field_gives_the_required_error_and_keeps_input(self):
@@ -1287,7 +1287,7 @@ class InactiveProcessTests(TestCase):
         return [pk for pk, _label in form.fields['route'].choices]
 
     def test_new_route_form_excludes_an_inactive_process(self):
-        r = self.client.get('/orders/new/')
+        r = self.client.get('/orders/?tab=new')
         self.assertNotContains(r, 'RetiredOne')
         self.assertEqual(self.route_ids(r.context['formset'].empty_form), [self.live.pk])
         data = MultiValueDict({'part_name': ['P'], 'quantity': ['1'], 'box_count': ['1'], 'route': [str(self.old.pk)]})
@@ -1406,3 +1406,127 @@ class CustomerDetailEditTests(TestCase):
         from django.conf import settings
         css = (settings.BASE_DIR / 'static' / 'css' / 'base.css').read_text(encoding='utf-8')
         self.assertIn('font-size: 0.85rem; font-weight: 400', css)
+
+
+class OrdersHubTests(TestCase):
+    def login(self, role='Planner'):
+        self.client.force_login(make_user(role.lower(), role))
+
+    def test_old_urls_redirect_to_their_tab(self):
+        self.login()
+        for old, tab in (('/orders/new/', 'new'), ('/orders/import/', 'import'), ('/codes/', 'codes')):
+            self.assertRedirects(self.client.get(old), f'/orders/?tab={tab}')
+        self.assertRedirects(self.client.get('/codes/?q=lathe'), '/orders/?tab=codes&q=lathe')
+        self.assertEqual(self.client.post('/orders/import/', {}).status_code, 308)
+
+    def test_tab_bar_marks_the_active_tab_and_keeps_it_on_refresh(self):
+        self.login()
+        for tab in ('orders', 'new', 'import', 'codes'):
+            r = self.client.get(f'/orders/?tab={tab}')
+            href = '/orders/' if tab == 'orders' else f'/orders/?tab={tab}'
+            self.assertEqual(r.context['tab'], tab)
+            self.assertContains(r, f'class="tab is-active" href="{href}" aria-current="page"')
+            self.assertContains(r, 'class="tab-icon"')
+        self.assertEqual(self.client.get('/orders/?tab=nonsense').context['tab'], 'orders')
+
+    def test_operator_sees_only_the_orders_tab(self):
+        self.login('Operator')
+        self.assertEqual([t['key'] for t in self.client.get('/orders/').context['tabs']], ['orders'])
+        for tab in ('new', 'import', 'codes'):
+            self.assertEqual(self.client.get(f'/orders/?tab={tab}').status_code, 403)
+
+    def test_nav_has_one_orders_link(self):
+        self.login()
+        html = self.client.get('/orders/').content.decode()
+        nav = html[html.index('id="site-nav"'):html.index('</nav>')]
+        self.assertNotIn('tab=', nav)
+        self.assertNotIn('/orders/new/', nav)
+        self.assertNotIn('/codes/', nav)
+        self.assertEqual(nav.count('href="/orders/"'), 1)
+
+    def test_orders_tab_table_sits_in_a_scroll_panel(self):
+        self.login()
+        self.assertContains(self.client.get('/orders/'), 'class="scroll-panel scroll-panel-first"')
+
+    def test_import_tab_text_is_translated_and_checkbox_is_in_its_label(self):
+        self.login()
+        self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = 'ja'
+        html = self.client.get('/orders/?tab=import').content.decode()
+        self.assertIn('<code>customer, customer_order_number, due_date, part_name, quantity, material, notes, route</code>', html)
+        self.assertIn('列:', html)
+        self.assertIn('工程順の1行は', html)
+        self.assertNotIn('route step is written', html)
+        self.assertRegex(html, r'<label class="check"><input type="checkbox" name="create_customers"[^>]*><span>新規の得意先を作成する</span></label>')
+
+    def test_checkbox_rule_is_scoped_to_check_labels_in_cards(self):
+        css = (settings.BASE_DIR / 'static' / 'css' / 'base.css').read_text(encoding='utf-8')
+        self.assertIn('.card .check input { width: auto;', css)
+
+
+class CodesTabTests(TestCase):
+    URL = '/orders/?tab=codes'
+
+    def setUp(self):
+        self.client.force_login(make_user('pl', 'Planner'))
+
+    def add(self, **kw):
+        data = {'action': 'save', 'code': '00200', 'name': 'New Plating', 'name_ja': '', 'kind': '', 'lead_days': '', 'notes': 'n'}
+        return self.client.post(self.URL, {**data, **kw})
+
+    def test_add_suggests_kind_from_range_and_allows_override(self):
+        self.add(code='00020', name='In shop')
+        self.add(code='00200', name='Outside')
+        self.add(code='00201', name='Metal supplier', kind='SUPPLIER')
+        kinds = dict(Vendor.objects.values_list('code', 'kind'))
+        self.assertEqual(kinds, {'00020': 'INTERNAL', '00200': 'VENDOR', '00201': 'SUPPLIER'})
+        self.assertEqual(Vendor.objects.get(code='00200').notes, 'n')
+
+    def test_validation_digits_unique_and_range(self):
+        self.assertContains(self.add(code='12'), 'exactly 5 digits')
+        self.add()
+        self.assertEqual(Vendor.objects.count(), 1)
+        self.assertContains(self.add(), 'already exists')
+        self.assertContains(self.add(code='00500', name='Too high'), 'outside the range')
+        self.assertContains(self.add(code='00050', name='Wrong kind', kind='VENDOR'), 'outside the range')
+
+    def test_edit_and_deactivate_keep_the_record(self):
+        self.add()
+        v = Vendor.objects.get()
+        self.assertContains(self.client.get(f'{self.URL}&edit={v.pk}'), 'Edit code 00200')
+        self.client.post(self.URL, {'action': 'save', 'vendor': v.pk, 'code': '00200', 'name': 'Renamed', 'kind': 'VENDOR'})
+        self.assertEqual(Vendor.objects.get().name, 'Renamed')
+        self.client.post(self.URL, {'action': 'deactivate', 'vendor': v.pk})
+        self.assertFalse(Vendor.objects.get().active)
+        self.assertEqual(list(self.client.get(self.URL).context['vendors']), [])
+        self.assertEqual(list(self.client.get(self.URL + '&inactive=1').context['vendors']), [v])
+        self.client.post(self.URL, {'action': 'reactivate', 'vendor': v.pk})
+        self.assertTrue(Vendor.objects.get().active)
+
+    def test_type_filter_and_scroll_panel(self):
+        Vendor.objects.create(code='00010', name='In', kind='INTERNAL')
+        Vendor.objects.create(code='00150', name='Out', kind='VENDOR')
+        Vendor.objects.create(code='00151', name='Sup', kind='SUPPLIER')
+        codes = lambda q: [v.code for v in self.client.get(self.URL + q).context['vendors']]
+        self.assertEqual(codes('&kind=INTERNAL'), ['00010'])
+        self.assertEqual(codes('&kind=EXTERNAL'), ['00150', '00151'])
+        self.assertContains(self.client.get(self.URL), 'class="scroll-panel scroll-panel-first"')
+
+    def test_inactive_code_is_not_offered_for_new_routes(self):
+        v = Vendor.objects.create(code='00150', name='Closed', kind='VENDOR', active=False)
+        self.assertNotIn(v.pk, [pk for pk, _l in OrderItemFormSet().empty_form.vendor_options])
+
+    def test_import_rejects_an_inactive_code(self):
+        Vendor.objects.create(code='00150', name='Closed', kind='VENDOR', active=False)
+        Process.objects.create(name='Plating', kind='OUTSOURCED')
+        Customer.objects.create(name='Acme')
+        preview = importer.parse('customer,due_date,part_name,quantity,route\nAcme,2030-01-01,P,1,Plating:00150\n')
+        self.assertIn('no longer active', ' '.join(preview.rows[0].errors))
+
+    def test_work_sheet_still_prints_with_an_inactive_code(self):
+        v = Vendor.objects.create(code='00150', name='Closed', kind='VENDOR', active=False)
+        proc = Process.objects.create(name='Plating', kind='OUTSOURCED')
+        order = Order.objects.create(customer=Customer.objects.create(name='C'), due_date=timezone.localdate())
+        item = OrderItem.objects.create(order=order, part_name='P', quantity=1)
+        RouteStep.objects.create(item=item, sequence=1, process=proc, vendor=v)
+        r = self.client.get(f'/orders/{order.job_number}/sheet/')
+        self.assertEqual((r.status_code, r['Content-Type']), (200, 'application/pdf'))

@@ -112,6 +112,8 @@ def _route(row, text, processes, vendors):
             row.errors.append(_('Process "%(name)s" is no longer active') % {'name': parts[0]})
         elif not vendor:
             row.errors.append(_('Unknown code %(code)s') % {'code': parts[1]})
+        elif not vendor.active:
+            row.errors.append(_('Code %(code)s is no longer active') % {'code': vendor.code})
         elif vendor.kind != CODE_KIND[process.kind]:
             row.errors.append(_('Code %(code)s does not fit %(process)s: it needs a %(kind)s code') % {
                 'code': vendor.code, 'process': parts[0], 'kind': CODE_KIND[process.kind].label})

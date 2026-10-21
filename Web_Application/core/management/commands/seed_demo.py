@@ -5,7 +5,7 @@ from django.conf import settings
 from django.contrib.auth.models import Group, User
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
-from django.db.models import ProtectedError, Q
+from django.db.models import Case, ProtectedError, Q, Value, When
 from django.utils import timezone
 
 from orders.models import Customer, Order, OrderItem, Process, RouteStep, Vendor
@@ -99,8 +99,11 @@ class Command(BaseCommand):
         now, today = timezone.now(), timezone.localdate()
         ago = lambda **kw: now - timedelta(**kw)
         vendors = {r['code']: Vendor.objects.get_or_create(code=r['code'], defaults={
-            'name': r['name'], 'name_ja': r['name_ja'], 'kind': r['kind'], 'lead_days': LEAD_DAYS.get(r['code'])})[0]
+            'name': r['name'], 'name_ja': r['name_ja'], 'kind': r['kind'], 'lead_days': LEAD_DAYS.get(r['code']),
+            'notes': r['notes'], 'active': r['active'] == 'yes'})[0]
             for r in read_csv('codes.csv')}
+        Vendor.objects.filter(code__in=[r['code'] for r in read_csv('codes.csv') if r['notes']], notes='').update(
+            notes=Case(*[When(code=r['code'], then=Value(r['notes'])) for r in read_csv('codes.csv') if r['notes']]))  # fill notes on codes made before the field existed
         procs = {r['name']: self.demo_process(r, vendors[DEFAULT_VENDOR[r['name']]]) for r in read_csv('processes.csv')}
         d1, d2, _silent = (ScannerDevice.objects.get_or_create(name=f'DEMO Scanner {i}')[0] for i in (1, 2, 3))  # scanner 3 never reports
         for role, name in (('Operator', 'demo_operator'), ('Planner', 'demo_planner'), ('Admin', 'demo_admin')):  # cannot log in
