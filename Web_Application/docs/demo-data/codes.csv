@@ -1,0 +1,17 @@
+﻿code,kind,name,name_ja
+00011,INTERNAL,Milling shop,フライス加工
+00012,INTERNAL,Lathe shop,旋盤加工
+00013,INTERNAL,Machining centre shop,マシニング加工
+00014,INTERNAL,Grinding shop,研削加工
+00015,INTERNAL,Deburring,バリ取り
+00020,INTERNAL,Inspection,検査
+00021,INTERNAL,Assembly,組立
+00101,SUPPLIER,Sample Steel Trading,サンプル鋼材商事
+00102,SUPPLIER,Demo Metals Co.,デモ金属
+00103,SUPPLIER,Example Bar Supply,サンプル棒鋼
+00131,VENDOR,Demo Plating Works,デモメッキ工業
+00132,VENDOR,Sample Heat Treatment,サンプル熱処理
+00133,VENDOR,Example Welding,サンプル溶接
+00134,VENDOR,Demo Coating,デモ塗装
+00135,VENDOR,Sample Polishing,サンプル研磨
+00136,VENDOR,Example Laser Cutting,サンプルレーザー

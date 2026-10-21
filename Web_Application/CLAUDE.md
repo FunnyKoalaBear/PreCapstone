@@ -4,7 +4,8 @@ Windows 11, Python 3.13, VS Code. The developer is learning: explain each step b
 
 ## Rules
 - Only create or edit files inside Web_Application/. Never touch other folders.
-- Never run git commit or git push. The developer commits.
+- Commit only when the developer or the /next-feature skill asks. Never push, amend, rebase, reset --hard or force anything.
+- If a spec leaves a real decision open, stop and ask. Do not guess.
 - Never read, print or commit .env. Secrets only in .env; .env.example has fake values.
 - Code short: at most a one-line comment per block, no long comment blocks. Explanations go in docs/.
 - Work on main. One feature group per commit.

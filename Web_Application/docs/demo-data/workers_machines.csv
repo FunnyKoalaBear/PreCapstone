@@ -1,0 +1,17 @@
+﻿kind,name,name_ja
+WORKER,Yamada Hiroshi,山田 浩
+WORKER,Sato Keiko,佐藤 恵子
+WORKER,Suzuki Takumi,鈴木 拓海
+WORKER,Takahashi Aya,高橋 彩
+WORKER,Ito Kenji,伊藤 健二
+WORKER,Watanabe Yui,渡辺 結
+WORKER,Kobayashi Daichi,小林 大地
+WORKER,Nakamura Mio,中村 美緒
+MACHINE,Milling machine 1,フライス盤1号機
+MACHINE,Lathe 1,旋盤1号機
+MACHINE,Lathe 2,旋盤2号機
+MACHINE,Machining centre 1,マシニング1号機
+MACHINE,Machining centre 2,マシニング2号機
+MACHINE,Surface grinder 1,平面研削盤1号機
+MACHINE,Deburring bench,バリ取り台
+MACHINE,Inspection bench,検査台

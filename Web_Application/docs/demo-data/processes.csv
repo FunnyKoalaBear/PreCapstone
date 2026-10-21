@@ -1,0 +1,14 @@
+﻿name,name_ja,kind
+Material,材料,MATERIAL
+Milling,フライス,MACHINING
+Lathe,旋盤,MACHINING
+Machining centre,マシニング,MACHINING
+Grinding,研削,MACHINING
+Deburring,バリ取り,MACHINING
+Inspection,検査,MACHINING
+Assembly,組立,MACHINING
+Plating,メッキ,OUTSOURCED
+Heat treatment,熱処理,OUTSOURCED
+Welding,溶接,OUTSOURCED
+Coating,塗装,OUTSOURCED
+Laser cutting,レーザー加工,OUTSOURCED

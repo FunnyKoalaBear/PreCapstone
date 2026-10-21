@@ -1,0 +1,12 @@
+﻿customer,customer_order_number,due_date,part_name,quantity,material,notes,route
+Unknown Co,PO-9001,2026-11-10,Shaft,2,S45C,,Material:00101|Lathe:00012
+Toyo Machinery,PO-9002,2026/13/45,Shaft,2,S45C,,Material:00101|Lathe:00012
+Toyo Machinery,PO-9003,2026-11-10,Shaft,0,S45C,,Material:00101|Lathe:00012
+Toyo Machinery,PO-9004,2026-11-10,Shaft,2,S45C,,Material:00101|Lathe:00999
+Toyo Machinery,PO-9005,2026-11-10,Shaft,2,S45C,,Material:00101|Plating:00011
+Toyo Machinery,PO-9006,2026-11-10,,2,S45C,,Material:00101|Lathe:00012
+Toyo Machinery,PO-9007,2026-11-10,Shaft,2,S45C,,
+Toyo Machinery,PO-9008,2026-11-10,Shaft,2,S45C,,Material-00101|Lathe:00012
+Toyo Machinery,PO-7101,2026-11-06,Drive shaft,5,S45C,,Material:00101|Lathe:00012|Milling:00011|Plating:00131|Inspection:00020
+Toyo Machinery,PO-9010,2026-11-10,Shaft,2,S45C,,Material:00101|Unknown process:00012
+Toyo Machinery,PO-9011,2026-11-10,Shaft,2,S45C,,Material:00101|Lathe:00012

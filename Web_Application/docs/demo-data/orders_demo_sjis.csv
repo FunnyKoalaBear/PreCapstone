@@ -1,0 +1,11 @@
+customer,customer_order_number,due_date,part_name,quantity,material,notes,route
+Toyo Machinery,PO-7101,2026-11-06,Drive shaft,5,S45C,,Material:00101|Lathe:00012|Milling:00011|Plating:00131:2026-11-02|Inspection:00020
+Toyo Machinery,PO-7101,2026-11-06,Flange,10,S45C,,Material:00101|Lathe:00012|Inspection:00020
+Sakura Robotics,SR-2210,2026-11-13,Bracket,20,A5052,ã}Ç¨ / Rush job,Material:00102|Laser cutting:00136|Deburring:00015|Coating:00134|Inspection:00020
+Sakura Robotics,SR-2210,2026-11-13,Cover plate,8,A5052,,Material:00102|Machining centre:00013|Deburring:00015|Inspection:00020
+Nippon Gear,NG-554,2026-11-20,Gear blank,4,SCM435,"îMèàóùå„Ç…å§çÌ, grind after heat treatment",Material:00103|Lathe:00012|Heat treatment:00132|Grinding:00014|Inspection:00020
+Nippon Gear,,2026-11-27,Spacer,50,SS400,,Material:00103|Lathe:00012|Inspection:00020
+Kita Valve,KV-0912,2026-12-04,Valve body,3,SUS304,,Material:00102|Machining centre:00013|Welding:00133|Machining centre:00013|Inspection:00020
+Kita Valve,KV-0912,2026-12-04,Valve cap,3,SUS304,,Material:00102|Lathe:00012|Inspection:00020
+Toyo Machinery,PO-7144,2026-12-11,Pin,100,SCM435,,Material:00103|Lathe:00012|Heat treatment:00132|Plating:00131|Inspection:00020
+Sakura Robotics,SR-2231,2026-12-18,Housing,2,FC200,î[ä˙åµéÁ,Material:00101|Milling:00011|Machining centre:00013|Coating:00134|Assembly:00021|Inspection:00020
