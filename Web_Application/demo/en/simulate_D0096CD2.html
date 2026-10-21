@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Simulate scan - Factory Tracker (demo)</title>
+  <link rel="stylesheet" href="../static/css/theme.css">
+  <link rel="stylesheet" href="../static/css/base.css">
+  <link rel="stylesheet" href="../static/css/lang.css">
+  <script>document.documentElement.classList.add('js')</script>
+<link rel="stylesheet" href="../static/css/demo.css"></head>
+<body><div class="demo-banner" role="note"><strong>DEMO / sample data</strong> &mdash; invented data. Nothing you enter is saved.</div>
+  <header class="site-header">
+    <span class="brand">Factory Tracker</span>
+    <button type="button" class="nav-toggle" aria-controls="site-nav" aria-expanded="false" aria-label="Menu">&#9776;</button>
+    <nav class="site-nav" id="site-nav">
+      <a href="index.html">Home</a>
+      <a href="orders.html">Orders</a>
+      <a href="customers.html">Customers</a>
+      <a href="analysis_results.html">Analysis</a>
+      <a href="shipping.html">Shipping</a>
+      <a href="priorities.html">Priorities</a>
+      <a href="tags.html">Tags</a>
+      
+      <a href="simulate.html">Simulate scan</a>
+    <a href="../ja/manual.html" lang="ja">使い方</a></nav>
+    
+
+
+
+
+    
+<span class="lang-switch"><a href="../ja/simulate_D0096CD2.html">日本語</a><a href="../en/simulate_D0096CD2.html" class="active" aria-current="true">English</a></span>
+
+  </header>
+  <main class="site-main">
+    
+    
+  <h1>Simulate scan</h1>
+
+  <form method="get" class="card">
+    <div>
+    <label for="id_device">Device:</label>
+
+
+
+<select name="device" required id="id_device">
+  <option value="" selected>- Select an option -</option>
+
+  <option value="3">DEMO Scanner 3</option>
+
+  <option value="2">DEMO Scanner 2</option>
+
+  <option value="1">DEMO Scanner 1</option>
+
+</select>
+    
+</div>
+
+  <div>
+    <label for="id_tag">Tag:</label>
+
+
+
+<input type="text" name="tag" value="D0096CD2" list="tag-picks" autocomplete="off" placeholder="Search or pick a tag" id="id_tag">
+    
+      
+    
+</div>
+    <datalist id="tag-picks">
+      <option value="0781DD5E">0781DD5E - 2610-001-01 - box DEMO-01 - ブラケット</option><option value="092C4B14">092C4B14 - 2610-007-01 - box DEMO-07 - ピン</option><option value="3E180A05">3E180A05 - 2610-008-01 - box DEMO-08 - ギア</option><option value="414D497D">414D497D - 2610-010-01 - box DEMO-09 - 新部品</option><option value="57E36722">57E36722 - 2610-005-01 - box DEMO-05 - シャフト</option><option value="5A1C9E02">5A1C9E02 - 2610-012-01 - box DEMO-12 - ベース</option><option value="74BA7571">74BA7571 - 2610-003-01 - box DEMO-03 - ハウジング</option><option value="8EFBD21A">8EFBD21A - 2610-004-01 - box DEMO-04 - カバー</option><option value="9B27F4D6">9B27F4D6 - 2610-013-01 - box DEMO-13 - リング</option><option value="C36F67C6">C36F67C6 - 2610-011-01 - box DEMO-10 - フレーム</option><option value="D0096CD2">D0096CD2 - 2609-011-01 - box DEMO-B03 - ディスク</option><option value="D009AAB0">D009AAB0 - 2609-013-01 - box DEMO-B08 - ホルダ</option><option value="D009C99F">D009C99F - 2609-014-01 - box DEMO-B02 - ステー</option><option value="D009E88E">D009E88E - 2609-015-01 - box DEMO-B07 - ホルダ</option><option value="D00A077D">D00A077D - 2609-016-01 - box DEMO-B11 - ナックル</option><option value="D00A266C">D00A266C - 2609-017-01 - box DEMO-B10 - カラー</option><option value="D00A455B">D00A455B - 2610-014-01 - box DEMO-B12 - カラー</option><option value="D00A644A">D00A644A - 2610-015-01 - box DEMO-B13 - ジョイント</option><option value="D00A8339">D00A8339 - 2610-016-01 - box DEMO-B06 - ディスク</option><option value="D00AA228">D00AA228 - 2610-017-01 - box DEMO-B09 - ホルダ</option><option value="D00AC117">D00AC117 - 2610-018-01 - box DEMO-B14 - ナックル</option><option value="D00AE006">D00AE006 - 2610-019-01 - box DEMO-B15 - ブロック</option><option value="D00AFEF5">D00AFEF5 - 2610-020-01 - box DEMO-B16 - ハブ</option><option value="D00B1DE4">D00B1DE4 - 2610-021-01 - box DEMO-B04 - ブロック</option><option value="D00B3CD3">D00B3CD3 - 2610-022-01 - box DEMO-B17 - ディスク</option><option value="D00B5BC2">D00B5BC2 - 2610-023-01 - box DEMO-B18 - ブロック</option><option value="D00B7AB1">D00B7AB1 - 2610-024-01 - box DEMO-B19 - ナックル</option><option value="D00B99A0">D00B99A0 - 2610-025-01 - box DEMO-B05 - ハブ</option><option value="D00BB88F">D00BB88F - 2610-026-01 - box DEMO-B01 - ブロック</option><option value="D00BD77E">D00BD77E - 2610-027-01 - box DEMO-B20 - ローラ</option><option value="D00BF66D">D00BF66D - 2610-028-01 - box DEMO-B21 - スペーサ</option><option value="D00C155C">D00C155C - 2610-029-01 - box DEMO-B22 - アーム</option><option value="D00C344B">D00C344B - 2610-030-01 - box DEMO-B23 - ジョイント</option><option value="D00C533A">D00C533A - 2610-031-01 - box DEMO-B24 - ホルダ</option><option value="D00C7229">D00C7229 - 2610-032-01 - box DEMO-B25 - ブッシュ</option><option value="D00C9118">D00C9118 - 2610-033-01 - box DEMO-B26 - ホルダ</option><option value="D00CB007">D00CB007 - 2610-034-01 - box DEMO-B27 - クランプ</option><option value="D00CCEF6">D00CCEF6 - 2610-035-01 - box DEMO-B28 - ステー</option><option value="D00CEDE5">D00CEDE5 - 2610-036-01 - box DEMO-B29 - ガイド</option><option value="D00D0CD4">D00D0CD4 - 2610-037-01 - box DEMO-B30 - カラー</option><option value="D00D2BC3">D00D2BC3 - 2610-038-01 - box DEMO-B31 - クランプ</option><option value="D00D4AB2">D00D4AB2 - 2610-039-01 - box DEMO-B32 - ケース</option><option value="D00D69A1">D00D69A1 - 2610-040-01 - box DEMO-B33 - カラー</option><option value="D00D8890">D00D8890 - 2610-041-01 - box DEMO-B34 - ローラ</option><option value="D00DA77F">D00DA77F - 2610-042-01 - box DEMO-B35 - ブロック</option><option value="D00DC66E">D00DC66E - 2610-043-01 - box DEMO-B36 - ディスク</option><option value="D00DE55D">D00DE55D - 2610-044-01 - box DEMO-B37 - ナックル</option><option value="D00E044C">D00E044C - 2610-045-01 - box DEMO-B38 - クランプ</option><option value="D795A680">D795A680 - 2610-011-01 - box DEMO-11 - フレーム</option><option value="F8DF3064">F8DF3064 - 2610-002-01 - box DEMO-02 - フランジ</option><option value="FC3F61E6">FC3F61E6 - 2610-006-01 - box DEMO-06 - プレート</option>
+    </datalist>
+    <noscript><button type="submit" class="button">Show next step</button></noscript>
+  </form>
+
+  
+
+  
+    <div class="card">
+      
+        <p>
+          Tag D0096CD2: item 2609-011-01, box DEMO-B03, ディスク
+          <span class="badge badge-complete">Complete</span>
+        </p>
+        
+          <p>This box has finished its whole route. Nothing left to scan.</p>
+        
+      
+    </div>
+  
+
+  <h2>Last 10 events</h2>
+  <div class="scroll-panel" tabindex="0">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Time (JST)</th>
+          <th>Tag</th>
+          <th>Process</th>
+          <th>Action</th>
+          <th>Device</th>
+        </tr>
+      </thead>
+      <tbody>
+        
+          <tr>
+            <td>2026-10-22 04:47:48</td>
+            <td>D00AA228</td>
+            <td>Grinding</td>
+            <td>Paused</td>
+            <td>DEMO Scanner 1</td>
+          </tr>
+        
+          <tr>
+            <td>2026-10-22 04:30:02</td>
+            <td>D00D69A1</td>
+            <td>Lathe</td>
+            <td>Partial</td>
+            <td>DEMO Scanner 1</td>
+          </tr>
+        
+          <tr>
+            <td>2026-10-22 04:30:02</td>
+            <td>D00B1DE4</td>
+            <td>Assembly</td>
+            <td>Partial</td>
+            <td>DEMO Scanner 1</td>
+          </tr>
+        
+          <tr>
+            <td>2026-10-22 04:30:02</td>
+            <td>D00AE006</td>
+            <td>Assembly</td>
+            <td>Partial</td>
+            <td>DEMO Scanner 1</td>
+          </tr>
+        
+          <tr>
+            <td>2026-10-22 04:30:02</td>
+            <td>D00A8339</td>
+            <td>Inspection</td>
+            <td>Partial</td>
+            <td>DEMO Scanner 1</td>
+          </tr>
+        
+          <tr>
+            <td>2026-10-22 04:00:02</td>
+            <td>D00B99A0</td>
+            <td>Milling</td>
+            <td>Started</td>
+            <td>DEMO Scanner 1</td>
+          </tr>
+        
+          <tr>
+            <td>2026-10-22 04:00:02</td>
+            <td>D00AA228</td>
+            <td>Grinding</td>
+            <td>Started</td>
+            <td>DEMO Scanner 1</td>
+          </tr>
+        
+          <tr>
+            <td>2026-10-22 04:00:02</td>
+            <td>0781DD5E</td>
+            <td>Assembly</td>
+            <td>Partial</td>
+            <td>DEMO Scanner 1</td>
+          </tr>
+        
+          <tr>
+            <td>2026-10-22 04:00:02</td>
+            <td>D795A680</td>
+            <td>Lathe</td>
+            <td>Started</td>
+            <td>DEMO Scanner 2</td>
+          </tr>
+        
+          <tr>
+            <td>2026-10-22 03:43:56</td>
+            <td>D00AC117</td>
+            <td>Inspection</td>
+            <td>Paused</td>
+            <td>DEMO Scanner 1</td>
+          </tr>
+        
+      </tbody>
+    </table>
+  </div>
+
+  </main>
+  <footer class="site-footer">Factory Tracker</footer>
+  <script src="../static/js/nav.js"></script>
+<script src="../static/js/demo.js" defer></script></body>
+</html>
