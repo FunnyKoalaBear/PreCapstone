@@ -3,9 +3,6 @@ Order matters. [ ] todo, [!] blocked. Finished entries are deleted; git history 
 
 ## Queue
 
-- [ ] **F40a Responsive layout: fluid layout and viewport tag**
-  One commit. Add the viewport meta tag; make widths fluid (no fixed pixel widths on containers); no horizontal page scroll down to 360 px wide. Breakpoints: 768 px and 480 px, defined once in `theme.css`. Do not change colours or content.
-
 - [ ] **F40b Responsive layout: tables become cards on narrow screens**
   One commit, after F40a.
   Decisions made:

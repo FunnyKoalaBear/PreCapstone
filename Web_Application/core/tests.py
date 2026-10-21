@@ -405,6 +405,26 @@ class SeedDemoTests(TestCase):
         self.assertEqual((Customer.objects.count(), Order.objects.count(), Event.objects.count()), (0, 0, 0))
 
 
+class ResponsiveLayoutTests(TestCase):
+    CSS = settings.BASE_DIR / 'static' / 'css'
+
+    def css(self, name):
+        return (self.CSS / name).read_text(encoding='utf-8')
+
+    def test_pages_have_the_viewport_tag(self):
+        self.assertContains(self.client.get('/login/'), '<meta name="viewport" content="width=device-width, initial-scale=1">')
+
+    def test_breakpoints_are_defined_only_in_theme_css(self):
+        for name in ('base.css', 'lang.css'):
+            self.assertNotIn('@media', self.css(name), name)
+        widths = re.findall(r'@media \(max-width: (\d+)px\)', self.css('theme.css'))
+        self.assertEqual(sorted(set(widths)), ['480', '768'])
+
+    def test_containers_have_no_fixed_pixel_widths(self):  # hairlines such as 2px are fine
+        for name in ('base.css', 'theme.css', 'lang.css'):
+            self.assertEqual(re.findall(r'(?<![-\w])(?:width|min-width)\s*:\s*\d{3,}px', self.css(name)), [], name)
+
+
 class LanguageTests(RawTestCase):
     """Japanese by default, English one click away, choice remembered by cookie."""
 

@@ -32,3 +32,17 @@
   --risk-watch: #ca8a04;
   --risk-on-track: #16a34a;
 }
+
+/* Responsive layout. The breakpoints live only here: 768px (tablet) and 480px (phone). */
+@media (max-width: 768px) {
+  .site-header { padding: 0.75rem 1rem; }
+  .site-main { padding: 1rem; }
+  .gantt-row { grid-template-columns: 1fr; gap: 0.15rem; }
+  .gantt-axis .gantt-name { display: none; }
+}
+
+@media (max-width: 480px) {
+  .site-main { padding: 0.75rem; }
+  .card { padding: 0.75rem; }
+  .filters > div, .filters input[type="search"], .filters select { width: 100%; }
+}
