@@ -3,6 +3,7 @@ import tempfile
 from datetime import date, datetime, timedelta
 
 from django.apps import apps
+from django.conf import settings
 
 from django.contrib.admin import site
 from django.contrib.auth.models import User
@@ -12,11 +13,13 @@ from django.test import override_settings
 from django.utils.datastructures import MultiValueDict
 from django.utils import timezone, translation
 
+from core.management.commands.seed_demo import read_csv
 from core.testing import TestCase, make_user
 from tracking.models import Box, ScannerDevice, Tag, TagAssignment
 from tracking.services import record_event
 from tracking.status import step_due_back
 
+from . import importer
 from .forms import OrderItemForm
 from .models import Customer, Order, OrderChange, OrderItem, Process, RouteStep, Vendor
 
@@ -593,6 +596,124 @@ class MaterialTests(TestCase):
         self.client.post(f'/orders/{item.order.job_number}/edit/', self.data(item, 'A5052'))
         change = OrderChange.objects.get(field='material')
         self.assertEqual((change.old_value, change.new_value, str(change.field_label)), ('SS400', 'A5052', 'material'))
+
+
+DEMO_DIR = settings.BASE_DIR / 'docs' / 'demo-data'
+
+
+class CsvImportTests(TestCase):
+    CUSTOMERS = ('Toyo Machinery', 'Sakura Robotics', 'Nippon Gear', 'Kita Valve')
+
+    def setUp(self):
+        self.client.force_login(make_user('pl', 'Planner'))
+        for r in read_csv('codes.csv'):
+            Vendor.objects.create(code=r['code'], name=r['name'], name_ja=r['name_ja'], kind=r['kind'])
+        for r in read_csv('processes.csv'):
+            Process.objects.create(name=r['name'], name_ja=r['name_ja'], kind=r['kind'])
+
+    def customers(self):
+        for name in self.CUSTOMERS:
+            Customer.objects.create(name=name)
+
+    def upload(self, name='orders_demo.csv', create=False, raw=None):
+        data = {'file': SimpleUploadedFile(name, raw if raw is not None else (DEMO_DIR / name).read_bytes())}
+        if create:
+            data['create_customers'] = 'on'
+        return self.client.post('/orders/import/', data)
+
+    def confirm(self):
+        return self.client.post('/orders/import/', {'confirm': '1'})
+
+    def rows(self, response):
+        return {r.number: r for r in response.context['preview'].rows}
+
+    def test_planner_only(self):
+        self.client.logout()
+        self.assertEqual(self.client.get('/orders/import/').status_code, 302)
+        self.client.force_login(make_user('op', 'Operator'))
+        self.assertEqual(self.client.get('/orders/import/').status_code, 403)
+        self.client.force_login(make_user('pl', 'Planner'))
+        self.assertContains(self.client.get('/orders/import/'), 'name="file"')
+
+    def test_clean_file_imports_seven_orders_and_ten_items(self):
+        self.customers()
+        r = self.upload()
+        self.assertTrue(r.context['preview'].ok)
+        self.assertNotContains(r, 'badge-overdue')
+        self.assertRedirects(self.confirm(), '/orders/')
+        self.assertEqual((Order.objects.count(), OrderItem.objects.count()), (7, 10))
+        toyo = Order.objects.get(customer_order_number='PO-7101')
+        self.assertEqual(toyo.items.count(), 2)
+        shaft = toyo.items.get(part_name='Drive shaft')
+        self.assertEqual((shaft.material, shaft.quantity, shaft.steps.count()), ('S45C', 5, 5))
+        plating = shaft.steps.get(process__name='Plating')
+        self.assertEqual((plating.vendor.code, plating.due_date), ('00131', date(2026, 11, 2)))
+        self.assertEqual(Order.objects.get(customer_order_number='SR-2210').notes, '急ぎ / Rush job')
+        self.assertEqual(Order.objects.filter(customer_order_number='').count(), 1)
+        self.assertEqual(len({o.job_number for o in Order.objects.all()}), 7)
+
+    def test_shift_jis_and_plain_utf8_give_the_same_result(self):
+        self.customers()
+        utf8 = self.upload()
+        for raw in ((DEMO_DIR / 'orders_demo_sjis.csv').read_bytes(), (DEMO_DIR / 'orders_demo.csv').read_text(encoding='utf-8-sig').encode()):
+            r = self.upload(raw=raw)
+            self.assertTrue(r.context['preview'].ok)
+            self.assertEqual([x.data for x in r.context['preview'].rows], [x.data for x in utf8.context['preview'].rows])
+        self.assertEqual(self.rows(self.upload('orders_demo_sjis.csv'))[4].data['notes'], '急ぎ / Rush job')
+        self.confirm()
+        self.assertEqual((Order.objects.count(), OrderItem.objects.count()), (7, 10))
+
+    def test_unknown_customers_need_the_option(self):
+        r = self.upload()
+        self.assertFalse(r.context['preview'].ok)
+        self.assertEqual(self.rows(r)[2].errors, ['Unknown customer'])
+        r = self.upload(create=True)
+        self.assertEqual(r.context['preview'].new_customers, list(self.CUSTOMERS))
+        self.confirm()
+        self.assertEqual(sorted(Customer.objects.values_list('name', flat=True)), sorted(self.CUSTOMERS))
+        self.assertEqual(Order.objects.count(), 7)
+
+    def test_error_rows_give_their_expected_messages(self):
+        self.upload(create=True)
+        self.confirm()
+        before = Order.objects.count()
+        r = self.upload('orders_demo_errors.csv')
+        rows = self.rows(r)
+        expected = {
+            2: 'Unknown customer', 3: 'Invalid due date', 4: 'Quantity must be at least 1', 5: 'Unknown code 00999',
+            6: 'Code 00011 does not fit Plating: it needs a Vendor code', 7: 'Part name missing', 8: 'Route required',
+            9: 'Malformed route step "Material-00101"', 10: 'An order with this customer order number already exists',
+            11: 'Unknown process "Unknown process"',
+        }
+        for number, message in expected.items():
+            self.assertEqual(rows[number].errors, [message], number)
+        self.assertTrue(rows[12].ok)
+        self.assertFalse(r.context['preview'].ok)
+        self.assertNotContains(r, 'name="confirm"')
+        self.confirm()  # all-or-nothing: the one valid row is not imported either
+        self.assertEqual(Order.objects.count(), before)
+        self.assertTrue(self.rows(self.upload('orders_demo_errors.csv', create=True))[2].ok)
+
+    def test_japanese_process_name_and_group_due_dates(self):
+        self.customers()
+        head = 'customer,customer_order_number,due_date,part_name,quantity,material,notes,route'
+        text = '\n'.join([head, 'Nippon Gear,A1,2030/01/05,P1,1,,,フライス:00011', 'Nippon Gear,A1,2030-01-06,P2,1,,,Lathe:00012', ''])
+        rows = self.rows(self.upload(raw=text.encode()))
+        self.assertEqual(rows[2].steps[0][0].name, 'Milling')
+        self.assertEqual(rows[2].due, date(2030, 1, 5))
+        self.assertEqual(rows[3].errors, ['Due date differs from the first row of this order'])
+
+    def test_bad_files(self):
+        self.assertContains(self.upload(raw=b'\x81\x20'), 'Could not read the file')
+        self.assertContains(self.upload(raw=b'\n'), 'Missing column: customer')
+        self.assertEqual(importer.parse('').file_errors, ['The file is empty.'])
+        self.assertContains(self.upload(raw=b'customer,route\nA,B\n'), 'Missing column: due_date')
+        self.assertContains(self.upload(raw=b'customer,customer_order_number,due_date,part_name,quantity,route\n'), 'The file has no data rows.')
+        self.assertContains(self.client.post('/orders/import/', {}), 'Choose a CSV file.')
+        self.assertEqual(Order.objects.count(), 0)
+
+    def test_confirm_without_upload_does_nothing(self):
+        self.assertRedirects(self.confirm(), '/orders/import/')
 
 
 class CodeListTests(TestCase):

@@ -1,9 +1,10 @@
 import unicodedata
 
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.utils.translation import gettext as _
 
-from .models import Customer
+from .models import Customer, Order, OrderItem, RouteStep
 
 
 def normalize_name(name):
@@ -11,13 +12,18 @@ def normalize_name(name):
     return ' '.join(str(name or '').split())
 
 
+def customer_key(name):
+    """Name with case, width and spacing ignored, for matching customers."""
+    return unicodedata.normalize('NFKC', normalize_name(name)).casefold()
+
+
 def find_customer(name, exclude=None):
     """The customer (other than `exclude`) whose name matches ignoring case, width and spacing, or None."""
-    key = unicodedata.normalize('NFKC', normalize_name(name)).casefold()
+    key = customer_key(name)
     if not key:
         return None
     others = Customer.objects.exclude(pk=exclude.pk) if exclude else Customer.objects.all()
-    return next((c for c in others if unicodedata.normalize('NFKC', normalize_name(c.name)).casefold() == key), None)
+    return next((c for c in others if customer_key(c.name) == key), None)
 
 
 def create_customer(name, contact=''):
@@ -41,3 +47,15 @@ def update_customer(customer, name, contact=''):
 def get_or_create_customer(name):
     """The existing customer with this name, else a new one."""
     return find_customer(name) or create_customer(name)
+
+
+@transaction.atomic
+def create_order(customer, customer_order_number, due_date, notes, items):
+    """Create an order with its items and routes. items: dicts with part_name, quantity, material and steps [(process, vendor, due_date)]."""
+    order = Order.objects.create(customer=customer, customer_order_number=customer_order_number, due_date=due_date, notes=notes)
+    for data in items:
+        item = OrderItem.objects.create(order=order, part_name=data['part_name'], quantity=data['quantity'], material=data.get('material', ''))
+        RouteStep.objects.bulk_create(
+            RouteStep(item=item, sequence=i, process=process, vendor=vendor, due_date=due)
+            for i, (process, vendor, due) in enumerate(data['steps'], 1))
+    return order

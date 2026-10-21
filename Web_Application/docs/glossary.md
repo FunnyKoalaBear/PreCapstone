@@ -135,3 +135,13 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | Planned due date | 計画納期 |
 | Slip number | 伝票番号 |
 | Material (of an item) | 材質 |
+
+## Terms added for CSV import
+
+| English | Japanese |
+|---|---|
+| Import orders | 受注の取り込み |
+| Import | 取り込み |
+| Preview | プレビュー |
+| Row (of a file) | 行 |
+| Error | エラー |

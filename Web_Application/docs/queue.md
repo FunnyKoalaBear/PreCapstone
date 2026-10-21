@@ -29,7 +29,7 @@ Order matters. [ ] todo, [x] done, [!] blocked. IDs match the feature tracker. E
 - [x] **F78 Demo data with our own codes**
   Update the seed script and the static demo (`demo/js/data.js` and the pages that show steps). Use `docs/demo-data/codes.csv`, `processes.csv` and `workers_machines.csv` (invented, in the two blocks) so the seed, the static demo and the CSV import agree. Never use the company's real codes or names.
 
-- [ ] **F42 CSV order import**
+- [x] **F42 CSV order import**
   Upload page (Planner and up). Spec, columns and the expected result of every error row: `docs/demo-data/README.md`. Files: `orders_demo.csv`, `orders_demo_sjis.csv`, `orders_demo_errors.csv`.
   Read UTF-8 (with or without BOM), then fall back to Shift-JIS (cp932). Preview every row with ok/error, import all-or-nothing in one transaction, option "create new customers". Rows with the same customer and customer order number become one order. Reuse the order-creation service so job numbers and items work as usual.
   Tests: clean file imports 7 orders and 10 items; each error row gives its expected message; the Shift-JIS file gives the same result.

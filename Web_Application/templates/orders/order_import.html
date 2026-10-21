@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Import orders" %} - {% trans "Factory Tracker" %}{% endblock %}
+
+{% block content %}
+  <h1>{% trans "Import orders" %}</h1>
+  <p class="note">{% trans "One row per item. Rows with the same customer and customer order number become one order. The file can be UTF-8 or Shift-JIS." %}</p>
+  <p class="note">{% trans "Columns: customer, customer_order_number, due_date, part_name, quantity, material, notes, route. Route steps look like Process:code or Process:code:due_date, separated by |." %}</p>
+
+  <form method="post" enctype="multipart/form-data" class="card">
+    {% csrf_token %}
+    {% if error %}<ul class="errorlist"><li>{{ error }}</li></ul>{% endif %}
+    <div><label for="file">{% trans "CSV file" %}</label><input type="file" id="file" name="file" accept=".csv,text/csv"></div>
+    <div><label class="check"><input type="checkbox" name="create_customers"{% if request.POST.create_customers %} checked{% endif %}> {% trans "Create new customers" %}</label></div>
+    <button type="submit" class="button">{% trans "Check file" %}</button>
+  </form>
+
+  {% if preview %}
+    {% for e in preview.file_errors %}<ul class="errorlist"><li>{{ e }}</li></ul>{% endfor %}
+    {% if preview.rows %}
+      <h2>{% trans "Preview" %}</h2>
+      {% if preview.ok %}
+        <p>{% blocktrans count counter=preview.groups|length %}{{ counter }} order will be imported.{% plural %}{{ counter }} orders will be imported.{% endblocktrans %}
+          {% blocktrans count counter=preview.rows|length %}{{ counter }} item.{% plural %}{{ counter }} items.{% endblocktrans %}
+          {% if preview.new_customers %}{% blocktrans with names=preview.new_customers|join:", " %}New customers: {{ names }}{% endblocktrans %}{% endif %}</p>
+        <form method="post">{% csrf_token %}<button type="submit" name="confirm" value="1" class="button">{% trans "Import" %}</button></form>
+      {% else %}
+        <p><span class="badge badge-overdue">{% blocktrans count counter=preview.error_rows %}{{ counter }} row has errors.{% plural %}{{ counter }} rows have errors.{% endblocktrans %}</span> {% trans "Nothing was imported. Fix the file and upload it again." %}</p>
+      {% endif %}
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{% trans "Row" %}</th><th>{% trans "Customer" %}</th><th>{% trans "Customer order number" %}</th><th>{% trans "Due date" %}</th>
+              <th>{% trans "Part name" %}</th><th>{% trans "Quantity" %}</th><th>{% trans "Result" %}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in preview.rows %}
+              <tr>
+                <td>{{ r.number }}</td>
+                <td>{{ r.data.customer }}</td>
+                <td>{{ r.data.customer_order_number|default:"-" }}</td>
+                <td>{{ r.data.due_date }}</td>
+                <td>{{ r.data.part_name }}</td>
+                <td>{{ r.data.quantity }}</td>
+                <td>
+                  {% if r.ok %}<span class="badge badge-complete">OK</span>{% if r.customer_name %} <small>{% trans "New customer" %}</small>{% endif %}
+                  {% else %}<span class="badge badge-overdue">{% trans "Error" %}</span>
+                    <ul>{% for e in r.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  {% endif %}
+{% endblock %}

@@ -13,6 +13,7 @@ from tracking.status import (
     order_summary, step_due_back, timeline,
 )
 
+from . import importer
 from .forms import CustomerForm, OrderForm, OrderItemFormSet
 from .models import Customer, Order, OrderChange, OrderItem, Vendor
 
@@ -218,3 +219,35 @@ def code_list(request):
     if kind in Vendor.Kind.values:
         vendors = vendors.filter(kind=kind)
     return render(request, 'orders/code_list.html', {'vendors': vendors, 'q': q, 'kind': kind, 'kinds': Vendor.Kind.choices})
+
+
+SESSION_KEY = 'order_import'
+
+
+@role_required(PLANNER)
+def order_import(request):
+    preview, error = None, None
+    if request.method == 'POST' and 'confirm' in request.POST:
+        saved = request.session.get(SESSION_KEY)
+        if not saved:
+            messages.error(request, _('The upload expired. Choose the file again.'))
+            return redirect('order_import')
+        preview = importer.parse(saved['text'], saved['create'])
+        if preview.ok:
+            orders, items = importer.run_import(preview)
+            request.session.pop(SESSION_KEY, None)
+            messages.success(request, _('Imported %(orders)d orders with %(items)d items.') % {'orders': orders, 'items': items})
+            return redirect('order_list')
+    elif request.method == 'POST':
+        upload, create = request.FILES.get('file'), request.POST.get('create_customers') == 'on'
+        text = None
+        if not upload:
+            error = _('Choose a CSV file.')
+        elif upload.size > importer.MAX_BYTES:
+            error = _('The file is too large (limit 2 MB).')
+        elif (text := importer.decode(upload.read())) is None:
+            error = _('Could not read the file. Save it as UTF-8 or Shift-JIS CSV.')
+        if text is not None:
+            request.session[SESSION_KEY] = {'text': text, 'create': create}
+            preview = importer.parse(text, create)
+    return render(request, 'orders/order_import.html', {'preview': preview, 'error': error})
