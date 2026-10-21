@@ -75,7 +75,7 @@ def order_create(request):
 
 
 ORDER_FIELDS = ['customer', 'customer_order_number', 'due_date', 'notes']
-ITEM_FIELDS = ['part_name', 'quantity', 'box_count']
+ITEM_FIELDS = ['part_name', 'quantity', 'material', 'box_count']
 
 
 def _order_values(order):
@@ -143,7 +143,7 @@ def order_list(request):
     if q:
         orders = orders.filter(
             Q(job_number__icontains=q) | Q(customer__name__icontains=q)
-            | Q(customer_order_number__icontains=q) | Q(items__part_name__icontains=q)
+            | Q(customer_order_number__icontains=q) | Q(items__part_name__icontains=q) | Q(items__material__icontains=q)
         ).distinct()
     today, rows = timezone.localdate(), []
     for o in orders:

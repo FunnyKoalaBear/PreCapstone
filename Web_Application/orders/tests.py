@@ -129,6 +129,10 @@ class OrderListTests(TestCase):
         self.assertEqual(self.jobs(q='beta'), [self.a.job_number])
         self.assertEqual(self.jobs(q='plate'), [self.c.job_number])
 
+    def test_search_finds_material(self):
+        self.c.items.update(material='SS400 flat bar')
+        self.assertEqual(self.jobs(q='ss400'), [self.c.job_number])
+
     def test_overdue_filter(self):
         self.assertEqual(self.jobs(late='1'), [self.b.job_number])
 
@@ -555,6 +559,40 @@ class StepDueDateTests(TestCase):
         step.due_date = date(2030, 1, 3)
         self.assertEqual(step_due_back(step, out), date(2030, 1, 3))
         self.assertIsNone(step_due_back(RouteStep(process=Process()), out))
+
+
+class MaterialTests(TestCase):
+    def setUp(self):
+        self.client.force_login(make_user('pl', 'Planner'))
+        self.proc = Process.objects.create(name='Mat', kind=K.MATERIAL)
+
+    def data(self, item=None, material='SS400'):
+        order = item.order if item else None
+        d = {
+            'customer': (order.customer if order else Customer.objects.create(name=f'C{Customer.objects.count()}')).pk,
+            'due_date': timezone.localdate() + timedelta(days=30),
+            'items-TOTAL_FORMS': 1, 'items-INITIAL_FORMS': 1 if item else 0, 'items-MIN_NUM_FORMS': 1, 'items-MAX_NUM_FORMS': 1000,
+            'items-0-part_name': 'Shaft', 'items-0-quantity': 1, 'items-0-box_count': 1, 'items-0-route': [self.proc.pk],
+            'items-0-material': material,
+        }
+        if item:
+            d.update({'items-0-id': item.pk, 'items-0-order': order.pk})
+        return d
+
+    def test_material_saved_shown_and_optional(self):
+        self.assertEqual(self.client.post('/orders/new/', self.data()).status_code, 302)
+        item = OrderItem.objects.get()
+        self.assertEqual(item.material, 'SS400')
+        self.assertContains(self.client.get(f'/orders/{item.order.job_number}/'), 'SS400')
+        self.assertContains(self.client.get('/orders/new/'), 'name="items-0-material"')
+        self.assertEqual(self.client.post('/orders/new/', self.data(material='')).status_code, 302)
+
+    def test_edit_logs_material_change(self):
+        self.client.post('/orders/new/', self.data())
+        item = OrderItem.objects.get()
+        self.client.post(f'/orders/{item.order.job_number}/edit/', self.data(item, 'A5052'))
+        change = OrderChange.objects.get(field='material')
+        self.assertEqual((change.old_value, change.new_value, str(change.field_label)), ('SS400', 'A5052', 'material'))
 
 
 class CodeListTests(TestCase):

@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Factory Tracker\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-21 16:26+0900\n"
+"POT-Creation-Date: 2026-10-21 16:29+0900\n"
 "PO-Revision-Date: 2026-10-11 17:00+0900\n"
 "Last-Translator: Claude\n"
 "Language-Team: Japanese\n"
@@ -69,7 +69,7 @@ msgstr "この名称の得意先は既に登録されています。"
 msgid "New customer"
 msgstr "新規得意先"
 
-#: .\orders\forms.py:79 .\orders\models.py:229
+#: .\orders\forms.py:79 .\orders\models.py:230
 #: .\templates\orders\_item_card.html:21 .\templates\orders\_item_card.html:27
 msgid "Route"
 msgstr "工程順"
@@ -156,7 +156,7 @@ msgstr "種別"
 msgid "lead days"
 msgstr "リードタイム（日）"
 
-#: .\orders\models.py:46 .\orders\models.py:179
+#: .\orders\models.py:46 .\orders\models.py:180
 msgid "vendor"
 msgstr "外注先"
 
@@ -206,7 +206,7 @@ msgstr "空欄の場合は既定値を使います。"
 msgid "active"
 msgstr "有効"
 
-#: .\orders\models.py:86 .\orders\models.py:178 .\tracking\models.py:127
+#: .\orders\models.py:86 .\orders\models.py:179 .\tracking\models.py:127
 msgid "process"
 msgstr "工程"
 
@@ -230,7 +230,7 @@ msgstr "納期"
 msgid "notes"
 msgstr "備考"
 
-#: .\orders\models.py:107 .\orders\models.py:135 .\orders\models.py:212
+#: .\orders\models.py:107 .\orders\models.py:135 .\orders\models.py:213
 msgid "order"
 msgstr "受注"
 
@@ -251,100 +251,104 @@ msgid "quantity"
 msgstr "数量"
 
 #: .\orders\models.py:139
+msgid "material"
+msgstr "材質"
+
+#: .\orders\models.py:140
 msgid "box count"
 msgstr "箱数"
 
-#: .\orders\models.py:141
+#: .\orders\models.py:142
 msgid "drawing file"
 msgstr "図面ファイル"
 
 # CHECK: 品目 is marked unsure in the glossary
-#: .\orders\models.py:146
+#: .\orders\models.py:147
 msgid "order item"
 msgstr "受注品目"
 
 # CHECK: 品目 is marked unsure in the glossary
-#: .\orders\models.py:147
+#: .\orders\models.py:148
 msgid "order items"
 msgstr "受注品目"
 
 # CHECK: 品目 is marked unsure in the glossary (alternative: 明細)
-#: .\orders\models.py:176 .\orders\models.py:213 .\tracking\models.py:56
+#: .\orders\models.py:177 .\orders\models.py:214 .\tracking\models.py:56
 msgid "item"
 msgstr "品目"
 
-#: .\orders\models.py:177
+#: .\orders\models.py:178
 msgid "sequence"
 msgstr "順序"
 
-#: .\orders\models.py:180
+#: .\orders\models.py:181
 msgid "planned due date"
 msgstr "計画納期"
 
-#: .\orders\models.py:181
+#: .\orders\models.py:182
 msgid "slip number"
 msgstr "伝票番号"
 
 # CHECK: new term: 工程順ステップ is my choice
-#: .\orders\models.py:184
+#: .\orders\models.py:185
 msgid "route step"
 msgstr "工程順ステップ"
 
 # CHECK: new term: 工程順ステップ is my choice
-#: .\orders\models.py:185
+#: .\orders\models.py:186
 msgid "route steps"
 msgstr "工程順ステップ"
 
-#: .\orders\models.py:214
+#: .\orders\models.py:215
 msgid "item code"
 msgstr "品目コード"
 
 # CHECK: which field changed; 項目 is my choice
-#: .\orders\models.py:215
+#: .\orders\models.py:216
 msgid "field"
 msgstr "項目"
 
-#: .\orders\models.py:216
+#: .\orders\models.py:217
 msgid "before"
 msgstr "変更前"
 
-#: .\orders\models.py:217
+#: .\orders\models.py:218
 msgid "after"
 msgstr "変更後"
 
-#: .\orders\models.py:218
+#: .\orders\models.py:219
 msgid "changed at"
 msgstr "変更日時"
 
-#: .\orders\models.py:220
+#: .\orders\models.py:221
 msgid "changed by"
 msgstr "変更者"
 
 # CHECK: model name for the history rows; 受注変更 is my choice
-#: .\orders\models.py:224
+#: .\orders\models.py:225
 msgid "order change"
 msgstr "受注変更"
 
 # CHECK: model name for the history rows; 受注変更 is my choice
-#: .\orders\models.py:225
+#: .\orders\models.py:226
 msgid "order changes"
 msgstr "受注変更"
 
 # CHECK: history entry label; noun form 品目の追加 is my choice
-#: .\orders\models.py:229
+#: .\orders\models.py:230
 msgid "Item added"
 msgstr "品目の追加"
 
 # CHECK: history entry label; noun form 品目の削除 is my choice
-#: .\orders\models.py:229
+#: .\orders\models.py:230
 msgid "Item deleted"
 msgstr "品目の削除"
 
-#: .\orders\models.py:240
+#: .\orders\models.py:241
 msgid "The change history is append-only and cannot be changed."
 msgstr "変更履歴は追記専用のため、変更できません。"
 
-#: .\orders\models.py:244
+#: .\orders\models.py:245
 msgid "The change history is append-only and cannot be deleted."
 msgstr "変更履歴は追記専用のため、削除できません。"
 

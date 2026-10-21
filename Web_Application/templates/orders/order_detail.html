@@ -24,7 +24,7 @@
   {% for entry in items %}
     <div class="card card-wide">
       <h2>
-        {{ entry.item.item_code }} - {{ entry.item.part_name }} &times; {{ entry.item.quantity }}
+        {{ entry.item.item_code }} - {{ entry.item.part_name }} &times; {{ entry.item.quantity }}{% if entry.item.material %} <small>{{ entry.item.material }}</small>{% endif %}
         <span class="badge badge-{{ entry.status.code|lower }}">{{ entry.status.label }}</span>
       </h2>
 

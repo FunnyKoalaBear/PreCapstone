@@ -23,7 +23,7 @@ Order matters. [ ] todo, [x] done, [!] blocked. IDs match the feature tracker. E
   `RouteStep.due_date` (nullable) and `slip_number` (text, blank). Fields in the order form per step; shown on the order detail page.
   Vendor due-back uses the step due date when set, else started + lead days (vendor, then process). Tests for both paths.
 
-- [ ] **F80 Material on order items**
+- [x] **F80 Material on order items**
   `OrderItem.material` (text, 100, blank). In the form, detail page and order search.
 
 - [ ] **F78 Demo data with our own codes**

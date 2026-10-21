@@ -136,6 +136,7 @@ class OrderItem(models.Model):
     item_no = models.PositiveIntegerField(_('item no.'), editable=False)
     part_name = models.CharField(_('part name'), max_length=200)
     quantity = models.PositiveIntegerField(_('quantity'))
+    material = models.CharField(_('material'), max_length=100, blank=True)
     box_count = models.PositiveIntegerField(_('box count'), default=1, validators=[MinValueValidator(1)])
     drawing_file = models.FileField(
         _('drawing file'), upload_to=drawing_upload_to, blank=True,
