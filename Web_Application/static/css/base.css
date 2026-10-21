@@ -107,6 +107,7 @@ h1 .button-secondary, h2 .button-secondary {
 
 .route-step { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; }
 .route-step select { flex: 1; }
+.route-step input { width: auto; flex: 0 1 9rem; min-width: 0; }
 .remove-step {
   padding: 0.25rem 0.6rem;
   background: var(--color-surface);

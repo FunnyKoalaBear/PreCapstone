@@ -5,6 +5,7 @@
             <tr>
               <th>{% trans "Process" %}</th>
               <th>{% trans "Status" %}</th>
+              <th>{% trans "Planned due" %}</th>
               <th>{% trans "Started" %}</th>
               <th>{% trans "Finished" %}</th>
               <th>{% trans "Time spent" %}</th>
@@ -16,6 +17,7 @@
               <tr>
                 <td>{{ s.row.step.process }}{% if s.row.step.vendor_label %} <small>{{ s.row.step.vendor_label }}</small>{% endif %}</td>
                 <td><span class="badge badge-{{ s.row.state }}">{{ s.label }}</span>{% if s.late_days %} <span class="badge badge-overdue">{% blocktrans count counter=s.late_days %}Late by {{ counter }} day{% plural %}Late by {{ counter }} days{% endblocktrans %}</span>{% endif %}</td>
+                <td>{{ s.row.step.due_date|date:"Y-m-d"|default:"-" }}{% if s.row.step.slip_number %} <small>{% blocktrans with n=s.row.step.slip_number %}slip {{ n }}{% endblocktrans %}</small>{% endif %}</td>
                 <td>{{ s.row.started_at|date:"Y-m-d H:i"|default:"-" }}</td>
                 <td>{{ s.row.finished_at|date:"Y-m-d H:i"|default:"-" }}</td>
                 <td>{% if s.duration %}{{ s.duration|duration }}{% if s.running %} {% trans "so far" %}{% endif %}{% else %}-{% endif %}</td>

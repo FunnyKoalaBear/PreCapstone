@@ -3,7 +3,7 @@ from django.utils.translation import gettext as _
 from django.utils.translation import gettext_lazy
 from django.utils.translation import ngettext
 
-from .status import DONE, STEP_AT_VENDOR, days_late, due_back
+from .status import DONE, STEP_AT_VENDOR, days_late, step_due_back
 
 DAYS_PER_STEP = 1  # days assumed for a step without vendor lead days
 WATCH_SLACK = 2  # slack (days) at or below this is WATCH
@@ -21,7 +21,7 @@ def priority(order, status, today=None):
     for r in left:
         lead = r.step.lead_days
         if r.state == STEP_AT_VENDOR:
-            back = due_back(r.started_at, lead)
+            back = step_due_back(r.step, r.started_at)
             late = days_late(back, today)
             needed += max((back - today).days, 0) if back else DAYS_PER_STEP
             if late:

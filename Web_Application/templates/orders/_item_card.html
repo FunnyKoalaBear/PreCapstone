@@ -19,7 +19,7 @@
   {% if f.locked %}
     <div class="route">
       <label>{% trans "Route" %}</label>
-      <ol class="route-readonly">{% for step in f.route_steps %}<li>{{ step.process }}{% if step.vendor_label %} ({{ step.vendor_label }}){% endif %}</li>{% endfor %}</ol>
+      <ol class="route-readonly">{% for step in f.route_steps %}<li>{{ step.process }}{% if step.vendor_label %} ({{ step.vendor_label }}){% endif %}{% if step.due_date %} - {% trans "due" %} {{ step.due_date|date:"Y-m-d" }}{% endif %}{% if step.slip_number %} - {% trans "slip" %} {{ step.slip_number }}{% endif %}</li>{% endfor %}</ol>
       <p class="note">{% trans "Route is locked because this item has been scanned." %}</p>
     </div>
   {% else %}
@@ -27,7 +27,7 @@
     <label>{% trans "Route" %}</label>
     {{ f.route.errors }}
     <div class="route-steps">
-      {% for sel, sel_vendor in f.route_rows %}
+      {% for sel, sel_vendor, sel_due, sel_slip in f.route_rows %}
         <div class="route-step">
           <select name="{{ f.prefix }}-route">
             <option value="">{% trans "Choose a process" %}</option>
@@ -41,6 +41,8 @@
               <option value="{{ pk }}"{% if sel_vendor == pk|stringformat:"s" %} selected{% endif %}>{{ label }}</option>
             {% endfor %}
           </select>
+          <input type="date" name="{{ f.prefix }}-route_due" value="{{ sel_due }}" title="{% trans 'Planned due date' %}" aria-label="{% trans 'Planned due date' %}">
+          <input type="text" name="{{ f.prefix }}-route_slip" value="{{ sel_slip }}" maxlength="50" placeholder="{% trans 'Slip number' %}" aria-label="{% trans 'Slip number' %}">
           <button type="button" class="remove-step">{% trans "Remove" %}</button>
         </div>
       {% endfor %}

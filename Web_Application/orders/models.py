@@ -177,6 +177,8 @@ class RouteStep(models.Model):
     sequence = models.PositiveIntegerField(_('sequence'))
     process = models.ForeignKey(Process, on_delete=models.PROTECT, verbose_name=_('process'))
     vendor = models.ForeignKey(Vendor, on_delete=models.PROTECT, null=True, blank=True, related_name='steps', verbose_name=_('vendor'))
+    due_date = models.DateField(_('planned due date'), null=True, blank=True)
+    slip_number = models.CharField(_('slip number'), max_length=50, blank=True)
 
     class Meta:
         verbose_name = _('route step')

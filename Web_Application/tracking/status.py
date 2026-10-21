@@ -237,6 +237,11 @@ def due_back(out_since, lead_days):
     return timezone.localtime(out_since).date() + timedelta(days=lead_days)
 
 
+def step_due_back(step, out_since):
+    """Planned due date of the step when set, else out-since plus lead days (vendor, then process)."""
+    return step.due_date or due_back(out_since, step.lead_days)
+
+
 def days_late(due_date, today=None):
     """Whole days past the due-back date; 0 when on time or no date."""
     if due_date is None:

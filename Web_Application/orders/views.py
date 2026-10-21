@@ -9,8 +9,8 @@ from django.utils.translation import gettext_lazy
 
 from core.permissions import OPERATOR, PLANNER, role_required
 from tracking.status import (
-    COMPLETE, IN_PROGRESS, LABELS, NOT_STARTED, STEP_LABELS, days_late, due_back, events_with_voids, gantt, item_status,
-    order_summary, timeline,
+    COMPLETE, IN_PROGRESS, LABELS, NOT_STARTED, STEP_LABELS, days_late, events_with_voids, gantt, item_status,
+    order_summary, step_due_back, timeline,
 )
 
 from .forms import CustomerForm, OrderForm, OrderItemFormSet
@@ -85,7 +85,9 @@ def _order_values(order):
 def _item_values(item):
     values = {f: str(getattr(item, f)) for f in ITEM_FIELDS}
     values['drawing_file'] = item.drawing_file.name or ''
-    values['route'] = ' > '.join(s.process.name + (f' [{s.vendor.code}]' if s.vendor else '') for s in item.steps.select_related('process', 'vendor'))
+    values['route'] = ' > '.join(
+        s.process.name + (f' [{s.vendor.code}]' if s.vendor else '') + (f' due {s.due_date:%Y-%m-%d}' if s.due_date else '')
+        + (f' slip {s.slip_number}' if s.slip_number else '') for s in item.steps.select_related('process', 'vendor'))
     return values
 
 
@@ -160,7 +162,7 @@ def order_list(request):
 def _step_entry(row, today, timing, current=None):
     entry = {'row': row, 'label': STEP_LABELS[row.state], 'due_back': None, 'late_days': 0, 'current': row.step == current, **timing}
     if row.state == 'at_vendor':
-        entry['due_back'] = due_back(row.started_at, row.step.lead_days)
+        entry['due_back'] = step_due_back(row.step, row.started_at)
         entry['late_days'] = days_late(entry['due_back'], today)
     return entry
 

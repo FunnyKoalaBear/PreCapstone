@@ -1,6 +1,6 @@
 import importlib
 import tempfile
-from datetime import timedelta
+from datetime import date, datetime, timedelta
 
 from django.apps import apps
 
@@ -15,6 +15,7 @@ from django.utils import timezone, translation
 from core.testing import TestCase, make_user
 from tracking.models import Box, ScannerDevice, Tag, TagAssignment
 from tracking.services import record_event
+from tracking.status import step_due_back
 
 from .forms import OrderItemForm
 from .models import Customer, Order, OrderChange, OrderItem, Process, RouteStep, Vendor
@@ -513,6 +514,47 @@ class OrderFormVendorTests(TestCase):
         self.post([self.plate.pk], [self.vendor.pk])
         item = OrderItem.objects.get()
         self.assertContains(self.client.get(f'/orders/{item.order.job_number}/'), '00100 Acme')
+
+
+class StepDueDateTests(TestCase):
+    def setUp(self):
+        self.client.force_login(make_user('pl', 'Planner'))
+        self.mat = Process.objects.create(name='Mat', kind=K.MATERIAL)
+        self.plate = Process.objects.create(name='Plate', kind=K.OUTSOURCED)
+
+    def post(self, route, dues, slips):
+        data = {
+            'customer': Customer.objects.create(name=f'C{Customer.objects.count()}').pk, 'due_date': timezone.localdate() + timedelta(days=30),
+            'items-TOTAL_FORMS': 1, 'items-INITIAL_FORMS': 0, 'items-MIN_NUM_FORMS': 1, 'items-MAX_NUM_FORMS': 1000,
+            'items-0-part_name': 'Shaft', 'items-0-quantity': 1, 'items-0-route': route,
+            'items-0-route_due': dues, 'items-0-route_slip': slips,
+        }
+        return self.client.post('/orders/new/', data)
+
+    def test_due_date_and_slip_saved_per_step_with_blank_rows_skipped(self):
+        r = self.post([self.mat.pk, '', self.plate.pk], ['', '2031-02-03', '2031-02-04'], ['', 'x', ' S-1 '])
+        self.assertEqual(r.status_code, 302)
+        steps = list(RouteStep.objects.values_list('process_id', 'due_date', 'slip_number'))
+        self.assertEqual(steps, [(self.mat.pk, None, ''), (self.plate.pk, date(2031, 2, 4), 'S-1')])
+
+    def test_invalid_date_is_rejected(self):
+        self.assertEqual(self.post([self.plate.pk], ['not-a-date'], [''] ).status_code, 200)
+        self.assertFalse(Order.objects.exists())
+
+    def test_form_has_inputs_and_detail_shows_values(self):
+        self.assertContains(self.client.get('/orders/new/'), 'name="items-0-route_due"')
+        self.post([self.plate.pk], ['2031-02-04'], ['S-1'])
+        page = self.client.get(f'/orders/{Order.objects.get().job_number}/')
+        self.assertContains(page, '2031-02-04')
+        self.assertContains(page, 'slip S-1')
+
+    def test_step_due_back_prefers_step_date_then_lead_days(self):
+        step = RouteStep(process=Process(vendor_lead_days=5))
+        out = timezone.make_aware(datetime(2030, 1, 2, 12))
+        self.assertEqual(step_due_back(step, out), date(2030, 1, 7))
+        step.due_date = date(2030, 1, 3)
+        self.assertEqual(step_due_back(step, out), date(2030, 1, 3))
+        self.assertIsNone(step_due_back(RouteStep(process=Process()), out))
 
 
 class CodeListTests(TestCase):

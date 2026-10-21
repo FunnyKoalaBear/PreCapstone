@@ -4,6 +4,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 from django.db.models import Q
 from django.forms import BaseInlineFormSet, inlineformset_factory
+from django.utils.dateparse import parse_date
 from django.utils.text import capfirst
 from django.utils.translation import gettext_lazy as _
 
@@ -95,7 +96,7 @@ class OrderItemForm(forms.ModelForm):
         self.fields['route'].choices = [(p.pk, f'{p} ({p.get_kind_display()})') for p in processes]
         self.process_options = [(p.pk, f'{p} ({p.get_kind_display()})', p.default_vendor_id or '') for p in processes]
         self.vendor_options = [(v.pk, str(v)) for v in Vendor.objects.all()]
-        self.route_vendors = []
+        self.route_extra = []
         self.locked = self.undeletable = False
         if item.pk:
             # Route is locked once the item has been scanned; posted route changes are ignored
@@ -109,24 +110,32 @@ class OrderItemForm(forms.ModelForm):
                 self.fields['route'].disabled = True
 
     def _submitted_rows(self):
-        """(process id, vendor id) text pairs as posted, dropping steps without a process."""
-        routes, vendors = self.data.getlist(self.add_prefix('route')), self.data.getlist(self.add_prefix('route_vendor'))
-        return [(r, v) for r, v in zip_longest(routes, vendors, fillvalue='') if r]
+        """(process, vendor, due date, slip) text tuples as posted, dropping steps without a process."""
+        lists = [self.data.getlist(self.add_prefix(n)) for n in ('route', 'route_vendor', 'route_due', 'route_slip')]
+        return [(r, v, d.strip(), s.strip()) for r, v, d, s in zip_longest(*lists, fillvalue='') if r]
 
     def has_changed(self):
-        # The per-step vendors are not form fields, so compare them with the saved route
+        # The per-step extras are not form fields, so compare them with the saved route
         if super().has_changed():
             return True
-        saved = [(str(p), str(v or '')) for p, v in self.instance.steps.values_list('process_id', 'vendor_id')] if self.instance.pk else []
-        return not self.locked and self.instance.pk is not None and saved != self._submitted_rows()
+        return not self.locked and self.instance.pk is not None and self._saved_rows() != self._submitted_rows()
+
+    def _saved_rows(self):
+        return [(str(s.process_id), str(s.vendor_id or ''), s.due_date.isoformat() if s.due_date else '', s.slip_number)
+                for s in self.instance.steps.all()]
 
     def clean(self):
         data = super().clean()
         if not self.locked:
             rows, valid = self._submitted_rows(), {str(pk) for pk, _label in self.vendor_options}
-            if any(v and v not in valid for _r, v in rows):
+            if any(v and v not in valid for _r, v, _d, _s in rows):
                 self.add_error(None, ValidationError(_('Choose a valid vendor.')))
-            self.route_vendors = [int(v) if v in valid else None for _r, v in rows]
+            dates = [parse_date(d) if d else None for _r, _v, d, _s in rows]
+            if any(d and not parse_date(d) for _r, _v, d, _s in rows):
+                self.add_error(None, ValidationError(_('Enter a valid due date.')))
+            if any(len(s) > 50 for _r, _v, _d, s in rows):
+                self.add_error(None, ValidationError(_('The slip number can have at most 50 characters.')))
+            self.route_extra = [(int(v) if v in valid else None, d, s) for (_r, v, _d, s), d in zip(rows, dates)]
         return data
 
     def clean_box_count(self):
@@ -139,14 +148,14 @@ class OrderItemForm(forms.ModelForm):
 
     @property
     def route_rows(self):
-        """Submitted or saved (process id, vendor id) text pairs, or one empty slot, for the template."""
+        """Submitted or saved (process, vendor, due date, slip) text tuples, or one empty slot, for the template."""
         if self.is_bound and not self.locked:
             rows = self._submitted_rows()
         elif self.instance.pk:
-            rows = [(str(s.process_id), str(s.vendor_id or '')) for s in self.instance.steps.all()]
+            rows = self._saved_rows()
         else:
             rows = []
-        return rows or [('', '')]
+        return rows or [('', '', '', '')]
 
     @property
     def route_steps(self):
@@ -156,11 +165,12 @@ class OrderItemForm(forms.ModelForm):
         item = super().save(commit)
         if commit and not self.locked:
             route = self.cleaned_data['route']
-            new = list(zip(route, self.route_vendors))
-            if list(item.steps.values_list('process_id', 'vendor_id')) != new:
+            new = [(p, *extra) for p, extra in zip(route, self.route_extra)]
+            if list(item.steps.values_list('process_id', 'vendor_id', 'due_date', 'slip_number')) != new:
                 item.steps.all().delete()
                 RouteStep.objects.bulk_create(
-                    RouteStep(item=item, sequence=i, process_id=p, vendor_id=v) for i, (p, v) in enumerate(new, 1))
+                    RouteStep(item=item, sequence=i, process_id=p, vendor_id=v, due_date=d, slip_number=s)
+                    for i, (p, v, d, s) in enumerate(new, 1))
         return item
 
 

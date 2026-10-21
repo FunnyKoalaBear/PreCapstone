@@ -33,12 +33,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (add) {
       const steps = add.closest('.route').querySelector('.route-steps');
       const row = steps.lastElementChild.cloneNode(true);
-      row.querySelectorAll('select').forEach((s) => { s.value = ''; });
+      row.querySelectorAll('select, input').forEach((s) => { s.value = ''; });
       steps.append(row);
     } else if (remove) {
       const row = remove.closest('.route-step');
       if (row.parentElement.children.length > 1) row.remove();
-      else row.querySelectorAll('select').forEach((s) => { s.value = ''; });
+      else row.querySelectorAll('select, input').forEach((s) => { s.value = ''; });
     }
   });
 

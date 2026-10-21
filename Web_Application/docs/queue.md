@@ -19,7 +19,7 @@ Order matters. [ ] todo, [x] done, [!] blocked. IDs match the feature tracker. E
   `RouteStep.vendor` nullable FK (who does or supplies the step). `Process.default_vendor` nullable FK, prefilled when the process is picked. Keep `Process.vendor_name` and `vendor_lead_days` as fallback; a data migration turns existing vendor names into Vendor rows.
   Order form: after choosing the process, a dropdown showing "code name". Show code and name together everywhere (detail page, timeline). Searchable `/codes/` list page (Planner and up). Register in admin.
 
-- [ ] **F79 Planned due date per route step**
+- [x] **F79 Planned due date per route step**
   `RouteStep.due_date` (nullable) and `slip_number` (text, blank). Fields in the order form per step; shown on the order detail page.
   Vendor due-back uses the step due date when set, else started + lead days (vendor, then process). Tests for both paths.
 

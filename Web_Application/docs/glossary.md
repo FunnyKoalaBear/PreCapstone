@@ -127,3 +127,10 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | Waited before | 直前の待ち時間 |
 | Timeline | タイムライン |
 | Now | 現在 |
+
+## Terms added for step due dates
+
+| English | Japanese |
+|---|---|
+| Planned due date | 計画納期 |
+| Slip number | 伝票番号 |

@@ -2,7 +2,7 @@ from django.utils import timezone
 
 from orders.models import OrderItem, Process
 
-from .status import AT_VENDOR, COMPLETE, IN_PROGRESS, WAITING, current_row, days_late, due_back, idle_for, is_stagnant, item_status
+from .status import AT_VENDOR, COMPLETE, IN_PROGRESS, WAITING, current_row, days_late, idle_for, is_stagnant, item_status, step_due_back
 
 QUEUE_WAITING = 3  # waiting boxes at which a process card shows "queue building"
 
@@ -29,7 +29,7 @@ def active_boxes(now=None, today=None):
             }
             e['days_out'] = (now - e['started_at']).days if e['started_at'] else None
             if box.code == AT_VENDOR:
-                e['due_back'] = due_back(e['started_at'], row.step.lead_days)
+                e['due_back'] = step_due_back(row.step, e['started_at'])
                 e['late_days'] = days_late(e['due_back'], today)
             out.append(e)
     out.sort(key=lambda e: (e['due_date'], e['order'].job_number, e['item'].item_no, e['box_label'] or ''))

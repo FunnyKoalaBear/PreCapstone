@@ -202,6 +202,13 @@ class HomeDashboardTests(TestCase):
         self.assertEqual((e['late_days'], r.context['counters']['vendor_overdue']), (0, 0))
         self.assertEqual(e['due_back'], timezone.localdate() + timedelta(days=7))
 
+    def test_step_due_date_beats_lead_days(self):
+        item = self.send_out(3, 7)
+        due = timezone.localdate() - timedelta(days=2)
+        item.steps.update(due_date=due)
+        e = self.home().context['outsourced'][-1]['running'][0]
+        self.assertEqual((e['due_back'], e['late_days']), (due, 2))
+
     def test_no_lead_days_is_never_late(self):
         self.send_out(60, None)
         r = self.home()
