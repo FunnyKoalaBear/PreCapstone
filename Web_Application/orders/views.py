@@ -1,5 +1,4 @@
 from django.contrib import messages
-from django.contrib.admin.views.decorators import staff_member_required
 from django.db import transaction
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
@@ -7,6 +6,7 @@ from django.utils import timezone
 from django.utils.translation import gettext as _
 from django.utils.translation import gettext_lazy
 
+from core.permissions import OPERATOR, PLANNER, role_required
 from tracking.status import (
     COMPLETE, IN_PROGRESS, LABELS, NOT_STARTED, STEP_LABELS, days_late, due_back, events_with_voids, gantt, item_status,
     order_summary, timeline,
@@ -24,7 +24,7 @@ SORT_LABELS = [('due', gettext_lazy('Due date')), ('newest', gettext_lazy('Newes
 STATUS_CODES = [NOT_STARTED, IN_PROGRESS, COMPLETE]
 
 
-@staff_member_required
+@role_required(PLANNER)
 def customer_list(request):
     form = CustomerForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
@@ -38,7 +38,7 @@ def customer_list(request):
     return render(request, 'orders/customer_list.html', {'form': form, 'customers': customers, 'q': q})
 
 
-@staff_member_required
+@role_required(PLANNER)
 def customer_detail(request, pk):
     customer = get_object_or_404(Customer, pk=pk)
     today, rows = timezone.localdate(), []
@@ -48,7 +48,7 @@ def customer_detail(request, pk):
     return render(request, 'orders/customer_detail.html', {'customer': customer, 'rows': rows})
 
 
-@staff_member_required
+@role_required(PLANNER)
 def customer_edit(request, pk):
     customer = get_object_or_404(Customer, pk=pk)
     form = CustomerForm(request.POST or None, instance=customer)
@@ -59,7 +59,7 @@ def customer_edit(request, pk):
     return render(request, 'orders/customer_edit.html', {'form': form, 'customer': customer})
 
 
-@staff_member_required
+@role_required(PLANNER)
 def order_create(request):
     data, files = request.POST or None, request.FILES or None
     form, formset = OrderForm(data), OrderItemFormSet(data, files)
@@ -112,7 +112,7 @@ def _log_changes(order, user, old_order, old_items):
     OrderChange.objects.bulk_create(rows)
 
 
-@staff_member_required
+@role_required(PLANNER)
 def order_edit(request, job_number):
     order = get_object_or_404(Order, job_number=job_number)
     # Snapshot before the forms touch the instances
@@ -130,7 +130,7 @@ def order_edit(request, job_number):
     return render(request, 'orders/order_form.html', {'form': form, 'formset': formset, 'order': order})
 
 
-@staff_member_required
+@role_required(OPERATOR)
 def order_list(request):
     q, status = request.GET.get('q', '').strip(), request.GET.get('status', '')
     sort, late = request.GET.get('sort', 'due'), request.GET.get('late') == '1'
@@ -177,7 +177,7 @@ def _box_entry(b, today):
     }
 
 
-@staff_member_required
+@role_required(OPERATOR)
 def order_detail(request, job_number):
     order = get_object_or_404(Order.objects.select_related('customer'), job_number=job_number)
     code, label = order_summary(order)

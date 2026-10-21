@@ -3,7 +3,7 @@ Order matters. [ ] todo, [x] done, [!] blocked. IDs match the feature tracker. E
 
 ## Queue
 
-- [ ] **F46 Roles and login**
+- [x] **F46 Roles and login**
   Groups Operator, Planner, Admin (created by a data migration; Admin group or superuser = Admin). `core/permissions.py` with `role_required(*roles)`; superusers always pass.
   Replace every `staff_member_required`. Anonymous -> `/login/` (own login/logout pages, JA/EN) with `next`. Logged in without the role -> translated 403 page. `is_staff` stays only for /admin.
   Operator: home, order list/detail, later the progress matrix. Planner: + new/edit order, Tags, event correction. Admin: + Simulate scan, /admin.

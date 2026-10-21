@@ -3,6 +3,8 @@ from django.db import transaction
 from django.utils import timezone
 from django.utils.translation import gettext as _
 
+from core.permissions import PLANNER, has_role
+
 from .models import Box, Event, Tag, TagAssignment
 from .status import item_status, next_action
 
@@ -93,8 +95,8 @@ def replace_tag(assignment, new_uid, mark_lost=True):
 
 
 def can_correct(user):
-    """Only users holding the correct_event permission (superusers included) may correct events."""
-    return user.is_active and user.has_perm('tracking.correct_event')
+    """Only Planners and Admins (superusers included) may correct events."""
+    return has_role(user, PLANNER)
 
 
 def correct_event(event, user, reason, replacement=None):

@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Access denied" %} - {% trans "Factory Tracker" %}{% endblock %}
+
+{% block content %}
+  <h1>{% trans "Access denied" %}</h1>
+  <p>{% trans "Your account does not have the role needed for this page." %}</p>
+  <p><a href="{% url 'home' %}">&larr; {% trans "Home" %}</a></p>
+{% endblock %}

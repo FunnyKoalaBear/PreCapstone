@@ -215,3 +215,7 @@ h1 .button-secondary, h2 .button-secondary {
 .event-reason { font-size: 0.85rem; color: var(--color-muted); }
 .badge-manual { color: var(--status-waiting); }
 .badge-voided { color: var(--status-late); }
+
+.account { display: flex; gap: 0.5rem; align-items: center; }
+.account button { background: none; border: 0; padding: 0; color: var(--color-primary); cursor: pointer; font: inherit; }
+.account button:hover { text-decoration: underline; }

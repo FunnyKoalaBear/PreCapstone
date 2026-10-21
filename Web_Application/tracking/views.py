@@ -2,7 +2,6 @@ from datetime import date, datetime, time, timedelta
 from urllib.parse import urlencode
 
 from django.contrib import messages
-from django.contrib.admin.views.decorators import staff_member_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db.models import Q
 from django.http import Http404
@@ -13,6 +12,7 @@ from django.utils import timezone
 from django.utils.translation import gettext as _
 from django.utils.translation import gettext_lazy
 
+from core.permissions import ADMIN, OPERATOR, PLANNER, role_required
 from orders.models import OrderItem
 
 from .forms import AssignTagForm, CorrectEventForm, PickTagForm, SimulateScanForm
@@ -36,7 +36,7 @@ def _next_step(uid):
     return {'state': 'next', 'value': f'{process.pk}:{etype}', 'label': f'{Event.Type(etype).label} - {process}', **info}
 
 
-@staff_member_required
+@role_required(PLANNER)
 def correct_event(request, pk):
     if not can_correct(request.user):
         raise PermissionDenied
@@ -56,7 +56,7 @@ def correct_event(request, pk):
     return render(request, 'tracking/correct_event.html', {'form': form, 'event': event, 'back': back})
 
 
-@staff_member_required
+@role_required(ADMIN)
 def simulate(request):
     form = SimulateScanForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
@@ -90,7 +90,7 @@ def _tags_url(request):
     return reverse('tag_manage') + (f'?{urlencode({"q": q})}' if q else '')
 
 
-@staff_member_required
+@role_required(PLANNER)
 def tag_manage(request):
     form = AssignTagForm(request.POST if request.POST.get('action') == 'assign' else None)
     if request.method == 'POST':
@@ -166,7 +166,7 @@ def _history_range(request, now):
     return key, now - timedelta(days=days[key]), now, '', ''
 
 
-@staff_member_required
+@role_required(PLANNER)
 def tag_history(request):
     now = timezone.now()
     key, start, end, d_from, d_to = _history_range(request, now)
@@ -191,7 +191,7 @@ PRIORITY_SORTS = {
 PRIORITY_SORT_CHOICES = [('risk', gettext_lazy('Risk')), ('process', gettext_lazy('Current process')), ('waiting', gettext_lazy('Idle for'))]
 
 
-@staff_member_required
+@role_required(OPERATOR)
 def priorities(request):
     idle = {(e['item'].pk, e['box_label']): e['idle'] for e in active_boxes()}
     rows = []
@@ -239,7 +239,7 @@ BOX_SORT_CHOICES = [
 ]
 
 
-@staff_member_required
+@role_required(OPERATOR)
 def boxes(request):
     status, stagnant, vendor_late = request.GET.get('status'), request.GET.get('stagnant') == '1', request.GET.get('vendor_late') == '1'
     sort = request.GET.get('sort') if request.GET.get('sort') in BOX_SORTS else 'due'

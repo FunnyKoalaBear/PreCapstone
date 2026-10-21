@@ -6,9 +6,6 @@
 {% block content %}
   <h1>{% trans "Home" %}</h1>
 
-  {% if not request.user.is_staff %}
-    <p>{% trans "Dashboard coming soon." %}</p>
-  {% else %}
     <div class="counters">
       <a class="card counter counter-in_progress" href="{% url 'boxes' %}?status=in_progress"><strong>{{ counters.in_progress }}</strong> {% trans "In progress" %}</a>
       <a class="card counter counter-waiting" href="{% url 'boxes' %}?status=waiting"><strong>{{ counters.waiting }}</strong> {% trans "Waiting" %}</a>
@@ -31,5 +28,4 @@
       {% for card in outsourced %}{% include "tracking/_process_card.html" %}
       {% empty %}<p>{% trans "No outsourced processes." %}</p>{% endfor %}
     </div>
-  {% endif %}
 {% endblock %}

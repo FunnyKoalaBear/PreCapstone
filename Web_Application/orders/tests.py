@@ -9,7 +9,7 @@ from django.test import override_settings
 from django.utils.datastructures import MultiValueDict
 from django.utils import timezone
 
-from core.testing import TestCase
+from core.testing import TestCase, make_user
 from tracking.models import Box, ScannerDevice, Tag, TagAssignment
 from tracking.services import record_event
 
@@ -39,12 +39,12 @@ class OrderCreateTests(TestCase):
         return self.client.post('/orders/new/', data)
 
     def login_staff(self):
-        self.client.force_login(User.objects.create_user('s', password='x', is_staff=True))
+        self.client.force_login(make_user('s', 'Admin'))
 
     def test_staff_only(self):
         self.assertEqual(self.client.get('/orders/new/').status_code, 302)
-        self.client.force_login(User.objects.create_user('u', password='x'))
-        self.assertEqual(self.client.get('/orders/new/').status_code, 302)
+        self.client.force_login(make_user('u', 'Operator'))
+        self.assertEqual(self.client.get('/orders/new/').status_code, 403)
         self.login_staff()
         self.assertEqual(self.client.get('/orders/new/').status_code, 200)
 
@@ -93,7 +93,7 @@ class OrderCreateTests(TestCase):
 
 class OrderListTests(TestCase):
     def setUp(self):
-        self.client.force_login(User.objects.create_user('s', password='x', is_staff=True))
+        self.client.force_login(make_user('s', 'Admin'))
         self.today = timezone.localdate()
         self.acme, self.beta = Customer.objects.create(name='Acme'), Customer.objects.create(name='Beta')
         self.a = self.make(self.beta, 5, 'Shaft')   # due later, customer Beta
@@ -144,7 +144,7 @@ class OrderListTests(TestCase):
 
 class OrderDetailTests(TestCase):
     def setUp(self):
-        self.client.force_login(User.objects.create_user('s', password='x', is_staff=True))
+        self.client.force_login(make_user('s', 'Admin'))
         self.order = Order.objects.create(customer=Customer.objects.create(name='Acme'), due_date=timezone.localdate())
         self.item = OrderItem.objects.create(order=self.order, part_name='Shaft', quantity=3)
         self.proc = Process.objects.create(name='Mat', kind=K.MATERIAL)
@@ -190,7 +190,7 @@ class OrderDetailTests(TestCase):
 
 class BoxViewTests(TestCase):
     def setUp(self):
-        self.client.force_login(User.objects.create_user('s', password='x', is_staff=True))
+        self.client.force_login(make_user('s', 'Admin'))
         self.order = Order.objects.create(customer=Customer.objects.create(name='Acme'), due_date=timezone.localdate())
         self.proc = Process.objects.create(name='Mat', kind=K.MATERIAL)
 
@@ -228,7 +228,7 @@ class BoxViewTests(TestCase):
 @override_settings(MEDIA_ROOT=tempfile.mkdtemp())
 class OrderEditTests(TestCase):
     def setUp(self):
-        self.user = User.objects.create_user('s', password='x', is_staff=True)
+        self.user = make_user('s', 'Admin')
         self.client.force_login(self.user)
         self.mat = Process.objects.create(name='Mat', kind=K.MATERIAL)
         self.mill = Process.objects.create(name='Mill', kind=K.MACHINING)
@@ -367,9 +367,9 @@ class OrderEditTests(TestCase):
         url = f'/orders/{self.order.job_number}/edit/'
         self.client.logout()
         self.assertEqual(self.client.get(url).status_code, 302)
-        self.client.force_login(User.objects.create_user('u', password='x'))
-        self.assertEqual(self.client.get(url).status_code, 302)
-        self.assertEqual(self.client.post(url, {}).status_code, 302)
+        self.client.force_login(make_user('u', 'Operator'))
+        self.assertEqual(self.client.get(url).status_code, 403)
+        self.assertEqual(self.client.post(url, {}).status_code, 403)
 
     def test_change_history_is_append_only(self):
         self.post(notes='x')
@@ -396,7 +396,7 @@ class OrderEditTests(TestCase):
 
 class CustomerTests(TestCase):
     def setUp(self):
-        self.client.force_login(User.objects.create_user('s', password='x', is_staff=True))
+        self.client.force_login(make_user('s', 'Admin'))
         self.mat = Process.objects.create(name='Mat', kind=K.MATERIAL)
 
     def add(self, name, contact='', **extra):
@@ -481,7 +481,7 @@ class CustomerTests(TestCase):
 
 class InactiveProcessTests(TestCase):
     def setUp(self):
-        self.client.force_login(User.objects.create_user('s', password='x', is_staff=True))
+        self.client.force_login(make_user('s', 'Admin'))
         self.live = Process.objects.create(name='Live', kind=K.MACHINING)
         self.old = Process.objects.create(name='RetiredOne', kind=K.MACHINING, active=False)
         order = Order.objects.create(customer=Customer.objects.create(name='C'), due_date=timezone.localdate() + timedelta(days=9))
@@ -527,7 +527,7 @@ class InactiveProcessTests(TestCase):
 
 class CustomerDetailEditTests(TestCase):
     def setUp(self):
-        self.client.force_login(User.objects.create_user('s', password='x', is_staff=True))
+        self.client.force_login(make_user('s', 'Admin'))
         self.acme = Customer.objects.create(name='Acme', contact='Mr. A')
         self.beta = Customer.objects.create(name='Beta Works')
         mat = Process.objects.create(name='Mat', kind=K.MATERIAL)

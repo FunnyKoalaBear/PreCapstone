@@ -73,7 +73,7 @@
               <th>{% trans "Action" %}</th>
               <th>{% trans "Process" %}</th>
               <th>{% trans "Device" %}</th>
-              {% if perms.tracking.correct_event %}<th></th>{% endif %}
+              {% if can.planner %}<th></th>{% endif %}
             </tr>
           </thead>
           <tbody>
@@ -87,7 +87,7 @@
                 </td>
                 <td>{{ e.process|default_if_none:"-" }}</td>
                 <td>{{ e.device }}</td>
-                {% if perms.tracking.correct_event %}
+                {% if can.planner %}
                   <td>{% if not e.voided_by %}<a class="button" href="{% url 'correct_event' e.pk %}?next={{ request.get_full_path|urlencode }}">{% trans "Correct" %}</a>{% endif %}</td>
                 {% endif %}
               </tr>

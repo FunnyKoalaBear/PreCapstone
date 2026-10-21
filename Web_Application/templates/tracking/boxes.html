@@ -40,7 +40,7 @@
           {% for e in rows %}
             <tr>
               <td><a href="{% url 'order_detail' e.order.job_number %}">{{ e.item.item_code }}</a></td>
-              <td>{% if e.box_label %}{{ e.box_label }}{% else %}{% trans "Not linked yet" %} <a href="{% url 'tag_manage' %}">{% trans "Link a tag" %}</a>{% endif %}</td>
+              <td>{% if e.box_label %}{{ e.box_label }}{% else %}{% trans "Not linked yet" %}{% if can.planner %} <a href="{% url 'tag_manage' %}">{% trans "Link a tag" %}</a>{% endif %}{% endif %}</td>
               <td>{{ e.item.part_name }}</td>
               <td>{{ e.order.customer }}</td>
               <td>{{ e.process|default:"-" }}</td>

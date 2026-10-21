@@ -18,6 +18,10 @@ Edit `.env`, create an empty PostgreSQL database, then:
 .venv\Scripts\python manage.py runserver
 ```
 
+## Roles
+
+Migrations create the groups Operator, Planner and Admin. In /admin, add each user to one group (superusers count as Admin). Tick "Staff status" only for people who need /admin.
+
 ## Raspberry Pi setup
 
 Needs 64-bit Raspberry Pi OS with **Python 3.12 or newer** (Django 6.1 requirement). Check with `python3 --version`. Python 3.11 will not work. How to get 3.12+ on your OS image: unknown.

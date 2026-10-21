@@ -12,7 +12,7 @@ from django.utils import translation
 from django.utils import timezone
 
 from core.templatetags.duration import duration
-from core.testing import TestCase
+from core.testing import TestCase, make_user
 from orders.models import Customer, Order, OrderItem, Process, RouteStep
 from tracking.models import Box, Event, ScannerDevice, Tag, TagAssignment
 from tracking.priority import priority
@@ -20,6 +20,69 @@ from tracking.services import record_event
 from tracking.status import days_late, due_back, is_stagnant, item_status
 
 K = Process.Kind
+
+
+class RoleTests(TestCase):
+    """Page group -> lowest role allowed (Operator < Planner < Admin; superusers always pass)."""
+    GROUPS = {
+        'Operator': ['/', '/orders/', '/priorities/', '/boxes/'],
+        'Planner': ['/orders/new/', '/customers/', '/tags/', '/tags/history/'],
+        'Admin': ['/simulate/'],
+    }
+
+    def status(self, user, url):
+        self.client.logout()
+        if user:
+            self.client.force_login(user)
+        return self.client.get(url).status_code
+
+    def test_anonymous_goes_to_login_with_next(self):
+        for urls in self.GROUPS.values():
+            for url in urls:
+                r = self.client.get(url)
+                self.assertRedirects(r, f'/login/?next={url}', fetch_redirect_response=False)
+
+    def test_each_role_sees_its_pages_and_a_translated_403_above(self):
+        order = ['Operator', 'Planner', 'Admin']
+        for i, role in enumerate(order):
+            user = make_user(role.lower(), role)
+            for need, urls in self.GROUPS.items():
+                for url in urls:
+                    expected = 200 if order.index(need) <= i else 403
+                    self.assertEqual(self.status(user, url), expected, (role, url))
+
+    def test_user_without_role_gets_403_page(self):
+        self.client.force_login(make_user('nobody'))
+        r = self.client.get('/')
+        self.assertContains(r, 'Access denied', status_code=403)
+
+    def test_superuser_passes_everywhere(self):
+        root = User.objects.create_superuser('root', password='x')
+        for urls in self.GROUPS.values():
+            for url in urls:
+                self.assertEqual(self.status(root, url), 200, url)
+
+    def test_nav_shows_only_usable_links(self):
+        self.client.force_login(make_user('op', 'Operator'))
+        html = self.client.get('/').content.decode()
+        self.assertIn('href="/orders/"', html)
+        for hidden in ('/orders/new/', '/customers/', '/tags/', '/simulate/'):
+            self.assertNotIn(f'href="{hidden}"', html)
+        self.client.force_login(make_user('pl', 'Planner'))
+        html = self.client.get('/').content.decode()
+        self.assertIn('href="/tags/"', html)
+        self.assertNotIn('href="/simulate/"', html)
+
+    def test_login_and_logout(self):
+        make_user('op', 'Operator')
+        r = self.client.post('/login/?next=/orders/', {'username': 'op', 'password': 'x', 'next': '/orders/'})
+        self.assertRedirects(r, '/orders/')
+        self.assertRedirects(self.client.post('/logout/'), '/login/')
+        self.assertContains(self.client.get('/login/'), 'Log in')
+
+    def test_login_page_is_translated(self):
+        self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = 'ja'
+        self.assertContains(self.client.get('/login/'), 'ログイン')
 
 
 class HomeDashboardTests(TestCase):
@@ -54,16 +117,14 @@ class HomeDashboardTests(TestCase):
         return item
 
     def home(self):
-        self.client.force_login(User.objects.create_user('s', password='x', is_staff=True))
+        self.client.force_login(make_user('s', 'Admin'))
         return self.client.get('/')
 
     def card(self, r, group, name):
         return next(c for c in r.context[group] if c['process'].name == name)
 
-    def test_staff_only_content(self):
-        r = self.client.get('/')
-        self.assertContains(r, 'Dashboard coming soon.')
-        self.assertNotContains(r, 'Process board')
+    def test_home_needs_login(self):
+        self.assertRedirects(self.client.get('/'), '/login/?next=/')
         self.assertContains(self.home(), 'Process board')
 
     def test_home_shows_board_cards_and_not_the_old_tables(self):
@@ -280,15 +341,15 @@ class LanguageTests(RawTestCase):
     """Japanese by default, English one click away, choice remembered by cookie."""
 
     def staff_data(self):
-        self.client.force_login(User.objects.create_user('s', password='x', is_staff=True))
+        self.client.force_login(make_user('s', 'Admin'))
         order = Order.objects.create(customer=Customer.objects.create(name='C'), due_date=timezone.localdate())
         item = OrderItem.objects.create(order=order, part_name='P', quantity=1)
         RouteStep.objects.create(item=item, sequence=1, process=Process.objects.create(name='Cut', kind=K.MACHINING))
         return order
 
     def test_first_visit_is_japanese_even_with_english_browser(self):
-        r = self.client.get('/', HTTP_ACCEPT_LANGUAGE='en-US,en;q=0.9')
-        self.assertContains(r, 'ダッシュボードは準備中です。')
+        r = self.client.get('/login/', HTTP_ACCEPT_LANGUAGE='en-US,en;q=0.9')
+        self.assertContains(r, 'ログイン')
         self.assertContains(r, '<html lang="ja">')
         self.assertContains(r, 'class="lang-switch"')
         self.assertContains(r, 'value="ja" class="active" aria-current="true"')
@@ -298,11 +359,11 @@ class LanguageTests(RawTestCase):
         self.assertRedirects(r, '/', fetch_redirect_response=False)
         cookie = self.client.cookies[settings.LANGUAGE_COOKIE_NAME]
         self.assertEqual((cookie.value, cookie['max-age']), ('en', 60 * 60 * 24 * 365))
-        r = self.client.get('/', HTTP_ACCEPT_LANGUAGE='ja')
-        self.assertContains(r, 'Dashboard coming soon.')
+        r = self.client.get('/login/', HTTP_ACCEPT_LANGUAGE='ja')
+        self.assertContains(r, 'Log in')
         self.assertContains(r, 'value="en" class="active" aria-current="true"')
         self.client.post('/i18n/setlang/', {'language': 'ja', 'next': '/'})
-        self.assertContains(self.client.get('/'), 'ダッシュボードは準備中です。')
+        self.assertContains(self.client.get('/login/'), 'ログイン')
 
     def test_main_pages_work_in_both_languages(self):
         order = self.staff_data()

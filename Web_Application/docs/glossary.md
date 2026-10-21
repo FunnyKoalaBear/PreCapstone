@@ -6,6 +6,8 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 |---|---|
 | Factory Tracker | 工程進捗管理 ? |
 | Home | ホーム |
+| Log in / Log out | ログイン / ログアウト |
+| Access denied | アクセスできません |
 | Dashboard | ダッシュボード |
 | Orders | 受注一覧 |
 | New order | 新規受注 |

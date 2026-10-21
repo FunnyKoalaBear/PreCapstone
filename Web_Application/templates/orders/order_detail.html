@@ -6,7 +6,7 @@
 {% block content %}
   <p><a href="{% url 'order_list' %}">&larr; {% trans "Back to Orders" %}</a></p>
   <h1>{{ order.job_number }} <span class="badge badge-{{ code|lower }}">{{ label }}</span>
-    <a class="button-secondary" href="{% url 'order_edit' order.job_number %}">{% trans "Edit" %}</a></h1>
+    {% if can.planner %}<a class="button-secondary" href="{% url 'order_edit' order.job_number %}">{% trans "Edit" %}</a>{% endif %}</h1>
 
   <dl class="info">
     <div><dt>{% trans "Customer" %}</dt><dd>{{ order.customer }}</dd></div>
@@ -58,7 +58,7 @@
               {% include "orders/_box_detail.html" with b=b single=False %}
             {% else %}
               <h3>{% trans "Box not linked yet" %}</h3>
-              <p><a href="{% url 'tag_manage' %}">{% trans "Link a tag" %}</a></p>
+              {% if can.planner %}<p><a href="{% url 'tag_manage' %}">{% trans "Link a tag" %}</a></p>{% endif %}
             {% endif %}
           </section>
         {% endfor %}

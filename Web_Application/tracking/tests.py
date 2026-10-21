@@ -2,14 +2,14 @@ import json
 from datetime import date, datetime, timedelta
 from datetime import timezone as dt_timezone
 
-from django.contrib.auth.models import Permission, User
+from django.contrib.auth.models import User
 from django.core.exceptions import PermissionDenied, ValidationError
 from types import SimpleNamespace
 
 from django.test import override_settings
 from django.utils import timezone
 
-from core.testing import TestCase
+from core.testing import TestCase, make_user
 from orders.models import Customer, Order, OrderItem, Process, RouteStep
 
 from .forms import AssignTagForm
@@ -121,7 +121,7 @@ class RecordEventTests(TestCase):
         self.assertTrue(Event.objects.filter(pk=event.pk).exists())
 
     def test_simulate_page_records_event(self):
-        user = User.objects.create_user('staff', password='x', is_staff=True)
+        user = make_user('staff', 'Admin')
         self.client.force_login(user)
         r = self.client.post('/simulate/', {'tag_uid': 'zz', 'device': self.device.pk, 'action': f'{self.proc.pk}:ARRIVED'})
         self.assertRedirects(r, '/simulate/')
@@ -134,7 +134,7 @@ class TagSearchAndHistoryTests(TestCase):
         order = Order.objects.create(customer=Customer.objects.create(name='C'), due_date=timezone.localdate())
         self.item = OrderItem.objects.create(order=order, part_name='Gear', quantity=1, box_count=9)
         self.now = timezone.now()
-        self.client.force_login(User.objects.create_user('s', password='x', is_staff=True))
+        self.client.force_login(make_user('s', 'Admin'))
 
     def link(self, uid, box, start_days, end_days=None):
         """An assignment that began start_days ago and ended end_days ago (open when None)."""
@@ -262,7 +262,7 @@ class TagManageTests(TestCase):
 
     def test_page_is_staff_only_and_assign_release_work(self):
         self.assertEqual(self.client.get('/tags/').status_code, 302)
-        self.client.force_login(User.objects.create_user('s', password='x', is_staff=True))
+        self.client.force_login(make_user('s', 'Admin'))
         self.assertEqual(self.client.get('/tags/').status_code, 200)
         r = self.client.post('/tags/', {'action': 'assign', 'item': self.item1.pk, 'box_label': 'B1', 'tag_uid': 'ab'})
         self.assertRedirects(r, '/tags/')
@@ -289,7 +289,7 @@ class TagManageTests(TestCase):
         self.item1.save()
         assign_tag(self.item1, 'B1', 'AB')
         assign_tag(self.item1, 'B2', 'CD')
-        self.client.force_login(User.objects.create_user('s', password='x', is_staff=True))
+        self.client.force_login(make_user('s', 'Admin'))
         r = self.client.get('/tags/', {'q': 'b'})
         self.assertContains(r, 'Box B1 (1 of 2)')
         self.assertContains(r, 'Box B2 (2 of 2)')
@@ -451,7 +451,7 @@ class PriorityTests(TestCase):
     def test_view_sorts_overdue_first_and_filters_tier(self):
         self.make(30)
         late = self.make(-5)
-        self.client.force_login(User.objects.create_user('s', password='x', is_staff=True))
+        self.client.force_login(make_user('s', 'Admin'))
         rows = self.client.get('/priorities/').context['rows']
         self.assertEqual((rows[0]['item'], rows[0]['tier']), (late, 'OVERDUE'))
         only = self.client.get('/priorities/?tier=OVERDUE').context['rows']
@@ -463,7 +463,7 @@ class PriorityTests(TestCase):
                              process=self.procs[K.MACHINING], occurred_at=timezone.now() - timedelta(hours=hours_ago))
 
     def sorted_rows(self, query=''):
-        self.client.force_login(User.objects.get_or_create(username='s', is_staff=True)[0])
+        self.client.force_login(make_user('s', 'Admin'))
         return self.client.get('/priorities/' + query).context['rows']
 
     def test_sort_options_and_fallback(self):
@@ -496,7 +496,7 @@ class PriorityTests(TestCase):
         late = self.make(-1)
         self.make(30)
         self.idle_scan(late, 10)
-        self.client.force_login(User.objects.create_user('s', password='x', is_staff=True))
+        self.client.force_login(make_user('s', 'Admin'))
         r = self.client.get('/priorities/?tier=OVERDUE&sort=waiting')
         self.assertEqual([x['item'] for x in r.context['rows']][0], late)
         self.assertEqual({x['tier'] for x in r.context['rows']}, {'OVERDUE'})
@@ -520,7 +520,7 @@ class PriorityTests(TestCase):
                                      start_at=timezone.now() - timedelta(days=5))
         for etype in (E.STARTED, E.FINISHED):  # box 1 finishes step 1
             Event.objects.create(device=self.device, tag_uid=a1.tag.uid, event_type=etype, process=mach)
-        self.client.force_login(User.objects.create_user('s', password='x', is_staff=True))
+        self.client.force_login(make_user('s', 'Admin'))
         rows = self.client.get('/priorities/').context['rows']
         self.assertEqual([(r['box_label'], r['tier'], r['multi']) for r in rows],
                          [('B2b', 'CRITICAL', True), (a1.box.label, 'WATCH', True)])  # unlinked third box left out
@@ -692,7 +692,7 @@ class OverviewBase(TestCase):
                              occurred_at=self.now - timedelta(hours=hours_ago))
 
     def staff(self):
-        self.client.force_login(User.objects.create_user('s', password='x', is_staff=True))
+        self.client.force_login(make_user('s', 'Admin'))
 
     def scenario(self):
         """7 unfinished boxes: one of each status plus 4 not started (2 are unlinked placeholders)."""
@@ -1152,8 +1152,7 @@ class CorrectEventTests(TestCase):
         TagAssignment.objects.create(tag=Tag.objects.create(uid='AB12'), box=Box.objects.create(label='B'), item=self.item, start_at=self.start)
         self.device = ScannerDevice.objects.create(name='D')
         self.event = Event.objects.create(device=self.device, tag_uid='AB12', event_type=E.ARRIVED, process=self.mat, occurred_at=self.start + timedelta(hours=1))
-        self.user = User.objects.create_user('planner', password='x', is_staff=True)
-        self.user.user_permissions.add(Permission.objects.get(codename='correct_event'))
+        self.user = make_user('planner', 'Planner')
 
     def code(self):
         return item_status(self.item).code
@@ -1191,7 +1190,7 @@ class CorrectEventTests(TestCase):
             correct_event(correction, self.user, 'y')
 
     def test_user_without_permission_refused(self):
-        other = User.objects.create_user('op', password='x', is_staff=True)
+        other = make_user('op', 'Operator')
         with self.assertRaises(PermissionDenied):
             correct_event(self.event, other, 'x')
         self.assertEqual(Event.objects.count(), 1)
@@ -1216,7 +1215,7 @@ class CorrectEventTests(TestCase):
         self.assertEqual(Event.objects.count(), 3)
 
     def test_correct_page_forbidden_without_permission(self):
-        self.client.force_login(User.objects.create_user('op', password='x', is_staff=True))
+        self.client.force_login(make_user('op', 'Operator'))
         self.assertEqual(self.client.get(f'/events/{self.event.pk}/correct/').status_code, 403)
 
     def test_detail_shows_voided_and_manual(self):

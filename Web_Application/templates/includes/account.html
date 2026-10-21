@@ -1,0 +1,10 @@
+{% load i18n %}
+{% if request.user.is_authenticated %}
+<form action="{% url 'logout' %}" method="post" class="account">
+  {% csrf_token %}
+  <span>{{ request.user.get_username }}</span>
+  <button type="submit">{% trans "Log out" %}</button>
+</form>
+{% else %}
+<a class="account" href="{% url 'login' %}">{% trans "Log in" %}</a>
+{% endif %}

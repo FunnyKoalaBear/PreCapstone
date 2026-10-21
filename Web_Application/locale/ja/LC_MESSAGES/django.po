@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Factory Tracker\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-20 16:38+0900\n"
+"POT-Creation-Date: 2026-10-21 13:45+0900\n"
 "PO-Revision-Date: 2026-10-11 17:00+0900\n"
 "Last-Translator: Claude\n"
 "Language-Team: Japanese\n"
@@ -118,7 +118,7 @@ msgstr "材料"
 msgid "Machining"
 msgstr "加工"
 
-#: .\orders\models.py:30 .\templates\core\home.html:29
+#: .\orders\models.py:30 .\templates\core\home.html:26
 msgid "Outsourced"
 msgstr "外注"
 
@@ -327,6 +327,34 @@ msgstr "受注 %(job)s を登録しました。"
 msgid "Order %(job)s updated."
 msgstr "受注 %(job)s を更新しました。"
 
+#: .\templates\403.html:4 .\templates\403.html:7
+msgid "Access denied"
+msgstr "アクセスできません"
+
+# CHECK: glossary marks 工程進捗管理 as unsure (product name)
+#: .\templates\403.html:4 .\templates\base.html:6 .\templates\base.html:13
+#: .\templates\base.html:34 .\templates\core\home.html:4
+#: .\templates\orders\customer_detail.html:4
+#: .\templates\orders\customer_edit.html:4
+#: .\templates\orders\customer_list.html:4
+#: .\templates\orders\order_detail.html:4 .\templates\orders\order_form.html:4
+#: .\templates\orders\order_list.html:4 .\templates\registration\login.html:4
+#: .\templates\tracking\boxes.html:4 .\templates\tracking\correct_event.html:4
+#: .\templates\tracking\priorities.html:4 .\templates\tracking\simulate.html:4
+#: .\templates\tracking\tag_history.html:4
+#: .\templates\tracking\tag_manage.html:4
+msgid "Factory Tracker"
+msgstr "工程進捗管理"
+
+#: .\templates\403.html:8
+msgid "Your account does not have the role needed for this page."
+msgstr "このページを表示するために必要な権限がありません。"
+
+#: .\templates\403.html:9 .\templates\base.html:15 .\templates\core\home.html:4
+#: .\templates\core\home.html:7
+msgid "Home"
+msgstr "ホーム"
+
 #: .\templates\admin\base_site.html:4
 msgid "Django site admin"
 msgstr "Django サイト管理"
@@ -334,25 +362,6 @@ msgstr "Django サイト管理"
 #: .\templates\admin\base_site.html:12
 msgid "Django administration"
 msgstr "Django 管理サイト"
-
-# CHECK: glossary marks 工程進捗管理 as unsure (product name)
-#: .\templates\base.html:6 .\templates\base.html:13 .\templates\base.html:33
-#: .\templates\core\home.html:4 .\templates\orders\customer_detail.html:4
-#: .\templates\orders\customer_edit.html:4
-#: .\templates\orders\customer_list.html:4
-#: .\templates\orders\order_detail.html:4 .\templates\orders\order_form.html:4
-#: .\templates\orders\order_list.html:4 .\templates\tracking\boxes.html:4
-#: .\templates\tracking\correct_event.html:4
-#: .\templates\tracking\priorities.html:4 .\templates\tracking\simulate.html:4
-#: .\templates\tracking\tag_history.html:4
-#: .\templates\tracking\tag_manage.html:4
-msgid "Factory Tracker"
-msgstr "工程進捗管理"
-
-#: .\templates\base.html:15 .\templates\core\home.html:4
-#: .\templates\core\home.html:7
-msgid "Home"
-msgstr "ホーム"
 
 #: .\templates\base.html:16 .\templates\orders\customer_detail.html:16
 #: .\templates\orders\order_list.html:4 .\templates\orders\order_list.html:7
@@ -385,63 +394,68 @@ msgstr "タグ管理"
 msgid "Simulate scan"
 msgstr "スキャンのシミュレーション"
 
-#: .\templates\core\home.html:10
-msgid "Dashboard coming soon."
-msgstr "ダッシュボードは準備中です。"
-
-#: .\templates\core\home.html:13 .\templates\orders\_box_detail.html:57
+#: .\templates\core\home.html:10 .\templates\orders\_box_detail.html:57
 #: .\tracking\status.py:17 .\tracking\status.py:26 .\tracking\views.py:225
 msgid "In progress"
 msgstr "作業中"
 
-#: .\templates\core\home.html:14 .\templates\tracking\_process_card.html:10
+#: .\templates\core\home.html:11 .\templates\tracking\_process_card.html:10
 #: .\templates\tracking\_process_card.html:24 .\tracking\status.py:16
 #: .\tracking\views.py:225
 msgid "Waiting"
 msgstr "待機中"
 
-#: .\templates\core\home.html:15 .\templates\orders\_box_detail.html:58
+#: .\templates\core\home.html:12 .\templates\orders\_box_detail.html:58
 #: .\tracking\status.py:18 .\tracking\status.py:27 .\tracking\views.py:226
 msgid "At vendor"
 msgstr "外注中"
 
-#: .\templates\core\home.html:16 .\tracking\status.py:15
+#: .\templates\core\home.html:13 .\tracking\status.py:15
 #: .\tracking\views.py:226
 msgid "Not started"
 msgstr "未着手"
 
 # CHECK: 滞留 is marked unsure in the glossary (alternative: 停滞)
-#: .\templates\core\home.html:17 .\templates\tracking\_box_flags.html:1
+#: .\templates\core\home.html:14 .\templates\tracking\_box_flags.html:1
 #: .\templates\tracking\boxes.html:52 .\tracking\views.py:256
 msgid "Stagnant"
 msgstr "滞留"
 
 # CHECK: 納期遅れ is marked unsure in the glossary
-#: .\templates\core\home.html:18
+#: .\templates\core\home.html:15
 msgid "Overdue orders"
 msgstr "納期遅れの受注"
 
 # CHECK: short form of 外注先の納期遅れ; unsure
-#: .\templates\core\home.html:19 .\templates\tracking\boxes.html:53
+#: .\templates\core\home.html:16 .\templates\tracking\boxes.html:53
 #: .\tracking\views.py:251
 msgid "Vendor overdue"
 msgstr "外注遅れ"
 
-#: .\templates\core\home.html:22
+#: .\templates\core\home.html:19
 msgid "Process board"
 msgstr "工程ボード"
 
-#: .\templates\core\home.html:23
+#: .\templates\core\home.html:20
 msgid "In-house"
 msgstr "社内"
 
-#: .\templates\core\home.html:26
+#: .\templates\core\home.html:23
 msgid "No in-house processes."
 msgstr "社内工程がありません。"
 
-#: .\templates\core\home.html:32
+#: .\templates\core\home.html:29
 msgid "No outsourced processes."
 msgstr "外注工程がありません。"
+
+#: .\templates\includes\account.html:6
+msgid "Log out"
+msgstr "ログアウト"
+
+#: .\templates\includes\account.html:9 .\templates\registration\login.html:4
+#: .\templates\registration\login.html:7 .\templates\registration\login.html:12
+msgid "Log in"
+msgstr "ログイン"
 
 #: .\templates\includes\item_box.html:1
 #, python-format
@@ -1218,21 +1232,21 @@ msgstr "納期を%(d)d日超過、残り%(s)d工程"
 msgid "%(n)d warnings"
 msgstr "警告 %(n)d件"
 
-#: .\tracking\services.py:44 .\tracking\services.py:77
+#: .\tracking\services.py:46 .\tracking\services.py:79
 msgid "Box label and tag UID are required."
 msgstr "箱番号とタグUIDは必須です。"
 
-#: .\tracking\services.py:49 .\tracking\services.py:82
+#: .\tracking\services.py:51 .\tracking\services.py:84
 #, python-format
 msgid "Tag %(tag)s is inactive."
 msgstr "タグ %(tag)s は無効です。"
 
-#: .\tracking\services.py:51
+#: .\tracking\services.py:53
 #, python-format
 msgid "Box %(box)s is inactive."
 msgstr "箱 %(box)s は無効です。"
 
-#: .\tracking\services.py:54
+#: .\tracking\services.py:56
 #, python-format
 msgid ""
 "Item %(item)s already has all %(n)s boxes linked. Raise its box count first."
@@ -1240,29 +1254,29 @@ msgstr ""
 "品目 %(item)s は、すでに%(n)s個の箱をすべて紐付け済みです。先に箱数を増やして"
 "ください。"
 
-#: .\tracking\services.py:58 .\tracking\services.py:84
+#: .\tracking\services.py:60 .\tracking\services.py:86
 #, python-format
 msgid "Tag %(tag)s is already in use for item %(item)s."
 msgstr "タグ %(tag)s は品目 %(item)s で使用中です。"
 
-#: .\tracking\services.py:60
+#: .\tracking\services.py:62
 #, python-format
 msgid "Box %(box)s is already in use for item %(item)s."
 msgstr "箱 %(box)s は品目 %(item)s で使用中です。"
 
-#: .\tracking\services.py:75
+#: .\tracking\services.py:77
 msgid "This assignment has already ended."
 msgstr "この紐付けはすでに終了しています。"
 
-#: .\tracking\services.py:79
+#: .\tracking\services.py:81
 msgid "The new tag must differ from the old tag."
 msgstr "新しいタグは旧タグと異なるものにしてください。"
 
-#: .\tracking\services.py:108
+#: .\tracking\services.py:110
 msgid "A correction cannot be corrected."
 msgstr "訂正を訂正することはできません。"
 
-#: .\tracking\services.py:110
+#: .\tracking\services.py:112
 msgid "This event is already voided."
 msgstr "このイベントはすでに取り消されています。"
 
@@ -1348,3 +1362,6 @@ msgstr "期間を指定"
 #: .\tracking\views.py:260
 msgid "Active boxes"
 msgstr "進行中の箱"
+
+#~ msgid "Dashboard coming soon."
+#~ msgstr "ダッシュボードは準備中です。"

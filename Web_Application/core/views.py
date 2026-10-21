@@ -2,13 +2,13 @@ from collections import Counter
 
 from django.shortcuts import render
 
+from core.permissions import OPERATOR, role_required
 from tracking.overview import active_boxes, board_groups
 from tracking.status import AT_VENDOR, IN_PROGRESS, NOT_STARTED, WAITING
 
 
+@role_required(OPERATOR)
 def home(request):
-    if not request.user.is_staff:
-        return render(request, 'core/home.html')
     boxes = active_boxes()
     codes = Counter(e['code'] for e in boxes)
     in_house, outsourced = board_groups()
