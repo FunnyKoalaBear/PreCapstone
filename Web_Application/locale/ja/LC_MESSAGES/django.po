@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Factory Tracker\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-21 19:31+0900\n"
+"POT-Creation-Date: 2026-10-21 19:39+0900\n"
 "PO-Revision-Date: 2026-10-11 17:00+0900\n"
 "Last-Translator: Claude\n"
 "Language-Team: Japanese\n"
@@ -641,8 +641,8 @@ msgstr "アクセスできません"
 
 # CHECK: glossary marks 工程進捗管理 as unsure (product name)
 #: .\templates\403.html:4 .\templates\base.html:6 .\templates\base.html:14
-#: .\templates\base.html:42 .\templates\core\home.html:4
-#: .\templates\orders\code_list.html:4
+#: .\templates\base.html:43 .\templates\core\dashboard.html:4
+#: .\templates\core\home.html:4 .\templates\orders\code_list.html:4
 #: .\templates\orders\customer_detail.html:4
 #: .\templates\orders\customer_edit.html:4
 #: .\templates\orders\customer_list.html:4
@@ -735,10 +735,49 @@ msgstr "タグ管理"
 msgid "Codes"
 msgstr "コード一覧"
 
-#: .\templates\base.html:29 .\templates\tracking\simulate.html:4
+#: .\templates\base.html:29 .\templates\core\dashboard.html:4
+#: .\templates\core\dashboard.html:7
+msgid "Dashboard"
+msgstr "ダッシュボード"
+
+#: .\templates\base.html:30 .\templates\tracking\simulate.html:4
 #: .\templates\tracking\simulate.html:7
 msgid "Simulate scan"
 msgstr "スキャンのシミュレーション"
+
+#: .\templates\core\dashboard.html:10
+msgid "Users per role"
+msgstr "権限別ユーザー数"
+
+#: .\templates\core\dashboard.html:12
+msgid "No role"
+msgstr "権限なし"
+
+#: .\templates\core\dashboard.html:14 .\templates\core\dashboard.html:22
+#: .\templates\core\dashboard.html:28 .\templates\core\dashboard.html:36
+#: .\templates\core\dashboard.html:42
+msgid "Open in admin"
+msgstr "管理画面で開く"
+
+#: .\templates\core\dashboard.html:18
+msgid "Items per status"
+msgstr "状態別の品目数"
+
+#: .\templates\core\dashboard.html:26
+msgid "Events recorded today"
+msgstr "本日記録されたイベント"
+
+#: .\templates\core\dashboard.html:32
+msgid "Scanners not seen in the last 24 hours"
+msgstr "24時間以内に通信のない読取端末"
+
+#: .\templates\core\dashboard.html:34
+msgid "All scanners have reported."
+msgstr "すべての読取端末が通信しています。"
+
+#: .\templates\core\dashboard.html:40
+msgid "Events voided in the last 7 days"
+msgstr "過去7日間に取消されたイベント"
 
 #: .\templates\core\home.html:10 .\templates\orders\_box_detail.html:68
 #: .\templates\tracking\_matrix.html:37 .\tracking\status.py:20

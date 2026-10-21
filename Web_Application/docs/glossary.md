@@ -233,3 +233,14 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | Previous runs of this part | この品番の過去の実績 |
 | Total days | 合計日数 |
 | Time per step | 工程ごとの所要時間 |
+
+## Terms added for the admin dashboard
+
+| English | Japanese |
+|---|---|
+| Users per role | 権限別ユーザー数 |
+| No role | 権限なし |
+| Items per status | 状態別の品目数 |
+| Events recorded today | 本日記録されたイベント |
+| Scanners not seen in the last 24 hours | 24時間以内に通信のない読取端末 |
+| Open in admin | 管理画面で開く |

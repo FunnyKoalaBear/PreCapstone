@@ -26,6 +26,7 @@
       {% if can.operator %}<a href="{% url 'priorities' %}">{% trans "Priorities" %}</a>{% endif %}
       {% if can.planner %}<a href="{% url 'tag_manage' %}">{% trans "Tags" %}</a>{% endif %}
       {% if can.planner %}<a href="{% url 'code_list' %}">{% trans "Codes" %}</a>{% endif %}
+      {% if can.admin %}<a href="{% url 'dashboard' %}">{% trans "Dashboard" %}</a>{% endif %}
       {% if can.admin %}<a href="{% url 'simulate' %}">{% trans "Simulate scan" %}</a>{% endif %}
     </nav>
     {% include "includes/account.html" %}

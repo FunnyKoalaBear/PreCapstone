@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Dashboard" %} - {% trans "Factory Tracker" %}{% endblock %}
+
+{% block content %}
+  <h1>{% trans "Dashboard" %}</h1>
+
+  <div class="card card-wide">
+    <h2>{% trans "Users per role" %}</h2>
+    <ul>
+      {% for role, n in roles %}<li>{% if role %}{{ role }}{% else %}{% trans "No role" %}{% endif %}: {{ n }}</li>{% endfor %}
+    </ul>
+    <p><a href="{% url 'admin:auth_user_changelist' %}">{% trans "Open in admin" %}</a></p>
+  </div>
+
+  <div class="card card-wide">
+    <h2>{% trans "Items per status" %}</h2>
+    <ul>
+      {% for code, label, n in statuses %}<li>{{ label }}: {{ n }}</li>{% endfor %}
+    </ul>
+    <p><a href="{% url 'admin:orders_orderitem_changelist' %}">{% trans "Open in admin" %}</a></p>
+  </div>
+
+  <div class="card card-wide">
+    <h2>{% trans "Events recorded today" %}</h2>
+    <p><strong>{{ events_today }}</strong></p>
+    <p><a href="{% url 'admin:tracking_event_changelist' %}">{% trans "Open in admin" %}</a></p>
+  </div>
+
+  <div class="card card-wide">
+    <h2>{% trans "Scanners not seen in the last 24 hours" %}</h2>
+    <ul>
+      {% for d in silent_devices %}<li>{{ d.name }}</li>{% empty %}<li>{% trans "All scanners have reported." %}</li>{% endfor %}
+    </ul>
+    <p><a href="{% url 'admin:tracking_scannerdevice_changelist' %}">{% trans "Open in admin" %}</a></p>
+  </div>
+
+  <div class="card card-wide">
+    <h2>{% trans "Events voided in the last 7 days" %}</h2>
+    <p><strong>{{ voided }}</strong></p>
+    <p><a href="{% url 'admin:tracking_event_changelist' %}?event_type__exact=CORRECTION">{% trans "Open in admin" %}</a></p>
+  </div>
+{% endblock %}

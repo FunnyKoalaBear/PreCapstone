@@ -21,7 +21,7 @@ from tracking.models import Box, Event, Machine, ScannerDevice, Tag, TagAssignme
 from tracking.overview import board_groups
 from tracking.planning import process_averages
 from tracking.priority import priority
-from tracking.services import record_event
+from tracking.services import cancel_item, correct_event, record_event, ship_item
 from tracking.status import days_late, due_back, is_stagnant, item_status
 
 K = Process.Kind
@@ -531,6 +531,98 @@ class StatusColourTests(SimpleTestCase):
         for state in ('pending', 'in_progress', 'at_vendor', 'done', 'paused'):
             self.assertRegex(base, rf'\.matrix-{state} \{{ background: var\(--status-[a-z-]+-tint\)', state)
         self.assertNotIn('--matrix-', self.theme())
+
+
+class DashboardTests(TestCase):
+    def setUp(self):
+        self.admin = make_user('boss', 'Admin')
+        self.client.force_login(self.admin)
+        self.now = timezone.now()
+
+    def item(self, route=None):
+        order = Order.objects.create(customer=Customer.objects.get_or_create(name='C')[0], due_date=timezone.localdate() + timedelta(days=9))
+        item = OrderItem.objects.create(order=order, part_name='P', quantity=1)
+        for i, p in enumerate(route or [Process.objects.get_or_create(name='Mat', kind=K.MATERIAL)[0]], 1):
+            RouteStep.objects.create(item=item, sequence=i, process=p)
+        n = OrderItem.objects.count()
+        a = TagAssignment.objects.create(tag=Tag.objects.create(uid=f'DB{n}'), box=Box.objects.create(label=f'DBB{n}'), item=item,
+                                         start_at=self.now - timedelta(days=30))
+        return item, a
+
+    def test_only_admins_see_the_page_and_the_nav_link(self):
+        self.assertEqual(self.client.get('/dashboard/').status_code, 200)
+        self.assertContains(self.client.get('/'), 'href="/dashboard/"')
+        for role in ('Planner', 'Operator'):
+            self.client.force_login(make_user(role.lower(), role))
+            self.assertEqual(self.client.get('/dashboard/').status_code, 403, role)
+            self.assertNotContains(self.client.get('/'), 'href="/dashboard/"')
+        self.client.force_login(User.objects.create_superuser('root', password='x'))
+        self.assertEqual(self.client.get('/dashboard/').status_code, 200)
+        self.client.logout()
+        self.assertEqual(self.client.get('/dashboard/').status_code, 302)
+
+    def test_users_per_role(self):
+        make_user('op1', 'Operator')
+        make_user('op2', 'Operator')
+        make_user('pl', 'Planner')
+        make_user('nobody')
+        gone = make_user('gone', 'Planner')
+        gone.is_active = False
+        gone.save()
+        User.objects.create_superuser('root', password='x')
+        roles = self.client.get('/dashboard/').context['roles']
+        self.assertEqual(roles, [('Operator', 2), ('Planner', 1), ('Admin', 2), (None, 1)])
+
+    def test_items_per_status(self):
+        self.item()  # not started
+        done, a = self.item()
+        record_event(ScannerDevice.objects.create(name='D'), a.tag.uid, done.steps.get().process, 'ARRIVED')
+        shipped, b = self.item()
+        record_event(ScannerDevice.objects.get(name='D'), b.tag.uid, shipped.steps.get().process, 'ARRIVED')
+        ship_item(self.admin, shipped)
+        gone, _c = self.item()
+        cancel_item(self.admin, gone, 'withdrawn')
+        r = self.client.get('/dashboard/')
+        counts = {code: n for code, _label, n in r.context['statuses']}
+        self.assertEqual(counts, {'NOT_STARTED': 1, 'WAITING': 0, 'IN_PROGRESS': 0, 'AT_VENDOR': 0, 'PAUSED': 0, 'COMPLETE': 1, 'SHIPPED': 1, 'CANCELLED': 1})
+        self.assertContains(r, 'Shipped: 1')
+
+    def test_events_today_counts_only_events_recorded_today(self):
+        item, a = self.item()
+        device = ScannerDevice.objects.create(name='D')
+        old = record_event(device, a.tag.uid, item.steps.get().process, 'ARRIVED')[0]
+        Event.objects.filter(pk=old.pk).update(received_at=self.now - timedelta(days=2))
+        self.assertEqual(self.client.get('/dashboard/').context['events_today'], 0)
+        for _ in range(3):
+            record_event(device, a.tag.uid, item.steps.get().process, 'ARRIVED')
+        self.assertEqual(self.client.get('/dashboard/').context['events_today'], 3)
+
+    def test_scanners_not_seen_in_24_hours_are_listed_by_name(self):
+        ScannerDevice.objects.create(name='Fresh', last_seen=self.now - timedelta(hours=2))
+        ScannerDevice.objects.create(name='Stale', last_seen=self.now - timedelta(hours=30))
+        ScannerDevice.objects.create(name='Never')
+        ScannerDevice.objects.create(name='Retired', active=False, last_seen=self.now - timedelta(days=90))
+        r = self.client.get('/dashboard/')
+        self.assertEqual([d.name for d in r.context['silent_devices']], ['Never', 'Stale'])
+        self.assertContains(r, 'Stale')
+        self.assertNotContains(r, 'Fresh')
+        ScannerDevice.objects.all().update(last_seen=self.now)
+        self.assertContains(self.client.get('/dashboard/'), 'All scanners have reported.')
+
+    def test_voided_events_in_the_last_seven_days(self):
+        item, a = self.item()
+        device = ScannerDevice.objects.create(name='D')
+        events = [record_event(device, a.tag.uid, item.steps.get().process, 'ARRIVED')[0] for _ in range(3)]
+        planner = make_user('pl', 'Planner')
+        corrections = [correct_event(e, planner, 'mistake')[0] for e in events]
+        Event.objects.filter(pk=corrections[0].pk).update(occurred_at=self.now - timedelta(days=10))
+        self.assertEqual(self.client.get('/dashboard/').context['voided'], 2)
+
+    def test_each_block_links_to_its_admin_page(self):
+        html = self.client.get('/dashboard/').content.decode()
+        for url in ('/admin/auth/user/', '/admin/orders/orderitem/', '/admin/tracking/event/', '/admin/tracking/scannerdevice/',
+                    '/admin/tracking/event/?event_type__exact=CORRECTION'):
+            self.assertIn(f'href="{url}"', html)
 
 
 class LanguageTests(RawTestCase):
