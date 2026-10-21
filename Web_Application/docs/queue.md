@@ -3,17 +3,6 @@ Order matters. [ ] todo, [!] blocked. Finished entries are deleted; git history 
 
 ## Queue
 
-- [ ] **F69 Shipped state and on-time delivery rate**
-  Why: COMPLETE only means the last process finished. A planner cannot tell "ready on the dock" from "delivered", and on-time delivery cannot be measured.
-  Decisions made:
-  - New append-only event type SHIPPED, recorded the same way as the planner buttons from F64. Status stays derived from events; nothing is stored.
-  - Status rule: SHIPPED counts only after COMPLETE. Button "Mark as shipped" on the order detail page, shown only for COMPLETE items (Planner and up); the service refuses SHIPPED for any other state. Paused or cancelled items cannot be shipped.
-  - A correction (F47) that voids SHIPPED returns the item to COMPLETE.
-  - An order is shipped when all its items are shipped. Shipped items leave every overdue, priority and matrix list (they count as finished).
-  - New page `/shipping/` (Planner and up): (1) items COMPLETE but not shipped, sorted by due date; (2) per month: number shipped and on-time rate = shipped on or before the order due date, divided by shipped. Use JST dates.
-  - Add the status label and colour variable for SHIPPED (reuse the F40 colours if F40 is done; otherwise add one variable in `theme.css`).
-  Tests: button only on COMPLETE; refused otherwise; correction voids it; on-time rate for a made-up month (one early, one late); shipped item absent from overdue list.
-
 - [ ] **F67 CSV export**
   Why: take data into Excel; mirrors the CSV import (F42).
   Decisions made:

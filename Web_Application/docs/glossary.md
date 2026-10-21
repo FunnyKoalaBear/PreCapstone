@@ -201,3 +201,13 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | English | Japanese |
 |---|---|
 | Copy route from last order | 前回の受注から工程順をコピー |
+
+## Terms added for shipping
+
+| English | Japanese |
+|---|---|
+| Shipped | 出荷済み |
+| Shipping (page) | 出荷 |
+| Ready to ship | 出荷待ち |
+| Mark as shipped / Undo shipment | 出荷済みにする / 出荷を取り消す |
+| On-time rate | 納期遵守率 |

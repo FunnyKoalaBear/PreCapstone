@@ -10,7 +10,9 @@ from django.utils.translation import gettext_lazy as _
 from .models import Event
 
 NOT_STARTED, WAITING, IN_PROGRESS, AT_VENDOR, COMPLETE = 'NOT_STARTED', 'WAITING', 'IN_PROGRESS', 'AT_VENDOR', 'COMPLETE'
-PAUSED, CANCELLED = 'PAUSED', 'CANCELLED'
+PAUSED, CANCELLED, SHIPPED = 'PAUSED', 'CANCELLED', 'SHIPPED'
+# Item codes that no longer need work
+CLOSED = (COMPLETE, SHIPPED, CANCELLED)
 
 LABELS = {
     NOT_STARTED: _('Not started'),
@@ -20,6 +22,7 @@ LABELS = {
     COMPLETE: _('Complete'),
     PAUSED: _('Paused'),
     CANCELLED: _('Cancelled'),
+    SHIPPED: _('Shipped'),
 }
 
 PENDING, STEP_IN_PROGRESS, STEP_AT_VENDOR, DONE = 'pending', 'in_progress', 'at_vendor', 'done'
@@ -66,9 +69,10 @@ class ItemStatus:
     last_event_at: datetime | None = None
     boxes: list = field(default_factory=list)
     cancel_event: object = None
+    ship_event: object = None
 
 
-NO_STATUS_TYPES = (Event.Type.CORRECTION, Event.Type.RESULT, Event.Type.CANCELLED)
+NO_STATUS_TYPES = (Event.Type.CORRECTION, Event.Type.RESULT, Event.Type.CANCELLED, Event.Type.SHIPPED)
 
 
 def _window(a):
@@ -223,10 +227,10 @@ def _roll_up(boxes):
     return ItemStatus(code, LABELS[code], pick.current_step, pick.rows, warnings, last, boxes)
 
 
-def _cancel_event(item):
-    """The live CANCELLED event of an item, or None."""
+def _item_event(item, event_type):
+    """The latest live event of this item-level type (CANCELLED or SHIPPED), or None."""
     corrected = Event.objects.filter(event_type=Event.Type.CORRECTION).values('corrects_id')
-    return (Event.objects.filter(event_type=Event.Type.CANCELLED, item=item).exclude(pk__in=corrected)
+    return (Event.objects.filter(event_type=event_type, item=item).exclude(pk__in=corrected)
             .select_related('created_by').order_by('-occurred_at', '-pk').first())
 
 
@@ -239,18 +243,22 @@ def item_status(item):
     boxes = [_replay(steps, g, list(events_for_box(g))) for g in groups.values()]
     boxes += [_replay(steps, [], []) for _ in range(max(item.box_count - len(boxes), 0 if boxes else 1))]
     status = _roll_up(boxes)
-    if cancel := _cancel_event(item):
+    if cancel := _item_event(item, Event.Type.CANCELLED):
         status.code, status.label, status.cancel_event = CANCELLED, LABELS[CANCELLED], cancel
+    elif status.code == COMPLETE and (ship := _item_event(item, Event.Type.SHIPPED)):
+        status.code, status.label, status.ship_event = SHIPPED, LABELS[SHIPPED], ship  # shipping counts only after COMPLETE
     return status
 
 
 def order_summary(order):
-    """(code, label): NOT_STARTED, IN_PROGRESS, COMPLETE or CANCELLED (every item cancelled) for the whole order."""
+    """(code, label): NOT_STARTED, IN_PROGRESS, COMPLETE, SHIPPED (all items shipped) or CANCELLED (every item cancelled) for the whole order."""
     codes = [item_status(i).code for i in order.items.all()]
     if codes and set(codes) == {CANCELLED}:
         return CANCELLED, LABELS[CANCELLED]
     codes = [c for c in codes if c != CANCELLED]  # cancelled items do not count
-    done = codes.count(COMPLETE)
+    done = sum(c in (COMPLETE, SHIPPED) for c in codes)
+    if codes and set(codes) == {SHIPPED}:
+        return SHIPPED, LABELS[SHIPPED]
     if codes and done == len(codes):
         return COMPLETE, LABELS[COMPLETE]
     if all(c == NOT_STARTED for c in codes):

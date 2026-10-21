@@ -6,7 +6,7 @@ from django.utils.translation import gettext as _
 from core.permissions import PLANNER, has_role
 
 from .models import Box, Event, Tag, TagAssignment
-from .status import CANCELLED, COMPLETE, item_status, manual_actions, next_action
+from .status import CANCELLED, COMPLETE, SHIPPED, item_status, manual_actions, next_action
 
 
 def resolve_tag(uid, moment):
@@ -163,9 +163,21 @@ def cancel_item(user, item, reason):
     code = item_status(item).code
     if code == CANCELLED:
         raise ValidationError(_('This item is already cancelled.'))
-    if code == COMPLETE:
+    if code in (COMPLETE, SHIPPED):
         raise ValidationError(_('A finished item cannot be cancelled.'))
     event = Event(event_type=Event.Type.CANCELLED, item=item, reason=reason.strip(), created_by=user)
+    event.full_clean()
+    event.save()
+    return event
+
+
+def ship_item(user, item):
+    """Record that a complete item was shipped; undo it by voiding the event with a correction (planners only)."""
+    if not has_role(user, PLANNER):
+        raise PermissionDenied
+    if item_status(item).code != COMPLETE:
+        raise ValidationError(_('Only a complete item can be marked as shipped.'))
+    event = Event(event_type=Event.Type.SHIPPED, item=item, created_by=user)
     event.full_clean()
     event.save()
     return event

@@ -142,6 +142,7 @@ h1 .button-secondary, h2 .button-secondary {
 .badge-pending { color: var(--color-muted); }
 .badge-paused { color: var(--status-paused); }
 .badge-partial { color: var(--status-partial); }
+.badge-shipped { color: var(--status-shipped); }
 .badge-cancelled { color: var(--status-cancelled); text-decoration: line-through; }
 .counter-paused { border-top-color: var(--status-paused); }
 .badge-done { color: var(--status-done); }

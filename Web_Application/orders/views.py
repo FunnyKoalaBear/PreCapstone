@@ -11,7 +11,7 @@ from core.permissions import OPERATOR, PLANNER, role_required
 from tracking.forms import ResultForm
 from tracking.planning import step_plan
 from tracking.status import (
-    CANCELLED, COMPLETE, IN_PROGRESS, LABELS, MANUAL_BUTTONS, NOT_STARTED, STEP_LABELS, days_late, events_with_voids, gantt, item_status,
+    CANCELLED, CLOSED, COMPLETE, IN_PROGRESS, LABELS, MANUAL_BUTTONS, NOT_STARTED, SHIPPED, STEP_LABELS, days_late, events_with_voids, gantt, item_status,
     manual_actions, order_summary, step_due_back, timeline,
 )
 
@@ -25,7 +25,7 @@ SORTS = {
     'customer': ('customer__name', 'due_date'),
 }
 SORT_LABELS = [('due', gettext_lazy('Due date')), ('newest', gettext_lazy('Newest')), ('customer', gettext_lazy('Customer'))]
-STATUS_CODES = [NOT_STARTED, IN_PROGRESS, COMPLETE, CANCELLED]
+STATUS_CODES = [NOT_STARTED, IN_PROGRESS, COMPLETE, SHIPPED, CANCELLED]
 
 
 @role_required(PLANNER)
@@ -48,7 +48,7 @@ def customer_detail(request, pk):
     today, rows = timezone.localdate(), []
     for o in customer.order_set.prefetch_related('items').order_by('-job_number'):
         code, label = order_summary(o)
-        rows.append({'order': o, 'code': code, 'label': label, 'late': o.due_date < today and code not in (COMPLETE, CANCELLED)})
+        rows.append({'order': o, 'code': code, 'label': label, 'late': o.due_date < today and code not in CLOSED})
     return render(request, 'orders/customer_detail.html', {'customer': customer, 'rows': rows})
 
 
@@ -152,7 +152,7 @@ def order_list(request):
     today, rows = timezone.localdate(), []
     for o in orders:
         code, label = order_summary(o)
-        is_late = o.due_date < today and code not in (COMPLETE, CANCELLED)
+        is_late = o.due_date < today and code not in CLOSED
         if (status in STATUS_CODES and code != status) or (late and not is_late):
             continue
         rows.append({'order': o, 'code': code, 'label': label, 'late': is_late, 'items': len(o.items.all()),
@@ -204,7 +204,7 @@ def order_detail(request, job_number):
     return render(request, 'orders/order_detail.html', {
         'order': order, 'code': code, 'label': label, 'items': items,
         'changes': order.changes.select_related('changed_by'),
-        'late': order.due_date < timezone.localdate() and code not in (COMPLETE, CANCELLED),
+        'late': order.due_date < timezone.localdate() and code not in CLOSED,
     })
 
 

@@ -58,12 +58,25 @@
         <img class="drawing-preview" src="{% url 'item_drawing' entry.item.pk %}" alt="{% trans 'Drawing' %}">
       {% endif %}
 
+      {% if entry.status.ship_event %}
+        <p class="shipped-note">
+          {% blocktrans with d=entry.status.ship_event.occurred_at|date:"Y-m-d H:i" u=entry.status.ship_event.created_by %}Shipped on {{ d }} by {{ u }}{% endblocktrans %}
+          {% if can.planner %}<a class="button-secondary" href="{% url 'correct_event' entry.status.ship_event.pk %}?next={{ request.get_full_path|urlencode }}">{% trans "Undo shipment" %}</a>{% endif %}
+        </p>
+      {% elif can.planner and entry.status.code == "COMPLETE" %}
+        <form method="post" action="{% url 'item_action' entry.item.pk %}">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="ship">
+          <button type="submit" class="button">{% trans "Mark as shipped" %}</button>
+        </form>
+      {% endif %}
+
       {% if entry.cancelled %}
         <p class="cancelled-note">
           {% blocktrans with d=entry.cancelled.occurred_at|date:"Y-m-d H:i" u=entry.cancelled.created_by r=entry.cancelled.reason %}Cancelled on {{ d }} by {{ u }}: {{ r }}{% endblocktrans %}
           {% if can.planner %}<a class="button" href="{% url 'correct_event' entry.cancelled.pk %}?next={{ request.get_full_path|urlencode }}">{% trans "Undo cancellation" %}</a>{% endif %}
         </p>
-      {% elif can.planner and entry.status.code != "COMPLETE" %}
+      {% elif can.planner and entry.status.code != "COMPLETE" and entry.status.code != "SHIPPED" %}
         <details class="result-details">
           <summary>{% trans "Cancel item" %}</summary>
           <form method="post" action="{% url 'item_action' entry.item.pk %}" class="cancel-form">

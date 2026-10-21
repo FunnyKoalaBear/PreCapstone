@@ -151,9 +151,10 @@ class Command(BaseCommand):
         Tag.objects.get_or_create(uid='B15D6B73')
         scan('B15D6B73', 'Milling', 'STARTED', ago(hours=6), d2)
         # 9 Reused box: DEMO-09 carried a finished order, now carries a new one
-        make('Reused box (old)', c2, '旧部品', ['Milling'], -10, '03193FDF', 'DEMO-09', 'HS-44871', ago(days=21), ago(days=9), ids=('FLG-200', 'DWG-2001', 'A'))
+        old = make('Reused box (old)', c2, '旧部品', ['Milling'], -10, '03193FDF', 'DEMO-09', 'HS-44871', ago(days=21), ago(days=9), ids=('FLG-200', 'DWG-2001', 'A'))
         scan('03193FDF', 'Milling', 'STARTED', ago(days=19))
         scan('03193FDF', 'Milling', 'FINISHED', ago(days=18))
+        self.manual(d2, '', None, Event.Type.SHIPPED, ago(days=8), '', item=old)  # shipped two days after its due date
         make('Reused box (now)', c1, '新部品', ['Milling', 'Lathe'], 7, '414D497D', 'DEMO-09', 'TY-2610-025', ago(days=2), ids=('flg-200', 'DWG-2001', 'B'))
         scan('414D497D', 'Milling', 'STARTED', ago(hours=30))
         scan('414D497D', 'Milling', 'FINISHED', ago(hours=20))
@@ -208,7 +209,7 @@ class Command(BaseCommand):
 
     @staticmethod
     def manual(device, uid, process, event_type, when, reason, item=None):
-        """A planner-style event (pause, partial or cancel) recorded straight into the log."""
+        """A planner-style event (pause, partial, cancel or ship) recorded straight into the log."""
         event = Event(device=device, tag_uid=uid, process=process, event_type=event_type, occurred_at=when, reason=reason, item=item)
         event.full_clean()
         event.save()

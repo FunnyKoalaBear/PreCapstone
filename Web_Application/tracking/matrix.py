@@ -2,7 +2,7 @@ from django.utils import timezone
 
 from orders.models import OrderItem, Process
 
-from .status import CANCELLED, COMPLETE, DONE, STEP_LABELS, current_row, item_status
+from .status import CLOSED, DONE, STEP_LABELS, current_row, item_status
 
 
 def _cells(status, from_current):
@@ -40,7 +40,7 @@ def matrix(limit=25, status='', customer=None, due_from=None, due_to=None, late=
     rows, more = [], False
     for item in items.iterator(chunk_size=100):
         st = item_status(item)
-        if st.code in (COMPLETE, CANCELLED) or (status and st.code != status):
+        if st.code in CLOSED or (status and st.code != status):
             continue
         if len(rows) == limit:
             more = True

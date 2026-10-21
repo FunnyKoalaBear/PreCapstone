@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Shipping" %} - {% trans "Factory Tracker" %}{% endblock %}
+
+{% block content %}
+  <h1>{% trans "Shipping" %}</h1>
+
+  <h2>{% trans "Ready to ship" %}</h2>
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>{% trans "Item" %}</th>
+          <th>{% trans "Part name" %}</th>
+          <th>{% trans "Customer" %}</th>
+          <th>{% trans "Due date" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in ready %}
+          <tr>
+            <td><a href="{% url 'order_detail' r.order.job_number %}">{{ r.item.item_code }}</a></td>
+            <td>{{ r.item.part_name }}</td>
+            <td>{{ r.order.customer }}</td>
+            <td>{{ r.order.due_date|date:"Y-m-d" }}{% if r.late %} <span class="badge badge-overdue">{% trans "Overdue" %}</span>{% endif %}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="4">{% trans "Nothing is waiting to be shipped." %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <h2>{% trans "On-time delivery by month" %}</h2>
+  <p class="note">{% trans "Shipped on or before the order due date, as a share of the items shipped that month." %}</p>
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>{% trans "Month" %}</th>
+          <th>{% trans "Shipped" %}</th>
+          <th>{% trans "On time" %}</th>
+          <th>{% trans "On-time rate" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in months %}
+          <tr>
+            <td>{{ m.month }}</td>
+            <td>{{ m.shipped }}</td>
+            <td>{{ m.on_time }}</td>
+            <td>{{ m.rate }}%</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="4">{% trans "Nothing has been shipped yet." %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}

@@ -303,6 +303,7 @@ class SeedDemoTests(TestCase):
         self.assertEqual(priority(item.order, st)['tier'], 'CRITICAL')
         self.assertTrue(self.status('ギア')[1].warnings)
         self.assertEqual(self.status('新部品')[1].code, 'IN_PROGRESS')
+        self.assertEqual(self.status('旧部品')[1].code, 'SHIPPED')
 
     @override_settings(DEBUG=True)
     def test_part_numbers_repeat_on_several_orders(self):

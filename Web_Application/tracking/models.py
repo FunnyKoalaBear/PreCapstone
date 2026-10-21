@@ -142,9 +142,12 @@ class Event(models.Model):
         RESUMED = 'RESUMED', _('Resumed')
         PARTIAL = 'PARTIAL', _('Partial')
         CANCELLED = 'CANCELLED', _('Cancelled')
+        SHIPPED = 'SHIPPED', _('Shipped')
 
     # Planner actions on the current step of a box; they need a process but no particular kind
     STEP_STATE_TYPES = (Type.PAUSED, Type.RESUMED, Type.PARTIAL)
+    # Item-level events: they name the item, not a tag or a process
+    ITEM_TYPES = (Type.CANCELLED, Type.SHIPPED)
 
     # Required process kind per event type
     REQUIRED_KIND = {
@@ -169,7 +172,7 @@ class Event(models.Model):
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, verbose_name=_('created by'),
     )
-    # CANCELLED events name the item (they have no tag)
+    # CANCELLED and SHIPPED events name the item (they have no tag)
     item = models.ForeignKey('orders.OrderItem', on_delete=models.PROTECT, null=True, blank=True, verbose_name=_('item'))
     # RESULT events only; defects are part of the quantity done
     worker = models.ForeignKey(Worker, on_delete=models.PROTECT, null=True, blank=True, verbose_name=_('worker'))
@@ -192,11 +195,11 @@ class Event(models.Model):
             raise ValidationError({'device': _('An event needs a scanner device or a user.')})
         if not self.tag_uid and not self._tagless():
             raise ValidationError({'tag_uid': _('A tag UID is required.')})
-        if self.event_type == self.Type.CANCELLED:
+        if self.event_type in self.ITEM_TYPES:
             if not self.item_id or self.process_id:
-                raise ValidationError(_('A cancellation names an item and no process.'))
+                raise ValidationError(_('A cancellation or shipment names an item and no process.'))
         elif self.item_id:
-            raise ValidationError({'item': _('Only a cancellation names an item.')})
+            raise ValidationError({'item': _('Only a cancellation or shipment names an item.')})
         if self.event_type == self.Type.RESULT:
             self._clean_result()
         elif self.worker_id or self.machine_id or self.quantity is not None or self.defects is not None:
@@ -216,10 +219,10 @@ class Event(models.Model):
                 raise ValidationError({'process': _('This event type requires a process of kind: %(kind)s.') % {'kind': kind.label}})
 
     def _tagless(self):
-        """Only a cancellation, and the correction that voids one, may have no tag."""
+        """Only item-level events, and the correction that voids one, may have no tag."""
         if self.event_type == self.Type.CORRECTION and self.corrects_id:
-            return self.corrects.event_type == self.Type.CANCELLED
-        return self.event_type == self.Type.CANCELLED
+            return self.corrects.event_type in self.ITEM_TYPES
+        return self.event_type in self.ITEM_TYPES
 
     def _clean_result(self):
         if not self.process_id:

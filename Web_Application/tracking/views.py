@@ -22,7 +22,8 @@ from .matrix import matrix as build_matrix
 from .overview import active_boxes
 from .planning import process_averages
 from .priority import TIER_LABELS, TIERS, priority
-from .services import assign_tag, can_correct, correct_event as correct_event_service, next_step, record_event, record_result, record_step_state, release_assignment, replace_tag, resolve_tag, cancel_item
+from .shipping import shipping_overview
+from .services import assign_tag, can_correct, correct_event as correct_event_service, next_step, record_event, record_result, record_step_state, release_assignment, replace_tag, resolve_tag, cancel_item, ship_item
 from .status import AT_VENDOR, CANCELLED, COMPLETE, IN_PROGRESS, LABELS, NOT_STARTED, PAUSED, WAITING, current_row, item_status
 
 
@@ -334,6 +335,12 @@ def plan_summary(request):
     return render(request, 'tracking/plan_summary.html', {'rows': process_averages()})
 
 
+@role_required(PLANNER)
+def shipping(request):
+    ready, months = shipping_overview()
+    return render(request, 'tracking/shipping.html', {'ready': ready, 'months': months})
+
+
 STEP_ACTIONS = {
     'pause': (Event.Type.PAUSED, gettext_lazy('Step paused.')),
     'resume': (Event.Type.RESUMED, gettext_lazy('Step resumed.')),
@@ -353,6 +360,9 @@ def item_action(request, pk):
         if action == 'cancel':
             cancel_item(request.user, item, reason)
             messages.success(request, _('Item %(item)s cancelled.') % {'item': item.item_code})
+        elif action == 'ship':
+            ship_item(request.user, item)
+            messages.success(request, _('Item %(item)s marked as shipped.') % {'item': item.item_code})
         elif action in STEP_ACTIONS:
             box = request.POST.get('box', '')
             assignment = get_object_or_404(TagAssignment.objects.select_related('tag', 'box', 'item'), pk=box if box.isdigit() else 0, item=item, end_at__isnull=True)

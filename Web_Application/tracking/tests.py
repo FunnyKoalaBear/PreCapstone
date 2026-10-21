@@ -20,7 +20,7 @@ from .models import Box, Event, Machine, ScannerDevice, Tag, TagAssignment, Work
 from .overview import active_boxes, process_board
 from .planning import step_plan
 from .priority import priority
-from .services import assign_tag, cancel_item, correct_event, record_event, record_step_state, release_assignment, replace_tag
+from .services import assign_tag, cancel_item, correct_event, record_event, record_step_state, release_assignment, replace_tag, ship_item
 from .status import manual_actions, order_summary, gantt, AT_VENDOR, COMPLETE, IN_PROGRESS, NOT_STARTED, WAITING, BoxStatus, ItemStatus, _roll_up, events_for_item, days_late, next_action, due_back, idle_for, is_stagnant, item_status, timeline
 
 E = Event.Type
@@ -1806,3 +1806,144 @@ class StepStateTests(TestCase):
         page = self.client.get(f'/orders/{item.order.job_number}/')
         self.assertContains(page, 'half the batch')
         self.assertContains(page, '>Partial<')
+
+
+class ShippedTests(TestCase):
+    def setUp(self):
+        self.planner = make_user('pl', 'Planner')
+        self.client.force_login(self.planner)
+        self.mat = Process.objects.create(name='Mat', kind=K.MATERIAL)
+        self.mill = Process.objects.create(name='Mill', kind=K.MACHINING)
+        self.device = ScannerDevice.objects.create(name='D')
+        self.n = 0
+
+    def make(self, route=None, due=None, order=None, done=True):
+        """An item with a tag; with done=True a material-only route is complete."""
+        self.n += 1
+        order = order or Order.objects.create(customer=Customer.objects.create(name=f'C{self.n}'), due_date=due or timezone.localdate() + timedelta(days=10))
+        item = OrderItem.objects.create(order=order, part_name=f'P{self.n}', quantity=3)
+        for i, p in enumerate(route or [self.mat], 1):
+            RouteStep.objects.create(item=item, sequence=i, process=p)
+        a = TagAssignment.objects.create(tag=Tag.objects.create(uid=f'SH{self.n}'), box=Box.objects.create(label=f'SHB{self.n}'), item=item,
+                                         start_at=timezone.now() - timedelta(days=30))
+        if done:
+            record_event(self.device, a.tag.uid, self.mat, 'ARRIVED', occurred_at=timezone.now() - timedelta(days=2))
+        return item, a
+
+    def ship_at(self, item, when):
+        event = Event(event_type=E.SHIPPED, item=item, created_by=self.planner, occurred_at=when)
+        event.full_clean()
+        event.save()
+        return event
+
+    def code(self, item):
+        return item_status(item).code
+
+    def test_only_a_complete_item_can_be_shipped_by_a_planner(self):
+        item, a = self.make(route=[self.mat, self.mill])
+        with self.assertRaises(ValidationError):
+            ship_item(self.planner, item)  # still running
+        record_event(self.device, a.tag.uid, self.mill, 'STARTED')
+        record_step_state(self.planner, a, E.PAUSED)
+        self.assertEqual(self.code(item), 'PAUSED')
+        with self.assertRaises(ValidationError):
+            ship_item(self.planner, item)  # paused
+        gone, _a = self.make(done=False)
+        cancel_item(self.planner, gone, 'withdrawn')
+        with self.assertRaises(ValidationError):
+            ship_item(self.planner, gone)  # cancelled
+        done, _a = self.make()
+        with self.assertRaises(PermissionDenied):
+            ship_item(make_user('op', 'Operator'), done)
+        ship_item(self.planner, done)
+        st = item_status(done)
+        self.assertEqual((st.code, st.label), ('SHIPPED', 'Shipped'))
+        with self.assertRaises(ValidationError):
+            ship_item(self.planner, done)  # already shipped
+        with self.assertRaises(ValidationError):
+            cancel_item(self.planner, done, 'too late')
+        self.assertEqual(Event.objects.filter(event_type=E.SHIPPED).count(), 1)
+
+    def test_event_rules(self):
+        item, _a = self.make()
+        ok = dict(created_by=self.planner, event_type=E.SHIPPED)
+        Event(**ok, item=item).full_clean()
+        with self.assertRaises(ValidationError):
+            Event(**ok).full_clean()  # needs an item
+        with self.assertRaises(ValidationError):
+            Event(**ok, item=item, process=self.mat).full_clean()  # no process
+
+    def test_shipping_before_complete_does_not_count(self):
+        item, a = self.make(route=[self.mat, self.mill])
+        record_event(self.device, a.tag.uid, self.mat, 'ARRIVED')
+        self.ship_at(item, timezone.now())
+        self.assertEqual(self.code(item), 'WAITING')
+
+    def test_a_correction_returns_the_item_to_complete(self):
+        item, _a = self.make()
+        event = ship_item(self.planner, item)
+        correct_event(event, self.planner, 'shipped by mistake')
+        self.assertEqual(self.code(item), 'COMPLETE')
+        ship_item(self.planner, item)
+        self.assertEqual(self.code(item), 'SHIPPED')
+
+    def test_button_only_on_complete_items_and_undo_link_on_shipped(self):
+        done, _a = self.make()
+        busy, _b = self.make(done=False)
+        self.assertContains(self.client.get(f'/orders/{done.order.job_number}/'), 'Mark as shipped')
+        self.assertNotContains(self.client.get(f'/orders/{busy.order.job_number}/'), 'Mark as shipped')
+        self.client.force_login(make_user('op', 'Operator'))
+        self.assertNotContains(self.client.get(f'/orders/{done.order.job_number}/'), 'Mark as shipped')
+        self.client.force_login(self.planner)
+        r = self.client.post(f'/items/{done.pk}/action/', {'action': 'ship'})
+        self.assertEqual(r.status_code, 302)
+        page = self.client.get(f'/orders/{done.order.job_number}/')
+        self.assertContains(page, 'Undo shipment')
+        self.assertNotContains(page, 'Mark as shipped')
+        self.client.post(f'/items/{busy.pk}/action/', {'action': 'ship'})
+        self.assertEqual(Event.objects.filter(event_type=E.SHIPPED).count(), 1)
+
+    def test_order_is_shipped_when_all_items_are_shipped(self):
+        order = Order.objects.create(customer=Customer.objects.create(name='Two'), due_date=timezone.localdate() + timedelta(days=5))
+        one, _a = self.make(order=order)
+        two, _b = self.make(order=order)
+        self.assertEqual(order_summary(order)[0], 'COMPLETE')
+        ship_item(self.planner, one)
+        self.assertEqual(order_summary(order)[0], 'COMPLETE')
+        ship_item(self.planner, two)
+        self.assertEqual(order_summary(order), ('SHIPPED', 'Shipped'))
+        rows = {r['order']: r for r in self.client.get('/orders/', {'status': 'SHIPPED'}).context['rows']}
+        self.assertEqual(list(rows), [order])
+
+    def test_shipped_items_leave_overdue_priority_and_matrix_lists(self):
+        item, a = self.make(route=[self.mat, self.mill], due=timezone.localdate() - timedelta(days=3), done=False)
+        late, _b = self.make(due=timezone.localdate() - timedelta(days=3))
+        self.assertEqual([r['item'] for r in build_matrix()['rows']], [item])  # a complete item is already off the matrix
+        ship_item(self.planner, late)
+        self.assertEqual([r['item'] for r in build_matrix()['rows']], [item])
+        self.assertNotIn(late.item_code, self.client.get('/priorities/').content.decode())
+        rows = {r['order']: r for r in self.client.get('/orders/').context['rows']}
+        self.assertEqual((rows[late.order]['code'], rows[late.order]['late']), ('SHIPPED', False))
+
+    def test_shipping_page_lists_ready_items_and_on_time_rate(self):
+        tz = timezone.get_current_timezone()
+        due = date(2031, 3, 10)
+        early, _a = self.make(due=due)
+        late, _b = self.make(due=due)
+        ready, _c = self.make(due=timezone.localdate() - timedelta(days=1))
+        self.ship_at(early, timezone.make_aware(datetime(2031, 3, 9, 10, 0), tz))
+        self.ship_at(late, timezone.make_aware(datetime(2031, 3, 11, 10, 0), tz))
+        r = self.client.get('/shipping/')
+        self.assertEqual([x['item'] for x in r.context['ready']], [ready])
+        self.assertEqual(r.context['months'], [{'month': '2031-03', 'shipped': 2, 'on_time': 1, 'rate': 50}])
+        self.assertContains(r, '50%')
+        self.assertContains(r, ready.item_code)
+
+    def test_shipping_page_is_for_planners_and_up(self):
+        self.client.force_login(make_user('op', 'Operator'))
+        self.assertEqual(self.client.get('/shipping/').status_code, 403)
+        self.assertNotContains(self.client.get('/'), 'href="/shipping/"')
+        self.client.logout()
+        self.assertEqual(self.client.get('/shipping/').status_code, 302)
+        self.client.force_login(self.planner)
+        self.assertContains(self.client.get('/'), 'href="/shipping/"')
