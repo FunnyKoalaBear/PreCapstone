@@ -1,4 +1,4 @@
-{% load i18n duration %}
+{% load i18n duration panels %}
       {% if can.planner and b.actions %}
         <form method="post" action="{% url 'item_action' b.box.assignment.item_id %}" class="step-actions">
           {% csrf_token %}
@@ -6,7 +6,7 @@
           {% for value, label in b.actions %}<button type="submit" name="action" value="{{ value }}" class="button-secondary">{{ label }}</button>{% endfor %}
         </form>
       {% endif %}
-      <div class="table-wrap">
+      {% scroll_panel %}
         <table class="table">
           <thead>
             <tr>
@@ -35,7 +35,7 @@
             {% endfor %}
           </tbody>
         </table>
-      </div>
+      {% endscroll_panel %}
 
       <h{% if single %}3{% else %}4{% endif %}>{% trans "Timeline" %}</h{% if single %}3{% else %}4{% endif %}>
       {% if b.chart %}
@@ -76,7 +76,7 @@
       {% endif %}
 
       {% if single %}<h3>{% trans "Event history" %}</h3>{% else %}<h4>{% trans "Event history" %}</h4>{% endif %}
-      <div class="table-wrap">
+      {% scroll_panel %}
         <table class="table">
           <thead>
             <tr>
@@ -109,4 +109,4 @@
             {% endfor %}
           </tbody>
         </table>
-      </div>
+      {% endscroll_panel %}

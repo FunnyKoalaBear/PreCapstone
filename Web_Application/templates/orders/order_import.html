@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n panels %}
 
 {% block title %}{% trans "Import orders" %} - {% trans "Factory Tracker" %}{% endblock %}
 
@@ -28,7 +28,7 @@
       {% else %}
         <p><span class="badge badge-overdue">{% blocktrans count counter=preview.error_rows %}{{ counter }} row has errors.{% plural %}{{ counter }} rows have errors.{% endblocktrans %}</span> {% trans "Nothing was imported. Fix the file and upload it again." %}</p>
       {% endif %}
-      <div class="table-wrap">
+      {% scroll_panel %}
         <table class="table">
           <thead>
             <tr>
@@ -54,7 +54,7 @@
             {% endfor %}
           </tbody>
         </table>
-      </div>
+      {% endscroll_panel %}
     {% endif %}
   {% endif %}
 {% endblock %}

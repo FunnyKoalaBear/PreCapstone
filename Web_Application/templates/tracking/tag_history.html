@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n panels %}
 
 {% block title %}{% trans "Tag history" %} - {% trans "Factory Tracker" %}{% endblock %}
 
@@ -30,7 +30,7 @@
   </form>
 
   {% if rows %}
-    <div class="table-wrap">
+    {% scroll_panel %}
       <table class="table">
         <thead>
           <tr>
@@ -53,7 +53,7 @@
           {% endfor %}
         </tbody>
       </table>
-    </div>
+    {% endscroll_panel %}
     {% if capped %}<p>{% blocktrans %}Showing only the newest {{ cap }} records.{% endblocktrans %}</p>{% endif %}
   {% else %}
     <p>{% trans "No history yet." %}</p>

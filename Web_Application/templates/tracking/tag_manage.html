@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n panels %}
 
 {% block title %}{% trans "Tags" %} - {% trans "Factory Tracker" %}{% endblock %}
 
@@ -31,7 +31,7 @@
   <p>{% blocktrans count n=in_use %}{{ n }} tag in use.{% plural %}{{ n }} tags in use.{% endblocktrans %}</p>
 
   {% if q and open %}
-    <div class="table-wrap">
+    {% scroll_panel %}
       <table class="table table-cards">
         <thead>
           <tr>
@@ -74,7 +74,7 @@
           {% endfor %}
         </tbody>
       </table>
-    </div>
+    {% endscroll_panel %}
   {% elif q %}
     <p>{% trans "No tags in use match this search." %}</p>
   {% endif %}

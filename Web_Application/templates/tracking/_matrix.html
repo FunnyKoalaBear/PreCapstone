@@ -1,6 +1,6 @@
-{% load i18n static %}
+{% load i18n static panels %}
 {% if matrix.rows %}
-  <div class="matrix-scroll">
+  {% scroll_panel first_col=True max_height="28rem" %}
     <table class="matrix">
       <thead>
         <tr>
@@ -31,7 +31,7 @@
         {% endfor %}
       </tbody>
     </table>
-  </div>
+  {% endscroll_panel %}
   <p class="matrix-legend">
     <span class="matrix-key matrix-pending"></span>{% trans "Pending" %}
     <span class="matrix-key matrix-in_progress"></span>{% trans "In progress" %}

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n panels %}
 
 {% block title %}{% trans "Customers" %} - {% trans "Factory Tracker" %}{% endblock %}
 
@@ -20,7 +20,7 @@
     <button type="submit" class="button">{% trans "Search" %}</button>
   </form>
 
-  <div class="table-wrap">
+  {% scroll_panel %}
     <table class="table">
       <thead>
         <tr>
@@ -41,5 +41,5 @@
         {% endfor %}
       </tbody>
     </table>
-  </div>
+  {% endscroll_panel %}
 {% endblock %}

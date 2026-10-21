@@ -42,3 +42,6 @@ Import `orders_demo.csv` first (row 10 duplicates PO-7101).
 
 ## F65 seed guidance
 Record results for about 15 finished steps. Quantity done equals the item quantity. About one step in ten has 1-2 defects, so the defect summary is not flat. Spread the work across the workers and machines in `workers_machines.csv`.
+
+## seed_demo (history data)
+`python manage.py seed_demo --reset` (DEBUG only) builds the 12 scenario orders, then about 100 more from `_demo_bulk.py`: 75 shipped orders spread over 12 months (on-time rate improves with a dip), 3 cancelled, and open orders in every state (not started, waiting, in progress, at vendor, paused, ready to ship), with due dates from 6 days overdue to 40 days ahead. Routes have 3 to 8 steps. Plating, Grinding, Inspection and Heat treatment run slower than planned, so Plan vs actual shows bottlenecks. Results carry defects per process. A fixed random seed makes it repeatable; all times are relative to now.

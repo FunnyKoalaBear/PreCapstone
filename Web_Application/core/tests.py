@@ -1,7 +1,9 @@
 import gettext
 import re
+from collections import Counter
 from datetime import timedelta
 from io import StringIO
+from unittest import mock
 
 from django.conf import settings
 from django.contrib.auth.models import User
@@ -14,13 +16,14 @@ from django.utils import translation
 from django.utils import timezone
 
 from core.templatetags.duration import duration
-from core.management.commands.seed_demo import read_csv
+from core.management.commands.seed_demo import DEMO_UIDS, read_csv
 from core.testing import TestCase, make_user
 from orders.models import Customer, Order, OrderItem, Process, RouteStep, Vendor
 from tracking.models import Box, Event, Machine, ScannerDevice, Tag, TagAssignment, Worker
 from tracking.overview import board_groups
 from tracking.planning import process_averages
 from tracking.priority import priority
+from tracking.shipping import shipping_overview
 from tracking.services import cancel_item, correct_event, record_event, ship_item
 from tracking.status import days_late, due_back, is_stagnant, item_status
 
@@ -351,7 +354,7 @@ class SeedDemoTests(TestCase):
     @override_settings(DEBUG=True)
     def test_seed_records_results_with_workers_and_machines(self):
         self.seed()
-        results = Event.objects.filter(event_type='RESULT')
+        results = Event.objects.filter(event_type='RESULT', tag_uid__in=DEMO_UIDS)  # the scenario orders; history has more
         self.assertEqual(results.count(), 15)
         self.assertEqual(set(results.values_list('quantity', flat=True)), {10})
         self.assertEqual(results.filter(defects__gt=0).count(), 2)
@@ -366,12 +369,36 @@ class SeedDemoTests(TestCase):
         self.assertEqual(self.status('リング')[1].code, 'CANCELLED')
         self.assertTrue(any(r.partial for r in self.status('ブラケット')[1].rows))
         self.seed('--reset')
-        self.assertEqual(Event.objects.filter(event_type='CANCELLED').count(), 1)
+        self.assertEqual(Event.objects.filter(event_type='CANCELLED', item__part_name='リング').count(), 1)
 
     @override_settings(DEBUG=True)
     def test_seed_gives_the_plan_vs_actual_page_some_rows(self):
         self.seed()
         self.assertTrue(process_averages())
+
+    @override_settings(DEBUG=True)
+    def test_history_covers_every_state_and_a_year_of_shipping(self):
+        self.seed()
+        codes = Counter(item_status(i).code for i in OrderItem.objects.all())
+        for code in ('NOT_STARTED', 'WAITING', 'IN_PROGRESS', 'AT_VENDOR', 'PAUSED', 'COMPLETE', 'SHIPPED', 'CANCELLED'):
+            self.assertGreaterEqual(codes[code], 3, code)
+        self.assertGreaterEqual(Order.objects.count(), 60)
+        ready, months = shipping_overview()
+        self.assertGreaterEqual(len(months), 11)
+        self.assertTrue(0 < min(m['rate'] for m in months) < max(m['rate'] for m in months) <= 100)
+        self.assertTrue(Event.objects.filter(event_type='RESULT', defects__gt=0).exists())
+        self.assertTrue(ScannerDevice.objects.filter(name='DEMO Scanner 3', last_seen__isnull=True).exists())
+
+    @override_settings(DEBUG=True)
+    def test_history_makes_slow_steps_visible_and_is_repeatable(self):
+        self.seed()
+        diff = {r['process'].name: r['diff'] for r in process_averages()}
+        for slow in ('Plating', 'Grinding', 'Inspection'):
+            self.assertGreater(diff[slow], 0.5, slow)
+        self.assertLess(diff['Lathe'], diff['Grinding'])
+        first = list(OrderItem.objects.order_by('order__job_number', 'item_no').values_list('part_name', 'quantity'))
+        self.seed('--reset')
+        self.assertEqual(first, list(OrderItem.objects.order_by('order__job_number', 'item_no').values_list('part_name', 'quantity')))
 
     def test_static_demo_data_matches_the_csv_files(self):
         js = (settings.BASE_DIR / 'demo' / 'js' / 'data.js').read_text(encoding='utf-8')
@@ -400,10 +427,24 @@ class SeedDemoTests(TestCase):
 
     @override_settings(DEBUG=True)
     def test_failed_seed_leaves_nothing_behind(self):
-        Process.objects.create(name='Milling', kind=K.MATERIAL)  # wrong kind makes STARTED fail
-        with self.assertRaises(Exception):
+        with mock.patch('core.management.commands.seed_demo.seed_bulk', side_effect=RuntimeError), self.assertRaises(RuntimeError):
             self.seed()
         self.assertEqual((Customer.objects.count(), Order.objects.count(), Event.objects.count()), (0, 0, 0))
+
+    @override_settings(DEBUG=True)
+    def test_real_process_of_another_kind_is_left_alone(self):
+        real = Process.objects.create(name='Milling', kind=K.MATERIAL)
+        self.seed()
+        self.assertEqual(Process.objects.get(pk=real.pk).kind, K.MATERIAL)
+        self.assertTrue(Process.objects.filter(name='DEMO Milling', kind=K.MACHINING).exists())
+
+    @override_settings(DEBUG=True)
+    def test_reset_keeps_a_demo_process_that_a_real_scan_uses(self):
+        old = Process.objects.create(name='DEMO Old', kind=K.MATERIAL)
+        Event.objects.create(device=ScannerDevice.objects.create(name='Real scanner'), tag_uid='REAL1', event_type='ARRIVED', process=old)
+        self.seed('--reset')
+        self.assertTrue(Process.objects.filter(pk=old.pk).exists())
+        self.assertTrue(Event.objects.filter(tag_uid='REAL1').exists())
 
 
 class ResponsiveLayoutTests(TestCase):
@@ -699,3 +740,24 @@ class LanguageTests(RawTestCase):
         self.assertFalse([k for k, v in catalog.items() if not v and k != ''])
         self.assertEqual(catalog['Home'], 'ホーム')
         self.assertGreaterEqual(len(catalog), len(entries))
+
+
+class ScrollPanelTests(SimpleTestCase):
+    def render(self, tag):
+        from django.template import Context, Template
+        return Template('{% load panels %}' + tag).render(Context())
+
+    def test_panel_wraps_content_and_options(self):
+        html = self.render('{% scroll_panel max_height="40vh" first_col=True label="Rows" %}<table></table>{% endscroll_panel %}')
+        self.assertIn('class="scroll-panel scroll-panel-first"', html)
+        self.assertIn('--panel-max: 40vh', html)
+        self.assertIn('aria-label="Rows"', html)
+        self.assertIn('<table></table>', html)
+
+    def test_default_panel_has_no_inline_style(self):
+        self.assertNotIn('style=', self.render('{% scroll_panel %}x{% endscroll_panel %}'))
+
+    def test_every_table_in_a_template_sits_in_a_scroll_panel(self):
+        for path in (settings.BASE_DIR / 'templates').rglob('*.html'):
+            text = path.read_text(encoding='utf-8')
+            self.assertLessEqual(text.count('<table'), text.count('{% scroll_panel'), path.name)

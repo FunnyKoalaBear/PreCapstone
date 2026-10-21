@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n panels %}
 
 {% block title %}{% trans "Codes" %} - {% trans "Factory Tracker" %}{% endblock %}
 
@@ -22,7 +22,7 @@
   </form>
 
   {% trans "code" as l_code %}{% trans "name" as l_name %}{% trans "kind" as l_kind %}{% trans "lead days" as l_lead %}
-  <div class="table-wrap">
+  {% scroll_panel %}
     <table class="table table-cards">
       <thead>
         <tr>
@@ -47,5 +47,5 @@
         {% endfor %}
       </tbody>
     </table>
-  </div>
+  {% endscroll_panel %}
 {% endblock %}

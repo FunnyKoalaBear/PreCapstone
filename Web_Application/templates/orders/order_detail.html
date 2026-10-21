@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load i18n duration %}
+{% load i18n duration panels %}
 
 {% block title %}{{ order.job_number }} - {% trans "Factory Tracker" %}{% endblock %}
 
@@ -41,7 +41,7 @@
       {% if entry.runs %}
         <section class="runs">
           <h3>{% trans "Previous runs of this part" %}</h3>
-          <div class="table-wrap">
+          {% scroll_panel %}
             <table class="table">
               <thead>
                 <tr>
@@ -68,7 +68,7 @@
                 {% endfor %}
               </tbody>
             </table>
-          </div>
+          {% endscroll_panel %}
         </section>
       {% endif %}
 
@@ -161,7 +161,7 @@
   {% endfor %}
 
   <h2>{% trans "Change history" %}</h2>
-  <div class="table-wrap">
+  {% scroll_panel %}
     <table class="table">
       <thead>
         <tr>
@@ -186,5 +186,5 @@
         {% endfor %}
       </tbody>
     </table>
-  </div>
+  {% endscroll_panel %}
 {% endblock %}

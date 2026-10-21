@@ -1,12 +1,12 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n panels %}
 
 {% block title %}{% trans "Results" %} - {% trans "Factory Tracker" %}{% endblock %}
 
 {% block content %}
   <h1>{% trans "Results" %}</h1>
   <p class="note">{% trans "Quantity done and defects recorded per process. The defect rate is defects divided by quantity done." %}</p>
-  <div class="table-wrap">
+  {% scroll_panel %}
     <table class="table table-cards">
       <thead>
         <tr>
@@ -42,5 +42,5 @@
         </tfoot>
       {% endif %}
     </table>
-  </div>
+  {% endscroll_panel %}
 {% endblock %}

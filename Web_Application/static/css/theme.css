@@ -5,6 +5,7 @@
   --color-muted: #5b6573;
   --color-primary: #2563eb;
   --color-border: #d9dee5;
+  --color-scrollbar: #8a93a0;
   --gantt-track-bg: #eef0f3;
   --gantt-vendor-stripe: #a78bfa;
 
@@ -55,6 +56,7 @@
   .table-cards, .table-cards tbody, .table-cards tfoot, .table-cards tr { display: block; }
   .table-cards tr { margin-bottom: 0.75rem; background: var(--color-surface); border: 1px solid var(--color-border); }
   .table-cards td, .table-cards th { display: flex; justify-content: space-between; gap: 1rem; text-align: right; }
+  .scroll-panel-first .table-cards tr > :first-child { position: static; }
   .table-cards [data-label]::before { content: attr(data-label); flex: none; color: var(--color-muted); font-weight: 600; text-align: left; }
 }
 

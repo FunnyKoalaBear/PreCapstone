@@ -19,6 +19,10 @@ Windows 11, Python 3.13, VS Code. The developer is learning: explain each step b
 - Colors only through CSS variables in static/css/theme.css; no hard-coded colors elsewhere.
 - Every user-visible string uses {% trans %} (templates) or gettext (Python).
 - Templates in Web_Application/templates/, static files in Web_Application/static/.
+- Any list or table that can grow long uses the scroll panel: `{% load panels %}` then `{% scroll_panel %}...{% endscroll_panel %}` (options `max_height`, `first_col`, `label`). No bare tables, no new overflow wrappers.
+
+## Demo data
+- Every new feature ships with demo data: extend `core/management/commands/seed_demo.py` (bulk history in `_demo_bulk.py`) so its pages are not empty, then open each page to check. Events go through `record_event`, never status fields; keep it deterministic, relative to today, and re-runnable (`seed_demo --reset`).
 
 ## Data model decisions (confirmed)
 - Status is never stored; it is derived from Events.

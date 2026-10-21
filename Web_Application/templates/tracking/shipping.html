@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n panels %}
 
 {% block title %}{% trans "Shipping" %} - {% trans "Factory Tracker" %}{% endblock %}
 
@@ -7,7 +7,7 @@
   <h1>{% trans "Shipping" %}</h1>
 
   <h2>{% trans "Ready to ship" %}</h2>
-  <div class="table-wrap">
+  {% scroll_panel %}
     <table class="table table-cards">
       <thead>
         <tr>
@@ -30,11 +30,11 @@
         {% endfor %}
       </tbody>
     </table>
-  </div>
+  {% endscroll_panel %}
 
   <h2>{% trans "On-time delivery by month" %}</h2>
   <p class="note">{% trans "Shipped on or before the order due date, as a share of the items shipped that month." %}</p>
-  <div class="table-wrap">
+  {% scroll_panel %}
     <table class="table table-cards">
       <thead>
         <tr>
@@ -57,5 +57,5 @@
         {% endfor %}
       </tbody>
     </table>
-  </div>
+  {% endscroll_panel %}
 {% endblock %}

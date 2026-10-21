@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n panels %}
 
 {% block title %}{{ customer.name }} - {% trans "Factory Tracker" %}{% endblock %}
 
@@ -15,7 +15,7 @@
 
   <h2>{% trans "Orders" %}</h2>
   {% if rows %}
-    <div class="table-wrap">
+    {% scroll_panel %}
       <table class="table">
         <thead>
           <tr>
@@ -39,7 +39,7 @@
           {% endfor %}
         </tbody>
       </table>
-    </div>
+    {% endscroll_panel %}
   {% else %}
     <p>{% trans "This customer has no orders yet." %}</p>
   {% endif %}

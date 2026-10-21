@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n panels %}
 
 {% block title %}{% trans "Orders" %} - {% trans "Factory Tracker" %}{% endblock %}
 
@@ -34,7 +34,7 @@
     <a href="{% url 'order_export' %}?{{ request.GET.urlencode }}">{% trans "Export CSV" %}</a>{% endif %}
   </form>
 
-  <div class="table-wrap">
+  {% scroll_panel first_col=True %}
     <table class="table table-cards">
       <thead>
         <tr>
@@ -64,5 +64,5 @@
         {% endfor %}
       </tbody>
     </table>
-  </div>
+  {% endscroll_panel %}
 {% endblock %}

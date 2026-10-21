@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load i18n duration %}
+{% load i18n duration panels %}
 
 {% block title %}{% trans "Priorities" %} - {% trans "Factory Tracker" %}{% endblock %}
 
@@ -27,7 +27,7 @@
   </form>
 
   {% if rows %}
-    <div class="table-wrap">
+    {% scroll_panel first_col=True %}
       <table class="table">
         <thead>
           <tr>
@@ -60,7 +60,7 @@
           {% endfor %}
         </tbody>
       </table>
-    </div>
+    {% endscroll_panel %}
   {% else %}
     <p>{% trans "Nothing needs attention." %}</p>
   {% endif %}

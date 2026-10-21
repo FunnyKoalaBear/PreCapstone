@@ -2,15 +2,18 @@ import csv
 from datetime import timedelta
 
 from django.conf import settings
+from django.contrib.auth.models import Group, User
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import ProtectedError, Q
 from django.utils import timezone
 
 from orders.models import Customer, Order, OrderItem, Process, RouteStep, Vendor
 from tracking.models import Box, Event, Machine, ScannerDevice, Tag, TagAssignment, Worker
 from tracking.services import record_event
 from tracking.status import DONE, item_status
+
+from ._demo_bulk import seed_bulk
 
 DATA_DIR = settings.BASE_DIR / 'docs' / 'demo-data'
 # default vendor code per process name, and lead days per vendor code (the CSV files carry neither)
@@ -46,27 +49,51 @@ class Command(BaseCommand):
     def handle(self, *args, reset=False, **options):
         if not settings.DEBUG:
             raise CommandError('seed_demo only runs when DEBUG is True.')
-        with transaction.atomic():
-            if reset:
-                self.wipe()
-            elif Customer.objects.filter(name__startswith='DEMO ').exists():
+        with transaction.atomic():  # a failed reset leaves the database unchanged
+            removed = self.wipe() if reset else {'orders': 0, 'events': 0, 'processes': 0}
+            if not reset and Customer.objects.filter(name__startswith='DEMO ').exists():
                 self.stdout.write('Demo data already exists; use --reset to re-create it.')
                 return
+            orders, events, procs = Order.objects.count(), Event.objects.count(), Process.objects.count()
             self.seed()
+            self.stdout.write(
+                f'Removed {removed["orders"]} orders, {removed["events"]} events, {removed["processes"]} processes. '
+                f'Created {Order.objects.count() - orders} orders, {Event.objects.count() - events} events, {Process.objects.count() - procs} processes.')
 
     def wipe(self):
-        """Delete demo rows only; QuerySet.delete() bypasses the append-only Model.delete."""
-        ev = Event.objects.filter(Q(device__name__startswith='DEMO ') | Q(tag_uid__in=DEMO_UIDS))
+        """Delete demo rows in dependency order and return the counts; QuerySet.delete() bypasses the append-only Model.delete."""
+        orders = Order.objects.filter(customer__name__startswith='DEMO ')
+        uids = list(Tag.objects.filter(note='DEMO').values_list('uid', flat=True)) + list(DEMO_UIDS)
+        ev = Event.objects.filter(Q(device__name__startswith='DEMO ') | Q(tag_uid__in=uids) | Q(item__order__in=orders))
+        ev = Event.objects.filter(Q(pk__in=ev.values('pk')) | Q(corrects__in=ev))  # a correction goes with the event it voids
+        removed = {'events': ev.count(), 'orders': orders.count(), 'processes': 0}
         ev.filter(corrects__isnull=False).delete()
         ev.delete()
-        orders = Order.objects.filter(customer__name__startswith='DEMO ')
-        TagAssignment.objects.filter(Q(tag__uid__in=DEMO_UIDS) | Q(item__order__in=orders)).delete()
+        TagAssignment.objects.filter(Q(tag__uid__in=uids) | Q(item__order__in=orders)).delete()
         orders.delete()
-        Tag.objects.filter(uid__in=DEMO_UIDS).delete()
+        Tag.objects.filter(uid__in=uids).delete()
+        User.objects.filter(username__startswith='demo_').delete()
         Box.objects.filter(label__startswith='DEMO').delete()
-        ScannerDevice.objects.filter(name__startswith='DEMO ').delete()
         Customer.objects.filter(name__startswith='DEMO ').delete()
-        Process.objects.filter(name__startswith='DEMO ').delete()  # old demo processes; the CSV processes and vendors stay
+        # Old demo processes and scanners stay (with a warning) if a real record still points at them
+        for obj in [*ScannerDevice.objects.filter(name__startswith='DEMO '), *Process.objects.filter(name__startswith='DEMO ')]:
+            try:
+                with transaction.atomic():
+                    obj.delete()
+                removed['processes'] += isinstance(obj, Process)
+            except ProtectedError as e:
+                last = max(e.protected_objects, key=lambda o: getattr(o, 'occurred_at', timezone.now()))
+                self.stdout.write(self.style.WARNING(f'Kept {type(obj).__name__} "{obj}": still used by {len(e.protected_objects)} record(s), e.g. {last}.'))
+        return removed
+
+    def demo_process(self, row, vendor):
+        """The process of that name; a real one of another kind is left alone and a 'DEMO ' copy is used."""
+        found = Process.objects.filter(name=row['name']).first()
+        name = row['name']
+        if found and found.kind != row['kind']:
+            name = f'DEMO {name}'
+            self.stdout.write(self.style.WARNING(f'Process "{row["name"]}" exists with another kind; using "{name}".'))
+        return Process.objects.get_or_create(name=name, defaults={'name_ja': row['name_ja'], 'kind': row['kind'], 'default_vendor': vendor})[0]
 
     def seed(self):
         now, today = timezone.now(), timezone.localdate()
@@ -74,10 +101,13 @@ class Command(BaseCommand):
         vendors = {r['code']: Vendor.objects.get_or_create(code=r['code'], defaults={
             'name': r['name'], 'name_ja': r['name_ja'], 'kind': r['kind'], 'lead_days': LEAD_DAYS.get(r['code'])})[0]
             for r in read_csv('codes.csv')}
-        procs = {r['name']: Process.objects.get_or_create(name=r['name'], defaults={
-            'name_ja': r['name_ja'], 'kind': r['kind'], 'default_vendor': vendors[DEFAULT_VENDOR[r['name']]]})[0]
-            for r in read_csv('processes.csv')}
-        d1, d2 = (ScannerDevice.objects.get_or_create(name=f'DEMO Scanner {i}')[0] for i in (1, 2))
+        procs = {r['name']: self.demo_process(r, vendors[DEFAULT_VENDOR[r['name']]]) for r in read_csv('processes.csv')}
+        d1, d2, _silent = (ScannerDevice.objects.get_or_create(name=f'DEMO Scanner {i}')[0] for i in (1, 2, 3))  # scanner 3 never reports
+        for role, name in (('Operator', 'demo_operator'), ('Planner', 'demo_planner'), ('Admin', 'demo_admin')):  # cannot log in
+            user = User(username=name)
+            user.set_unusable_password()
+            user.save()
+            user.groups.add(Group.objects.get(name=role))
         c1, c2 = (Customer.objects.get_or_create(name=f'DEMO {n}')[0] for n in CUSTOMERS)
         created = []
 
@@ -182,7 +212,8 @@ class Command(BaseCommand):
         # The healthy order's assembly is only partly done
         self.manual(d1, '0781DD5E', procs['Assembly'], Event.Type.PARTIAL, ago(hours=1), 'Half of the pieces')
         self.add_results(created, d1)
-        self.stdout.write(self.style.SUCCESS(f'Created {len(created)} demo orders:'))
+        bulk = seed_bulk(procs, {v.code: v for v in vendors.values()}, (d1, d2))
+        self.stdout.write(self.style.SUCCESS(f'Created {len(created)} scenario orders and {bulk} history orders:'))
         for label, item in created:
             self.stdout.write(f'  {item.order.job_number}  {label:<18} {item_status(item).code}')
 
