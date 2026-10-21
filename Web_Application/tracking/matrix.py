@@ -21,6 +21,7 @@ def _cells(status, from_current):
         cells.append({
             'state': state, 'label': STEP_LABELS[state], 'partial': r.partial and r.state != DONE, 'process': r.step.process, 'current': r is current,
             'vendor': (vendor.display_name if vendor else r.step.process.vendor_name) if r.step.process.kind == Process.Kind.OUTSOURCED else '',
+            'vendor_code': vendor.code if vendor and r.step.process.kind == Process.Kind.OUTSOURCED else '',
         })
     return cells, (len(shown) if from_current else len(rows))
 

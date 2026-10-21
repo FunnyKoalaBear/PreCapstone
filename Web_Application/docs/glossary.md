@@ -256,3 +256,9 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | Add a code / Add code | コードを追加 / コードを登録 |
 | Actions | 操作 |
 | Suggested from the code | コードから自動判定 |
+
+## Terms added for the Home matrix
+
+| English | Japanese |
+|---|---|
+| Legend | 凡例 |

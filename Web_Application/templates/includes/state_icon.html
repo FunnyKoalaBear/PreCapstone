@@ -1,0 +1,7 @@
+<svg class="state-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  {% if state == 'done' %}<circle cx="12" cy="12" r="9"/><path d="M8 12.5l3 3 5-6"/>
+  {% elif state == 'in_progress' %}<path d="M7 4.5v15l12-7.5z" fill="currentColor"/>
+  {% elif state == 'at_vendor' %}<path d="M2 6h12v10H2zM14 9.5h4.5l3.5 3.5V16h-8z"/><circle cx="7" cy="18.5" r="1.8" fill="currentColor"/><circle cx="18" cy="18.5" r="1.8" fill="currentColor"/>
+  {% elif state == 'paused' %}<rect x="6" y="5" width="4" height="14" fill="currentColor"/><rect x="14" y="5" width="4" height="14" fill="currentColor"/>
+  {% else %}<circle cx="12" cy="12" r="8" stroke-dasharray="3.5 3.5"/>{% endif %}
+</svg>

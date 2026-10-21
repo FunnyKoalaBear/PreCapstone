@@ -145,7 +145,7 @@ class HomeDashboardTests(TestCase):
         r = self.home()
         self.assertContains(r, 'class="matrix"')
         self.assertContains(r, item.item_code)
-        self.assertContains(r, 'href="/matrix/"')
+        self.assertNotContains(r, 'href="/matrix/"')
         for gone in ('Process board', 'process-card', 'In-house now', 'At vendors'):
             self.assertNotContains(r, gone)
         self.assertEqual(self.client.get('/board/').status_code, 404)
@@ -400,6 +400,15 @@ class SeedDemoTests(TestCase):
         self.seed('--reset')
         self.assertEqual(first, list(OrderItem.objects.order_by('order__job_number', 'item_no').values_list('part_name', 'quantity')))
 
+    @override_settings(DEBUG=True)
+    def test_home_matrix_shows_every_cell_state_and_a_long_route(self):
+        self.seed()
+        self.client.force_login(make_user('op', 'Operator'))
+        data = self.client.get('/', {'n': 500}).context['matrix']
+        states = {c['state'] for r in data['rows'] for c in r['cells']}
+        self.assertEqual(states, {'pending', 'in_progress', 'at_vendor', 'paused', 'done'})
+        self.assertGreaterEqual(len(data['columns']), 6)
+
     def test_static_demo_data_matches_the_csv_files(self):
         js = (settings.BASE_DIR / 'demo' / 'js' / 'data.js').read_text(encoding='utf-8')
         demo = re.findall(r"name: '([^']+)', ja: '([^']+)', kind: '(\w+)'", js)
@@ -478,7 +487,7 @@ class ResponsiveLayoutTests(TestCase):
             self.assertEqual(html.count('class="table table-cards"'), tables, url)
             unlabelled = re.findall(r'<td(?![^>]*(?:data-label|colspan))[^>]*>', html)
             self.assertEqual(len(unlabelled), 1 if 'tags' in url else 0, url)  # only the tag actions cell has no label
-        for url in ('/matrix/', f'/orders/{order.job_number}/'):
+        for url in ('/', f'/orders/{order.job_number}/'):
             self.assertNotIn('table-cards', self.client.get(url).content.decode(), url)
         theme = self.css('theme.css')
         self.assertIn('.table-cards [data-label]::before { content: attr(data-label)', theme)
@@ -569,8 +578,10 @@ class StatusColourTests(SimpleTestCase):
 
     def test_matrix_and_legend_use_the_state_variables(self):
         base = (self.CSS / 'base.css').read_text(encoding='utf-8')
-        for state in ('pending', 'in_progress', 'at_vendor', 'done', 'paused'):
-            self.assertRegex(base, rf'\.matrix-{state} \{{ background: var\(--status-[a-z-]+-tint\)', state)
+        self.assertRegex(base, r'\.matrix-done \{ background: var\(--status-complete-tint\)')
+        for state, name in (('in_progress', 'in-progress'), ('at_vendor', 'at-vendor'), ('paused', 'paused')):
+            self.assertIn(f'.matrix-{state} {{ background: var(--status-{name}); }}', base, state)
+        self.assertIn('.matrix-pending { background: transparent;', base)
         self.assertNotIn('--matrix-', self.theme())
 
 

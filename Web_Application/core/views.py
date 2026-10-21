@@ -1,13 +1,15 @@
 from collections import Counter
 from datetime import datetime, timedelta
+from urllib.parse import urlencode
 
 from django.contrib.auth.models import User
 from django.db.models import Q
 from django.shortcuts import render
+from django.utils.dateparse import parse_date
 from django.utils import timezone
 
 from core.permissions import ADMIN, OPERATOR, ROLES, role_level, role_required
-from orders.models import OrderItem
+from orders.models import Customer, OrderItem
 from tracking.matrix import matrix
 from tracking.models import Event, ScannerDevice
 from tracking.overview import active_boxes
@@ -16,15 +18,26 @@ from tracking.status import (
 )
 
 
-HOME_ROWS = 10  # most urgent items shown on the home page
+MATRIX_PAGE = 50  # rows per "Show more"
+MATRIX_STATUSES = [NOT_STARTED, WAITING, IN_PROGRESS, AT_VENDOR, PAUSED]
 
 
 @role_required(OPERATOR)
 def home(request):
+    g = request.GET
+    status = g.get('status') if g.get('status') in MATRIX_STATUSES else ''
+    customer = int(g['customer']) if g.get('customer', '').isdigit() else None
+    due_from, due_to = parse_date(g.get('due_from', '')), parse_date(g.get('due_to', ''))
+    late, from_current = g.get('late') == '1', g.get('current') == '1'
+    n = min(max(int(g['n']), MATRIX_PAGE), 500) if g.get('n', '').isdigit() else MATRIX_PAGE
     boxes = active_boxes()
     codes = Counter(e['code'] for e in boxes)
+    keep = {k: v for k, v in g.items() if k != 'n' and v}
     return render(request, 'core/home.html', {
-        'matrix': matrix(limit=HOME_ROWS),
+        'matrix': matrix(n, status, customer, due_from, due_to, late, from_current),
+        'status': status, 'customer': customer, 'due_from': g.get('due_from', ''), 'due_to': g.get('due_to', ''),
+        'late': late, 'from_current': from_current, 'customers': Customer.objects.order_by('name'),
+        'status_choices': [(c, LABELS[c]) for c in MATRIX_STATUSES], 'more_url': '?' + urlencode({**keep, 'n': n + MATRIX_PAGE}),
         'counters': {
             'in_progress': codes[IN_PROGRESS], 'waiting': codes[WAITING], 'at_vendor': codes[AT_VENDOR],
             'not_started': codes[NOT_STARTED], 'paused': codes[PAUSED], 'overdue': len({e['order'].pk for e in boxes if e['late']}),

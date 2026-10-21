@@ -1,0 +1,9 @@
+{% load i18n %}
+<ul class="matrix-legend" aria-label="{% trans 'Legend' %}">
+  <li class="matrix-chip matrix-pending">{% include "includes/state_icon.html" with state="pending" %}{% trans "Pending" %}</li>
+  <li class="matrix-chip matrix-in_progress">{% include "includes/state_icon.html" with state="in_progress" %}{% trans "In progress" %}</li>
+  <li class="matrix-chip matrix-at_vendor">{% include "includes/state_icon.html" with state="at_vendor" %}{% trans "At vendor" %}</li>
+  <li class="matrix-chip matrix-paused">{% include "includes/state_icon.html" with state="paused" %}{% trans "Paused" %}</li>
+  <li class="matrix-chip matrix-done">{% include "includes/state_icon.html" with state="done" %}{% trans "Done" %}</li>
+  <li class="matrix-chip matrix-current">{% trans "Current step" %}</li>
+</ul>

@@ -1,4 +1,5 @@
 from django.urls import path
+from django.views.generic import RedirectView
 
 from . import api, views
 
@@ -8,7 +9,7 @@ urlpatterns = [
     path('simulate/', views.simulate, name='simulate'),
     path('priorities/', views.priorities, name='priorities'),
     path('boxes/', views.boxes, name='boxes'),
-    path('matrix/', views.progress_matrix, name='matrix'),
+    path('matrix/', RedirectView.as_view(pattern_name='home', query_string=True), name='matrix'),
     path('results/', views.results_summary, name='results'),
     path('shipping/', views.shipping, name='shipping'),
     path('plan-vs-actual/', views.plan_summary, name='plan_summary'),

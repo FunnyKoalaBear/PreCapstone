@@ -6,19 +6,41 @@
 {% block content %}
   <h1>{% trans "Home" %}</h1>
 
-    <div class="counters">
-      <a class="card counter counter-in_progress" href="{% url 'boxes' %}?status=in_progress"><strong>{{ counters.in_progress }}</strong> {% trans "In progress" %}</a>
-      <a class="card counter counter-waiting" href="{% url 'boxes' %}?status=waiting"><strong>{{ counters.waiting }}</strong> {% trans "Waiting" %}</a>
-      <a class="card counter counter-at_vendor" href="{% url 'boxes' %}?status=at_vendor"><strong>{{ counters.at_vendor }}</strong> {% trans "At vendor" %}</a>
-      <a class="card counter counter-paused" href="{% url 'boxes' %}?status=paused"><strong>{{ counters.paused }}</strong> {% trans "Paused" %}</a>
-      <a class="card counter counter-not_started" href="{% url 'boxes' %}?status=not_started"><strong>{{ counters.not_started }}</strong> {% trans "Not started" %}</a>
-      <a class="card counter counter-stagnant" href="{% url 'boxes' %}?stagnant=1"><strong>{{ counters.stagnant }}</strong> {% trans "Stagnant" %}</a>
-      <a class="card counter counter-overdue" href="{% url 'order_list' %}?late=1"><strong>{{ counters.overdue }}</strong> {% trans "Overdue orders" %}</a>
-      <a class="card counter counter-vendor{% if counters.vendor_overdue %} counter-overdue counter-late{% endif %}" href="{% url 'boxes' %}?status=at_vendor&amp;vendor_late=1"><strong>{{ counters.vendor_overdue }}</strong> {% trans "Vendor overdue" %}</a>
+  <div class="counters counters-compact">
+    <a class="card counter counter-in_progress" href="{% url 'boxes' %}?status=in_progress"><strong>{{ counters.in_progress }}</strong> {% trans "In progress" %}</a>
+    <a class="card counter counter-waiting" href="{% url 'boxes' %}?status=waiting"><strong>{{ counters.waiting }}</strong> {% trans "Waiting" %}</a>
+    <a class="card counter counter-at_vendor" href="{% url 'boxes' %}?status=at_vendor"><strong>{{ counters.at_vendor }}</strong> {% trans "At vendor" %}</a>
+    <a class="card counter counter-paused" href="{% url 'boxes' %}?status=paused"><strong>{{ counters.paused }}</strong> {% trans "Paused" %}</a>
+    <a class="card counter counter-not_started" href="{% url 'boxes' %}?status=not_started"><strong>{{ counters.not_started }}</strong> {% trans "Not started" %}</a>
+    <a class="card counter counter-stagnant" href="{% url 'boxes' %}?stagnant=1"><strong>{{ counters.stagnant }}</strong> {% trans "Stagnant" %}</a>
+    <a class="card counter counter-overdue" href="{% url 'order_list' %}?late=1"><strong>{{ counters.overdue }}</strong> {% trans "Overdue orders" %}</a>
+    <a class="card counter counter-vendor{% if counters.vendor_overdue %} counter-overdue counter-late{% endif %}" href="{% url 'boxes' %}?status=at_vendor&amp;vendor_late=1"><strong>{{ counters.vendor_overdue }}</strong> {% trans "Vendor overdue" %}</a>
+  </div>
+
+  <h2>{% trans "Progress matrix" %}</h2>
+  <form method="get" class="filters">
+    <div>
+      <label for="status">{% trans "Status" %}</label>
+      <select id="status" name="status">
+        <option value="">{% trans "All" %}</option>
+        {% for code, label in status_choices %}<option value="{{ code }}"{% if code == status %} selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
     </div>
+    <div>
+      <label for="customer">{% trans "Customer" %}</label>
+      <select id="customer" name="customer">
+        <option value="">{% trans "All" %}</option>
+        {% for c in customers %}<option value="{{ c.pk }}"{% if c.pk == customer %} selected{% endif %}>{{ c.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div><label for="due_from">{% trans "Due from" %}</label><input type="date" id="due_from" name="due_from" value="{{ due_from }}"></div>
+    <div><label for="due_to">{% trans "Due to" %}</label><input type="date" id="due_to" name="due_to" value="{{ due_to }}"></div>
+    <label class="check"><input type="checkbox" name="late" value="1"{% if late %} checked{% endif %}> {% trans "Overdue only" %}</label>
+    <label class="check"><input type="checkbox" name="current" value="1"{% if from_current %} checked{% endif %}> {% trans "Start at current step" %}</label>
+    <button type="submit" class="button">{% trans "Apply" %}</button>
+  </form>
 
-
-    <h2>{% trans "Progress matrix" %}</h2>
-    {% include "tracking/_matrix.html" %}
-    <p><a href="{% url 'matrix' %}">{% trans "Show the full progress matrix" %}</a></p>
+  {% if matrix.rows %}{% include "includes/matrix_legend.html" %}{% endif %}
+  {% include "tracking/_matrix.html" %}
+  {% if matrix.more %}<p><a class="button-secondary" href="{{ more_url }}">{% trans "Show more" %}</a></p>{% endif %}
 {% endblock %}

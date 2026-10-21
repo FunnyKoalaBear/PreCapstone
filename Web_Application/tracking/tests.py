@@ -8,6 +8,7 @@ from types import SimpleNamespace
 
 from unittest import mock
 
+from django.template.loader import render_to_string
 from django.test import override_settings
 from django.utils import timezone
 
@@ -1263,11 +1264,11 @@ class ProgressMatrixTests(TestCase):
 
     def test_needs_operator_login(self):
         self.client.logout()
-        self.assertRedirects(self.client.get('/matrix/'), '/login/?next=/matrix/')
+        self.assertRedirects(self.client.get('/'), '/login/?next=/')
         self.client.force_login(make_user('nobody'))
-        self.assertEqual(self.client.get('/matrix/').status_code, 403)
+        self.assertEqual(self.client.get('/').status_code, 403)
         self.client.force_login(make_user('op'))
-        self.assertEqual(self.client.get('/matrix/').status_code, 200)
+        self.assertEqual(self.client.get('/').status_code, 200)
 
     def test_unfinished_items_by_due_date_and_complete_ones_left_out(self):
         later, _ = self.make(days=9)
@@ -1285,7 +1286,7 @@ class ProgressMatrixTests(TestCase):
         cells = self.rows()[0]['cells']
         self.assertEqual([(c.get('run'), c['state']) for c in cells], [(2, 'done'), (None, 'at_vendor')])
         self.assertEqual((cells[1]['process'], cells[1]['vendor'], cells[1]['current']), (self.plate, 'Demo Plating', True))
-        page = self.client.get('/matrix/')
+        page = self.client.get('/')
         self.assertContains(page, 'colspan="2"')
         self.assertContains(page, 'Demo Plating')
         self.assertContains(page, f'data-href="/orders/{item.order.job_number}/"')
@@ -1303,7 +1304,7 @@ class ProgressMatrixTests(TestCase):
         row = self.rows(from_current=True)[0]
         self.assertEqual([(c['process'], c['current']) for c in row['cells']], [(self.mill, True), (self.plate, False)])
         self.assertEqual(row['width'], 2)
-        page = self.client.get('/matrix/', {'current': '1'})
+        page = self.client.get('/', {'current': '1'})
         self.assertContains(page, '>Now<')
         self.assertContains(page, '>+1<')
 
@@ -1319,32 +1320,48 @@ class ProgressMatrixTests(TestCase):
         self.assertEqual(items(customer=self.beta.pk), [b, c])
         self.assertEqual(items(late=True), [a])
         self.assertEqual(items(due_from=timezone.localdate() + timedelta(days=3), due_to=timezone.localdate() + timedelta(days=10)), [b])
-        page = self.client.get('/matrix/', {'status': 'IN_PROGRESS', 'customer': self.beta.pk})
+        page = self.client.get('/', {'status': 'IN_PROGRESS', 'customer': self.beta.pk})
         self.assertContains(page, c.item_code)
         self.assertNotContains(page, b.item_code)
-        self.assertEqual(self.client.get('/matrix/', {'status': 'bogus', 'customer': 'x', 'due_from': 'zz'}).status_code, 200)
+        self.assertEqual(self.client.get('/', {'status': 'bogus', 'customer': 'x', 'due_from': 'zz'}).status_code, 200)
 
     def test_show_more_pages_through_the_rows(self):
         items = [self.make(days=i)[0] for i in range(3)]
         data = build_matrix(limit=2)
         self.assertEqual(([r['item'] for r in data['rows']], data['more']), (items[:2], True))
         self.assertFalse(build_matrix(limit=3)['more'])
-        with mock.patch('tracking.views.MATRIX_PAGE', 2):
-            first = self.client.get('/matrix/', {'status': 'NOT_STARTED'})
+        with mock.patch('core.views.MATRIX_PAGE', 2):
+            first = self.client.get('/', {'status': 'NOT_STARTED'})
             self.assertContains(first, 'Show more')
             self.assertContains(first, 'n=4')
             self.assertContains(first, 'status=NOT_STARTED')
             self.assertNotContains(first, items[2].item_code)
-            self.assertNotContains(self.client.get('/matrix/', {'n': 4}), 'Show more')
+            self.assertNotContains(self.client.get('/', {'n': 4}), 'Show more')
 
-    def test_home_shows_the_ten_most_urgent(self):
+    def test_old_matrix_url_redirects_home_and_keeps_the_filters(self):
+        self.assertRedirects(self.client.get('/matrix/', {'status': 'PAUSED'}), '/?status=PAUSED')
+        self.assertNotContains(self.client.get('/'), 'href="/matrix/"')
+
+    def test_home_lists_the_most_urgent_first_in_a_scroll_panel(self):
         items = [self.make(days=i)[0] for i in range(12)]
         r = self.client.get('/')
-        self.assertEqual([x['item'] for x in r.context['matrix']['rows']], items[:10])
-        self.assertContains(r, 'href="/matrix/"')
+        self.assertEqual([x['item'] for x in r.context['matrix']['rows']], items)
+        self.assertContains(r, 'class="scroll-panel scroll-panel-first"')
+
+    def test_every_state_has_its_own_icon_and_the_legend_is_shown(self):
+        item, uid = self.make(route=[self.mat, self.mill, self.plate, self.mill, self.plate])
+        self.scan(uid, self.mat, 'ARRIVED')
+        html = self.client.get('/').content.decode()
+        self.assertIn('class="matrix-legend"', html)
+        for state in ('pending', 'in_progress', 'at_vendor', 'paused', 'done'):
+            self.assertIn(f'matrix-chip matrix-{state}', html)
+        icons = {}
+        for state in ('pending', 'in_progress', 'at_vendor', 'paused', 'done'):
+            icons[state] = render_to_string('includes/state_icon.html', {'state': state})
+        self.assertEqual(len(set(icons.values())), 5)
 
     def test_empty_matrix(self):
-        self.assertContains(self.client.get('/matrix/'), 'No unfinished items match.')
+        self.assertContains(self.client.get('/'), 'No unfinished items match.')
 
 
 class ResultTests(TestCase):
@@ -1796,7 +1813,7 @@ class StepStateTests(TestCase):
         self.assertContains(boxes, 'Paused')
         row = build_matrix(status='PAUSED')['rows'][0]
         self.assertEqual((row['cells'][1]['state'], row['cells'][1]['partial']), ('paused', True))
-        page = self.client.get('/matrix/', {'status': 'PAUSED'})
+        page = self.client.get('/', {'status': 'PAUSED'})
         self.assertContains(page, 'matrix-paused')
         self.assertContains(page, 'Partial')
 

@@ -6,6 +6,8 @@
   --color-primary: #2563eb;
   --color-border: #d9dee5;
   --color-scrollbar: #8a93a0;
+  --color-on-status: #ffffff; /* text on a filled state colour */
+  --frozen-shadow: 6px 0 6px -6px color-mix(in srgb, var(--color-text) 40%, transparent);
   --gantt-track-bg: #eef0f3;
   --gantt-vendor-stripe: #a78bfa;
 
@@ -16,7 +18,7 @@
   --status-overdue: #9d1b1b;
   --status-in-progress: #1e51c0;
   --status-at-vendor: #7637e1;
-  --status-paused: #0e718c;
+  --status-paused: #b93a09;
   --status-complete: #117d39;
   --status-waiting: #ab5e05;
   --status-not-started: #72777f;
