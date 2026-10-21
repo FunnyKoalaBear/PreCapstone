@@ -1,5 +1,5 @@
 # Feature queue
-Order matters. [ ] todo, [x] done, [!] blocked. IDs match the feature tracker. Every item needs Japanese strings and tests.
+Order matters. [ ] todo, [!] blocked. Finished entries are deleted; git history and the feature tracker keep the record. IDs match the feature tracker. Every item needs Japanese strings and tests.
 
 ## Queue
 

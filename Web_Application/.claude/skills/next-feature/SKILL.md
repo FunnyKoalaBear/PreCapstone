@@ -13,7 +13,7 @@ For each feature:
 2. Implement it following CLAUDE.md. Short code, one-line comments at most.
 3. Every new user-visible string gets a Japanese translation: makemessages -l ja, fill the .po, compilemessages. Check the Japanese reads naturally.
 4. Add or update tests, then run `python manage.py check` and `python manage.py test`. Fix failures; after two failed attempts mark the item [!] with the reason and stop.
-5. In docs/queue.md mark the item [x]. Stage only files under Web_Application/ and commit. Read `git log --oneline -15` first and match the message style. One commit per feature (migrations included).
+5. Delete the finished entry from docs/queue.md and include that deletion in the same commit as the feature. Stage only files under Web_Application/ and commit. Read `git log --oneline -15` first and match the message style. One commit per feature (migrations included).
 6. Never push, amend, rebase or reset.
 
 When done, report per feature: commit hash, one line on what changed, and 3 quick manual test steps.
