@@ -2,8 +2,8 @@
 (() => {
   const ja = document.documentElement.lang === 'ja';
   const T = ja
-    ? { demo: 'これはデモです。内容は保存されません。', empty: '条件に一致するものはありません。', none: '出荷実績はまだありません。' }
-    : { demo: 'This is a demo, nothing is saved.', empty: 'Nothing matches the filters.', none: 'Nothing has been shipped yet.' };
+    ? { unassigned: (u) => `タグ ${u} は品目に紐付いていません。`, demo: 'これはデモです。内容は保存されません。', empty: '条件に一致するものはありません。', none: '出荷実績はまだありません。' }
+    : { unassigned: (u) => `Tag ${u} is not linked to any item.`, demo: 'This is a demo, nothing is saved.', empty: 'Nothing matches the filters.', none: 'Nothing has been shipped yet.' };
   const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const fmt = (s, v) => s.replace(/%\((\w+)\)[ds]/g, (_, k) => v[k]);
@@ -25,7 +25,7 @@
   // Every form is either a live filter (below) or a demo notice
   document.addEventListener('submit', (e) => {
     e.preventDefault();
-    if (!e.target.matches('.filters[data-live]')) notice();
+    if (!e.target.matches('.filters[data-live]') && !e.target.querySelector('input[name=tag][list]')) notice();
   }, true);
 
   // ---- Row filters: controls are matched to data-f-* attributes of the table rows ----
@@ -181,8 +181,24 @@
     if (strip) panel.insertAdjacentHTML('beforebegin', strip);
   };
 
+  // ---- Simulate scan: picking a tag opens the page that shows that tag's next step ----
+  const startPicker = () => {
+    const pick = document.querySelector('input[name=tag][list]');
+    if (!pick) return;
+    const go = () => {
+      const uid = pick.value.trim().toUpperCase();
+      pick.form.parentNode.querySelectorAll('.demo-pick').forEach((n) => n.remove());
+      if (!uid) return;
+      if ([...document.querySelectorAll('#tag-picks option')].some((o) => o.value === uid)) { location.href = 'simulate_' + uid + '.html'; return; }
+      pick.form.insertAdjacentHTML('afterend', `<div class="card demo-pick"><p>${esc(T.unassigned(uid))}</p></div>`);
+    };
+    pick.form.addEventListener('change', go);
+    pick.form.addEventListener('submit', go);
+  };
+
   // ---- Start-up ----
   document.addEventListener('DOMContentLoaded', () => {
+    startPicker();
     const forms = [...document.querySelectorAll('form.filters')];
     const params = new URLSearchParams(location.search);
     const factsEl = document.getElementById('demo-facts');

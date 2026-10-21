@@ -29,6 +29,7 @@ What works in the demo
   and the monthly on-time table are recalculated in the browser from the data embedded in
   the page.
 - Scroll panels, the frozen first column of the progress matrix, the menu button.
+- Simulate scan: pick a tag and its next step is shown (one pre-rendered page per open tag); "Confirm" shows the demo notice.
 - Forms (new order, import, add/edit/deactivate code, tags, customers, corrections) and
   links to files (PDF sheet, CSV export, drawings, edit pages) show "This is a demo,
   nothing is saved" in the page's language.

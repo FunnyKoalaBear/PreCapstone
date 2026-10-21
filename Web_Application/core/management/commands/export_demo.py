@@ -54,6 +54,9 @@ def canon(url):
         if re.fullmatch(r'[a-z_]+', q.get('status', '')):
             return f'boxes_{q["status"]}', f'/boxes/?status={q["status"]}'
         return 'boxes', '/boxes/'
+    if path == '/simulate/':
+        tag = q.get('tag', '').upper()
+        return (f'simulate_{tag}', f'/simulate/?tag={tag}') if re.fullmatch(r'[0-9A-F]+', tag) else ('simulate', '/simulate/')
     if m := re.fullmatch(r'/customers/(\d+)/', path):
         return f'customer_{m[1]}', path
     for p, key in (('/shipping/', 'shipping'), ('/customers/', 'customers'), ('/tags/', 'tags'), ('/tags/history/', 'tag_history')):
@@ -128,7 +131,7 @@ class Command(BaseCommand):
 
     def crawl(self):
         user = User.objects.create_user('demo_export')
-        user.groups.add(Group.objects.get(name='Planner'))
+        user.groups.add(Group.objects.get(name='Admin'))  # the simulate page is for admins; the dashboard is left out of the demo
         client = Client()
         client.force_login(user)
         pages = {}
@@ -146,6 +149,9 @@ class Command(BaseCommand):
                     continue
                 body = response.content.decode()
                 pages[lang, key] = (url, body)
+                if key == 'simulate':  # one page per open tag shows that tag's next step
+                    picks = re.search(r'<datalist id="tag-picks">(.*?)</datalist>', body, re.S)
+                    queue.extend(canon(f'/simulate/?tag={uid}') for uid in re.findall(r'<option value="([0-9A-F]+)">', picks[1] if picks else ''))
                 for _attr, href in LINK.findall(body):
                     href = absolute(html.unescape(href), url)
                     target = canon(href) if href.startswith('/') and not href.startswith('/static/') else None
@@ -171,7 +177,8 @@ class Command(BaseCommand):
         body = re.sub(r'<form action="[^"]*setlang[^"]*".*?</form>', lambda _: self.lang_links(lang, key), body, flags=re.S)
         body = re.sub(r'<form action="/logout/".*?</form>|<a class="account" href="/login/">.*?</a>', '', body, flags=re.S)
         body = re.sub(r'<input type="hidden" name="csrfmiddlewaretoken" value="[^"]*">', '', body)
-        body = body.replace(' onchange="this.form.submit()"', '')
+        body = body.replace(' onchange="this.form.submit()"', '').replace(' onchange="this.submit()"', '')
+        body = re.sub(r'<a href="/dashboard/">.*?</a>', '', body)
         body = re.sub(r'(name="inactive"[^>]*?) checked', r'\1', body)
         body = LINK.sub(link, body)
         manual = ('manual.html', '使い方') if lang == 'ja' else ('../ja/manual.html', '使い方')
