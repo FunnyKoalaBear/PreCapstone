@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Factory Tracker\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-21 19:03+0900\n"
+"POT-Creation-Date: 2026-10-21 19:14+0900\n"
 "PO-Revision-Date: 2026-10-11 17:00+0900\n"
 "Last-Translator: Claude\n"
 "Language-Team: Japanese\n"
@@ -56,7 +56,8 @@ msgid "no"
 msgstr "いいえ"
 
 #: .\orders\forms.py:18 .\orders\models.py:14 .\orders\models.py:40
-#: .\orders\models.py:72 .\templates\orders\code_list.html:29
+#: .\orders\models.py:72 .\templates\orders\code_list.html:24
+#: .\templates\orders\code_list.html:30
 #: .\templates\orders\customer_detail.html:11
 #: .\templates\orders\customer_list.html:27 .\tracking\models.py:89
 #: .\tracking\models.py:118
@@ -246,7 +247,8 @@ msgstr "仕入先"
 msgid "Vendor"
 msgstr "外注先"
 
-#: .\orders\models.py:37 .\templates\orders\code_list.html:28
+#: .\orders\models.py:37 .\templates\orders\code_list.html:24
+#: .\templates\orders\code_list.html:29
 msgid "code"
 msgstr "コード"
 
@@ -255,16 +257,19 @@ msgid "The code must be exactly 5 digits."
 msgstr "コードは5桁の数字で入力してください。"
 
 #: .\orders\models.py:41 .\orders\models.py:73
-#: .\templates\orders\code_list.html:30 .\tracking\models.py:90
+#: .\templates\orders\code_list.html:31 .\templates\orders\code_list.html:41
+#: .\tracking\models.py:90
 msgid "Japanese name"
 msgstr "日本語名"
 
 #: .\orders\models.py:42 .\orders\models.py:74
-#: .\templates\orders\code_list.html:15 .\templates\orders\code_list.html:31
+#: .\templates\orders\code_list.html:15 .\templates\orders\code_list.html:24
+#: .\templates\orders\code_list.html:32
 msgid "kind"
 msgstr "種別"
 
-#: .\orders\models.py:43 .\templates\orders\code_list.html:32
+#: .\orders\models.py:43 .\templates\orders\code_list.html:24
+#: .\templates\orders\code_list.html:33
 msgid "lead days"
 msgstr "リードタイム（日）"
 
@@ -479,7 +484,7 @@ msgid "The change history is append-only and cannot be deleted."
 msgstr "変更履歴は追記専用のため、削除できません。"
 
 #: .\orders\pdf.py:59 .\templates\orders\customer_detail.html:22
-#: .\templates\orders\order_list.html:41
+#: .\templates\orders\order_list.html:41 .\templates\orders\order_list.html:52
 msgid "Job number"
 msgstr "製番"
 
@@ -487,21 +492,23 @@ msgstr "製番"
 #: .\orders\pdf.py:59 .\orders\views.py:27
 #: .\templates\orders\order_detail.html:14
 #: .\templates\orders\order_import.html:35
-#: .\templates\orders\order_list.html:42 .\templates\tracking\boxes.html:31
-#: .\templates\tracking\matrix.html:18 .\templates\tracking\priorities.html:36
-#: .\templates\tracking\shipping.html:16 .\tracking\views.py:245
+#: .\templates\orders\order_list.html:42 .\templates\orders\order_list.html:53
+#: .\templates\tracking\boxes.html:31 .\templates\tracking\matrix.html:18
+#: .\templates\tracking\priorities.html:36
+#: .\templates\tracking\shipping.html:16 .\templates\tracking\shipping.html:25
+#: .\tracking\views.py:245
 msgid "Customer"
 msgstr "得意先"
 
 #: .\orders\pdf.py:60 .\templates\orders\customer_detail.html:23
 #: .\templates\orders\order_detail.html:15
 #: .\templates\orders\order_import.html:35
-#: .\templates\orders\order_list.html:43
+#: .\templates\orders\order_list.html:43 .\templates\orders\order_list.html:54
 msgid "Customer order number"
 msgstr "客先注文番号"
 
 #: .\orders\pdf.py:61 .\templates\orders\order_import.html:36
-#: .\templates\tracking\shipping.html:15
+#: .\templates\tracking\shipping.html:15 .\templates\tracking\shipping.html:24
 msgid "Part name"
 msgstr "品名"
 
@@ -509,9 +516,10 @@ msgstr "品名"
 #: .\templates\orders\customer_detail.html:24
 #: .\templates\orders\order_detail.html:17
 #: .\templates\orders\order_import.html:35
-#: .\templates\orders\order_list.html:44 .\templates\tracking\boxes.html:34
-#: .\templates\tracking\priorities.html:37
-#: .\templates\tracking\shipping.html:17 .\tracking\views.py:244
+#: .\templates\orders\order_list.html:44 .\templates\orders\order_list.html:55
+#: .\templates\tracking\boxes.html:34 .\templates\tracking\priorities.html:37
+#: .\templates\tracking\shipping.html:17 .\templates\tracking\shipping.html:26
+#: .\tracking\views.py:244
 msgid "Due date"
 msgstr "納期"
 
@@ -536,8 +544,8 @@ msgstr "順"
 #: .\orders\pdf.py:68 .\templates\orders\_box_detail.html:13
 #: .\templates\orders\_box_detail.html:85
 #: .\templates\tracking\plan_summary.html:13
-#: .\templates\tracking\results.html:13 .\templates\tracking\simulate.html:53
-#: .\tracking\forms.py:105
+#: .\templates\tracking\results.html:13 .\templates\tracking\results.html:23
+#: .\templates\tracking\simulate.html:53 .\tracking\forms.py:105
 msgid "Process"
 msgstr "工程"
 
@@ -562,6 +570,7 @@ msgid "Actual qty"
 msgstr "実績数"
 
 #: .\orders\pdf.py:68 .\templates\tracking\results.html:16
+#: .\templates\tracking\results.html:26 .\templates\tracking\results.html:39
 #: .\tracking\forms.py:109
 msgid "Defects"
 msgstr "不良数"
@@ -798,7 +807,8 @@ msgstr[0] "%(counter)s日"
 #: .\templates\orders\_box_detail.html:14
 #: .\templates\orders\customer_detail.html:25
 #: .\templates\orders\order_list.html:15 .\templates\orders\order_list.html:46
-#: .\templates\tracking\boxes.html:33 .\templates\tracking\matrix.html:11
+#: .\templates\orders\order_list.html:60 .\templates\tracking\boxes.html:33
+#: .\templates\tracking\matrix.html:11
 msgid "Status"
 msgstr "状態"
 
@@ -930,9 +940,10 @@ msgstr "削除"
 # CHECK: 品目 is marked unsure in the glossary (alternative: 明細)
 #: .\templates\orders\_item_card.html:8 .\templates\tracking\_matrix.html:7
 #: .\templates\tracking\boxes.html:28 .\templates\tracking\priorities.html:34
-#: .\templates\tracking\shipping.html:14
+#: .\templates\tracking\shipping.html:14 .\templates\tracking\shipping.html:23
 #: .\templates\tracking\tag_history.html:39
-#: .\templates\tracking\tag_manage.html:40 .\tracking\forms.py:52
+#: .\templates\tracking\tag_manage.html:40
+#: .\templates\tracking\tag_manage.html:50 .\tracking\forms.py:52
 msgid "Item"
 msgstr "品目"
 
@@ -1007,7 +1018,7 @@ msgstr "検索"
 msgid "All"
 msgstr "すべて"
 
-#: .\templates\orders\code_list.html:45
+#: .\templates\orders\code_list.html:46
 msgid "No codes match."
 msgstr "該当するコードはありません。"
 
@@ -1291,7 +1302,7 @@ msgid "Export CSV"
 msgstr "CSV出力"
 
 # CHECK: 品目 is marked unsure in the glossary (alternative: 明細)
-#: .\templates\orders\order_list.html:45
+#: .\templates\orders\order_list.html:45 .\templates\orders\order_list.html:59
 msgid "Items"
 msgstr "品目"
 
@@ -1327,7 +1338,8 @@ msgid "Back to Home"
 msgstr "ホームに戻る"
 
 #: .\templates\tracking\boxes.html:29 .\templates\tracking\tag_history.html:38
-#: .\templates\tracking\tag_manage.html:39 .\tracking\forms.py:104
+#: .\templates\tracking\tag_manage.html:39
+#: .\templates\tracking\tag_manage.html:49 .\tracking\forms.py:104
 msgid "Box"
 msgstr "箱"
 
@@ -1441,15 +1453,18 @@ msgstr ""
 "工程ごとに記録された完了数量と不良数です。不良率は、不良数を完了数量で割った"
 "値です。"
 
-#: .\templates\tracking\results.html:14
+#: .\templates\tracking\results.html:14 .\templates\tracking\results.html:24
+#: .\templates\tracking\results.html:37
 msgid "Records"
 msgstr "件数"
 
-#: .\templates\tracking\results.html:15 .\tracking\forms.py:108
+#: .\templates\tracking\results.html:15 .\templates\tracking\results.html:25
+#: .\templates\tracking\results.html:38 .\tracking\forms.py:108
 msgid "Quantity done"
 msgstr "完了数量"
 
-#: .\templates\tracking\results.html:17
+#: .\templates\tracking\results.html:17 .\templates\tracking\results.html:27
+#: .\templates\tracking\results.html:40
 msgid "Defect rate"
 msgstr "不良率"
 
@@ -1479,20 +1494,20 @@ msgid ""
 "that month."
 msgstr "注文の納期以内に出荷された品目の、その月の出荷数に対する割合。"
 
-#: .\templates\tracking\shipping.html:41
+#: .\templates\tracking\shipping.html:41 .\templates\tracking\shipping.html:50
 msgid "Month"
 msgstr "月"
 
-#: .\templates\tracking\shipping.html:42 .\tracking\models.py:145
-#: .\tracking\status.py:25
+#: .\templates\tracking\shipping.html:42 .\templates\tracking\shipping.html:51
+#: .\tracking\models.py:145 .\tracking\status.py:25
 msgid "Shipped"
 msgstr "出荷済み"
 
-#: .\templates\tracking\shipping.html:43
+#: .\templates\tracking\shipping.html:43 .\templates\tracking\shipping.html:52
 msgid "On time"
 msgstr "納期内"
 
-#: .\templates\tracking\shipping.html:44
+#: .\templates\tracking\shipping.html:44 .\templates\tracking\shipping.html:53
 msgid "On-time rate"
 msgstr "納期遵守率"
 
@@ -1532,7 +1547,8 @@ msgstr "直近10件のイベント"
 
 #: .\templates\tracking\simulate.html:52
 #: .\templates\tracking\tag_history.html:37
-#: .\templates\tracking\tag_manage.html:38 .\tracking\forms.py:46
+#: .\templates\tracking\tag_manage.html:38
+#: .\templates\tracking\tag_manage.html:48 .\tracking\forms.py:46
 msgid "Tag"
 msgstr "タグ"
 
@@ -1599,6 +1615,7 @@ msgid_plural "%(n)s tags in use."
 msgstr[0] "使用中のタグ: %(n)s 件"
 
 #: .\templates\tracking\tag_manage.html:41
+#: .\templates\tracking\tag_manage.html:51
 msgid "Since (JST)"
 msgstr "開始（JST）"
 

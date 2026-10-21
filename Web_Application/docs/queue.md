@@ -3,13 +3,6 @@ Order matters. [ ] todo, [!] blocked. Finished entries are deleted; git history 
 
 ## Queue
 
-- [ ] **F40b Responsive layout: tables become cards on narrow screens**
-  One commit, after F40a.
-  Decisions made:
-  - Below 768 px these tables turn into cards: order list, tag list, codes list, results summary, shipping page.
-  - These stay tables with a horizontal scroll inside their box: the progress matrix (F66) and the event history. The matrix keeps its fixed-height box and frozen header.
-  - Pure CSS (data attributes for the cell labels); no JavaScript framework.
-
 - [ ] **F40c Responsive layout: collapsible menu**
   One commit, after F40a. Below 768 px the navigation collapses behind a menu button. It still shows only the links the user's role can use (F46). Plain JS, keyboard usable, the button has an accessible label.
 

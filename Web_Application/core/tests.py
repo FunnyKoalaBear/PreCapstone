@@ -424,6 +424,24 @@ class ResponsiveLayoutTests(TestCase):
         for name in ('base.css', 'theme.css', 'lang.css'):
             self.assertEqual(re.findall(r'(?<![-\w])(?:width|min-width)\s*:\s*\d{3,}px', self.css(name)), [], name)
 
+    def test_five_tables_turn_into_cards_and_the_two_wide_ones_stay_tables(self):
+        self.client.force_login(make_user('pl', 'Planner'))
+        order = Order.objects.create(customer=Customer.objects.create(name='C'), due_date=timezone.localdate())
+        item = OrderItem.objects.create(order=order, part_name='P', quantity=1)
+        TagAssignment.objects.create(tag=Tag.objects.create(uid='CARD1'), box=Box.objects.create(label='BC'), item=item)
+        Vendor.objects.create(code='00001', name='V', kind=Vendor.Kind.INTERNAL)
+        pages = {'/orders/': 1, '/codes/': 1, '/results/': 1, '/shipping/': 2, '/tags/?q=CARD1': 1}
+        for url, tables in pages.items():
+            html = self.client.get(url).content.decode()
+            self.assertEqual(html.count('class="table table-cards"'), tables, url)
+            unlabelled = re.findall(r'<td(?![^>]*(?:data-label|colspan))[^>]*>', html)
+            self.assertEqual(len(unlabelled), 1 if 'tags' in url else 0, url)  # only the tag actions cell has no label
+        for url in ('/matrix/', f'/orders/{order.job_number}/'):
+            self.assertNotIn('table-cards', self.client.get(url).content.decode(), url)
+        theme = self.css('theme.css')
+        self.assertIn('.table-cards [data-label]::before { content: attr(data-label)', theme)
+        self.assertNotIn('table-cards', self.css('base.css'))
+
 
 class LanguageTests(RawTestCase):
     """Japanese by default, English one click away, choice remembered by cookie."""

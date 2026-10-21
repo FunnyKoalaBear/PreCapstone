@@ -21,8 +21,9 @@
     <button type="submit" class="button">{% trans "Search" %}</button>
   </form>
 
+  {% trans "code" as l_code %}{% trans "name" as l_name %}{% trans "kind" as l_kind %}{% trans "lead days" as l_lead %}
   <div class="table-wrap">
-    <table class="table">
+    <table class="table table-cards">
       <thead>
         <tr>
           <th>{% trans "code" as label %}{{ label|capfirst }}</th>
@@ -35,11 +36,11 @@
       <tbody>
         {% for v in vendors %}
           <tr>
-            <td>{{ v.code }}</td>
-            <td>{{ v.name }}</td>
-            <td>{{ v.name_ja|default:"-" }}</td>
-            <td>{{ v.get_kind_display }}</td>
-            <td>{{ v.lead_days|default_if_none:"-" }}</td>
+            <td data-label="{{ l_code|capfirst }}">{{ v.code }}</td>
+            <td data-label="{{ l_name|capfirst }}">{{ v.name }}</td>
+            <td data-label="{% trans 'Japanese name' %}">{{ v.name_ja|default:"-" }}</td>
+            <td data-label="{{ l_kind|capfirst }}">{{ v.get_kind_display }}</td>
+            <td data-label="{{ l_lead|capfirst }}">{{ v.lead_days|default_if_none:"-" }}</td>
           </tr>
         {% empty %}
           <tr><td colspan="5">{% trans "No codes match." %}</td></tr>

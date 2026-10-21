@@ -32,7 +32,7 @@
 
   {% if q and open %}
     <div class="table-wrap">
-      <table class="table">
+      <table class="table table-cards">
         <thead>
           <tr>
             <th>{% trans "Tag" %}</th>
@@ -45,10 +45,10 @@
         <tbody>
           {% for a in open %}
             <tr>
-              <td>{{ a.tag }}</td>
-              <td>{% blocktrans with l=a.box n=a.nth t=a.item.box_count %}Box {{ l }} ({{ n }} of {{ t }}){% endblocktrans %}</td>
-              <td><a href="{% url 'order_detail' a.item.order.job_number %}">{{ a.item.item_code }}</a> {{ a.item.part_name }}</td>
-              <td>{{ a.start_at|date:"Y-m-d H:i" }}</td>
+              <td data-label="{% trans 'Tag' %}">{{ a.tag }}</td>
+              <td data-label="{% trans 'Box' %}">{% blocktrans with l=a.box n=a.nth t=a.item.box_count %}Box {{ l }} ({{ n }} of {{ t }}){% endblocktrans %}</td>
+              <td data-label="{% trans 'Item' %}"><span><a href="{% url 'order_detail' a.item.order.job_number %}">{{ a.item.item_code }}</a> {{ a.item.part_name }}</span></td>
+              <td data-label="{% trans 'Since (JST)' %}">{{ a.start_at|date:"Y-m-d H:i" }}</td>
               <td>
                 <form method="post">
                   {% csrf_token %}

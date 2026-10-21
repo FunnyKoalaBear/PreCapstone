@@ -35,7 +35,7 @@
   </form>
 
   <div class="table-wrap">
-    <table class="table">
+    <table class="table table-cards">
       <thead>
         <tr>
           <th>{% trans "Job number" %}</th>
@@ -49,15 +49,15 @@
       <tbody>
         {% for row in rows %}
           <tr>
-            <td><a href="{% url 'order_detail' row.order.job_number %}">{{ row.order.job_number }}</a></td>
-            <td>{{ row.order.customer }}</td>
-            <td>{{ row.order.customer_order_number }}</td>
-            <td>
+            <td data-label="{% trans 'Job number' %}"><a href="{% url 'order_detail' row.order.job_number %}">{{ row.order.job_number }}</a></td>
+            <td data-label="{% trans 'Customer' %}">{{ row.order.customer }}</td>
+            <td data-label="{% trans 'Customer order number' %}">{{ row.order.customer_order_number }}</td>
+            <td data-label="{% trans 'Due date' %}"><span>
               {{ row.order.due_date|date:"Y-m-d" }}
               {% if row.late %}<span class="badge badge-overdue">{% trans "Overdue" %}</span>{% endif %}
-            </td>
-            <td>{{ row.items }}{% if row.boxes %} <small>{% blocktrans with n=row.boxes %}({{ n }} boxes){% endblocktrans %}</small>{% endif %}</td>
-            <td><span class="badge badge-{{ row.code|lower }}">{{ row.label }}</span></td>
+            </span></td>
+            <td data-label="{% trans 'Items' %}"><span>{{ row.items }}{% if row.boxes %} <small>{% blocktrans with n=row.boxes %}({{ n }} boxes){% endblocktrans %}</small>{% endif %}</span></td>
+            <td data-label="{% trans 'Status' %}"><span class="badge badge-{{ row.code|lower }}">{{ row.label }}</span></td>
           </tr>
         {% empty %}
           <tr><td colspan="6">{% trans "No orders found." %}</td></tr>

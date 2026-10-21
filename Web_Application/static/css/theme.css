@@ -39,6 +39,13 @@
   .site-main { padding: 1rem; }
   .gantt-row { grid-template-columns: 1fr; gap: 0.15rem; }
   .gantt-axis .gantt-name { display: none; }
+
+  /* Tables marked table-cards turn into one card per row; the cell labels come from data-label */
+  .table-cards thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .table-cards, .table-cards tbody, .table-cards tfoot, .table-cards tr { display: block; }
+  .table-cards tr { margin-bottom: 0.75rem; background: var(--color-surface); border: 1px solid var(--color-border); }
+  .table-cards td, .table-cards th { display: flex; justify-content: space-between; gap: 1rem; text-align: right; }
+  .table-cards [data-label]::before { content: attr(data-label); flex: none; color: var(--color-muted); font-weight: 600; text-align: left; }
 }
 
 @media (max-width: 480px) {

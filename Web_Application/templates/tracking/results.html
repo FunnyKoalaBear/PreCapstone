@@ -7,7 +7,7 @@
   <h1>{% trans "Results" %}</h1>
   <p class="note">{% trans "Quantity done and defects recorded per process. The defect rate is defects divided by quantity done." %}</p>
   <div class="table-wrap">
-    <table class="table">
+    <table class="table table-cards">
       <thead>
         <tr>
           <th>{% trans "Process" %}</th>
@@ -20,11 +20,11 @@
       <tbody>
         {% for r in rows %}
           <tr>
-            <td>{{ r.process }}</td>
-            <td>{{ r.records }}</td>
-            <td>{{ r.quantity }}</td>
-            <td>{{ r.defects }}</td>
-            <td>{{ r.rate|floatformat:1 }}%</td>
+            <td data-label="{% trans 'Process' %}">{{ r.process }}</td>
+            <td data-label="{% trans 'Records' %}">{{ r.records }}</td>
+            <td data-label="{% trans 'Quantity done' %}">{{ r.quantity }}</td>
+            <td data-label="{% trans 'Defects' %}">{{ r.defects }}</td>
+            <td data-label="{% trans 'Defect rate' %}">{{ r.rate|floatformat:1 }}%</td>
           </tr>
         {% empty %}
           <tr><td colspan="5">{% trans "No results recorded yet." %}</td></tr>
@@ -34,10 +34,10 @@
         <tfoot>
           <tr>
             <th>{% trans "Total" %}</th>
-            <th>{{ total.records }}</th>
-            <th>{{ total.quantity }}</th>
-            <th>{{ total.defects }}</th>
-            <th>{{ total.rate|floatformat:1 }}%</th>
+            <th data-label="{% trans 'Records' %}">{{ total.records }}</th>
+            <th data-label="{% trans 'Quantity done' %}">{{ total.quantity }}</th>
+            <th data-label="{% trans 'Defects' %}">{{ total.defects }}</th>
+            <th data-label="{% trans 'Defect rate' %}">{{ total.rate|floatformat:1 }}%</th>
           </tr>
         </tfoot>
       {% endif %}
