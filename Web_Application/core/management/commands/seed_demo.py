@@ -92,8 +92,9 @@ class Command(BaseCommand):
             order = Order.objects.create(customer=customer, customer_order_number=number, due_date=today + timedelta(days=due))
             item = OrderItem.objects.create(
                 order=order, part_name=part, quantity=10, box_count=box_count, material=MATERIALS[len(created) % len(MATERIALS)])
-            for i, name in enumerate(route, 1):
-                RouteStep.objects.create(item=item, sequence=i, process=procs[name], vendor=procs[name].default_vendor)
+            for i, name in enumerate(route, 1):  # step due dates spread back from the order due date, two days per step
+                RouteStep.objects.create(item=item, sequence=i, process=procs[name], vendor=procs[name].default_vendor,
+                                         due_date=today + timedelta(days=due - 2 * (len(route) - i)))
             link(item, uid, box, start, end)
             created.append((label, item))
             return item

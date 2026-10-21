@@ -18,6 +18,7 @@ from core.testing import TestCase, make_user
 from orders.models import Customer, Order, OrderItem, Process, RouteStep, Vendor
 from tracking.models import Box, Event, Machine, ScannerDevice, Tag, TagAssignment, Worker
 from tracking.overview import board_groups
+from tracking.planning import process_averages
 from tracking.priority import priority
 from tracking.services import record_event
 from tracking.status import days_late, due_back, is_stagnant, item_status
@@ -349,6 +350,11 @@ class SeedDemoTests(TestCase):
         self.assertGreater(results.exclude(worker=None).values('worker').distinct().count(), 2)
         self.assertEqual(set(Worker.objects.values_list('name', flat=True)), {r['name'] for r in read_csv('workers_machines.csv') if r['kind'] == 'WORKER'})
         self.assertEqual(Machine.objects.count(), len([r for r in read_csv('workers_machines.csv') if r['kind'] == 'MACHINE']))
+
+    @override_settings(DEBUG=True)
+    def test_seed_gives_the_plan_vs_actual_page_some_rows(self):
+        self.seed()
+        self.assertTrue(process_averages())
 
     def test_static_demo_data_matches_the_csv_files(self):
         js = (settings.BASE_DIR / 'demo' / 'js' / 'data.js').read_text(encoding='utf-8')

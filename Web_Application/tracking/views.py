@@ -20,6 +20,7 @@ from .forms import AssignTagForm, CorrectEventForm, PickTagForm, ResultForm, Sim
 from .models import Box, Event, Tag, TagAssignment
 from .matrix import matrix as build_matrix
 from .overview import active_boxes
+from .planning import process_averages
 from .priority import TIER_LABELS, TIERS, priority
 from .services import assign_tag, can_correct, correct_event as correct_event_service, next_step, record_event, record_result, release_assignment, replace_tag, resolve_tag
 from .status import AT_VENDOR, COMPLETE, IN_PROGRESS, LABELS, NOT_STARTED, WAITING, current_row, item_status
@@ -323,3 +324,8 @@ def results_summary(request):
     total = {'records': sum(r['records'] for r in table), 'quantity': sum(r['quantity'] for r in table), 'defects': sum(r['defects'] for r in table)}
     total['rate'] = total['defects'] * 100 / total['quantity'] if total['quantity'] else 0
     return render(request, 'tracking/results.html', {'rows': table, 'total': total})
+
+
+@role_required(OPERATOR)
+def plan_summary(request):
+    return render(request, 'tracking/plan_summary.html', {'rows': process_averages()})

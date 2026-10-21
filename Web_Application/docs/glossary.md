@@ -172,3 +172,10 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | Worker / Machine | 作業者 / 機械 |
 | Quantity done | 完了数量 |
 | Defect rate | 不良率 |
+
+## Terms added for plan vs actual
+
+| English | Japanese |
+|---|---|
+| Plan vs actual | 計画と実績 |
+| Average difference | 平均差 |

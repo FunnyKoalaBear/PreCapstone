@@ -54,7 +54,7 @@ Order matters. [ ] todo, [x] done, [!] blocked. IDs match the feature tracker. E
   New event type RESULT (append-only, does not change step state): process, worker, machine (both optional), quantity done, defect count. "Record result" form on the order detail page for Operator and up (extend the F46 permissions). Corrections work as for other events (F47).
   Show results in the item history; per-process totals and defect rate on a simple summary page. The scanner can send RESULT later; no scanner changes now.
 
-- [ ] **F68 Planned vs actual time per process**
+- [x] **F68 Planned vs actual time per process**
   Planned = step due date (F79) minus the previous step finish; actual from events. Show per order and a simple per-process average page.
 
 ## Blocked

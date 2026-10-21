@@ -9,6 +9,7 @@ from django.utils.translation import gettext_lazy
 
 from core.permissions import OPERATOR, PLANNER, role_required
 from tracking.forms import ResultForm
+from tracking.planning import step_plan
 from tracking.status import (
     COMPLETE, IN_PROGRESS, LABELS, NOT_STARTED, STEP_LABELS, days_late, events_with_voids, gantt, item_status,
     order_summary, step_due_back, timeline,
@@ -161,8 +162,8 @@ def order_list(request):
     })
 
 
-def _step_entry(row, today, timing, current=None):
-    entry = {'row': row, 'label': STEP_LABELS[row.state], 'due_back': None, 'late_days': 0, 'current': row.step == current, **timing}
+def _step_entry(row, today, timing, plan, current=None):
+    entry = {'row': row, 'label': STEP_LABELS[row.state], 'due_back': None, 'late_days': 0, 'current': row.step == current, 'plan': plan, **timing}
     if row.state == 'at_vendor':
         entry['due_back'] = step_due_back(row.step, row.started_at)
         entry['late_days'] = days_late(entry['due_back'], today)
@@ -171,7 +172,7 @@ def _step_entry(row, today, timing, current=None):
 
 def _box_entry(b, today):
     a = b.assignment
-    steps = [_step_entry(r, today, t, b.current_step) for r, t in zip(b.rows, timeline(b.rows))]
+    steps = [_step_entry(r, today, t, p, b.current_step) for r, t, p in zip(b.rows, timeline(b.rows), step_plan(b.rows))]
     chart = gantt(b.rows)
     for s, bar in zip(steps, chart['rows'] if chart else []):
         s['bar'] = bar

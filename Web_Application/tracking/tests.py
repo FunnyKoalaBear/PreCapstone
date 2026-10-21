@@ -18,6 +18,7 @@ from .forms import AssignTagForm
 from .matrix import matrix as build_matrix
 from .models import Box, Event, Machine, ScannerDevice, Tag, TagAssignment, Worker
 from .overview import active_boxes, process_board
+from .planning import step_plan
 from .priority import priority
 from .services import assign_tag, correct_event, record_event, release_assignment, replace_tag
 from .status import gantt, AT_VENDOR, COMPLETE, IN_PROGRESS, NOT_STARTED, WAITING, BoxStatus, ItemStatus, _roll_up, events_for_item, days_late, next_action, due_back, idle_for, is_stagnant, item_status, timeline
@@ -1474,3 +1475,79 @@ class ResultTests(TestCase):
                              content_type='application/json', HTTP_X_API_KEY=self.device.api_key)
         self.assertEqual(r.status_code, 400)
         self.assertFalse(self.results().exists())
+
+
+class PlanVsActualTests(TestCase):
+    def setUp(self):
+        self.client.force_login(make_user('op', 'Operator'))
+        self.mat = Process.objects.create(name='Mat', kind=K.MATERIAL)
+        self.mill = Process.objects.create(name='Mill', kind=K.MACHINING)
+        self.plate = Process.objects.create(name='Plate', kind=K.OUTSOURCED)
+        self.device = ScannerDevice.objects.create(name='D')
+        self.today = timezone.localdate()
+        self.now = timezone.now()
+        self.n = 0
+
+    def make(self, mill_due, plate_due=None, arrived=10, mill_done=6, plate_done=None):
+        """Material arrived `arrived` days ago, milling finished `mill_done` days ago, plating optional; due dates are days from today."""
+        self.n += 1
+        order = Order.objects.create(customer=Customer.objects.create(name=f'C{self.n}'), due_date=self.today + timedelta(days=30))
+        item = OrderItem.objects.create(order=order, part_name=f'P{self.n}', quantity=1)
+        day = lambda n: self.today + timedelta(days=n) if n is not None else None
+        for i, (p, due) in enumerate(((self.mat, None), (self.mill, day(mill_due)), (self.plate, day(plate_due))), 1):
+            RouteStep.objects.create(item=item, sequence=i, process=p, due_date=due)
+        uid = f'PV{self.n}'
+        TagAssignment.objects.create(tag=Tag.objects.create(uid=uid), box=Box.objects.create(label=f'PB{self.n}'), item=item,
+                                     start_at=self.now - timedelta(days=20))
+        ago = lambda d: self.now - timedelta(days=d)
+        record_event(self.device, uid, self.mat, 'ARRIVED', occurred_at=ago(arrived))
+        record_event(self.device, uid, self.mill, 'STARTED', occurred_at=ago(mill_done + 1))
+        record_event(self.device, uid, self.mill, 'FINISHED', occurred_at=ago(mill_done))
+        if plate_done is not None:
+            record_event(self.device, uid, self.plate, 'SENT_OUT', occurred_at=ago(plate_done + 2))
+            record_event(self.device, uid, self.plate, 'RETURNED', occurred_at=ago(plate_done))
+        return item
+
+    def plan(self, item):
+        return step_plan(item_status(item).rows)
+
+    def test_planned_and_actual_days_count_from_the_previous_finish(self):
+        item = self.make(mill_due=-7)  # arrived day -10, due day -7, finished day -6
+        first, second, third = self.plan(item)
+        self.assertEqual((first['planned'], first['actual']), (None, None))
+        self.assertEqual(second, {'planned': 3, 'actual': 4, 'diff': 1})
+        self.assertEqual(third, {'planned': None, 'actual': None, 'diff': None})
+
+    def test_unfinished_and_undated_steps_have_no_actual_or_plan(self):
+        item = self.make(mill_due=None)
+        self.assertEqual(self.plan(item)[1], {'planned': None, 'actual': 4, 'diff': None})
+        item = self.make(mill_due=-7, plate_due=-1)  # plating not done yet: plan only
+        self.assertEqual(self.plan(item)[2], {'planned': 5, 'actual': None, 'diff': None})
+
+    def test_third_step_counts_from_the_second_finish(self):
+        item = self.make(mill_due=-7, plate_due=-2, plate_done=3)  # milling finished day -6, plating day -3
+        self.assertEqual(self.plan(item)[2], {'planned': 4, 'actual': 3, 'diff': -1})
+
+    def test_order_page_shows_plan_and_actual_with_the_overrun(self):
+        item = self.make(mill_due=-7)
+        page = self.client.get(f'/orders/{item.order.job_number}/')
+        self.assertContains(page, 'Plan / actual (days)')
+        self.assertContains(page, '3 / 4')
+        self.assertContains(page, '+1')
+
+    def test_average_page_per_process(self):
+        self.make(mill_due=-7)                    # planned 3, actual 4
+        self.make(mill_due=-8, mill_done=7)       # planned 2, actual 3
+        self.make(mill_due=-5, mill_done=7)       # planned 5, actual 3
+        self.make(mill_due=None)                  # no plan: not counted
+        r = self.client.get('/plan-vs-actual/')
+        row, = r.context['rows']
+        self.assertEqual((row['process'], row['n'], row['planned'], row['actual'], row['diff']), (self.mill, 3, 10 / 3, 10 / 3, 0))
+        self.assertContains(r, '3.3')
+
+    def test_empty_and_roles(self):
+        self.assertContains(self.client.get('/plan-vs-actual/'), 'No finished steps with a due date yet.')
+        self.client.logout()
+        self.assertEqual(self.client.get('/plan-vs-actual/').status_code, 302)
+        self.client.force_login(make_user('nobody'))
+        self.assertEqual(self.client.get('/plan-vs-actual/').status_code, 403)
