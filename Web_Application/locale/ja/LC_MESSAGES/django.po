@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Factory Tracker\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-21 18:37+0900\n"
+"POT-Creation-Date: 2026-10-21 18:46+0900\n"
 "PO-Revision-Date: 2026-10-11 17:00+0900\n"
 "Last-Translator: Claude\n"
 "Language-Team: Japanese\n"
@@ -592,25 +592,25 @@ msgstr "受注 %(job)s を登録しました。"
 msgid "Order %(job)s updated."
 msgstr "受注 %(job)s を更新しました。"
 
-#: .\orders\views.py:239
+#: .\orders\views.py:258
 msgid "The upload expired. Choose the file again."
 msgstr ""
 "アップロードの有効期限が切れました。ファイルをもう一度選択してください。"
 
-#: .\orders\views.py:245
+#: .\orders\views.py:264
 #, python-format
 msgid "Imported %(orders)d orders with %(items)d items."
 msgstr "%(orders)d件の受注（%(items)d品目）を取り込みました。"
 
-#: .\orders\views.py:251
+#: .\orders\views.py:270
 msgid "Choose a CSV file."
 msgstr "CSVファイルを選択してください。"
 
-#: .\orders\views.py:253
+#: .\orders\views.py:272
 msgid "The file is too large (limit 2 MB)."
 msgstr "ファイルが大きすぎます（上限2MB）。"
 
-#: .\orders\views.py:255
+#: .\orders\views.py:274
 msgid "Could not read the file. Save it as UTF-8 or Shift-JIS CSV."
 msgstr ""
 "ファイルを読み込めません。UTF-8またはShift-JISのCSVで保存してください。"
@@ -951,6 +951,28 @@ msgstr "伝票番号"
 #: .\templates\orders\_item_card.html:50
 msgid "Add step"
 msgstr "工程を追加"
+
+#: .\templates\orders\_item_card.html:52
+msgid "Replace the steps already entered?"
+msgstr "入力済みのステップを置き換えますか？"
+
+#: .\templates\orders\_item_card.html:52
+msgid "No earlier order for this part"
+msgstr "この品番の過去の受注はありません"
+
+#: .\templates\orders\_item_card.html:53
+#, python-brace-format
+msgid "Route copied from {job}"
+msgstr "{job} から工程順をコピーしました"
+
+#: .\templates\orders\_item_card.html:53
+#, python-brace-format
+msgid "{n} step(s) skipped because the process is no longer active"
+msgstr "工程が無効のため、{n}件のステップをスキップしました"
+
+#: .\templates\orders\_item_card.html:53
+msgid "Copy route from last order"
+msgstr "前回の受注から工程順をコピー"
 
 #: .\templates\orders\code_list.html:11 .\templates\orders\code_list.html:21
 #: .\templates\orders\customer_list.html:17

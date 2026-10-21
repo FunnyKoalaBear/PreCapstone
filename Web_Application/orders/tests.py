@@ -20,7 +20,7 @@ from django.utils import timezone, translation
 from core.management.commands.seed_demo import read_csv
 from core.testing import TestCase, make_user
 from tracking.models import Box, ScannerDevice, Tag, TagAssignment
-from tracking.services import record_event
+from tracking.services import cancel_item, record_event
 from tracking.status import step_due_back
 
 from . import importer
@@ -651,6 +651,64 @@ class PartNumberTests(TestCase):
         text = PdfReader(io.BytesIO(self.client.get(f'/orders/{job}/sheet/').content)).pages[0].extract_text()
         for expected in ('AB-12', 'D-9 / C'):
             self.assertIn(expected, text)
+
+
+class RouteCopyTests(TestCase):
+    def setUp(self):
+        self.client.force_login(make_user('pl', 'Planner'))
+        self.mill = Process.objects.create(name='Milling', kind=K.MACHINING)
+        self.plate = Process.objects.create(name='Plating', kind=K.OUTSOURCED)
+        self.vendor = Vendor.objects.create(code='00131', name='Demo Plating', kind=Vendor.Kind.VENDOR)
+        self.customer = Customer.objects.create(name='C')
+
+    def make(self, part_number, processes, vendor=None, due=True):
+        order = Order.objects.create(customer=self.customer, due_date=date(2031, 1, 1))
+        item = OrderItem.objects.create(order=order, part_name='P', quantity=3, part_number=part_number)
+        for i, p in enumerate(processes, 1):
+            RouteStep.objects.create(item=item, sequence=i, process=p, vendor=vendor if p == self.plate else None,
+                                     due_date=date(2031, 1, 5) if due else None, slip_number='S-1')
+        return item
+
+    def copy(self, part_number, **extra):
+        r = self.client.get('/orders/route-copy/', {'part_number': part_number, **extra})
+        self.assertEqual(r.status_code, 200)
+        return r.json()
+
+    def test_copy_gives_the_same_steps_in_the_same_order_without_dates_or_slips(self):
+        self.make('AB-1', [self.plate, self.mill], self.vendor)
+        data = self.copy('ab-1')
+        self.assertEqual(data['steps'], [{'process': self.plate.pk, 'vendor': self.vendor.pk}, {'process': self.mill.pk, 'vendor': None}])
+        self.assertNotIn('due_date', data['steps'][0])
+        self.assertNotIn('slip_number', data['steps'][0])
+
+    def test_latest_matching_item_wins_and_cancelled_ones_are_skipped(self):
+        old = self.make('AB-1', [self.mill])
+        newest = self.make('AB-1', [self.plate, self.mill])
+        self.make('OTHER', [self.plate])
+        self.assertEqual(self.copy('AB-1')['job'], newest.item_code)
+        cancel_item(make_user('pl', 'Planner'), newest, 'withdrawn')
+        data = self.copy('AB-1')
+        self.assertEqual((data['job'], len(data['steps'])), (old.item_code, 1))
+
+    def test_no_match_and_own_item_give_found_false(self):
+        item = self.make('AB-1', [self.mill])
+        self.assertEqual(self.copy('ZZ-9'), {'found': False, 'steps': []})
+        self.assertEqual(self.copy(''), {'found': False, 'steps': []})
+        self.assertFalse(self.copy('AB-1', item=item.pk)['found'])  # only earlier items count
+
+    def test_inactive_processes_are_skipped_and_counted(self):
+        self.make('AB-1', [self.mill, self.plate], self.vendor)
+        self.plate.active = False
+        self.plate.save()
+        data = self.copy('AB-1')
+        self.assertEqual((len(data['steps']), data['skipped']), (1, 1))
+
+    def test_planner_only_and_button_in_the_form(self):
+        self.assertContains(self.client.get('/orders/new/'), 'class="copy-route')
+        self.client.force_login(make_user('op', 'Operator'))
+        self.assertEqual(self.client.get('/orders/route-copy/', {'part_number': 'x'}).status_code, 403)
+        self.client.logout()
+        self.assertEqual(self.client.get('/orders/route-copy/').status_code, 302)
 
 
 DEMO_DIR = settings.BASE_DIR / 'docs' / 'demo-data'

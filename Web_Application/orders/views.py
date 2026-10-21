@@ -1,7 +1,7 @@
 from django.contrib import messages
 from django.db import transaction
 from django.db.models import Count, Q
-from django.http import FileResponse, Http404, HttpResponse
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.translation import gettext as _
@@ -225,6 +225,25 @@ def code_list(request):
     if kind in Vendor.Kind.values:
         vendors = vendors.filter(kind=kind)
     return render(request, 'orders/code_list.html', {'vendors': vendors, 'q': q, 'kind': kind, 'kinds': Vendor.Kind.choices})
+
+
+@role_required(PLANNER)
+def route_copy(request):
+    """Steps of the latest earlier, not cancelled item with this part number, as JSON for the order form."""
+    part_number = request.GET.get('part_number', '').strip()
+    current = request.GET.get('item', '')
+    earlier = OrderItem.objects.filter(part_number__iexact=part_number).order_by('-pk')
+    if current.isdigit():
+        earlier = earlier.filter(pk__lt=int(current))
+    source = next((i for i in earlier.select_related('order') if part_number and item_status(i).code != CANCELLED), None)
+    if not source:
+        return JsonResponse({'found': False, 'steps': []})
+    steps = list(source.steps.select_related('process'))
+    active = [s for s in steps if s.process.active]
+    return JsonResponse({
+        'found': True, 'job': source.item_code, 'skipped': len(steps) - len(active),
+        'steps': [{'process': s.process_id, 'vendor': s.vendor_id} for s in active],
+    })
 
 
 SESSION_KEY = 'order_import'

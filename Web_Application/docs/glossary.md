@@ -195,3 +195,9 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | Part number | 品番 |
 | Drawing number | 図面番号 |
 | Revision | 改訂 ? |
+
+## Terms added for copying a route
+
+| English | Japanese |
+|---|---|
+| Copy route from last order | 前回の受注から工程順をコピー |

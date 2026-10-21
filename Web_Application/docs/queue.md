@@ -3,16 +3,6 @@ Order matters. [ ] todo, [!] blocked. Finished entries are deleted; git history 
 
 ## Queue
 
-- [ ] **F71 Copy the route from the previous order of the same part**
-  Why: re-typing a route of up to 9 steps for every repeat order is the biggest entry cost.
-  Decisions made:
-  - In the order form, per item, a button "Copy route from last order" next to the route steps. Enabled only when the part number (F70) is filled.
-  - Source = the most recent earlier item with the same part number (case-insensitive) that is not cancelled. No match: show the message "No earlier order for this part" and change nothing.
-  - Copies process and vendor (F73) of each step in order. Does NOT copy due dates, slip numbers or quantities: those belong to the new order.
-  - If the item already has filled steps, ask for confirmation before replacing them. The planner can still edit every step before saving.
-  - No new model. A small JSON view (Planner and up) returns the steps; reuse the add-step logic in `static/js/formset.js`.
-  Tests: copy fills the same steps in the same order; cancelled items are skipped; no match gives the message; dates are empty after copy; Operator gets 403.
-
 - [ ] **F69 Shipped state and on-time delivery rate**
   Why: COMPLETE only means the last process finished. A planner cannot tell "ready on the dock" from "delivered", and on-time delivery cannot be measured.
   Decisions made:
