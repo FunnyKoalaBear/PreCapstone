@@ -15,7 +15,7 @@ MAX_BYTES = 2 * 1024 * 1024
 # Field -> header names accepted in the file. Change this when the real company format arrives.
 COLUMNS = {
     'customer': ('customer',), 'customer_order_number': ('customer_order_number',), 'due_date': ('due_date',),
-    'part_name': ('part_name',), 'quantity': ('quantity',), 'material': ('material',), 'notes': ('notes',), 'route': ('route',),
+    'part_name': ('part_name',), 'part_number': ('part_number',), 'drawing_number': ('drawing_number',), 'revision': ('revision',), 'quantity': ('quantity',), 'material': ('material',), 'notes': ('notes',), 'route': ('route',),
 }
 REQUIRED = ('customer', 'due_date', 'part_name', 'quantity', 'route')
 STEP_SEPARATOR, PART_SEPARATOR = '|', ':'
@@ -167,6 +167,9 @@ def parse(text, create_customers=False):
             row.errors.append(_('Quantity must be a whole number'))
         if len(d['material']) > 100:
             row.errors.append(_('Material is too long (at most 100 characters)'))
+        for name, limit, label in (('part_number', 50, _('Part number')), ('drawing_number', 50, _('Drawing number')), ('revision', 10, _('Revision'))):
+            if len(d[name]) > limit:
+                row.errors.append(_('%(field)s is too long (at most %(n)d characters)') % {'field': label, 'n': limit})
         _route(row, d['route'], processes, vendors)
         preview.rows.append(row)
         # Rows with the same customer and order number form one order; a blank number stays alone
@@ -196,6 +199,7 @@ def run_import(preview):
         customer = first.customer or get_or_create_customer(first.customer_name)
         notes = '\n'.join(dict.fromkeys(r.data['notes'] for r in g if r.data['notes']))
         create_order(customer, first.data['customer_order_number'], first.due, notes, [
-            {'part_name': r.data['part_name'], 'quantity': r.quantity, 'material': r.data['material'], 'steps': r.steps} for r in g])
+            {'part_name': r.data['part_name'], 'quantity': r.quantity, 'material': r.data['material'], 'steps': r.steps,
+             'part_number': r.data['part_number'], 'drawing_number': r.data['drawing_number'], 'revision': r.data['revision']} for r in g])
         orders, items = orders + 1, items + len(g)
     return orders, items

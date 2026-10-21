@@ -51,10 +51,11 @@ def get_or_create_customer(name):
 
 @transaction.atomic
 def create_order(customer, customer_order_number, due_date, notes, items):
-    """Create an order with its items and routes. items: dicts with part_name, quantity, material and steps [(process, vendor, due_date)]."""
+    """Create an order with its items and routes. items: dicts with part_name, quantity, steps [(process, vendor, due_date)] and optional material, part_number, drawing_number, revision."""
     order = Order.objects.create(customer=customer, customer_order_number=customer_order_number, due_date=due_date, notes=notes)
     for data in items:
-        item = OrderItem.objects.create(order=order, part_name=data['part_name'], quantity=data['quantity'], material=data.get('material', ''))
+        item = OrderItem.objects.create(order=order, part_name=data['part_name'], quantity=data['quantity'], material=data.get('material', ''),
+            part_number=data.get('part_number', ''), drawing_number=data.get('drawing_number', ''), revision=data.get('revision', ''))
         RouteStep.objects.bulk_create(
             RouteStep(item=item, sequence=i, process=process, vendor=vendor, due_date=due)
             for i, (process, vendor, due) in enumerate(data['steps'], 1))

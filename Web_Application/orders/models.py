@@ -135,6 +135,9 @@ class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items', verbose_name=_('order'))
     item_no = models.PositiveIntegerField(_('item no.'), editable=False)
     part_name = models.CharField(_('part name'), max_length=200)
+    part_number = models.CharField(_('part number'), max_length=50, blank=True)
+    drawing_number = models.CharField(_('drawing number'), max_length=50, blank=True)
+    revision = models.CharField(_('revision'), max_length=10, blank=True)
     quantity = models.PositiveIntegerField(_('quantity'))
     material = models.CharField(_('material'), max_length=100, blank=True)
     box_count = models.PositiveIntegerField(_('box count'), default=1, validators=[MinValueValidator(1)])
@@ -163,6 +166,7 @@ class OrderItem(models.Model):
         return f'{self.order.job_number}-{self.item_no:02d}'
 
     def save(self, *args, **kwargs):
+        self.part_number = self.part_number.strip().upper()  # matching on part number ignores case
         if not self.item_no:
             with transaction.atomic():
                 last = OrderItem.objects.select_for_update().filter(

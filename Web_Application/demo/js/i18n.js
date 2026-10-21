@@ -45,7 +45,7 @@ const TEXTS = {
   warn_skipped: ['工程を飛ばしています: {p}', 'Step skipped: {p}'], warn_notinroute: ['工程順にない工程のイベントです: {p}', 'Event for a process not in the route: {p}'],
   warn_unexpected: ['想定外の「{e}」イベントです（工程: {p}）', 'Unexpected {e} event for {p}'],
   // new order
-  new_order: ['新規受注', 'New order'], part_name: ['品名', 'Part name'], quantity: ['数量', 'Quantity'], boxes_field: ['箱数', 'Boxes'], route: ['工程順', 'Route'],
+  new_order: ['新規受注', 'New order'], part_name: ['品名', 'Part name'], part_number: ['品番', 'Part number'], quantity: ['数量', 'Quantity'], boxes_field: ['箱数', 'Boxes'], route: ['工程順', 'Route'],
   choose_process: ['工程を選択', 'Choose a process'], add_step: ['工程を追加', 'Add step'], add_item: ['品目を追加', 'Add another item'], create_order: ['受注を登録', 'Create order'],
   err_route: ['工程順に工程を1つ以上追加してください。', 'Add at least one step to the route.'], err_required: ['この項目は必須です。', 'This field is required.'],
   err_boxes: ['箱数は1以上にしてください。', 'Boxes must be at least 1.'], process_opt: ['{p}（{k}）', '{p} ({k})'], choose: ['選択してください', 'Choose'],

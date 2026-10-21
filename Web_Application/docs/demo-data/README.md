@@ -16,6 +16,8 @@ Header row required, comma separated. One row = one item. Rows with the same cus
 
 `customer, customer_order_number, due_date, part_name, quantity, material, notes, route`
 
+Optional columns (anywhere after the header, files without them import as before): `part_number` (50 characters, stored upper-case), `drawing_number` (50), `revision` (10).
+
 - `due_date`: YYYY-MM-DD or YYYY/MM/DD.
 - `route`: steps separated by `|`, each `process:code` or `process:code:due_date`, e.g. `Material:00101|Lathe:00012|Plating:00131:2026-11-02|Inspection:00020`.
 - Process is matched by name or Japanese name. The code must exist, and its kind must fit the process: MATERIAL needs SUPPLIER, MACHINING needs INTERNAL, OUTSOURCED needs VENDOR.

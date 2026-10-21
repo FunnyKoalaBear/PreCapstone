@@ -49,7 +49,7 @@ function buildSeed(now) {
     const job = `${prefix}-${String(++seq).padStart(3, '0')}`;
     seed.orders.push({ job, customer: CUSTOMERS[customer], custNo, due: dayStr(due), notes: '' });
     const id = `${job}-01`;
-    seed.items.push({ id, order: job, no: 1, part, qty: 10, boxCount: o.boxCount || 1, route: route.map((r) => P[r]) });
+    seed.items.push({ id, order: job, no: 1, part, qty: 10, pn: o.pn || '', boxCount: o.boxCount || 1, route: route.map((r) => P[r]) });
     seed.assignments.push({ id: `s${seed.assignments.length + 1}`, tag, box, item: id, start: ago(o.startH || 21 * 24), end: o.endH == null ? null : ago(o.endH) });
     seed.tags.push(tag);
     return id;
@@ -61,12 +61,12 @@ function buildSeed(now) {
   const full = ['mill', 'lathe', 'asm', 'insp'];
 
   // 1 Healthy: material arrived, two steps done with a 4h wait, third running
-  make(0, 'ブラケット', ['mat', ...full], 10, '0781DD5E', 'DEMO-01', 'TY-2610-014');
+  make(0, 'ブラケット', ['mat', ...full], 10, '0781DD5E', 'DEMO-01', 'TY-2610-014', { pn: 'BRK-100' });
   scan('0781DD5E', 'mat', 'ARRIVED', 34);
   [['mill', 30, 26], ['lathe', 22, 18]].forEach(([p, s, f]) => { scan('0781DD5E', p, 'STARTED', s); scan('0781DD5E', p, 'FINISHED', f); });
   scan('0781DD5E', 'asm', 'STARTED', 3, 1);
   // 2 Overdue
-  make(0, 'フランジ', ['mill', 'lathe', 'insp'], -3, 'F8DF3064', 'DEMO-02', 'TY-2610-009');
+  make(0, 'フランジ', ['mill', 'lathe', 'insp'], -3, 'F8DF3064', 'DEMO-02', 'TY-2610-009', { pn: 'FLG-200' });
   scan('F8DF3064', 'mill', 'STARTED', 80); scan('F8DF3064', 'mill', 'FINISHED', 70); scan('F8DF3064', 'lathe', 'STARTED', 2, 1);
   // 3 Critical: due soon, 4 steps left, nothing scanned yet
   make(1, 'ハウジング', full, 2, '74BA7571', 'DEMO-03', 'HS-45021');
@@ -82,7 +82,7 @@ function buildSeed(now) {
   scan('FC3F61E6', 'lathe', 'STARTED', 5 * 24); scan('FC3F61E6', 'lathe', 'FINISHED', 4 * 24);
   scan('FC3F61E6', 'plate', 'SENT_OUT', 3 * 24, 1); scan('FC3F61E6', 'plate', 'RETURNED', 24, 1);
   // 7 Not started
-  make(0, 'ピン', ['mill', 'lathe', 'asm'], 20, '092C4B14', 'DEMO-07', 'TY-2610-027');
+  make(0, 'ピン', ['mill', 'lathe', 'asm'], 20, '092C4B14', 'DEMO-07', 'TY-2610-027', { pn: 'PIN-300' });
   // 8 Messy scans: skipped step, process not in route, unassigned tag, voided wrong scan
   make(1, 'ギア', full, 5, '3E180A05', 'DEMO-08', 'HS-45030');
   scan('3E180A05', 'mill', 'STARTED', 30); scan('3E180A05', 'mill', 'FINISHED', 28); scan('3E180A05', 'asm', 'STARTED', 20);
@@ -91,9 +91,9 @@ function buildSeed(now) {
   scan('3E180A05', null, 'CORRECTION', 14, 1, wrong.id);
   scan('B15D6B73', 'mill', 'STARTED', 6, 1);
   // 9 Reused box: DEMO-09 carried a finished order, now carries a new one
-  make(1, '旧部品', ['mill'], -10, '03193FDF', 'DEMO-09', 'HS-44871', { startH: 21 * 24, endH: 9 * 24 });
+  make(1, '旧部品', ['mill'], -10, '03193FDF', 'DEMO-09', 'HS-44871', { startH: 21 * 24, endH: 9 * 24, pn: 'FLG-200' });
   scan('03193FDF', 'mill', 'STARTED', 19 * 24); scan('03193FDF', 'mill', 'FINISHED', 18 * 24);
-  make(0, '新部品', ['mill', 'lathe'], 7, '414D497D', 'DEMO-09', 'TY-2610-025', { startH: 48 });
+  make(0, '新部品', ['mill', 'lathe'], 7, '414D497D', 'DEMO-09', 'TY-2610-025', { startH: 48, pn: 'FLG-200' });
   scan('414D497D', 'mill', 'STARTED', 30); scan('414D497D', 'mill', 'FINISHED', 20); scan('414D497D', 'lathe', 'STARTED', 2, 1);
   // 10 Split item: 3 boxes expected; one finished, one at step 2, one not linked yet
   const split = make(0, 'フレーム', ['mill', 'lathe', 'asm'], 8, 'C36F67C6', 'DEMO-10', 'TY-2610-018', { boxCount: 3 });

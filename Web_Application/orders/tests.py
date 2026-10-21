@@ -602,6 +602,57 @@ class MaterialTests(TestCase):
         self.assertEqual((change.old_value, change.new_value, str(change.field_label)), ('SS400', 'A5052', 'material'))
 
 
+class PartNumberTests(TestCase):
+    def setUp(self):
+        self.client.force_login(make_user('pl', 'Planner'))
+        self.proc = Process.objects.create(name='Mat', kind=K.MATERIAL)
+
+    def data(self, item=None, **ids):
+        order = item.order if item else None
+        d = {
+            'customer': (order.customer if order else Customer.objects.create(name=f'C{Customer.objects.count()}')).pk,
+            'due_date': timezone.localdate() + timedelta(days=30),
+            'items-TOTAL_FORMS': 1, 'items-INITIAL_FORMS': 1 if item else 0, 'items-MIN_NUM_FORMS': 1, 'items-MAX_NUM_FORMS': 1000,
+            'items-0-part_name': 'Shaft', 'items-0-quantity': 1, 'items-0-box_count': 1, 'items-0-route': [self.proc.pk],
+        }
+        d.update({f'items-0-{k}': v for k, v in ids.items()})
+        if item:
+            d.update({'items-0-id': item.pk, 'items-0-order': order.pk})
+        return d
+
+    def test_fields_saved_shown_and_optional(self):
+        self.client.post('/orders/new/', self.data(part_number=' ab-12 ', drawing_number='D-9', revision='B'))
+        item = OrderItem.objects.get()
+        self.assertEqual((item.part_number, item.drawing_number, item.revision), ('AB-12', 'D-9', 'B'))
+        page = self.client.get(f'/orders/{item.order.job_number}/')
+        for text in ('AB-12', 'D-9', 'Revision'):
+            self.assertContains(page, text)
+        self.assertEqual(self.client.post('/orders/new/', self.data()).status_code, 302)
+        self.assertEqual(OrderItem.objects.exclude(pk=item.pk).get().part_number, '')
+
+    def test_search_finds_by_part_and_drawing_number(self):
+        self.client.post('/orders/new/', self.data(part_number='ab-12', drawing_number='DWG-77'))
+        self.client.post('/orders/new/', self.data(part_number='ZZ-1'))
+        job = OrderItem.objects.get(part_number='AB-12').order.job_number
+        for q in ('ab-1', 'dwg-77'):
+            rows = self.client.get('/orders/', {'q': q}).context['rows']
+            self.assertEqual([r['order'].job_number for r in rows], [job])
+
+    def test_edit_logs_revision_change(self):
+        self.client.post('/orders/new/', self.data(revision='A'))
+        item = OrderItem.objects.get()
+        self.client.post(f'/orders/{item.order.job_number}/edit/', self.data(item, revision='B'))
+        change = OrderChange.objects.get(field='revision')
+        self.assertEqual((change.old_value, change.new_value, str(change.field_label)), ('A', 'B', 'revision'))
+
+    def test_sheet_shows_the_numbers(self):
+        self.client.post('/orders/new/', self.data(part_number='AB-12', drawing_number='D-9', revision='C'))
+        job = OrderItem.objects.get().order.job_number
+        text = PdfReader(io.BytesIO(self.client.get(f'/orders/{job}/sheet/').content)).pages[0].extract_text()
+        for expected in ('AB-12', 'D-9 / C'):
+            self.assertIn(expected, text)
+
+
 DEMO_DIR = settings.BASE_DIR / 'docs' / 'demo-data'
 
 
@@ -697,6 +748,25 @@ class CsvImportTests(TestCase):
         self.confirm()  # all-or-nothing: the one valid row is not imported either
         self.assertEqual(Order.objects.count(), before)
         self.assertTrue(self.rows(self.upload('orders_demo_errors.csv', create=True))[2].ok)
+
+    def test_new_columns_fill_the_fields_and_old_files_still_import(self):
+        self.customers()
+        head = 'customer,customer_order_number,due_date,part_name,part_number,drawing_number,revision,quantity,route'
+        text = '\n'.join([head, 'Nippon Gear,A1,2030-01-05,P1, ab-1 ,D-1,C,1,Lathe:00012', ''])
+        self.upload(raw=text.encode())
+        self.confirm()
+        item = OrderItem.objects.get()
+        self.assertEqual((item.part_number, item.drawing_number, item.revision), ('AB-1', 'D-1', 'C'))
+        self.upload()  # the demo file has none of the three columns
+        self.confirm()
+        self.assertEqual(OrderItem.objects.filter(part_number='').count(), 10)
+
+    def test_new_columns_have_length_limits(self):
+        self.customers()
+        head = 'customer,due_date,part_name,part_number,revision,quantity,route'
+        text = '\n'.join([head, f'Nippon Gear,2030-01-05,P1,{"X" * 51},12345678901,1,Lathe:00012', ''])
+        errors = self.rows(self.upload(raw=text.encode()))[2].errors
+        self.assertEqual(errors, ['Part number is too long (at most 50 characters)', 'Revision is too long (at most 10 characters)'])
 
     def test_japanese_process_name_and_group_due_dates(self):
         self.customers()

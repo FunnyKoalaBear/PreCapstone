@@ -82,7 +82,7 @@ class OrderItemForm(forms.ModelForm):
 
     class Meta:
         model = OrderItem
-        fields = ['part_name', 'quantity', 'material', 'box_count', 'drawing_file']
+        fields = ['part_name', 'part_number', 'drawing_number', 'revision', 'quantity', 'material', 'box_count', 'drawing_file']
         labels = {'box_count': _('Boxes')}
 
     def __init__(self, *args, **kwargs):

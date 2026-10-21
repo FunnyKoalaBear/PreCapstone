@@ -305,6 +305,12 @@ class SeedDemoTests(TestCase):
         self.assertEqual(self.status('新部品')[1].code, 'IN_PROGRESS')
 
     @override_settings(DEBUG=True)
+    def test_part_numbers_repeat_on_several_orders(self):
+        self.seed()
+        for part_number in ('BRK-100', 'FLG-200'):
+            self.assertGreaterEqual(OrderItem.objects.filter(part_number=part_number).values('order').distinct().count(), 3)
+
+    @override_settings(DEBUG=True)
     def test_split_item_rolls_up_three_boxes(self):
         self.seed()
         item, st = self.status('フレーム')

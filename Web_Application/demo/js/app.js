@@ -191,7 +191,7 @@
       const its = world.items.filter((i) => i.order === o.job);
       return { o, its, sum: FT.orderSummary(world, o), late: o.due < world.today };
     }).filter((r) => {
-      const hay = [r.o.job, r.o.customer, r.o.custNo, ...r.its.map((i) => i.part)].join(' ').toLowerCase();
+      const hay = [r.o.job, r.o.customer, r.o.custNo, ...r.its.map((i) => i.part), ...r.its.map((i) => i.pn || '')].join(' ').toLowerCase();
       return (!q || hay.includes(q)) && (!status || r.sum.code === status) && (!late || (r.late && r.sum.code !== COMPLETE));
     });
     const lateOf = (r) => r.late && r.sum.code !== COMPLETE;
@@ -248,7 +248,7 @@
           ? `<section class="box-section"><h3>${h(t('box_title', { l: b.label }))}${b.assignment.end != null ? ` <small>${h(t('released'))}</small>` : ''} ${statusBadge(b.code)}</h3>${timelineHtml(b)}${eventsHtml(b, false)}</section>`
           : `<section class="box-section"><h3>${h(t('box_not_linked'))}</h3><p><a href="tags.html">${h(t('link_a_tag'))}</a></p></section>`)).join('')}`;
       }
-      return `<div class="card card-wide"><h2>${h(item.id)} - ${h(item.part)} &times; ${item.qty} ${statusBadge(st.code)}</h2>${item.drawing ? `<p>${h(t('drawing'))}: ${h(item.drawing)}</p>` : ''}${body}</div>`;
+      return `<div class="card card-wide"><h2>${h(item.id)} - ${h(item.part)} &times; ${item.qty} ${statusBadge(st.code)}</h2>${item.pn ? `<p class="note">${h(t('part_number'))}: ${h(item.pn)}</p>` : ''}${item.drawing ? `<p>${h(t('drawing'))}: ${h(item.drawing)}</p>` : ''}${body}</div>`;
     });
     const changes = world.changes.filter((c) => c.job === order.job).reverse().map((c) => `<tr><td>${fmtDT(c.t)}</td><td>${h(t('demo_user'))}</td>
       <td>${h((c.item ? c.item + ' ' : '') + t(FIELD_LABELS[c.field] || c.field))}</td><td>${h(c.old || '-')}</td><td>${h(c.new || '-')}</td></tr>`);

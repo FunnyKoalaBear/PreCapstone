@@ -3,59 +3,73 @@ Order matters. [ ] todo, [!] blocked. Finished entries are deleted; git history 
 
 ## Queue
 
-- [x] **F46 Roles and login**
-  Groups Operator, Planner, Admin (created by a data migration; Admin group or superuser = Admin). `core/permissions.py` with `role_required(*roles)`; superusers always pass.
-  Replace every `staff_member_required`. Anonymous -> `/login/` (own login/logout pages, JA/EN) with `next`. Logged in without the role -> translated 403 page. `is_staff` stays only for /admin.
-  Operator: home, order list/detail, later the progress matrix. Planner: + new/edit order, Tags, event correction. Admin: + Simulate scan, /admin.
-  Nav shows only links the user can use. Update existing tests; add one test per role and page group.
+- [ ] **F71 Copy the route from the previous order of the same part**
+  Why: re-typing a route of up to 9 steps for every repeat order is the biggest entry cost.
+  Decisions made:
+  - In the order form, per item, a button "Copy route from last order" next to the route steps. Enabled only when the part number (F70) is filled.
+  - Source = the most recent earlier item with the same part number (case-insensitive) that is not cancelled. No match: show the message "No earlier order for this part" and change nothing.
+  - Copies process and vendor (F73) of each step in order. Does NOT copy due dates, slip numbers or quantities: those belong to the new order.
+  - If the item already has filled steps, ask for confirmation before replacing them. The planner can still edit every step before saving.
+  - No new model. A small JSON view (Planner and up) returns the steps; reuse the add-step logic in `static/js/formset.js`.
+  Tests: copy fills the same steps in the same order; cancelled items are skipped; no match gives the message; dates are empty after copy; Operator gets 403.
 
-- [x] **F77 Drawing on the order detail page**
-  Per item: "Open drawing" link (new tab); inline preview for png/jpg; "No drawing" otherwise.
-  Serve the file through a view that checks the role and streams it (FileResponse). Do not rely on the DEBUG-only media URL: it does not work on the Pi.
+- [ ] **F69 Shipped state and on-time delivery rate**
+  Why: COMPLETE only means the last process finished. A planner cannot tell "ready on the dock" from "delivered", and on-time delivery cannot be measured.
+  Decisions made:
+  - New append-only event type SHIPPED, recorded the same way as the planner buttons from F64. Status stays derived from events; nothing is stored.
+  - Status rule: SHIPPED counts only after COMPLETE. Button "Mark as shipped" on the order detail page, shown only for COMPLETE items (Planner and up); the service refuses SHIPPED for any other state. Paused or cancelled items cannot be shipped.
+  - A correction (F47) that voids SHIPPED returns the item to COMPLETE.
+  - An order is shipped when all its items are shipped. Shipped items leave every overdue, priority and matrix list (they count as finished).
+  - New page `/shipping/` (Planner and up): (1) items COMPLETE but not shipped, sorted by due date; (2) per month: number shipped and on-time rate = shipped on or before the order due date, divided by shipped. Use JST dates.
+  - Add the status label and colour variable for SHIPPED (reuse the F40 colours if F40 is done; otherwise add one variable in `theme.css`).
+  Tests: button only on COMPLETE; refused otherwise; correction voids it; on-time rate for a made-up month (one early, one late); shipped item absent from overdue list.
 
-- [x] **F73 Process and supplier/vendor codes**
-  New `Vendor` model: `code` (5 characters, digits only, unique, stored as text), `name`, `name_ja`, `kind` INTERNAL / SUPPLIER / VENDOR, `lead_days` (nullable).
-  Validation: INTERNAL codes 00000-00099; SUPPLIER and VENDOR codes 00100-00429.
-  `RouteStep.vendor` nullable FK (who does or supplies the step). `Process.default_vendor` nullable FK, prefilled when the process is picked. Keep `Process.vendor_name` and `vendor_lead_days` as fallback; a data migration turns existing vendor names into Vendor rows.
-  Order form: after choosing the process, a dropdown showing "code name". Show code and name together everywhere (detail page, timeline). Searchable `/codes/` list page (Planner and up). Register in admin.
+- [ ] **F67 CSV export**
+  Why: take data into Excel; mirrors the CSV import (F42).
+  Decisions made:
+  - Two exports (Planner and up): the order list (button on the list page; respects the current search and filters) and the event history of one order (button on the detail page).
+  - Order list columns use the same names as the import (`customer`, `customer_order_number`, `due_date`, `part_name`, `quantity`, `material`, `notes`, `route`, plus `part_number`, `drawing_number`, `revision` if F70 is done) and add `job_number`, `item_code`, `status`.
+  - Event history columns: time (JST), event type, process code + name, device, tag UID, voided (yes/no).
+  - UTF-8 with BOM so Excel shows Japanese correctly. File names `orders_YYYYMMDD.csv` and `events_<job number>.csv`. Use the `csv` module with a streaming response.
+  - Never write a cell that starts with `= + - @` unescaped (prefix with a single quote) so Excel cannot run it as a formula.
+  Tests: filters change the export; Japanese text survives; a value starting with `=` is escaped; Operator gets 403.
 
-- [x] **F79 Planned due date per route step**
-  `RouteStep.due_date` (nullable) and `slip_number` (text, blank). Fields in the order form per step; shown on the order detail page.
-  Vendor due-back uses the step due date when set, else started + lead days (vendor, then process). Tests for both paths.
+- [ ] **F40a Responsive layout: fluid layout and viewport tag**
+  One commit. Add the viewport meta tag; make widths fluid (no fixed pixel widths on containers); no horizontal page scroll down to 360 px wide. Breakpoints: 768 px and 480 px, defined once in `theme.css`. Do not change colours or content.
 
-- [x] **F80 Material on order items**
-  `OrderItem.material` (text, 100, blank). In the form, detail page and order search.
+- [ ] **F40b Responsive layout: tables become cards on narrow screens**
+  One commit, after F40a.
+  Decisions made:
+  - Below 768 px these tables turn into cards: order list, tag list, codes list, results summary, shipping page.
+  - These stay tables with a horizontal scroll inside their box: the progress matrix (F66) and the event history. The matrix keeps its fixed-height box and frozen header.
+  - Pure CSS (data attributes for the cell labels); no JavaScript framework.
 
-- [x] **F78 Demo data with our own codes**
-  Update the seed script and the static demo (`demo/js/data.js` and the pages that show steps). Use `docs/demo-data/codes.csv`, `processes.csv` and `workers_machines.csv` (invented, in the two blocks) so the seed, the static demo and the CSV import agree. Never use the company's real codes or names.
+- [ ] **F40c Responsive layout: collapsible menu**
+  One commit, after F40a. Below 768 px the navigation collapses behind a menu button. It still shows only the links the user's role can use (F46). Plain JS, keyboard usable, the button has an accessible label.
 
-- [x] **F42 CSV order import**
-  Upload page (Planner and up). Spec, columns and the expected result of every error row: `docs/demo-data/README.md`. Files: `orders_demo.csv`, `orders_demo_sjis.csv`, `orders_demo_errors.csv`.
-  Read UTF-8 (with or without BOM), then fall back to Shift-JIS (cp932). Preview every row with ok/error, import all-or-nothing in one transaction, option "create new customers". Rows with the same customer and customer order number become one order. Reuse the order-creation service so job numbers and items work as usual.
-  Tests: clean file imports 7 orders and 10 items; each error row gives its expected message; the Shift-JIS file gives the same result.
-  The real company format will arrive later: keep the column mapping in one place so it is easy to change.
+- [ ] **F40 Status colours**
+  Why: states must be readable at a glance, in one place.
+  Decisions made:
+  - One CSS variable per state in `theme.css`: not started, waiting, in progress, at vendor, complete, shipped (if F69 exists), paused, cancelled, overdue. Reuse them in the progress matrix, lists, badges and the legend. Remove any hard-coded colour in templates or other CSS.
+  - Every colour is always paired with its text label (colour is never the only signal). Text on each colour meets 4.5:1 contrast. Tell states apart by lightness as well as hue; prefer blue and orange over red and green.
+  - No layout changes in this commit.
+  Tests: a test or grep that no template or stylesheet other than `theme.css` contains a hex colour.
 
-- [x] **F66 Progress matrix (replaces the home process board)**
-  Rows = unfinished items, columns = step 1..N; each cell shows that item's own process name (vendor name for outsourced steps), coloured by state with a legend (CSS variables only). Finished steps collapse into one compact cell.
-  Fixed-height box with its own scroll and a frozen header and first column. Default: unfinished orders by due date, first 25, "Show more". Filters: status, customer, due range, overdue only. Option "start at current step". Click a row to open the order.
-  Home shows a short version (most urgent 10) linking to the full page. Remove the old process board only when this works.
+- [ ] **F72 Previous runs of this part**
+  Why: lets a planner promise a date from what really happened last time (the company visit found dates cannot be promised reliably).
+  Decisions made:
+  - A box on the order detail page, per item with a part number (F70), listing the last 5 earlier items with the same part number (case-insensitive), newest first. Excludes the current item and cancelled ones. No earlier runs: hide the box.
+  - Each run shows: job number (link to that order), finish date (JST), and per process the actual duration (started to finished; for outsourced steps sent out to returned), with the vendor code and name (F73), and total days from first to last event.
+  - Reuse the duration calculation from F68; do not write a second one.
+  Tests: runs listed newest first; cancelled run skipped; durations match F68; box hidden when no runs.
 
-- [x] **F43 Order to PDF (work instruction sheet)**
-  Use ReportLab and pypdf (pure Python: works on Windows and the Pi) with an embedded Japanese font (Noto Sans JP, OFL licence, bundled in static/fonts).
-  Page 1 per item: job number, customer, customer PO, material, due date, quantity, notes. Route table: sequence, process, code + name (F73), step due date (F79), quantity, blank boxes for date / worker / notes, actual qty, defect qty. Optional QR of the item code.
-  Page 2: the drawing (pdf pages appended; png/jpg scaled to fit) so duplex printing puts it on the back. No drawing -> no page 2.
-  Button "Print sheet" on the order detail page (Planner and up).
-
-- [x] **F64 Extra states: paused, resumed, partial, cancelled** (website side only)
-  Add event types and status rules; planner buttons on the order detail page; no scanner changes. Derived status stays computed from events. Cancelled orders leave the overdue lists.
-
-- [x] **F65 Worker, machine, quantity and defects (website side)**
-  `Worker` and `Machine` models (name, name_ja, active); demo names in `docs/demo-data/workers_machines.csv`.
-  New event type RESULT (append-only, does not change step state): process, worker, machine (both optional), quantity done, defect count. "Record result" form on the order detail page for Operator and up (extend the F46 permissions). Corrections work as for other events (F47).
-  Show results in the item history; per-process totals and defect rate on a simple summary page. The scanner can send RESULT later; no scanner changes now.
-
-- [x] **F68 Planned vs actual time per process**
-  Planned = step due date (F79) minus the previous step finish; actual from events. Show per order and a simple per-process average page.
+- [ ] **F45 Admin dashboard**
+  Why: a management view beyond Django admin.
+  Decisions made:
+  - Page `/dashboard/`, Admin only (F46); Planner and Operator get 403. Nav link shown to Admin only.
+  - Plain numbers and lists, no charts: users per role; items per status; events recorded today (JST); scanner devices not seen in the last 24 hours (from the F14 heartbeat), listed by name; events voided by corrections in the last 7 days.
+  - Each block links to the matching `/admin` page.
+  Tests: counts match a small fixture; non-admin roles get 403.
 
 ## Blocked
 - [!] F48 Backups: waiting for the Pi decisions (yours to look into).

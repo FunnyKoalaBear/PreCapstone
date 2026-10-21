@@ -187,3 +187,11 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | Paused / Resume | 一時停止中 / 再開 |
 | Partial (step partly done) | 一部完了 |
 | Cancelled (item) | キャンセル済み |
+
+## Terms added for part numbers
+
+| English | Japanese |
+|---|---|
+| Part number | 品番 |
+| Drawing number | 図面番号 |
+| Revision | 改訂 ? |

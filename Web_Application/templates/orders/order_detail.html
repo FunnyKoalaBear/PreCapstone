@@ -29,6 +29,14 @@
         <span class="badge badge-{{ entry.status.code|lower }}">{{ entry.status.label }}</span>
       </h2>
 
+      {% if entry.item.part_number or entry.item.drawing_number or entry.item.revision %}
+        <p class="note">
+          {% if entry.item.part_number %}{% trans "Part number" %}: {{ entry.item.part_number }}{% endif %}
+          {% if entry.item.drawing_number %}&middot; {% trans "Drawing number" %}: {{ entry.item.drawing_number }}{% endif %}
+          {% if entry.item.revision %}&middot; {% trans "Revision" %}: {{ entry.item.revision }}{% endif %}
+        </p>
+      {% endif %}
+
       <p>
         {% if entry.single %}
           {% if entry.assignment %}

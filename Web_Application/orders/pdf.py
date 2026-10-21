@@ -61,6 +61,8 @@ def _sheet(item):
          _p(_('Part name'), 8, textColor=colors.grey), _p(item.part_name, 11)],
         [_p(capfirst(OrderItem._meta.get_field('material').verbose_name), 8, textColor=colors.grey), _p(item.material or '-', 11),
          _p(_('Due date'), 8, textColor=colors.grey), _p(f'{order.due_date:%Y-%m-%d}', 11)],
+        [_p(_('Part number'), 8, textColor=colors.grey), _p(item.part_number or '-', 11),
+         _p(_('Drawing number / Revision'), 8, textColor=colors.grey), _p(f"{item.drawing_number or '-'} / {item.revision or '-'}", 11)],
         [_p(_('Quantity'), 8, textColor=colors.grey), _p(item.quantity, 11), _p(_('Notes'), 8, textColor=colors.grey), _p(order.notes or '-', 9)],
     ]
     head = [_('Step'), _('Process'), _('Code / name'), _('Planned due'), _('Quantity'), _('Date'), _('Worker'), _('Notes'), _('Actual qty'), _('Defects')]
