@@ -7,6 +7,7 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.test import SimpleTestCase
 from django.test import TestCase as RawTestCase
 from django.test import override_settings
 from django.utils import translation
@@ -462,6 +463,74 @@ class ResponsiveLayoutTests(TestCase):
         js = (settings.BASE_DIR / 'static' / 'js' / 'nav.js').read_text(encoding='utf-8')
         for part in ('aria-expanded', "e.key === 'Escape'", 'button.focus()'):
             self.assertIn(part, js)
+
+
+def _luminance(hex_colour):
+    channels = [int(hex_colour[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+    r, g, b = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in channels]
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def _contrast(a, b):
+    hi, lo = sorted((_luminance(a), _luminance(b)), reverse=True)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+def _mix(colour, background, percent):
+    """sRGB mix like CSS color-mix: percent of colour over the background."""
+    mixed = [round(int(colour[i:i + 2], 16) * percent / 100 + int(background[i:i + 2], 16) * (100 - percent) / 100) for i in (1, 3, 5)]
+    return '#%02x%02x%02x' % tuple(mixed)
+
+
+class StatusColourTests(SimpleTestCase):
+    STATES = ('not-started', 'waiting', 'in-progress', 'at-vendor', 'complete', 'shipped', 'paused', 'cancelled', 'overdue')
+    CSS = settings.BASE_DIR / 'static' / 'css'
+    TEMPLATES = settings.BASE_DIR / 'templates'
+
+    def theme(self):
+        return (self.CSS / 'theme.css').read_text(encoding='utf-8')
+
+    def variables(self):
+        return dict(re.findall(r'--([a-z-]+):\s*(#[0-9a-fA-F]{6})\b', self.theme()))
+
+    def test_no_hex_or_functional_colours_outside_theme_css(self):
+        files = [p for p in self.CSS.glob('*.css') if p.name != 'theme.css'] + list(self.TEMPLATES.rglob('*.html'))
+        pattern = re.compile(r'(?<![&\w-])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})\b|\b(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch)\(')
+        for path in files:
+            self.assertEqual(pattern.findall(path.read_text(encoding='utf-8')), [], path.name)
+
+    def test_every_state_has_one_variable_and_a_badge_and_a_text_label(self):
+        variables = self.variables()
+        base = (self.CSS / 'base.css').read_text(encoding='utf-8')
+        for state in self.STATES:
+            self.assertIn(f'status-{state}', variables, state)
+            self.assertIn(f'.badge-{state.replace("-", "_")} {{ color: var(--status-{state})', base, state)
+        from tracking.status import LABELS
+        for code in ('NOT_STARTED', 'WAITING', 'IN_PROGRESS', 'AT_VENDOR', 'COMPLETE', 'SHIPPED', 'PAUSED', 'CANCELLED'):
+            self.assertTrue(str(LABELS[code]), code)
+
+    def test_text_on_every_state_colour_has_4_5_contrast(self):
+        v = self.variables()
+        white, text, muted = v['color-surface'], v['color-text'], v['color-muted']
+        for name in [f'status-{s}' for s in self.STATES] + ['status-partial'] + [f'risk-{r}' for r in ('overdue', 'critical', 'watch', 'on-track')]:
+            self.assertGreaterEqual(_contrast(v[name], white), 4.5, f'{name} on white')  # badge text, or white text on the colour
+        for state in ('not-started', 'in-progress', 'at-vendor', 'complete', 'paused'):  # matrix cell backgrounds
+            tint = _mix(v[f'status-{state}'], white, 16)
+            self.assertGreaterEqual(_contrast(text, tint), 4.5, f'text on {state} tint')
+            self.assertGreaterEqual(_contrast(muted, tint), 4.5, f'muted text on {state} tint')
+        self.assertGreaterEqual(_contrast(muted, v['color-bg']), 4.5)
+
+    def test_states_differ_in_lightness_not_only_in_hue(self):
+        v = self.variables()
+        levels = sorted(_luminance(v[f'status-{s}']) for s in self.STATES)
+        gaps = [b - a for a, b in zip(levels, levels[1:])]
+        self.assertGreaterEqual(min(gaps), 0.01, gaps)
+
+    def test_matrix_and_legend_use_the_state_variables(self):
+        base = (self.CSS / 'base.css').read_text(encoding='utf-8')
+        for state in ('pending', 'in_progress', 'at_vendor', 'done', 'paused'):
+            self.assertRegex(base, rf'\.matrix-{state} \{{ background: var\(--status-[a-z-]+-tint\)', state)
+        self.assertNotIn('--matrix-', self.theme())
 
 
 class LanguageTests(RawTestCase):

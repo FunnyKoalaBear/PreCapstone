@@ -3,14 +3,6 @@ Order matters. [ ] todo, [!] blocked. Finished entries are deleted; git history 
 
 ## Queue
 
-- [ ] **F40 Status colours**
-  Why: states must be readable at a glance, in one place.
-  Decisions made:
-  - One CSS variable per state in `theme.css`: not started, waiting, in progress, at vendor, complete, shipped (if F69 exists), paused, cancelled, overdue. Reuse them in the progress matrix, lists, badges and the legend. Remove any hard-coded colour in templates or other CSS.
-  - Every colour is always paired with its text label (colour is never the only signal). Text on each colour meets 4.5:1 contrast. Tell states apart by lightness as well as hue; prefer blue and orange over red and green.
-  - No layout changes in this commit.
-  Tests: a test or grep that no template or stylesheet other than `theme.css` contains a hex colour.
-
 - [ ] **F72 Previous runs of this part**
   Why: lets a planner promise a date from what really happened last time (the company visit found dates cannot be promised reliably).
   Decisions made:

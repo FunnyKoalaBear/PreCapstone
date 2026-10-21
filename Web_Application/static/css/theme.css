@@ -2,35 +2,40 @@
   --color-bg: #f5f6f8;
   --color-surface: #ffffff;
   --color-text: #1f2933;
-  --color-muted: #6b7785;
+  --color-muted: #5b6573;
   --color-primary: #2563eb;
   --color-border: #d9dee5;
   --gantt-track-bg: #eef0f3;
   --gantt-vendor-stripe: #a78bfa;
 
-  --status-waiting: #d97706;
-  --status-in-progress: #2563eb;
-  --status-done: #16a34a;
-  --status-at-vendor: #7c3aed;
-  --status-late: #dc2626;
-  --status-paused: #0e7490;
-  --status-partial: #0d9488;
-  --status-cancelled: #6b7785;
-  --status-shipped: #4f46e5;
+  /* One colour per state. Each has at least 4.5:1 contrast with white (as text on white, or white text on it),
+     and the lightness of each differs, so states are not told apart by hue alone. Always show the state's text label too. */
+  --status-shipped: #2f2a88;
+  --status-cancelled: #3f434b;
+  --status-overdue: #9d1b1b;
+  --status-in-progress: #1e51c0;
+  --status-at-vendor: #7637e1;
+  --status-paused: #0e718c;
+  --status-complete: #117d39;
+  --status-waiting: #ab5e05;
+  --status-not-started: #72777f;
+  --status-partial: #0f766e;
+  --color-danger: var(--status-overdue);
+
+  /* Light backgrounds for matrix cells, mixed from the state colours */
+  --status-tint: 16%;
+  --status-not-started-tint: color-mix(in srgb, var(--status-not-started) var(--status-tint), var(--color-surface));
+  --status-in-progress-tint: color-mix(in srgb, var(--status-in-progress) var(--status-tint), var(--color-surface));
+  --status-at-vendor-tint: color-mix(in srgb, var(--status-at-vendor) var(--status-tint), var(--color-surface));
+  --status-complete-tint: color-mix(in srgb, var(--status-complete) var(--status-tint), var(--color-surface));
+  --status-paused-tint: color-mix(in srgb, var(--status-paused) var(--status-tint), var(--color-surface));
 
   --stagnant-color: #be185d;
 
-  --matrix-pending-bg: #eef0f3;
-  --matrix-in-progress-bg: #dbeafe;
-  --matrix-at-vendor-bg: #ede9fe;
-  --matrix-done-bg: #dcfce7;
-  --matrix-paused-bg: #cffafe;
-
-
-  --risk-overdue: #b91c1c;
-  --risk-critical: #ea580c;
-  --risk-watch: #ca8a04;
-  --risk-on-track: #16a34a;
+  --risk-overdue: #9d1b1b;
+  --risk-critical: #c2410c;
+  --risk-watch: #a16207;
+  --risk-on-track: #15803d;
 }
 
 /* Responsive layout. The breakpoints live only here: 768px (tablet) and 480px (phone). */
