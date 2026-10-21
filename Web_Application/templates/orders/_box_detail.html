@@ -14,7 +14,7 @@
           <tbody>
             {% for s in b.steps %}
               <tr>
-                <td>{{ s.row.step.process }}</td>
+                <td>{{ s.row.step.process }}{% if s.row.step.vendor_label %} <small>{{ s.row.step.vendor_label }}</small>{% endif %}</td>
                 <td><span class="badge badge-{{ s.row.state }}">{{ s.label }}</span>{% if s.late_days %} <span class="badge badge-overdue">{% blocktrans count counter=s.late_days %}Late by {{ counter }} day{% plural %}Late by {{ counter }} days{% endblocktrans %}</span>{% endif %}</td>
                 <td>{{ s.row.started_at|date:"Y-m-d H:i"|default:"-" }}</td>
                 <td>{{ s.row.finished_at|date:"Y-m-d H:i"|default:"-" }}</td>
@@ -33,7 +33,7 @@
             {% with bar=s.bar %}
               <div class="gantt-row{% if s.current %} gantt-current{% endif %}">
                 <div class="gantt-name">
-                  {{ s.row.step.process }}{% if s.row.step.process.vendor_name %} ({{ s.row.step.process.vendor_name }}){% endif %}
+                  {{ s.row.step.process }}{% if s.row.step.vendor_label %} ({{ s.row.step.vendor_label }}){% endif %}
                   {% if s.due_back %}<small>{% blocktrans with d=s.due_back|date:"Y-m-d" %}due back {{ d }}{% endblocktrans %}</small>{% endif %}
                   {% if s.late_days %}<span class="badge badge-overdue">{% blocktrans count counter=s.late_days %}Late by {{ counter }} day{% plural %}Late by {{ counter }} days{% endblocktrans %}</span>{% endif %}
                 </div>

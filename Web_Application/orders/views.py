@@ -14,7 +14,7 @@ from tracking.status import (
 )
 
 from .forms import CustomerForm, OrderForm, OrderItemFormSet
-from .models import Customer, Order, OrderChange, OrderItem
+from .models import Customer, Order, OrderChange, OrderItem, Vendor
 
 SORTS = {
     'due': ('due_date', 'job_number'),
@@ -85,7 +85,7 @@ def _order_values(order):
 def _item_values(item):
     values = {f: str(getattr(item, f)) for f in ITEM_FIELDS}
     values['drawing_file'] = item.drawing_file.name or ''
-    values['route'] = ' > '.join(item.steps.values_list('process__name', flat=True))
+    values['route'] = ' > '.join(s.process.name + (f' [{s.vendor.code}]' if s.vendor else '') for s in item.steps.select_related('process', 'vendor'))
     return values
 
 
@@ -160,7 +160,7 @@ def order_list(request):
 def _step_entry(row, today, timing, current=None):
     entry = {'row': row, 'label': STEP_LABELS[row.state], 'due_back': None, 'late_days': 0, 'current': row.step == current, **timing}
     if row.state == 'at_vendor':
-        entry['due_back'] = due_back(row.started_at, row.step.process.vendor_lead_days)
+        entry['due_back'] = due_back(row.started_at, row.step.lead_days)
         entry['late_days'] = days_late(entry['due_back'], today)
     return entry
 
@@ -205,3 +205,14 @@ def item_drawing(request, pk):
     if not item.drawing_file:
         raise Http404
     return FileResponse(item.drawing_file.open('rb'), filename=item.drawing_file.name.rsplit('/', 1)[-1])
+
+
+@role_required(PLANNER)
+def code_list(request):
+    q, kind = request.GET.get('q', '').strip(), request.GET.get('kind', '')
+    vendors = Vendor.objects.all()
+    if q:
+        vendors = vendors.filter(Q(code__icontains=q) | Q(name__icontains=q) | Q(name_ja__icontains=q))
+    if kind in Vendor.Kind.values:
+        vendors = vendors.filter(kind=kind)
+    return render(request, 'orders/code_list.html', {'vendors': vendors, 'q': q, 'kind': kind, 'kinds': Vendor.Kind.choices})

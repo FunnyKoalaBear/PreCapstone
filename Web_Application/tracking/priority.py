@@ -19,7 +19,7 @@ def priority(order, status, today=None):
     left = [r for r in status.rows if r.state != DONE]
     needed, reasons = 0, []
     for r in left:
-        lead = r.step.process.vendor_lead_days
+        lead = r.step.lead_days
         if r.state == STEP_AT_VENDOR:
             back = due_back(r.started_at, lead)
             late = days_late(back, today)

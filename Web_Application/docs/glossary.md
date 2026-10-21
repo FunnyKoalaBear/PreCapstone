@@ -36,6 +36,11 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | Outsourced | 外注 |
 | In-house | 社内 |
 | Vendor | 外注先 |
+| Supplier | 仕入先 |
+| Internal | 社内 |
+| Code / Codes (vendor list) | コード / コード一覧 |
+| Lead days | リードタイム（日） |
+| Default vendor | 標準の外注先 |
 | At vendor | 外注中 |
 | Arrived | 入荷 |
 | Started | 開始 |

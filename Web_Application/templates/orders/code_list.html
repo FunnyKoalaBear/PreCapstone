@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Codes" %} - {% trans "Factory Tracker" %}{% endblock %}
+
+{% block content %}
+  <h1>{% trans "Codes" %}</h1>
+
+  <form method="get" class="filters">
+    <div>
+      <label for="q">{% trans "Search" %}</label>
+      <input type="search" id="q" name="q" value="{{ q }}">
+    </div>
+    <div>
+      <label for="kind">{% trans "kind" as label %}{{ label|capfirst }}</label>
+      <select id="kind" name="kind">
+        <option value="">{% trans "All" %}</option>
+        {% for value, label in kinds %}<option value="{{ value }}"{% if value == kind %} selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="button">{% trans "Search" %}</button>
+  </form>
+
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>{% trans "code" as label %}{{ label|capfirst }}</th>
+          <th>{% trans "name" as label %}{{ label|capfirst }}</th>
+          <th>{% trans "Japanese name" %}</th>
+          <th>{% trans "kind" as label %}{{ label|capfirst }}</th>
+          <th>{% trans "lead days" as label %}{{ label|capfirst }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for v in vendors %}
+          <tr>
+            <td>{{ v.code }}</td>
+            <td>{{ v.name }}</td>
+            <td>{{ v.name_ja|default:"-" }}</td>
+            <td>{{ v.get_kind_display }}</td>
+            <td>{{ v.lead_days|default_if_none:"-" }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5">{% trans "No codes match." %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}

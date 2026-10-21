@@ -33,12 +33,19 @@ document.addEventListener('DOMContentLoaded', () => {
     if (add) {
       const steps = add.closest('.route').querySelector('.route-steps');
       const row = steps.lastElementChild.cloneNode(true);
-      row.querySelector('select').value = '';
+      row.querySelectorAll('select').forEach((s) => { s.value = ''; });
       steps.append(row);
     } else if (remove) {
       const row = remove.closest('.route-step');
       if (row.parentElement.children.length > 1) row.remove();
-      else row.querySelector('select').value = '';
+      else row.querySelectorAll('select').forEach((s) => { s.value = ''; });
     }
+  });
+
+  // Picking a process prefills the vendor with the process default
+  form.addEventListener('change', (e) => {
+    if (!e.target.matches('select[name$="-route"]')) return;
+    const vendor = e.target.closest('.route-step').querySelector('select[name$="-route_vendor"]');
+    vendor.value = e.target.selectedOptions[0].dataset.vendor || '';
   });
 });

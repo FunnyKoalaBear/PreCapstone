@@ -1,5 +1,8 @@
+import importlib
 import tempfile
 from datetime import timedelta
+
+from django.apps import apps
 
 from django.contrib.admin import site
 from django.contrib.auth.models import User
@@ -7,14 +10,14 @@ from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
 from django.utils.datastructures import MultiValueDict
-from django.utils import timezone
+from django.utils import timezone, translation
 
 from core.testing import TestCase, make_user
 from tracking.models import Box, ScannerDevice, Tag, TagAssignment
 from tracking.services import record_event
 
 from .forms import OrderItemForm
-from .models import Customer, Order, OrderChange, OrderItem, Process, RouteStep
+from .models import Customer, Order, OrderChange, OrderItem, Process, RouteStep, Vendor
 
 K = Process.Kind
 
@@ -392,6 +395,149 @@ class OrderEditTests(TestCase):
             self.assertContains(detail, words[0])
             self.assertContains(detail, words[1])
             self.assertContains(edit, words[2])
+
+
+class VendorTests(TestCase):
+    def check(self, code, kind):
+        Vendor(code=code, name='V', kind=kind).full_clean()
+
+    def test_code_ranges_per_kind(self):
+        V = Vendor.Kind
+        for code, kind in (('00000', V.INTERNAL), ('00099', V.INTERNAL), ('00100', V.SUPPLIER), ('00429', V.SUPPLIER), ('00100', V.VENDOR), ('00429', V.VENDOR)):
+            self.check(code, kind)
+        for code, kind in (('00100', V.INTERNAL), ('00099', V.SUPPLIER), ('00430', V.SUPPLIER), ('00099', V.VENDOR), ('00430', V.VENDOR)):
+            with self.assertRaises(ValidationError, msg=(code, kind)):
+                self.check(code, kind)
+
+    def test_code_must_be_five_digits_and_unique(self):
+        for bad in ('123', '001234', 'ABCDE', '12 45'):
+            with self.assertRaises(ValidationError, msg=bad):
+                self.check(bad, Vendor.Kind.VENDOR)
+        Vendor.objects.create(code='00100', name='A', kind=Vendor.Kind.VENDOR)
+        with self.assertRaises(ValidationError):
+            self.check('00100', Vendor.Kind.SUPPLIER)
+
+    def test_str_shows_code_and_name_in_the_active_language(self):
+        v = Vendor(code='00101', name='Acme', name_ja='アクメ', kind=Vendor.Kind.VENDOR)
+        self.assertEqual(str(v), '00101 Acme')
+        with translation.override('ja'):
+            self.assertEqual(str(v), '00101 アクメ')
+
+
+class StepVendorTests(TestCase):
+    def setUp(self):
+        self.default = Vendor.objects.create(code='00100', name='Default', kind=Vendor.Kind.VENDOR, lead_days=4)
+        self.other = Vendor.objects.create(code='00101', name='Other', kind=Vendor.Kind.VENDOR)
+        self.proc = Process.objects.create(name='Plate', kind=K.OUTSOURCED, default_vendor=self.default, vendor_name='Old', vendor_lead_days=9)
+        order = Order.objects.create(customer=Customer.objects.create(name='C'), due_date=timezone.localdate())
+        self.item = OrderItem.objects.create(order=order, part_name='P', quantity=1)
+
+    def step(self, vendor=None):
+        return RouteStep.objects.create(item=self.item, sequence=RouteStep.objects.count() + 1, process=self.proc, vendor=vendor)
+
+    def test_step_vendor_falls_back_to_process_default(self):
+        self.assertEqual(self.step().vendor_label, '00100 Default')
+        self.assertEqual(self.step(self.other).vendor_label, '00101 Other')
+
+    def test_lead_days_vendor_then_process(self):
+        self.assertEqual(self.step().lead_days, 4)  # default vendor
+        self.assertEqual(self.step(self.other).lead_days, 9)  # vendor without lead days: process value
+        self.proc.default_vendor = None
+        self.assertEqual(RouteStep(item=self.item, sequence=9, process=self.proc).lead_days, 9)
+        self.assertEqual(RouteStep(item=self.item, sequence=9, process=self.proc).vendor_label, 'Old')
+
+    def test_data_migration_turns_names_into_vendors(self):
+        Process.objects.all().update(default_vendor=None)
+        a = Process.objects.create(name='A', kind=K.OUTSOURCED, vendor_name='Same', vendor_lead_days=3)
+        b = Process.objects.create(name='B', kind=K.OUTSOURCED, vendor_name='Same', vendor_lead_days=3)
+        c = Process.objects.create(name='C', kind=K.OUTSOURCED, vendor_name='Mixed1', vendor_lead_days=2)
+        d = Process.objects.create(name='D', kind=K.OUTSOURCED, vendor_name='Mixed1', vendor_lead_days=6)
+        Vendor.objects.all().delete()
+        importlib.import_module('orders.migrations.0010_vendors_from_names').names_to_vendors(apps, None)
+        for p in (a, b, c, d, self.proc):
+            p.refresh_from_db()
+        self.assertEqual(a.default_vendor, b.default_vendor)
+        self.assertEqual((a.default_vendor.kind, a.default_vendor.lead_days), ('VENDOR', 3))
+        self.assertIsNone(c.default_vendor.lead_days)
+        self.assertEqual(c.default_vendor, d.default_vendor)
+        self.assertEqual(sorted(Vendor.objects.values_list('code', flat=True)), ['00100', '00101', '00102'])
+        for v in Vendor.objects.all():
+            v.full_clean()
+
+
+class OrderFormVendorTests(TestCase):
+    def setUp(self):
+        self.client.force_login(make_user('pl', 'Planner'))
+        self.vendor = Vendor.objects.create(code='00100', name='Acme', kind=Vendor.Kind.VENDOR)
+        self.mat = Process.objects.create(name='Mat', kind=K.MATERIAL)
+        self.plate = Process.objects.create(name='Plate', kind=K.OUTSOURCED, default_vendor=self.vendor)
+
+    def post(self, route, vendors, url='/orders/new/'):
+        data = {
+            'customer': Customer.objects.create(name=f'C{Customer.objects.count()}').pk, 'due_date': timezone.localdate() + timedelta(days=30),
+            'items-TOTAL_FORMS': 1, 'items-INITIAL_FORMS': 0, 'items-MIN_NUM_FORMS': 1, 'items-MAX_NUM_FORMS': 1000,
+            'items-0-part_name': 'Shaft', 'items-0-quantity': 1, 'items-0-route': route, 'items-0-route_vendor': vendors,
+        }
+        return self.client.post(url, data)
+
+    def test_vendor_is_saved_per_step_and_blank_steps_stay_aligned(self):
+        r = self.post([self.mat.pk, '', self.plate.pk], ['', '', self.vendor.pk])
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(list(RouteStep.objects.values_list('process_id', 'vendor_id')), [(self.mat.pk, None), (self.plate.pk, self.vendor.pk)])
+
+    def test_unknown_vendor_is_rejected(self):
+        self.assertEqual(self.post([self.plate.pk], ['9999']).status_code, 200)
+        self.assertFalse(Order.objects.exists())
+
+    def test_form_offers_vendors_and_process_default(self):
+        r = self.client.get('/orders/new/')
+        self.assertContains(r, 'name="items-0-route_vendor"')
+        self.assertContains(r, f'data-vendor="{self.vendor.pk}"')
+        self.assertContains(r, '00100 Acme')
+
+    def test_edit_changes_vendor_and_logs_it(self):
+        self.post([self.plate.pk], [self.vendor.pk])
+        item = OrderItem.objects.get()
+        url = f'/orders/{item.order.job_number}/edit/'
+        data = {
+            'customer': item.order.customer_id, 'due_date': item.order.due_date, 'items-TOTAL_FORMS': 1, 'items-INITIAL_FORMS': 1,
+            'items-MIN_NUM_FORMS': 1, 'items-MAX_NUM_FORMS': 1000, 'items-0-id': item.pk, 'items-0-order': item.order_id,
+            'items-0-part_name': 'Shaft', 'items-0-quantity': 1, 'items-0-box_count': 1, 'items-0-route': [self.plate.pk], 'items-0-route_vendor': [''],
+        }
+        self.assertEqual(self.client.post(url, data).status_code, 302)
+        self.assertIsNone(RouteStep.objects.get().vendor_id)
+        change = OrderChange.objects.get(field='route')
+        self.assertEqual((change.old_value, change.new_value), ('Plate [00100]', 'Plate'))
+
+    def test_detail_page_shows_code_and_name(self):
+        self.post([self.plate.pk], [self.vendor.pk])
+        item = OrderItem.objects.get()
+        self.assertContains(self.client.get(f'/orders/{item.order.job_number}/'), '00100 Acme')
+
+
+class CodeListTests(TestCase):
+    def setUp(self):
+        Vendor.objects.create(code='00010', name='Lathe shop', kind=Vendor.Kind.INTERNAL)
+        Vendor.objects.create(code='00150', name='Plating Co', name_ja='めっき工業', kind=Vendor.Kind.VENDOR, lead_days=5)
+
+    def codes(self, query=''):
+        return [v.code for v in self.client.get('/codes/' + query).context['vendors']]
+
+    def test_roles(self):
+        self.assertEqual(self.client.get('/codes/').status_code, 302)
+        self.client.force_login(make_user('op', 'Operator'))
+        self.assertEqual(self.client.get('/codes/').status_code, 403)
+        self.client.force_login(make_user('pl', 'Planner'))
+        self.assertEqual(self.client.get('/codes/').status_code, 200)
+
+    def test_search_by_code_name_and_kind(self):
+        self.client.force_login(make_user('pl', 'Planner'))
+        self.assertEqual(self.codes(), ['00010', '00150'])
+        self.assertEqual(self.codes('?q=0015'), ['00150'])
+        self.assertEqual(self.codes('?q=lathe'), ['00010'])
+        self.assertEqual(self.codes('?q=めっき'), ['00150'])
+        self.assertEqual(self.codes('?kind=INTERNAL'), ['00010'])
+        self.assertEqual(self.codes('?kind=bogus'), ['00010', '00150'])
 
 
 @override_settings(MEDIA_ROOT=tempfile.mkdtemp())

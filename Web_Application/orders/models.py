@@ -1,6 +1,6 @@
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, RegexValidator
 from django.db import models, transaction
 from django.db.models import Max, Q
 from django.utils import timezone
@@ -23,6 +23,46 @@ class Customer(models.Model):
         return self.name
 
 
+class Vendor(models.Model):
+    """Internal department, supplier or vendor, identified by a 5-digit code."""
+    class Kind(models.TextChoices):
+        INTERNAL = 'INTERNAL', _('Internal')
+        SUPPLIER = 'SUPPLIER', _('Supplier')
+        VENDOR = 'VENDOR', _('Vendor')
+
+    # Allowed code range (inclusive) per kind
+    RANGES = {Kind.INTERNAL: (0, 99), Kind.SUPPLIER: (100, 429), Kind.VENDOR: (100, 429)}
+
+    code = models.CharField(
+        _('code'), max_length=5, unique=True,
+        validators=[RegexValidator(r'^\d{5}$', _('The code must be exactly 5 digits.'))],
+    )
+    name = models.CharField(_('name'), max_length=200)
+    name_ja = models.CharField(_('Japanese name'), max_length=200, blank=True)
+    kind = models.CharField(_('kind'), max_length=20, choices=Kind.choices)
+    lead_days = models.PositiveIntegerField(_('lead days'), null=True, blank=True)
+
+    class Meta:
+        verbose_name = _('vendor')
+        verbose_name_plural = _('vendors')
+        ordering = ['code']
+
+    @property
+    def display_name(self):
+        return self.name_ja if self.name_ja and get_language().startswith('ja') else self.name
+
+    def __str__(self):
+        return f'{self.code} {self.display_name}'
+
+    def clean(self):
+        super().clean()
+        if self.kind in self.RANGES and self.code.isdigit():
+            low, high = self.RANGES[self.kind]
+            if not low <= int(self.code) <= high:
+                raise ValidationError({'code': _('Code %(code)s is outside the range %(low)05d-%(high)05d for this kind.') % {
+                    'code': self.code, 'low': low, 'high': high}})
+
+
 class Process(models.Model):
     class Kind(models.TextChoices):
         MATERIAL = 'MATERIAL', _('Material')
@@ -34,6 +74,9 @@ class Process(models.Model):
     kind = models.CharField(_('kind'), max_length=20, choices=Kind.choices)
     vendor_name = models.CharField(_('vendor name'), max_length=200, blank=True)
     vendor_lead_days = models.PositiveIntegerField(_('vendor lead days'), null=True, blank=True)
+    default_vendor = models.ForeignKey(
+        Vendor, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name=_('default vendor'),
+    )
     stagnation_hours = models.PositiveIntegerField(
         _('stagnation hours'), null=True, blank=True, help_text=_('Blank = use the default.'),
     )
@@ -45,6 +88,11 @@ class Process(models.Model):
 
     def __str__(self):
         return self.name_ja if self.name_ja and get_language().startswith('ja') else self.name
+
+    @property
+    def vendor_label(self):
+        """Default vendor as "code name", else the old free-text vendor name."""
+        return str(self.default_vendor) if self.default_vendor else self.vendor_name
 
 
 class Order(models.Model):
@@ -128,6 +176,7 @@ class RouteStep(models.Model):
     item = models.ForeignKey(OrderItem, on_delete=models.CASCADE, related_name='steps', verbose_name=_('item'))
     sequence = models.PositiveIntegerField(_('sequence'))
     process = models.ForeignKey(Process, on_delete=models.PROTECT, verbose_name=_('process'))
+    vendor = models.ForeignKey(Vendor, on_delete=models.PROTECT, null=True, blank=True, related_name='steps', verbose_name=_('vendor'))
 
     class Meta:
         verbose_name = _('route step')
@@ -139,6 +188,21 @@ class RouteStep(models.Model):
 
     def __str__(self):
         return f'{self.item.item_code} #{self.sequence} {self.process}'
+
+    @property
+    def effective_vendor(self):
+        return self.vendor or self.process.default_vendor
+
+    @property
+    def vendor_label(self):
+        """"code name" of the step's vendor, falling back to the process default."""
+        return str(self.effective_vendor) if self.effective_vendor else self.process.vendor_name
+
+    @property
+    def lead_days(self):
+        """Vendor lead days, else the process's."""
+        v = self.effective_vendor
+        return v.lead_days if v and v.lead_days is not None else self.process.vendor_lead_days
 
 
 class OrderChange(models.Model):

@@ -19,7 +19,7 @@
   {% if f.locked %}
     <div class="route">
       <label>{% trans "Route" %}</label>
-      <ol class="route-readonly">{% for proc in f.route_steps %}<li>{{ proc }}</li>{% endfor %}</ol>
+      <ol class="route-readonly">{% for step in f.route_steps %}<li>{{ step.process }}{% if step.vendor_label %} ({{ step.vendor_label }}){% endif %}</li>{% endfor %}</ol>
       <p class="note">{% trans "Route is locked because this item has been scanned." %}</p>
     </div>
   {% else %}
@@ -27,12 +27,18 @@
     <label>{% trans "Route" %}</label>
     {{ f.route.errors }}
     <div class="route-steps">
-      {% for sel in f.route_selected %}
+      {% for sel, sel_vendor in f.route_rows %}
         <div class="route-step">
           <select name="{{ f.prefix }}-route">
             <option value="">{% trans "Choose a process" %}</option>
-            {% for pk, label in f.fields.route.choices %}
-              <option value="{{ pk }}"{% if sel == pk|stringformat:"s" %} selected{% endif %}>{{ label }}</option>
+            {% for pk, label, default_vendor in f.process_options %}
+              <option value="{{ pk }}" data-vendor="{{ default_vendor }}"{% if sel == pk|stringformat:"s" %} selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          <select name="{{ f.prefix }}-route_vendor">
+            <option value="">{% trans "No vendor" %}</option>
+            {% for pk, label in f.vendor_options %}
+              <option value="{{ pk }}"{% if sel_vendor == pk|stringformat:"s" %} selected{% endif %}>{{ label }}</option>
             {% endfor %}
           </select>
           <button type="button" class="remove-step">{% trans "Remove" %}</button>

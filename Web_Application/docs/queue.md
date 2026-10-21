@@ -13,7 +13,7 @@ Order matters. [ ] todo, [x] done, [!] blocked. IDs match the feature tracker. E
   Per item: "Open drawing" link (new tab); inline preview for png/jpg; "No drawing" otherwise.
   Serve the file through a view that checks the role and streams it (FileResponse). Do not rely on the DEBUG-only media URL: it does not work on the Pi.
 
-- [ ] **F73 Process and supplier/vendor codes**
+- [x] **F73 Process and supplier/vendor codes**
   New `Vendor` model: `code` (5 characters, digits only, unique, stored as text), `name`, `name_ja`, `kind` INTERNAL / SUPPLIER / VENDOR, `lead_days` (nullable).
   Validation: INTERNAL codes 00000-00099; SUPPLIER and VENDOR codes 00100-00429.
   `RouteStep.vendor` nullable FK (who does or supplies the step). `Process.default_vendor` nullable FK, prefilled when the process is picked. Keep `Process.vendor_name` and `vendor_lead_days` as fallback; a data migration turns existing vendor names into Vendor rows.

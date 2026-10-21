@@ -3,7 +3,7 @@ from django.utils.translation import gettext_lazy as _
 
 from tracking.status import item_status, order_status
 
-from .models import Customer, Order, OrderChange, OrderItem, Process, RouteStep
+from .models import Customer, Order, OrderChange, OrderItem, Process, RouteStep, Vendor
 
 
 class OrderItemInline(admin.TabularInline):
@@ -26,7 +26,7 @@ class CustomerAdmin(admin.ModelAdmin):
 
 @admin.register(Process)
 class ProcessAdmin(admin.ModelAdmin):
-    list_display = ['name', 'name_ja', 'kind', 'active', 'vendor_name', 'vendor_lead_days', 'stagnation_hours']
+    list_display = ['name', 'name_ja', 'kind', 'active', 'default_vendor', 'vendor_name', 'vendor_lead_days', 'stagnation_hours']
     list_filter = ['kind', 'active']
     actions = ['mark_inactive', 'mark_active']
 
@@ -37,6 +37,13 @@ class ProcessAdmin(admin.ModelAdmin):
     @admin.action(description=_('Reactivate selected processes'))
     def mark_active(self, request, queryset):
         queryset.update(active=True)
+
+
+@admin.register(Vendor)
+class VendorAdmin(admin.ModelAdmin):
+    list_display = ['code', 'name', 'name_ja', 'kind', 'lead_days']
+    list_filter = ['kind']
+    search_fields = ['code', 'name', 'name_ja']
 
 
 @admin.register(Order)
@@ -64,7 +71,7 @@ class OrderItemAdmin(admin.ModelAdmin):
 
 @admin.register(RouteStep)
 class RouteStepAdmin(admin.ModelAdmin):
-    list_display = ['item', 'sequence', 'process']
+    list_display = ['item', 'sequence', 'process', 'vendor']
 
 
 @admin.register(OrderChange)

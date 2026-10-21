@@ -2,7 +2,7 @@
 <section class="card process-card{% if card.queue %} queue-building{% endif %}">
   <h3>
     {{ card.process }}
-    {% if card.outsourced and card.process.vendor_name %}<small>{{ card.process.vendor_name }}</small>{% endif %}
+    {% if card.outsourced and card.process.vendor_label %}<small>{{ card.process.vendor_label }}</small>{% endif %}
     {% if card.queue %}<span class="badge badge-queue">{% trans "Queue building" %}</span>{% endif %}
   </h3>
   <p class="process-counts">

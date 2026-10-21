@@ -1,3 +1,5 @@
+from itertools import zip_longest
+
 from django import forms
 from django.core.exceptions import ValidationError
 from django.db.models import Q
@@ -7,7 +9,7 @@ from django.utils.translation import gettext_lazy as _
 
 from tracking.status import events_for_item
 
-from .models import Customer, Order, OrderItem, Process, RouteStep
+from .models import Customer, Order, OrderItem, Process, RouteStep, Vendor
 from .services import create_customer, find_customer, get_or_create_customer, normalize_name, update_customer
 
 
@@ -89,9 +91,11 @@ class OrderItemForm(forms.ModelForm):
         item = self.instance
         # New work offers active processes; an existing route keeps its own steps selectable
         keep = Q(pk__in=item.steps.values('process')) if item.pk else Q()
-        self.fields['route'].choices = [
-            (p.pk, f'{p} ({p.get_kind_display()})') for p in Process.objects.filter(Q(active=True) | keep).order_by('kind', 'name')
-        ]
+        processes = Process.objects.filter(Q(active=True) | keep).order_by('kind', 'name')
+        self.fields['route'].choices = [(p.pk, f'{p} ({p.get_kind_display()})') for p in processes]
+        self.process_options = [(p.pk, f'{p} ({p.get_kind_display()})', p.default_vendor_id or '') for p in processes]
+        self.vendor_options = [(v.pk, str(v)) for v in Vendor.objects.all()]
+        self.route_vendors = []
         self.locked = self.undeletable = False
         if item.pk:
             # Route is locked once the item has been scanned; posted route changes are ignored
@@ -104,6 +108,27 @@ class OrderItemForm(forms.ModelForm):
                 self.fields['route'].required = False
                 self.fields['route'].disabled = True
 
+    def _submitted_rows(self):
+        """(process id, vendor id) text pairs as posted, dropping steps without a process."""
+        routes, vendors = self.data.getlist(self.add_prefix('route')), self.data.getlist(self.add_prefix('route_vendor'))
+        return [(r, v) for r, v in zip_longest(routes, vendors, fillvalue='') if r]
+
+    def has_changed(self):
+        # The per-step vendors are not form fields, so compare them with the saved route
+        if super().has_changed():
+            return True
+        saved = [(str(p), str(v or '')) for p, v in self.instance.steps.values_list('process_id', 'vendor_id')] if self.instance.pk else []
+        return not self.locked and self.instance.pk is not None and saved != self._submitted_rows()
+
+    def clean(self):
+        data = super().clean()
+        if not self.locked:
+            rows, valid = self._submitted_rows(), {str(pk) for pk, _label in self.vendor_options}
+            if any(v and v not in valid for _r, v in rows):
+                self.add_error(None, ValidationError(_('Choose a valid vendor.')))
+            self.route_vendors = [int(v) if v in valid else None for _r, v in rows]
+        return data
+
     def clean_box_count(self):
         # A missing value means one box; never fewer than the boxes already linked
         value = self.cleaned_data.get('box_count')
@@ -113,21 +138,29 @@ class OrderItemForm(forms.ModelForm):
         return value
 
     @property
-    def route_selected(self):
-        """Submitted or saved process ids (as text), or one empty slot, for the template."""
-        return [str(v) for v in self['route'].value() or ['']]
+    def route_rows(self):
+        """Submitted or saved (process id, vendor id) text pairs, or one empty slot, for the template."""
+        if self.is_bound and not self.locked:
+            rows = self._submitted_rows()
+        elif self.instance.pk:
+            rows = [(str(s.process_id), str(s.vendor_id or '')) for s in self.instance.steps.all()]
+        else:
+            rows = []
+        return rows or [('', '')]
 
     @property
     def route_steps(self):
-        return [s.process for s in self.instance.steps.select_related('process')]
+        return self.instance.steps.select_related('process__default_vendor', 'vendor')
 
     def save(self, commit=True):
         item = super().save(commit)
         if commit and not self.locked:
             route = self.cleaned_data['route']
-            if list(item.steps.values_list('process_id', flat=True)) != route:
+            new = list(zip(route, self.route_vendors))
+            if list(item.steps.values_list('process_id', 'vendor_id')) != new:
                 item.steps.all().delete()
-                RouteStep.objects.bulk_create(RouteStep(item=item, sequence=i, process_id=pk) for i, pk in enumerate(route, 1))
+                RouteStep.objects.bulk_create(
+                    RouteStep(item=item, sequence=i, process_id=p, vendor_id=v) for i, (p, v) in enumerate(new, 1))
         return item
 
 
