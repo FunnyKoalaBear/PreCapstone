@@ -1,0 +1,10 @@
+#!/bin/sh /etc/rc.common
+# Installed on the router as /etc/init.d/wan-watchdog
+START=99
+USE_PROCD=1
+start_service() {
+  procd_open_instance
+  procd_set_param command /root/wan-watchdog.sh
+  procd_set_param respawn
+  procd_close_instance
+}

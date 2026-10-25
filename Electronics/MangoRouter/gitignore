@@ -1,0 +1,4 @@
+# Real portal credentials never go in the repo
+.portal_creds
+portal_creds
+*.creds
