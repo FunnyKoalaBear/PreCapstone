@@ -39,8 +39,6 @@ def recieve_data(data: TestData):
 
 
 
-    
-
 # main.py
 # conn, cur = open_connection()
 # print_table(cur)

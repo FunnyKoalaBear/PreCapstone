@@ -18,9 +18,11 @@
 ## Scanner firmware
 - [x] WiFi component written (`components/wifi`, compile-checked)
 - [x] WiFi wired into `main` and confirmed connecting on the GL.iNet Mango (ESP32 got 192.168.8.224)
-- [ ] Make the laptop server reachable: `uvicorn --host 0.0.0.0` + Windows firewall rule for port 8000
+- [x] Make the laptop server reachable: `uvicorn --host 0.0.0.0` + Windows firewall rule for port 8000 (laptop reserved at 192.168.8.200)
 - [ ] Add `espressif/cjson` (and later `espressif/mdns`) via `idf_component.yml`
-- [ ] `esp_http_client` POST with a hardcoded UID first, then real scans
+- [x] `esp_http_client` POST works end to end (on startup and on a button press, placeholder text)
+- [ ] Move `send_scan` out of `button_task` (2 KB stack, blocks the buzzer, POSTs repeatedly while the button is held) into a queue + network task with an 8 KB stack
+- [ ] Send real RFID UIDs instead of placeholder text
 - [ ] Rework `RFID::scan()` to return each UID; hex-format it; debounce repeat reads
 - [ ] Check app size vs the 1 MB partition after adding WiFi/HTTP
 - [ ] mDNS resolve of the Pi, cache the IP, timeout and retry

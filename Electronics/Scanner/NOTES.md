@@ -26,6 +26,9 @@ Board flash: 16MB physical chip; `sdkconfig` currently declares 2MB (`CONFIG_ESP
 
 ## Features
 
+### Server client (HTTP POST to the factory server)
+`components/server_client` — `send_scan(uid)` POSTs `{"uid": "..."}` to the FastAPI factory server with `esp_http_client`, over the WiFi link. Server URL, path and timeout are set under **Factory Server** in menuconfig (server address `192.168.8.200` is a reserved lease on the GL.iNet Mango). Confirmed end to end: a POST on startup and on a button press arrives as a new row in Postgres. Still sends placeholder text, not real RFID UIDs, and the call currently runs inside `button_task` (blocking it).
+
 ### WiFi (station mode)
 `components/wifi` — joins a 2.4 GHz network, reconnects on its own, and exposes `connected()` / `wait_connected()` for the HTTP code to come. SSID and password are set under **Scanner WiFi** in `idf.py menuconfig` and live in the gitignored `sdkconfig`, not in source. Confirmed working: the board shows up in the GL.iNet Mango router's DHCP leases. Not sending any data yet.
 

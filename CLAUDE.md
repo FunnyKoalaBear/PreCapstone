@@ -4,7 +4,7 @@ RFID process-tracking system for small factories in Japan: scanners on workbench
 The developer is learning: explain concepts briefly, show the "why".
 
 ## Layout
-- `Electronics/Scanner`: ESP32-S3 firmware (ESP-IDF v6.1, C++). Components: button, buzzer, rfid (PN532 over I2C), display (ST7796S + XPT2046 touch), wifi (confirmed connecting to the GL.iNet Mango router at 192.168.8.x; no HTTP yet), configuration (all GPIO pins). Build log: `Electronics/Scanner/NOTES.md`.
+- `Electronics/Scanner`: ESP32-S3 firmware (ESP-IDF v6.1, C++). Components: button, buzzer, rfid (PN532 over I2C), display (ST7796S + XPT2046 touch), wifi (confirmed connecting to the GL.iNet Mango router at 192.168.8.x), server_client (`send_scan(uid)` POSTs to the FastAPI server at 192.168.8.200:8000 via `esp_http_client`; confirmed end to end, URL/path/timeout under the "Factory Server" menuconfig menu), configuration (all GPIO pins). Build log: `Electronics/Scanner/NOTES.md`.
 - `Factory_Server`: FastAPI + psycopg2. `main.py` = HTTP routes, `db.py` = Postgres connection and queries.
 - `Client_Connection`: C++ PC test client (`pc_connection.cpp`, CMake, cpp-httplib; cJSON and nlohmann/json are fetched but unused). Works end to end. Build in the terminal, not VS Code Run Code (that uses the old MinGW g++): `cmake --build build --config Release`, run `build\Release\scan_client.exe`.
 - `Web_Application`: Django dashboard with its own `CLAUDE.md`. Follow those rules when working there (only edit inside that folder).
@@ -43,6 +43,7 @@ The developer is learning: explain concepts briefly, show the "why".
 
 ## Known issues and open questions
 - Scanner `main.cpp`: `rfid.init()` retries forever if the PN532 is missing and blocks startup. `RFID`, `BUTTON`, `BUZZER`, `DISPLAY` in `app_main` are not `static`, which is a latent dangling-pointer risk for tasks if `app_main` ever returns.
+- `main.cpp` calls `send_scan` from `button_task` (2 KB stack, blocks the buzzer loop, repeats while the button is held); it should move to a queue + network task with an 8 KB stack.
 - `RFID::scan()` never returns (internal `while(true)`), so it must be reworked to hand each UID out before WiFi can use it; a card held on the reader re-reads constantly, so debounce repeats.
 - Partition table is `SINGLE_APP` (1 MB app slot) and builds use `-Og`. Adding WiFi + HTTP may overflow it; check the "Smallest app partition ... free" line after the first build (options: larger single-app table, custom `partitions.csv`, `-Os`).
 - Display: touch `mirror_x`/`mirror_y` untested. SPI is 40MHz and works. Scrolling redraws the whole screen (no framebuffer).

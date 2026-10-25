@@ -5,6 +5,8 @@ pip list
 
 starting server: 
 uvicorn main:app --reload
+
+Sending local HTTP request: 
 curl.exe -X POST http://127.0.0.1:8000/record_scan -H "Content-Type: application/json" -d '{\"uid\": \"NEW REQUEST\"}'
 
 
