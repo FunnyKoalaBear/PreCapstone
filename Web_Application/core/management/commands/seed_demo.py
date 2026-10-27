@@ -11,7 +11,7 @@ from django.utils import timezone
 from orders.models import Customer, Order, OrderItem, Process, RouteStep, Vendor
 from tracking.models import Box, Event, Machine, ScannerDevice, Tag, TagAssignment, Worker
 from tracking.services import record_event
-from tracking.status import DONE, item_status
+from tracking.status import DONE, item_statuses
 
 from ._demo_bulk import seed_bulk
 
@@ -217,17 +217,18 @@ class Command(BaseCommand):
         self.add_results(created, d1)
         bulk = seed_bulk(procs, {v.code: v for v in vendors.values()}, (d1, d2))
         self.stdout.write(self.style.SUCCESS(f'Created {len(created)} scenario orders and {bulk} history orders:'))
+        statuses = item_statuses([item for _label, item in created])
         for label, item in created:
-            self.stdout.write(f'  {item.order.job_number}  {label:<18} {item_status(item).code}')
+            self.stdout.write(f'  {item.order.job_number}  {label:<18} {statuses[item.pk].code}')
 
     def add_results(self, created, device):
         """Quantity-done results for finished steps; about one in ten has 1-2 defects, work spread over the CSV workers and machines."""
         people = read_csv('workers_machines.csv')
         workers = [Worker.objects.get_or_create(name=r['name'], defaults={'name_ja': r['name_ja']})[0] for r in people if r['kind'] == 'WORKER']
         machines = [Machine.objects.get_or_create(name=r['name'], defaults={'name_ja': r['name_ja']})[0] for r in people if r['kind'] == 'MACHINE']
-        n = 0
+        n, statuses = 0, item_statuses([item for _label, item in created])
         for _label, item in created:
-            for box in item_status(item).boxes:
+            for box in statuses[item.pk].boxes:
                 for row in (r for r in box.rows if r.state == DONE and r.finished_at):
                     if n == MAX_RESULTS:
                         return

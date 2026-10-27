@@ -4,7 +4,7 @@ from django.utils import timezone
 
 from orders.models import OrderItem
 
-from .status import COMPLETE, SHIPPED, item_status
+from .status import COMPLETE, SHIPPED, item_statuses
 
 
 def _matches(item, customer, q):
@@ -23,8 +23,10 @@ def shipping_overview(today=None, ready_customer=None, ready_q='', due_from=None
     """
     today = today or timezone.localdate()
     ready, months = [], {}
-    for item in OrderItem.objects.select_related('order__customer').order_by('order__due_date', 'order__job_number', 'item_no'):
-        st = item_status(item)
+    items = list(OrderItem.objects.select_related('order__customer').order_by('order__due_date', 'order__job_number', 'item_no'))
+    statuses = item_statuses(items)
+    for item in items:
+        st = statuses[item.pk]
         if st.code == COMPLETE:
             due = item.order.due_date
             if _matches(item, ready_customer, ready_q) and not (due_from and due < due_from) and not (due_to and due > due_to):
@@ -44,8 +46,10 @@ def shipping_overview(today=None, ready_customer=None, ready_q='', due_from=None
 def months_json():
     """Every shipped item (month, customer, search text, on time?) as JSON for the static demo's month filters."""
     out = []
-    for item in OrderItem.objects.select_related('order__customer'):
-        st = item_status(item)
+    items = list(OrderItem.objects.select_related('order__customer'))
+    statuses = item_statuses(items)
+    for item in items:
+        st = statuses[item.pk]
         if st.code == SHIPPED:
             day = timezone.localtime(st.ship_event.occurred_at).date()
             text = ' '.join((item.item_code, item.part_name, item.part_number, item.order.customer.name, item.order.customer_order_number)).lower()

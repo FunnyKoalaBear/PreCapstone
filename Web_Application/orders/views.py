@@ -16,8 +16,8 @@ from core.permissions import OPERATOR, PLANNER, has_role, role_required
 from tracking.forms import ResultForm
 from tracking.planning import step_plan
 from tracking.status import (
-    CANCELLED, CLOSED, COMPLETE, IN_PROGRESS, LABELS, MANUAL_BUTTONS, NOT_STARTED, SHIPPED, STEP_LABELS, days_late, events_with_voids, gantt, item_status,
-    manual_actions, order_summary, step_due_back, timeline,
+    CANCELLED, CLOSED, COMPLETE, IN_PROGRESS, LABELS, MANUAL_BUTTONS, NOT_STARTED, SHIPPED, STEP_LABELS, days_late, events_with_voids, gantt, item_statuses,
+    iter_statuses, manual_actions, order_summaries, order_summary, step_due_back, timeline,
 )
 
 from . import export, importer, pdf
@@ -52,8 +52,10 @@ def customer_list(request):
 def customer_detail(request, pk):
     customer = get_object_or_404(Customer, pk=pk)
     today, rows = timezone.localdate(), []
-    for o in customer.order_set.prefetch_related('items').order_by('-job_number'):
-        code, label = order_summary(o)
+    orders = list(customer.order_set.prefetch_related('items').order_by('-job_number'))
+    summaries = order_summaries(orders)
+    for o in orders:
+        code, label = summaries[o.pk]
         rows.append({'order': o, 'code': code, 'label': label, 'late': o.due_date < today and code not in CLOSED})
     return render(request, 'orders/customer_detail.html', {'customer': customer, 'rows': rows})
 
@@ -142,8 +144,10 @@ def _filtered_orders(params):
             | Q(items__part_number__icontains=q) | Q(items__drawing_number__icontains=q)
         ).distinct()
     today, rows = timezone.localdate(), []
+    orders = list(orders)
+    summaries = order_summaries(orders)
     for o in orders:
-        code, label = order_summary(o)
+        code, label = summaries[o.pk]
         is_late = o.due_date < today and code not in CLOSED
         if (status in STATUS_CODES and code != status) or (late and not is_late):
             continue
@@ -306,10 +310,12 @@ def _box_entry(b, today):
 @role_required(OPERATOR)
 def order_detail(request, job_number):
     order = get_object_or_404(Order.objects.select_related('customer'), job_number=job_number)
-    code, label = order_summary(order)
+    order_items = list(order.items.all())
+    statuses = item_statuses(order_items)
+    code, label = order_summary(order, statuses)
     today, items = timezone.localdate(), []
-    for item in order.items.all():
-        st = item_status(item)
+    for item in order_items:
+        st = statuses[item.pk]
         boxes = [_box_entry(b, today) for b in st.boxes]
         linked = sum(b['open'] for b in boxes)
         items.append({
@@ -341,7 +347,7 @@ def route_copy(request):
     earlier = OrderItem.objects.filter(part_number__iexact=part_number).order_by('-pk')
     if current.isdigit():
         earlier = earlier.filter(pk__lt=int(current))
-    source = next((i for i in earlier.select_related('order') if part_number and item_status(i).code != CANCELLED), None)
+    source = next((i for i, st in iter_statuses(earlier.select_related('order')) if part_number and st.code != CANCELLED), None)
     if not source:
         return JsonResponse({'found': False, 'steps': []})
     steps = list(source.steps.select_related('process'))

@@ -12,9 +12,9 @@ from core.permissions import ADMIN, OPERATOR, ROLES, role_level, role_required
 from orders.models import Customer, OrderItem
 from tracking.matrix import matrix
 from tracking.models import Event, ScannerDevice
-from tracking.overview import active_boxes
+from tracking.overview import active_boxes, open_items
 from tracking.status import (
-    AT_VENDOR, CANCELLED, COMPLETE, IN_PROGRESS, LABELS, NOT_STARTED, PAUSED, SHIPPED, WAITING, item_status,
+    AT_VENDOR, CANCELLED, COMPLETE, IN_PROGRESS, LABELS, NOT_STARTED, PAUSED, SHIPPED, WAITING, item_statuses,
 )
 
 
@@ -30,11 +30,13 @@ def home(request):
     due_from, due_to = parse_date(g.get('due_from', '')), parse_date(g.get('due_to', ''))
     late, from_current = g.get('late') == '1', g.get('current') == '1'
     n = min(max(int(g['n']), MATRIX_PAGE), 500) if g.get('n', '').isdigit() else MATRIX_PAGE
-    boxes = active_boxes()
+    items = list(open_items())
+    statuses = item_statuses(items)  # derived once, shared by the counters and the matrix
+    boxes = active_boxes(items=items, statuses=statuses)
     codes = Counter(e['code'] for e in boxes)
     keep = {k: v for k, v in g.items() if k != 'n' and v}
     return render(request, 'core/home.html', {
-        'matrix': matrix(n, status, customer, due_from, due_to, late, from_current),
+        'matrix': matrix(n, status, customer, due_from, due_to, late, from_current, items=open_items(), statuses=statuses),
         'status': status, 'customer': customer, 'due_from': g.get('due_from', ''), 'due_to': g.get('due_to', ''),
         'late': late, 'from_current': from_current, 'customers': Customer.objects.order_by('name'),
         'status_choices': [(c, LABELS[c]) for c in MATRIX_STATUSES], 'more_url': '?' + urlencode({**keep, 'n': n + MATRIX_PAGE}),
@@ -57,7 +59,7 @@ def dashboard(request):
     now = timezone.now()
     today_start = timezone.make_aware(datetime.combine(timezone.localdate(now), datetime.min.time()))
     roles = Counter(ROLES[level] if level >= 0 else None for level in (role_level(u) for u in User.objects.filter(is_active=True)))
-    statuses = Counter(item_status(i).code for i in OrderItem.objects.all())
+    statuses = Counter(st.code for st in item_statuses(OrderItem.objects.all()).values())
     silent = ScannerDevice.objects.filter(active=True).filter(Q(last_seen__isnull=True) | Q(last_seen__lt=now - SILENT_AFTER)).order_by('name')
     return render(request, 'core/dashboard.html', {
         'roles': [(r, roles[r]) for r in ROLES] + [(None, roles[None])],

@@ -11,7 +11,7 @@ from orders.models import OrderItem, RouteStep
 
 from .models import Event, TagAssignment
 from .planning import step_plan
-from .status import DONE, item_status, timeline
+from .status import DONE, item_statuses, timeline
 
 SEVERITY = ((60, 'severe'), (30, 'major'), (10, 'minor'))  # overrun % above which a step is minor / major / severe
 
@@ -43,9 +43,10 @@ def step_facts(f):
     items = OrderItem.objects.select_related('order__customer')
     if f.customer:
         items = items.filter(order__customer_id=f.customer)
-    out = []
+    out, items = [], list(items)
+    statuses = item_statuses(items)
     for item in items:
-        for box in item_status(item).boxes:
+        for box in statuses[item.pk].boxes:
             for row, plan, t in zip(box.rows, step_plan(box.rows), timeline(box.rows)):
                 step = row.step
                 if row.state != DONE or not row.finished_at or (f.process and step.process_id != f.process):

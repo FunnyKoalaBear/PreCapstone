@@ -1,6 +1,6 @@
 from django.utils import timezone
 
-from tracking.status import CANCELLED, COMPLETE, SHIPPED, item_status, timeline
+from tracking.status import CANCELLED, COMPLETE, SHIPPED, iter_statuses, timeline
 
 from .models import OrderItem
 
@@ -13,8 +13,7 @@ def previous_runs(item, limit=LIMIT):
         return []
     earlier = OrderItem.objects.filter(part_number__iexact=item.part_number, pk__lt=item.pk).select_related('order').order_by('-pk')
     runs = []
-    for run in earlier:
-        st = item_status(run)
+    for run, st in iter_statuses(earlier, limit * 2):
         if st.code == CANCELLED:
             continue
         # Same per-step duration as the order page: started to finished, sent out to returned for outsourced steps

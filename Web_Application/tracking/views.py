@@ -25,7 +25,7 @@ from .analysis import Filters, facts_json, plan_rows, result_rows, slowest, step
 from .priority import TIER_LABELS, TIERS, priority
 from .shipping import months_json, shipping_overview
 from .services import assign_tag, can_correct, correct_event as correct_event_service, next_step, record_event, record_result, record_step_state, release_assignment, replace_tag, resolve_tag, cancel_item, ship_item
-from .status import AT_VENDOR, CANCELLED, COMPLETE, IN_PROGRESS, LABELS, NOT_STARTED, PAUSED, WAITING, current_row, item_status
+from .status import AT_VENDOR, CANCELLED, COMPLETE, IN_PROGRESS, LABELS, NOT_STARTED, PAUSED, WAITING, current_row, item_status, item_statuses
 
 
 def _next_step(uid):
@@ -198,10 +198,12 @@ PRIORITY_SORT_CHOICES = [('risk', gettext_lazy('Risk')), ('process', gettext_laz
 
 @role_required(OPERATOR)
 def priorities(request):
-    idle = {(e['item'].pk, e['box_label']): e['idle'] for e in active_boxes()}
+    items = list(OrderItem.objects.select_related('order__customer').order_by('order__due_date'))
+    statuses = item_statuses(items)  # derived once for the idle times and the rows
+    idle = {(e['item'].pk, e['box_label']): e['idle'] for e in active_boxes(items=items, statuses=statuses)}
     rows = []
-    for item in OrderItem.objects.select_related('order__customer').order_by('order__due_date'):
-        st = item_status(item)
+    for item in items:
+        st = statuses[item.pk]
         if st.code == CANCELLED:
             continue
         for box in st.boxes:

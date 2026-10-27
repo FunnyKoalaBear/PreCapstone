@@ -2,7 +2,7 @@ from django.utils import timezone
 
 from orders.models import OrderItem
 
-from .status import item_status
+from .status import item_statuses
 
 
 def step_plan(rows):
@@ -23,8 +23,9 @@ def step_plan(rows):
 def process_averages():
     """Per process: number of finished steps with a plan, and the average planned days, actual days and difference."""
     totals = {}
-    for item in OrderItem.objects.all():
-        for box in item_status(item).boxes:
+    statuses = item_statuses(OrderItem.objects.all())
+    for st in statuses.values():
+        for box in st.boxes:
             for row, plan in zip(box.rows, step_plan(box.rows)):
                 if plan['diff'] is None:
                     continue

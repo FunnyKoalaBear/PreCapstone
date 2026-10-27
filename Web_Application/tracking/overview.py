@@ -1,18 +1,31 @@
+from django.db.models import Exists, OuterRef
 from django.utils import timezone
 
 from orders.models import OrderItem, Process
 
-from .status import AT_VENDOR, CANCELLED, COMPLETE, IN_PROGRESS, WAITING, current_row, days_late, idle_for, is_stagnant, item_status, step_due_back
+from .models import Event
+from .status import _voided, AT_VENDOR, CANCELLED, COMPLETE, IN_PROGRESS, WAITING, current_row, days_late, idle_for, is_stagnant, item_statuses, step_due_back
 
 QUEUE_WAITING = 3  # waiting boxes at which a process card shows "queue building"
 
 
-def active_boxes(now=None, today=None):
-    """One dict per unfinished box (placeholders included), with its own status, timing and flags."""
+def open_items():
+    """Items without a live CANCELLED event. A cancelled item is closed whatever its boxes did, so it needs no replay."""
+    cancelled = Event.objects.filter(item=OuterRef('pk'), event_type=Event.Type.CANCELLED).exclude(pk__in=_voided())
+    return OrderItem.objects.select_related('order__customer').exclude(Exists(cancelled))
+
+
+def active_boxes(now=None, today=None, items=None, statuses=None):
+    """One dict per unfinished box (placeholders included), with its own status, timing and flags.
+
+    items and statuses ({item id: ItemStatus}) can be passed in so a page derives them once.
+    """
     now, today = now or timezone.now(), today or timezone.localdate()
+    items = list(OrderItem.objects.select_related('order__customer') if items is None else items)
+    statuses = item_statuses(items) if statuses is None else statuses
     out = []
-    for item in OrderItem.objects.select_related('order__customer'):
-        st = item_status(item)
+    for item in items:
+        st = statuses[item.pk]
         if st.code == CANCELLED:
             continue
         for box in st.boxes:

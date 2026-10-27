@@ -2,7 +2,7 @@ from django.utils import timezone
 
 from orders.models import OrderItem, Process
 
-from .status import CLOSED, DONE, STEP_LABELS, current_row, item_status
+from .status import CLOSED, DONE, STEP_LABELS, current_row, iter_statuses
 
 
 def _cells(status, from_current):
@@ -26,10 +26,13 @@ def _cells(status, from_current):
     return cells, (len(shown) if from_current else len(rows))
 
 
-def matrix(limit=25, status='', customer=None, due_from=None, due_to=None, late=False, from_current=False, today=None):
-    """Unfinished items by order due date with their route as cells. Returns rows, column count and whether more rows exist."""
+def matrix(limit=25, status='', customer=None, due_from=None, due_to=None, late=False, from_current=False, today=None, items=None, statuses=None):
+    """Unfinished items by order due date with their route as cells. Returns rows, column count and whether more rows exist.
+
+    items (a queryset to start from) and statuses ({item id: ItemStatus} for it) can be passed in so a page derives them once.
+    """
     today = today or timezone.localdate()
-    items = OrderItem.objects.select_related('order__customer').order_by('order__due_date', 'order__job_number', 'item_no')
+    items = (OrderItem.objects.select_related('order__customer') if items is None else items).order_by('order__due_date', 'order__job_number', 'item_no')
     if customer:
         items = items.filter(order__customer_id=customer)
     if due_from:
@@ -39,8 +42,8 @@ def matrix(limit=25, status='', customer=None, due_from=None, due_to=None, late=
     if late:
         items = items.filter(order__due_date__lt=today)
     rows, more = [], False
-    for item in items.iterator(chunk_size=100):
-        st = item_status(item)
+    # Without shared statuses, derive them in small batches and stop reading once the page is full
+    for item, st in ((i, statuses[i.pk]) for i in items) if statuses is not None else iter_statuses(items.iterator(chunk_size=100), 100):
         if st.code in CLOSED or (status and st.code != status):
             continue
         if len(rows) == limit:

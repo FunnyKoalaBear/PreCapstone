@@ -4,8 +4,9 @@ from django.http import StreamingHttpResponse
 from django.utils import timezone
 from django.utils.translation import gettext as _
 
+from orders.models import RouteStep
 from tracking.models import Event
-from tracking.status import events_with_voids, item_status
+from tracking.status import events_with_voids, item_statuses
 
 # Same names as the CSV import, then its optional columns, then what only the export knows
 ORDER_COLUMNS = [
@@ -41,33 +42,54 @@ def csv_response(filename, header, rows):
     return response
 
 
-def _route_text(item):
+def _route_text(steps):
     """process:code[:due_date] steps joined by |, the format the import reads."""
     parts = []
-    for s in item.steps.select_related('process', 'vendor', 'process__default_vendor'):
+    for s in steps:
         v = s.effective_vendor
         text = f'{s.process.name}:{v.code}' if v else s.process.name
         parts.append(text + (f':{s.due_date:%Y-%m-%d}' if s.due_date else ''))
     return '|'.join(parts)
 
 
+def _batches(orders, size=200):
+    batch = []
+    for order in orders:
+        batch.append(order)
+        if len(batch) == size:
+            yield batch
+            batch = []
+    if batch:
+        yield batch
+
+
 def order_rows(orders):
-    """One row per item of the given orders."""
+    """One row per item of the given orders; statuses are derived 200 orders at a time."""
+    for batch in _batches(orders):
+        items = [i for o in batch for i in o.items.all()]
+        steps = {}
+        for s in RouteStep.objects.filter(item__in=items).select_related('process', 'vendor', 'process__default_vendor'):
+            steps.setdefault(s.item_id, []).append(s)
+        yield from _order_rows(batch, item_statuses(items), steps)
+
+
+def _order_rows(orders, statuses, steps):
     for order in orders:
         for item in order.items.all():
             yield [
                 order.customer.name, order.customer_order_number, f'{order.due_date:%Y-%m-%d}', item.part_name, item.quantity, item.material,
-                order.notes, _route_text(item), item.part_number, item.drawing_number, item.revision, order.job_number, item.item_code,
-                str(item_status(item).label),
+                order.notes, _route_text(steps.get(item.pk, ())), item.part_number, item.drawing_number, item.revision, order.job_number, item.item_code,
+                str(statuses[item.pk].label),
             ]
 
 
 def event_rows(order):
     """Every event of the order's items, oldest first: scans on their tags plus cancellations and shipments."""
-    rows = []
-    for item in order.items.select_related('order'):
+    rows, items = [], list(order.items.select_related('order'))
+    statuses = item_statuses(items)
+    for item in items:
         codes = {s.process_id: s.effective_vendor.code for s in item.steps.select_related('vendor', 'process__default_vendor') if s.effective_vendor}
-        events = [e for b in item_status(item).boxes if b.assignment for e in events_with_voids(b.assignments)]
+        events = [e for b in statuses[item.pk].boxes if b.assignment for e in events_with_voids(b.assignments)]
         item_events = list(Event.objects.filter(item=item).select_related('created_by'))
         voids = {c.corrects_id: c for c in Event.objects.filter(event_type=Event.Type.CORRECTION, corrects__in=item_events)}
         for e in item_events:

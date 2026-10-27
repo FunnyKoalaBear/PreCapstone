@@ -1,3 +1,5 @@
+from bisect import bisect_left
+from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
@@ -7,7 +9,9 @@ from django.utils import timezone
 from django.utils.text import format_lazy
 from django.utils.translation import gettext_lazy as _
 
-from .models import Event
+from orders.models import RouteStep
+
+from .models import Event, TagAssignment
 
 NOT_STARTED, WAITING, IN_PROGRESS, AT_VENDOR, COMPLETE = 'NOT_STARTED', 'WAITING', 'IN_PROGRESS', 'AT_VENDOR', 'COMPLETE'
 PAUSED, CANCELLED, SHIPPED = 'PAUSED', 'CANCELLED', 'SHIPPED'
@@ -72,6 +76,7 @@ class ItemStatus:
     ship_event: object = None
 
 
+TYPE_LABELS = dict(Event.Type.choices)  # same text as get_event_type_display, without its per-call cost
 NO_STATUS_TYPES = (Event.Type.CORRECTION, Event.Type.RESULT, Event.Type.CANCELLED, Event.Type.SHIPPED)
 
 
@@ -162,7 +167,7 @@ def _apply(event, rows, warnings):
     if not cands:
         warnings.append(format_lazy(_('Event for a process not in the route: {}'), event.process))
     elif r is None:
-        warnings.append(format_lazy(_('Unexpected {} event for {}'), event.get_event_type_display(), event.process))
+        warnings.append(format_lazy(_('Unexpected {} event for {}'), TYPE_LABELS.get(event.event_type, event.event_type), event.process))
 
 
 def _current(rows):
@@ -227,32 +232,112 @@ def _roll_up(boxes):
     return ItemStatus(code, LABELS[code], pick.current_step, pick.rows, warnings, last, boxes)
 
 
-def _item_event(item, event_type):
-    """The latest live event of this item-level type (CANCELLED or SHIPPED), or None."""
-    corrected = Event.objects.filter(event_type=Event.Type.CORRECTION).values('corrects_id')
-    return (Event.objects.filter(event_type=event_type, item=item).exclude(pk__in=corrected)
-            .select_related('created_by').order_by('-occurred_at', '-pk').first())
+class ItemStatusError(Exception):
+    """An item's status could not be derived; the message names the item."""
+
+
+def _voided():
+    """Subquery: ids of every event a CORRECTION voids."""
+    return Event.objects.filter(event_type=Event.Type.CORRECTION, corrects__isnull=False).values('corrects_id')
+
+
+def _in_window(by_uid, a):
+    """Events of the assignment's tag inside its window [start, end), oldest first."""
+    times, events = by_uid.get(a.tag.uid, ([], []))
+    lo = bisect_left(times, a.start_at)
+    return events[lo:bisect_left(times, a.end_at) if a.end_at else len(events)]
+
+
+def _load_chunk(items):
+    """Everything the replay needs for these items, in a fixed number of queries."""
+    by_id = {i.pk: i for i in items}
+    steps, groups = defaultdict(list), defaultdict(dict)  # item -> steps; item -> box -> assignments
+    for s in RouteStep.objects.filter(item_id__in=by_id).select_related('process__default_vendor', 'vendor').order_by('item_id', 'sequence'):
+        s.item = by_id[s.item_id]
+        steps[s.item_id].append(s)
+    assignments = list(TagAssignment.objects.filter(item_id__in=by_id).select_related('tag', 'box').order_by('start_at', 'pk'))
+    for a in assignments:
+        a.item = by_id[a.item_id]
+        groups[a.item_id].setdefault(a.box_id, []).append(a)  # a box keeps its status across replaced tags
+    by_uid = {}  # tag uid -> (times, events), both oldest first
+    if assignments:
+        events = (Event.objects.filter(tag_uid__in={a.tag.uid for a in assignments}, occurred_at__gte=min(a.start_at for a in assignments))
+                  .exclude(pk__in=_voided()).exclude(event_type__in=NO_STATUS_TYPES).select_related('process').order_by('occurred_at', 'pk'))
+        for e in events:
+            by_uid.setdefault(e.tag_uid, ([], []))
+            by_uid[e.tag_uid][0].append(e.occurred_at)
+            by_uid[e.tag_uid][1].append(e)
+    latest = {}  # (item, type) -> newest live CANCELLED / SHIPPED event
+    marks = (Event.objects.filter(event_type__in=(Event.Type.CANCELLED, Event.Type.SHIPPED), item_id__in=by_id)
+             .exclude(pk__in=_voided()).select_related('created_by').order_by('occurred_at', 'pk'))
+    for e in marks:
+        latest[e.item_id, e.event_type] = e
+    return steps, groups, by_uid, latest
+
+
+def _chunk_statuses(items):
+    steps, groups, by_uid, latest = _load_chunk(items)
+    out = {}
+    for item in items:
+        try:
+            boxes = []
+            for g in groups[item.pk].values():
+                merged = {e.pk: e for a in g for e in _in_window(by_uid, a)}  # one event per pk even if windows overlap
+                boxes.append(_replay(steps[item.pk], g, sorted(merged.values(), key=lambda e: (e.occurred_at, e.pk))))
+            boxes += [_replay(steps[item.pk], [], []) for _ in range(max(item.box_count - len(boxes), 0 if boxes else 1))]
+            status = _roll_up(boxes)
+            if cancel := latest.get((item.pk, Event.Type.CANCELLED)):
+                status.code, status.label, status.cancel_event = CANCELLED, LABELS[CANCELLED], cancel
+            elif status.code == COMPLETE and (ship := latest.get((item.pk, Event.Type.SHIPPED))):
+                status.code, status.label, status.ship_event = SHIPPED, LABELS[SHIPPED], ship  # shipping counts only after COMPLETE
+        except Exception as e:
+            raise ItemStatusError(f'Cannot derive the status of order item {item.pk}: {e!r}') from e
+        out[item.pk] = status
+    return out
+
+
+STATUS_CHUNK = 1000  # items per set of queries; bounds memory and the size of IN lists
+
+
+def item_statuses(items, chunk=STATUS_CHUNK):
+    """{item id: ItemStatus} for every given item, with a fixed number of queries per chunk of items."""
+    items = list(items)
+    if missing := [i for i in items if i.pk is None]:
+        raise ItemStatusError(f'Cannot derive the status of an unsaved order item "{missing[0].part_name}"')
+    out = {}
+    for n in range(0, len(items), chunk):
+        out.update(_chunk_statuses(items[n:n + chunk]))
+    if len(out) != len({i.pk for i in items}):
+        raise ItemStatusError(f'Asked for {len({i.pk for i in items})} item statuses, derived {len(out)}')
+    return out
+
+
+def iter_statuses(items, size=25):
+    """Yield (item, status) one small batch at a time, so a caller that stops early reads no more."""
+    batch = []
+    for item in items:
+        batch.append(item)
+        if len(batch) == size:
+            sts = item_statuses(batch)
+            yield from ((i, sts[i.pk]) for i in batch)
+            batch = []
+    if batch:
+        sts = item_statuses(batch)
+        yield from ((i, sts[i.pk]) for i in batch)
 
 
 def item_status(item):
-    steps = _steps(item)
-    assignments = item.tagassignment_set.select_related('tag', 'box').order_by('start_at', 'pk')
-    groups = {}  # a box keeps its status across replaced tags
-    for a in assignments:
-        groups.setdefault(a.box_id, []).append(a)
-    boxes = [_replay(steps, g, list(events_for_box(g))) for g in groups.values()]
-    boxes += [_replay(steps, [], []) for _ in range(max(item.box_count - len(boxes), 0 if boxes else 1))]
-    status = _roll_up(boxes)
-    if cancel := _item_event(item, Event.Type.CANCELLED):
-        status.code, status.label, status.cancel_event = CANCELLED, LABELS[CANCELLED], cancel
-    elif status.code == COMPLETE and (ship := _item_event(item, Event.Type.SHIPPED)):
-        status.code, status.label, status.ship_event = SHIPPED, LABELS[SHIPPED], ship  # shipping counts only after COMPLETE
-    return status
+    return item_statuses([item])[item.pk]
 
 
-def order_summary(order):
-    """(code, label): NOT_STARTED, IN_PROGRESS, COMPLETE, SHIPPED (all items shipped) or CANCELLED (every item cancelled) for the whole order."""
-    codes = [item_status(i).code for i in order.items.all()]
+def order_summary(order, statuses=None):
+    """(code, label): NOT_STARTED, IN_PROGRESS, COMPLETE, SHIPPED (all items shipped) or CANCELLED (every item cancelled) for the whole order.
+
+    statuses is {item id: ItemStatus} already computed for the order's items; without it they are derived here.
+    """
+    items = list(order.items.all())
+    statuses = item_statuses(items) if statuses is None else statuses
+    codes = [statuses[i.pk].code for i in items]
     if codes and set(codes) == {CANCELLED}:
         return CANCELLED, LABELS[CANCELLED]
     codes = [c for c in codes if c != CANCELLED]  # cancelled items do not count
@@ -264,6 +349,13 @@ def order_summary(order):
     if all(c == NOT_STARTED for c in codes):
         return NOT_STARTED, LABELS[NOT_STARTED]
     return IN_PROGRESS, format_lazy(_('In progress ({done}/{total} items complete)'), done=done, total=len(codes))
+
+
+def order_summaries(orders):
+    """{order id: (code, label)} for many orders, deriving all their item statuses together."""
+    orders = list(orders)
+    statuses = item_statuses([i for o in orders for i in o.items.all()])
+    return {o.pk: order_summary(o, statuses) for o in orders}
 
 
 def order_status(order):

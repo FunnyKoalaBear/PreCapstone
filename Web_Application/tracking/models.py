@@ -185,6 +185,7 @@ class Event(models.Model):
         verbose_name_plural = _('events')
         ordering = ['occurred_at']
         permissions = [('correct_event', _('Can correct events'))]
+        indexes = [models.Index(fields=['tag_uid', 'occurred_at'], name='event_tag_time_idx')]
 
     def __str__(self):
         return f'{self.occurred_at:%Y-%m-%d %H:%M} {self.event_type} {self.tag_uid}'
