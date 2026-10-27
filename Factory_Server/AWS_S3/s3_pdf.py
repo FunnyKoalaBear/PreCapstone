@@ -26,6 +26,7 @@ s3 = boto3.client("s3", region_name=REGION)
 def upload_pdf(local_path, key=None):
     if not local_path.lower().endswith(".pdf"):
         raise ValueError("only .pdf files are allowed")
+    
     key = key or "drawings/" + os.path.basename(local_path)
     s3.upload_file(local_path, BUCKET, key, ExtraArgs={"ContentType": "application/pdf"})
     return key
