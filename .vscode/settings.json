@@ -11,5 +11,6 @@
       "--query-driver=**",
       "--compile-commands-dir=c:\\Users\\sbmit\\OneDrive\\Codine\\PreCapstone\\build"
     ],
-    "idf.port": "COM3"
+    "idf.port": "COM3",
+    "python.terminal.useEnvFile": true
 }
