@@ -373,7 +373,7 @@ def order_events_export(request, job_number):
     return export.csv_response(f'events_{order.job_number}.csv', export.EVENT_COLUMNS, export.event_rows(order))
 
 
-@role_required(PLANNER)
+@role_required(OPERATOR)
 def order_sheet(request, job_number):
     order = get_object_or_404(Order, job_number=job_number)
     response = HttpResponse(pdf.order_pdf(order), content_type='application/pdf')

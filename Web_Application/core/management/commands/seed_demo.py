@@ -1,4 +1,5 @@
 import csv
+import os
 import shutil
 from datetime import timedelta
 
@@ -53,6 +54,7 @@ class Command(BaseCommand):
             raise CommandError('seed_demo only runs when DEBUG is True.')
         with transaction.atomic():  # a failed reset leaves the database unchanged
             removed = self.wipe() if reset else {'orders': 0, 'events': 0, 'processes': 0}
+            self.seed_users()
             if not reset and Customer.objects.filter(name__startswith='DEMO ').exists():
                 self.stdout.write('Demo data already exists; use --reset to re-create it.')
                 return
@@ -61,6 +63,18 @@ class Command(BaseCommand):
             self.stdout.write(
                 f'Removed {removed["orders"]} orders, {removed["events"]} events, {removed["processes"]} processes. '
                 f'Created {Order.objects.count() - orders} orders, {Event.objects.count() - events} events, {Process.objects.count() - procs} processes.')
+
+    def seed_users(self):
+        """Create or update the demo users; they log in only when DEMO_PASSWORD is set."""
+        password = os.environ.get('DEMO_PASSWORD')
+        if not password:
+            self.stdout.write(self.style.WARNING('DEMO_PASSWORD is not set; the demo users cannot log in.'))
+        for role in ('Operator', 'Planner', 'Admin'):
+            user = User.objects.get_or_create(username=f'demo_{role.lower()}')[0]
+            user.set_password(password) if password else user.set_unusable_password()
+            user.is_staff = user.is_superuser = False
+            user.save()
+            user.groups.set([Group.objects.get(name=role)])
 
     def wipe(self):
         """Delete demo rows in dependency order and return the counts; QuerySet.delete() bypasses the append-only Model.delete."""
@@ -108,11 +122,6 @@ class Command(BaseCommand):
             notes=Case(*[When(code=r['code'], then=Value(r['notes'])) for r in read_csv('codes.csv') if r['notes']]))  # fill notes on codes made before the field existed
         procs = {r['name']: self.demo_process(r, vendors[DEFAULT_VENDOR[r['name']]]) for r in read_csv('processes.csv')}
         d1, d2, _silent = (ScannerDevice.objects.get_or_create(name=f'DEMO Scanner {i}')[0] for i in (1, 2, 3))  # scanner 3 never reports
-        for role, name in (('Operator', 'demo_operator'), ('Planner', 'demo_planner'), ('Admin', 'demo_admin')):  # cannot log in
-            user = User(username=name)
-            user.set_unusable_password()
-            user.save()
-            user.groups.add(Group.objects.get(name=role))
         c1, c2 = (Customer.objects.get_or_create(name=f'DEMO {n}')[0] for n in CUSTOMERS)
         created = []
 

@@ -88,6 +88,20 @@ class RoleTests(TestCase):
         self.assertRedirects(self.client.post('/logout/'), '/login/')
         self.assertContains(self.client.get('/login/'), 'Log in')
 
+    def test_planner_opens_dashboard_but_not_simulate(self):
+        self.client.force_login(make_user('pl', 'Planner'))
+        self.assertEqual(self.client.get('/dashboard/').status_code, 200)
+        self.assertEqual(self.client.get('/simulate/').status_code, 403)
+
+    def test_operator_gets_403_on_dashboard(self):
+        self.client.force_login(make_user('op', 'Operator'))
+        self.assertEqual(self.client.get('/dashboard/').status_code, 403)
+
+    def test_demo_admin_cannot_open_django_admin(self):
+        user = make_user('demo_admin', 'Admin')
+        self.client.force_login(user)
+        self.assertEqual(self.client.get('/admin/').status_code, 302)  # not staff: sent to the admin login
+
     def test_login_page_is_translated(self):
         self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = 'ja'
         self.assertContains(self.client.get('/login/'), 'ログイン')
@@ -277,6 +291,20 @@ class SeedDemoTests(TestCase):
     def status(self, part):
         item = OrderItem.objects.get(part_name=part)
         return item, item_status(item)
+
+    @override_settings(DEBUG=True)
+    def test_demo_users_log_in_with_demo_password_and_rerun(self):
+        with mock.patch.dict('os.environ', {'DEMO_PASSWORD': 'pw-1'}):
+            self.seed()
+            self.seed()
+        admin = User.objects.get(username='demo_admin')
+        self.assertTrue(admin.check_password('pw-1'))
+        self.assertFalse(admin.is_staff or admin.is_superuser)
+        self.assertEqual(list(admin.groups.values_list('name', flat=True)), ['Admin'])
+        with mock.patch.dict('os.environ', clear=False) as env:
+            env.pop('DEMO_PASSWORD', None)
+            self.seed()
+        self.assertFalse(User.objects.get(username='demo_planner').has_usable_password())
 
     def test_refuses_without_debug(self):
         with override_settings(DEBUG=False), self.assertRaises(CommandError):
@@ -625,13 +653,14 @@ class DashboardTests(TestCase):
                                          start_at=self.now - timedelta(days=30))
         return item, a
 
-    def test_only_admins_see_the_page_and_the_nav_link(self):
-        self.assertEqual(self.client.get('/dashboard/').status_code, 200)
-        self.assertContains(self.client.get('/'), 'href="/dashboard/"')
-        for role in ('Planner', 'Operator'):
+    def test_only_planners_see_the_page_and_the_nav_link(self):
+        for role in ('Planner', 'Admin'):
             self.client.force_login(make_user(role.lower(), role))
-            self.assertEqual(self.client.get('/dashboard/').status_code, 403, role)
-            self.assertNotContains(self.client.get('/'), 'href="/dashboard/"')
+            self.assertEqual(self.client.get('/dashboard/').status_code, 200, role)
+            self.assertContains(self.client.get('/'), 'href="/dashboard/"')
+        self.client.force_login(make_user('operator', 'Operator'))
+        self.assertEqual(self.client.get('/dashboard/').status_code, 403)
+        self.assertNotContains(self.client.get('/'), 'href="/dashboard/"')
         self.client.force_login(User.objects.create_superuser('root', password='x'))
         self.assertEqual(self.client.get('/dashboard/').status_code, 200)
         self.client.logout()

@@ -8,7 +8,7 @@ from django.shortcuts import render
 from django.utils.dateparse import parse_date
 from django.utils import timezone
 
-from core.permissions import ADMIN, OPERATOR, ROLES, role_level, role_required
+from core.permissions import OPERATOR, PLANNER, ROLES, role_level, role_required
 from orders.models import Customer, OrderItem
 from tracking.matrix import matrix
 from tracking.models import Event, ScannerDevice
@@ -54,7 +54,7 @@ SILENT_AFTER = timedelta(hours=24)  # a scanner that has not reported for this l
 VOID_WINDOW = timedelta(days=7)
 
 
-@role_required(ADMIN)
+@role_required(PLANNER)
 def dashboard(request):
     now = timezone.now()
     today_start = timezone.make_aware(datetime.combine(timezone.localdate(now), datetime.min.time()))

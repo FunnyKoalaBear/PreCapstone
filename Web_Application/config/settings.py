@@ -124,6 +124,10 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/6.1/topics/i18n/
 
+# Stay logged in for a work shift; each request extends it
+SESSION_COOKIE_AGE = int(os.environ.get('SESSION_HOURS', '12')) * 3600
+SESSION_SAVE_EVERY_REQUEST = True
+
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'home'
 LOGOUT_REDIRECT_URL = 'login'

@@ -1118,6 +1118,16 @@ def make_png():
 
 
 @override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class OrderSheetAccessTests(TestCase):
+    def test_operator_opens_sheet_and_anonymous_is_sent_to_login(self):
+        order = Order.objects.create(customer=Customer.objects.create(name='C'), due_date=date(2031, 5, 6))
+        url = f'/orders/{order.job_number}/sheet/'
+        self.assertRedirects(self.client.get(url), f'/login/?next={url}', fetch_redirect_response=False)
+        self.client.force_login(make_user('op', 'Operator'))
+        self.assertEqual(self.client.get(url).status_code, 200)
+        self.assertContains(self.client.get(f'/orders/{order.job_number}/'), 'Print sheet')
+
+
 class OrderSheetTests(TestCase):
     def setUp(self):
         self.client.force_login(make_user('pl', 'Planner'))
@@ -1144,16 +1154,16 @@ class OrderSheetTests(TestCase):
         self.assertEqual((r.status_code, r['Content-Type']), (200, 'application/pdf'))
         return PdfReader(io.BytesIO(r.content))
 
-    def test_planner_only(self):
+    def test_operator_can_print_but_anonymous_cannot(self):
         self.client.force_login(make_user('op', 'Operator'))
-        self.assertEqual(self.client.get(self.url).status_code, 403)
+        self.assertEqual(self.client.get(self.url).status_code, 200)
         self.client.logout()
         self.assertEqual(self.client.get(self.url).status_code, 302)
 
-    def test_button_on_detail_page_for_planners_only(self):
-        self.assertContains(self.client.get(f'/orders/{self.order.job_number}/'), self.url)
-        self.client.force_login(make_user('op', 'Operator'))
-        self.assertNotContains(self.client.get(f'/orders/{self.order.job_number}/'), self.url)
+    def test_button_on_detail_page_for_operators_and_up(self):
+        for role in ('Planner', 'Operator'):
+            self.client.force_login(make_user(role.lower(), role))
+            self.assertContains(self.client.get(f'/orders/{self.order.job_number}/'), self.url)
 
     def test_one_page_per_item_without_drawings_with_details_and_embedded_font(self):
         reader = self.pdf()
