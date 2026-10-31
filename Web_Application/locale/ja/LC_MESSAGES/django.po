@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Factory Tracker\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-31 15:12+0900\n"
+"POT-Creation-Date: 2026-10-31 16:38+0900\n"
 "PO-Revision-Date: 2026-10-11 17:00+0900\n"
 "Last-Translator: Claude\n"
 "Language-Team: Japanese\n"
@@ -16,22 +16,22 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-#: .\core\templatetags\duration.py:15 .\tracking\analysis.py:162
+#: .\core\templatetags\duration.py:15
 #, python-format
 msgid "%(d)dd %(h)dh"
 msgstr "%(d)d日%(h)d時間"
 
-#: .\core\templatetags\duration.py:17 .\tracking\analysis.py:162
+#: .\core\templatetags\duration.py:17
 #, python-format
 msgid "%(h)dh %(m)dm"
 msgstr "%(h)d時間%(m)d分"
 
-#: .\core\templatetags\duration.py:18 .\tracking\analysis.py:162
+#: .\core\templatetags\duration.py:18
 #, python-format
 msgid "%(m)dm"
 msgstr "%(m)d分"
 
-#: .\core\templatetags\duration.py:18 .\tracking\analysis.py:162
+#: .\core\templatetags\duration.py:18
 msgid "<1m"
 msgstr "1分未満"
 
@@ -504,7 +504,7 @@ msgstr "製番"
 #: .\templates\tracking\boxes.html:31 .\templates\tracking\priorities.html:36
 #: .\templates\tracking\shipping.html:14 .\templates\tracking\shipping.html:30
 #: .\templates\tracking\shipping.html:39 .\templates\tracking\shipping.html:55
-#: .\tracking\views.py:250
+#: .\tracking\views.py:249
 msgid "Customer"
 msgstr "得意先"
 
@@ -529,7 +529,7 @@ msgstr "品名"
 #: .\templates\orders\tabs\orders.html:48 .\templates\tracking\boxes.html:34
 #: .\templates\tracking\priorities.html:37
 #: .\templates\tracking\shipping.html:31 .\templates\tracking\shipping.html:40
-#: .\tracking\views.py:249
+#: .\tracking\views.py:248
 msgid "Due date"
 msgstr "納期"
 
@@ -556,8 +556,8 @@ msgstr "順"
 #: .\templates\tracking\analysis_plan.html:26
 #: .\templates\tracking\analysis_results.html:13
 #: .\templates\tracking\analysis_results.html:25
-#: .\templates\tracking\simulate.html:53 .\tracking\analysis.py:156
-#: .\tracking\forms.py:103 .\tracking\views.py:298
+#: .\templates\tracking\simulate.html:53 .\tracking\forms.py:103
+#: .\tracking\views.py:297
 msgid "Process"
 msgstr "工程"
 
@@ -583,8 +583,7 @@ msgstr "実績数"
 
 #: .\orders\pdf.py:68 .\templates\tracking\analysis_results.html:16
 #: .\templates\tracking\analysis_results.html:28
-#: .\templates\tracking\analysis_results.html:43 .\tracking\analysis.py:158
-#: .\tracking\forms.py:107
+#: .\templates\tracking\analysis_results.html:43 .\tracking\forms.py:107
 msgid "Defects"
 msgstr "不良数"
 
@@ -815,35 +814,35 @@ msgstr "過去7日間に取消されたイベント"
 
 #: .\templates\core\home.html:10 .\templates\includes\matrix_legend.html:4
 #: .\templates\orders\_box_detail.html:68 .\tracking\status.py:24
-#: .\tracking\status.py:36 .\tracking\views.py:236
+#: .\tracking\status.py:36 .\tracking\views.py:235
 msgid "In progress"
 msgstr "作業中"
 
 #: .\templates\core\home.html:11 .\tracking\status.py:23
-#: .\tracking\views.py:236
+#: .\tracking\views.py:235
 msgid "Waiting"
 msgstr "待機中"
 
 #: .\templates\core\home.html:12 .\templates\includes\matrix_legend.html:5
 #: .\templates\orders\_box_detail.html:69 .\tracking\status.py:25
-#: .\tracking\status.py:37 .\tracking\views.py:237
+#: .\tracking\status.py:37 .\tracking\views.py:236
 msgid "At vendor"
 msgstr "外注中"
 
 #: .\templates\core\home.html:13 .\templates\includes\matrix_legend.html:6
 #: .\tracking\models.py:125 .\tracking\status.py:27 .\tracking\status.py:39
-#: .\tracking\views.py:238
+#: .\tracking\views.py:237
 msgid "Paused"
 msgstr "一時停止中"
 
 #: .\templates\core\home.html:14 .\tracking\status.py:22
-#: .\tracking\views.py:237
+#: .\tracking\views.py:236
 msgid "Not started"
 msgstr "未着手"
 
 # CHECK: 滞留 is marked unsure in the glossary (alternative: 停滞)
 #: .\templates\core\home.html:15 .\templates\tracking\boxes.html:52
-#: .\tracking\views.py:268
+#: .\tracking\views.py:267
 msgid "Stagnant"
 msgstr "滞留"
 
@@ -854,7 +853,7 @@ msgstr "納期遅れの受注"
 
 # CHECK: short form of 外注先の納期遅れ; unsure
 #: .\templates\core\home.html:17 .\templates\tracking\boxes.html:53
-#: .\tracking\views.py:263
+#: .\tracking\views.py:262
 msgid "Vendor overdue"
 msgstr "外注遅れ"
 
@@ -1509,56 +1508,56 @@ msgstr ""
 "です。納期のある完了済みの工程だけが対象です。超過率は、実績が計画より何％長"
 "かったかを示します。"
 
-#: .\templates\tracking\analysis_plan.html:5 .\tracking\analysis.py:160
+#: .\templates\tracking\analysis_plan.html:5
 msgid "Worst step"
 msgstr "最も遅い工程"
 
-#: .\templates\tracking\analysis_plan.html:6 .\tracking\analysis.py:160
+#: .\templates\tracking\analysis_plan.html:6
 msgid "Top 3 slowest"
 msgstr "遅い工程ワースト3"
 
-#: .\templates\tracking\analysis_plan.html:11 .\tracking\views.py:297
+#: .\templates\tracking\analysis_plan.html:11 .\tracking\views.py:296
 msgid "Plan vs actual"
 msgstr "計画と実績"
 
 #: .\templates\tracking\analysis_plan.html:16
-#: .\templates\tracking\analysis_plan.html:27 .\tracking\analysis.py:156
+#: .\templates\tracking\analysis_plan.html:27
 msgid "Steps"
 msgstr "工程数"
 
 #: .\templates\tracking\analysis_plan.html:17
-#: .\templates\tracking\analysis_plan.html:28 .\tracking\analysis.py:156
+#: .\templates\tracking\analysis_plan.html:28
 msgid "Average planned (days)"
 msgstr "平均計画（日）"
 
 #: .\templates\tracking\analysis_plan.html:18
-#: .\templates\tracking\analysis_plan.html:29 .\tracking\analysis.py:156
+#: .\templates\tracking\analysis_plan.html:29
 msgid "Average actual (days)"
 msgstr "平均実績（日）"
 
 #: .\templates\tracking\analysis_plan.html:19
-#: .\templates\tracking\analysis_plan.html:30 .\tracking\analysis.py:157
+#: .\templates\tracking\analysis_plan.html:30
 msgid "Average difference (days)"
 msgstr "平均差（日）"
 
 #: .\templates\tracking\analysis_plan.html:20
-#: .\templates\tracking\analysis_plan.html:31 .\tracking\analysis.py:157
+#: .\templates\tracking\analysis_plan.html:31
 msgid "Overrun"
 msgstr "超過率"
 
-#: .\templates\tracking\analysis_plan.html:31 .\tracking\analysis.py:157
+#: .\templates\tracking\analysis_plan.html:31
 msgid "Severe"
 msgstr "重大"
 
-#: .\templates\tracking\analysis_plan.html:31 .\tracking\analysis.py:157
+#: .\templates\tracking\analysis_plan.html:31
 msgid "Major"
 msgstr "大"
 
-#: .\templates\tracking\analysis_plan.html:31 .\tracking\analysis.py:157
+#: .\templates\tracking\analysis_plan.html:31
 msgid "Minor"
 msgstr "軽微"
 
-#: .\templates\tracking\analysis_plan.html:34 .\tracking\analysis.py:161
+#: .\templates\tracking\analysis_plan.html:34
 msgid "No finished steps with a due date yet."
 msgstr "計画納期のある完了済みの工程はまだありません。"
 
@@ -1571,57 +1570,56 @@ msgstr ""
 "工程ごとの完了数量と不良数です。不良率は不良数を完了数量で割った値です。時間"
 "は完了した工程ごとの平均で、最長のものに印が付きます。"
 
-#: .\templates\tracking\analysis_results.html:5 .\tracking\analysis.py:160
+#: .\templates\tracking\analysis_results.html:5
 msgid "Longest processing"
 msgstr "最長の加工時間"
 
-#: .\templates\tracking\analysis_results.html:6 .\tracking\analysis.py:160
+#: .\templates\tracking\analysis_results.html:6
 msgid "Longest wait"
 msgstr "最長の待ち時間"
 
-#: .\templates\tracking\analysis_results.html:9 .\tracking\views.py:297
+#: .\templates\tracking\analysis_results.html:9 .\tracking\views.py:296
 msgid "Results"
 msgstr "作業実績"
 
 #: .\templates\tracking\analysis_results.html:14
 #: .\templates\tracking\analysis_results.html:26
-#: .\templates\tracking\analysis_results.html:41 .\tracking\analysis.py:158
+#: .\templates\tracking\analysis_results.html:41
 msgid "Records"
 msgstr "件数"
 
 #: .\templates\tracking\analysis_results.html:15
 #: .\templates\tracking\analysis_results.html:27
-#: .\templates\tracking\analysis_results.html:42 .\tracking\analysis.py:158
-#: .\tracking\forms.py:106
+#: .\templates\tracking\analysis_results.html:42 .\tracking\forms.py:106
 msgid "Quantity done"
 msgstr "完了数量"
 
 #: .\templates\tracking\analysis_results.html:17
 #: .\templates\tracking\analysis_results.html:29
-#: .\templates\tracking\analysis_results.html:44 .\tracking\analysis.py:158
+#: .\templates\tracking\analysis_results.html:44
 msgid "Defect rate"
 msgstr "不良率"
 
 #: .\templates\tracking\analysis_results.html:18
-#: .\templates\tracking\analysis_results.html:30 .\tracking\analysis.py:159
+#: .\templates\tracking\analysis_results.html:30
 msgid "Average processing time"
 msgstr "平均加工時間"
 
 #: .\templates\tracking\analysis_results.html:19
-#: .\templates\tracking\analysis_results.html:31 .\tracking\analysis.py:159
+#: .\templates\tracking\analysis_results.html:31
 msgid "Average wait before"
 msgstr "平均待ち時間（直前）"
 
 #: .\templates\tracking\analysis_results.html:30
-#: .\templates\tracking\analysis_results.html:31 .\tracking\analysis.py:159
+#: .\templates\tracking\analysis_results.html:31
 msgid "Longest"
 msgstr "最長"
 
-#: .\templates\tracking\analysis_results.html:34 .\tracking\analysis.py:161
+#: .\templates\tracking\analysis_results.html:34
 msgid "No results recorded yet."
 msgstr "まだ実績が記録されていません。"
 
-#: .\templates\tracking\analysis_results.html:40 .\tracking\analysis.py:159
+#: .\templates\tracking\analysis_results.html:40
 msgid "Total"
 msgstr "合計"
 
@@ -1642,13 +1640,13 @@ msgid "Part"
 msgstr "品名"
 
 #: .\templates\tracking\boxes.html:32 .\templates\tracking\priorities.html:40
-#: .\tracking\views.py:198 .\tracking\views.py:249
+#: .\tracking\views.py:197 .\tracking\views.py:248
 msgid "Current process"
 msgstr "現在の工程"
 
 # CHECK: glossary says 滞留時間 (time since the last scan)
 #: .\templates\tracking\boxes.html:35 .\templates\tracking\priorities.html:41
-#: .\tracking\views.py:198 .\tracking\views.py:250
+#: .\tracking\views.py:197 .\tracking\views.py:249
 msgid "Idle for"
 msgstr "滞留時間"
 
@@ -1678,7 +1676,7 @@ msgstr "残日数"
 msgid "Slack"
 msgstr "余裕日数"
 
-#: .\templates\tracking\priorities.html:42 .\tracking\views.py:198
+#: .\templates\tracking\priorities.html:42 .\tracking\views.py:197
 msgid "Risk"
 msgstr "リスク"
 
@@ -2252,86 +2250,86 @@ msgstr "再開"
 msgid "Mark partial"
 msgstr "一部完了にする"
 
-#: .\tracking\views.py:59
+#: .\tracking\views.py:58
 msgid "Event corrected."
 msgstr "イベントを訂正しました。"
 
-#: .\tracking\views.py:75
+#: .\tracking\views.py:74
 #, python-format
 msgid "Saved: item %(item)s, status: %(status)s"
 msgstr "保存しました: 品目 %(item)s、状態: %(status)s"
 
-#: .\tracking\views.py:80
+#: .\tracking\views.py:79
 #, python-format
 msgid "Event saved, but tag %(uid)s matches no item."
 msgstr "イベントを保存しましたが、タグ %(uid)s に該当する品目がありません。"
 
-#: .\tracking\views.py:107
+#: .\tracking\views.py:106
 #, python-format
 msgid "Tag %(tag)s released from item %(item)s."
 msgstr "タグ %(tag)s を品目 %(item)s から解除しました。"
 
-#: .\tracking\views.py:119
+#: .\tracking\views.py:118
 #, python-format
 msgid "Tag %(old)s replaced by %(new)s for item %(item)s."
 msgstr "品目 %(item)s のタグ %(old)s を %(new)s に交換しました。"
 
-#: .\tracking\views.py:128
+#: .\tracking\views.py:127
 #, python-format
 msgid "Tag %(tag)s linked to item %(item)s."
 msgstr "タグ %(tag)s を品目 %(item)s に紐付けました。"
 
-#: .\tracking\views.py:149
+#: .\tracking\views.py:148
 msgid "Last month"
 msgstr "直近1か月"
 
-#: .\tracking\views.py:149
+#: .\tracking\views.py:148
 msgid "Last 3 months"
 msgstr "直近3か月"
 
-#: .\tracking\views.py:150
+#: .\tracking\views.py:149
 msgid "Last 6 months"
 msgstr "直近6か月"
 
-#: .\tracking\views.py:150
+#: .\tracking\views.py:149
 msgid "Last year"
 msgstr "直近1年"
 
 # CHECK: 得意先 is marked unsure in the glossary (alternative: 顧客)
-#: .\tracking\views.py:188
+#: .\tracking\views.py:187
 msgid "Custom"
 msgstr "期間を指定"
 
-#: .\tracking\views.py:272
+#: .\tracking\views.py:271
 msgid "Active boxes"
 msgstr "進行中の箱"
 
-#: .\tracking\views.py:293
+#: .\tracking\views.py:292
 msgid "Result recorded."
 msgstr "実績を記録しました。"
 
-#: .\tracking\views.py:298
+#: .\tracking\views.py:297
 msgid "Biggest delay"
 msgstr "遅れが大きい順"
 
-#: .\tracking\views.py:357
+#: .\tracking\views.py:353
 msgid "Step paused."
 msgstr "工程を一時停止しました。"
 
-#: .\tracking\views.py:358
+#: .\tracking\views.py:354
 msgid "Step resumed."
 msgstr "工程を再開しました。"
 
-#: .\tracking\views.py:359
+#: .\tracking\views.py:355
 msgid "Step marked partial."
 msgstr "工程を一部完了にしました。"
 
-#: .\tracking\views.py:374
+#: .\tracking\views.py:370
 #, python-format
 msgid "Item %(item)s cancelled."
 msgstr "品目 %(item)s をキャンセルしました。"
 
-#: .\tracking\views.py:377
+#: .\tracking\views.py:373
 #, python-format
 msgid "Item %(item)s marked as shipped."
 msgstr "品目 %(item)s を出荷済みにしました。"

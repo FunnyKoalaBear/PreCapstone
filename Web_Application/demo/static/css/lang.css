@@ -1,4 +1,0 @@
-.lang-switch { display: inline-flex; margin-left: auto; border: 1px solid var(--color-border); border-radius: 999px; overflow: hidden; background: var(--color-surface); }
-.lang-switch button { padding: 0.25rem 0.75rem; border: 0; background: transparent; color: var(--color-primary); font: inherit; cursor: pointer; }
-.lang-switch button:hover, .lang-switch button:focus-visible { background: var(--color-bg); }
-.lang-switch button.active { background: var(--color-primary); color: var(--color-surface); cursor: default; font-weight: 700; }

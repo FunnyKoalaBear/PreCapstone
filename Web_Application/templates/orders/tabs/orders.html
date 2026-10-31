@@ -41,7 +41,7 @@
       </thead>
       <tbody>
         {% for row in rows %}
-          <tr data-f-status="{{ row.code }}" data-f-late="{{ row.late|yesno:'1,' }}" data-f-sort-due="{{ row.order.due_date|date:'Y-m-d' }} {{ row.order.job_number }}" data-f-sort-newest="{{ row.order.job_number }}" data-f-sort-customer="{{ row.order.customer.name }} {{ row.order.due_date|date:'Y-m-d' }}" data-f-text="{{ row.order.job_number }} {{ row.order.customer.name }} {{ row.order.customer_order_number }}{% for i in row.order.items.all %} {{ i.part_name }} {{ i.material }} {{ i.part_number }} {{ i.drawing_number }}{% endfor %}">
+          <tr>
             <td data-label="{% trans 'Job number' %}"><a href="{% url 'order_detail' row.order.job_number %}">{{ row.order.job_number }}</a></td>
             <td data-label="{% trans 'Customer' %}">{{ row.order.customer }}</td>
             <td data-label="{% trans 'Customer order number' %}">{{ row.order.customer_order_number }}</td>

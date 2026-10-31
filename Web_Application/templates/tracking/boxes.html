@@ -38,7 +38,7 @@
         </thead>
         <tbody>
           {% for e in rows %}
-            <tr data-f-sort-process="{{ e.process.name|default:'~' }} {{ e.due_date|date:'Y-m-d' }}" data-f-sort-due="{{ e.due_date|date:'Y-m-d' }} {{ e.order.job_number }} {{ e.item.item_no }}" data-f-sort-customer="{{ e.order.customer.name }} {{ e.due_date|date:'Y-m-d' }}" data-f-sort-waiting="{% if e.idle %}{{ e.idle.total_seconds|floatformat:'0u' }}{% else %}-1{% endif %}">
+            <tr>
               <td><a href="{% url 'order_detail' e.order.job_number %}">{{ e.item.item_code }}</a></td>
               <td>{% if e.tag_uid %}{{ e.tag_uid }}{% if e.caption %} <small>{{ e.caption }}</small>{% endif %}{% else %}{% trans "Not linked yet" %}{% if can.planner %} <a href="{% url 'tag_manage' %}">{% trans "Link a tag" %}</a>{% endif %}{% endif %}</td>
               <td>{{ e.item.part_name }}</td>

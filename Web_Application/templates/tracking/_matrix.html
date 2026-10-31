@@ -12,7 +12,7 @@
       </thead>
       <tbody>
         {% for r in matrix.rows %}
-          <tr data-href="{% url 'order_detail' r.order.job_number %}" data-f-status="{{ r.status.code }}" data-f-customer="{{ r.order.customer_id }}" data-f-due="{{ r.order.due_date|date:'Y-m-d' }}" data-f-late="{{ r.late|yesno:'1,' }}">
+          <tr data-href="{% url 'order_detail' r.order.job_number %}">
             <th scope="row" class="matrix-item">
               <a href="{% url 'order_detail' r.order.job_number %}">{{ r.item.item_code }}</a> {{ r.item.part_name }}
               <span class="badge badge-{{ r.status.code|lower }}">{{ r.status.label }}</span>

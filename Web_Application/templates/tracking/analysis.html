@@ -48,5 +48,4 @@
   <div id="analysis" data-tab="{{ tab }}">
   {% if tab == 'plan' %}{% include "tracking/analysis_plan.html" %}{% else %}{% include "tracking/analysis_results.html" %}{% endif %}
   </div>
-  {% if facts_json %}<script type="application/json" id="demo-facts">{{ facts_json|safe }}</script>{% endif %}
 {% endblock %}

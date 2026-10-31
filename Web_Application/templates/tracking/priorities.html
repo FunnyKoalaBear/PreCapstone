@@ -45,7 +45,7 @@
         </thead>
         <tbody>
           {% for r in rows %}
-            <tr data-f-sort-risk="{{ r.risk_key }}" data-f-sort-process="{{ r.process.name|default:'~' }} {{ r.risk_key }}" data-f-sort-waiting="{% if r.idle %}{{ r.idle.total_seconds|floatformat:'0u' }}{% else %}-1{% endif %}">
+            <tr>
               <td><a href="{% url 'order_detail' r.item.order.job_number %}">{% include "includes/item_box.html" with item=r.item caption=r.caption %}</a></td>
               <td>{{ r.item.part_name }}</td>
               <td>{{ r.item.order.customer }}</td>

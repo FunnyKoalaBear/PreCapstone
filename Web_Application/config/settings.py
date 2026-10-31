@@ -163,8 +163,5 @@ MAILERS = {
     },
 }
 
-# True only while the export_demo command renders pages for the static demo (adds the data its browser-side filters need)
-DEMO_EXPORT = False
-
 # Seconds a repeat UID-only scan of the same tag is ignored (0 = off)
 SCAN_REPEAT_SECONDS = int(os.environ.get('SCAN_REPEAT_SECONDS', '5'))

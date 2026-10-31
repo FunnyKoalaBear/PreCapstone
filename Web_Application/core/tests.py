@@ -798,46 +798,16 @@ class ScrollPanelTests(SimpleTestCase):
             self.assertLessEqual(text.count('<table'), text.count('{% scroll_panel'), path.name)
 
 
-class ExportDemoTests(TestCase):
-    def command(self):
-        from core.management.commands.export_demo import Command
-        return Command()
+class AnalysisShippingPageTests(TestCase):
+    def test_pages_render_without_demo_data(self):
+        self.client.force_login(make_user('pl', 'Planner'))
+        for url in ('/analysis/', '/analysis/?tab=plan', '/analysis/?tab=results', '/shipping/'):
+            r = self.client.get(url)
+            self.assertEqual(r.status_code, 200, url)
+            self.assertNotContains(r, 'demo-facts')
 
-    def test_canon_maps_app_urls_to_demo_pages(self):
-        from core.management.commands.export_demo import canon
-        self.assertEqual(canon('/')[0], 'index')
-        self.assertEqual(canon('/?current=1')[0], 'index_current')
-        self.assertEqual(canon('/orders/?tab=codes&q=x')[0], 'orders_codes')
-        self.assertEqual(canon('/orders/?late=1')[0], 'orders')
-        self.assertEqual(canon('/orders/2610-001/')[0], 'order_2610-001')
-        self.assertEqual(canon('/priorities/?tier=OVERDUE&sort=risk')[0], 'priorities_overdue')
-        self.assertEqual(canon('/boxes/?status=at_vendor&vendor_late=1')[0], 'boxes_vendor_late')
-        for gone in ('/orders/export/', '/orders/2610-001/edit/', '/items/3/drawing/', '/login/', '/dashboard/', '/matrix/'):
-            self.assertIsNone(canon(gone), gone)
 
-    def test_rewrite_makes_links_relative_and_disables_the_rest(self):
-        body = ('<html><head></head><body><nav class="site-nav" id="site-nav"><a href="/orders/">x</a></nav>'
-                '<link href="/static/css/base.css"><a href="/orders/?late=1">a</a><a href="/orders/export/">b</a>'
-                '<form action="/i18n/setlang/" method="post"><input type="hidden" name="csrfmiddlewaretoken" value="t"></form>'
-                '<form method="post"><input type="hidden" name="csrfmiddlewaretoken" value="t"></form><a href="?tier=WATCH">w</a></body></html>')
-        out = self.command().rewrite(body, 'en', 'priorities', {'orders', 'priorities_watch'}, '/priorities/')
-        self.assertIn('href="../static/css/base.css"', out)
-        self.assertIn('href="orders.html?late=1"', out)
-        self.assertIn('href="#" data-demo-link>b', out)
-        self.assertIn('href="priorities_watch.html"', out)
-        self.assertIn('class="demo-banner"', out)
-        self.assertIn('DEMO / sample data', out)
-        self.assertIn('../ja/priorities.html', out)
-        self.assertIn('href="../ja/manual.html" lang="ja">使い方', out)
-        for gone in ('csrf', 'setlang'):
-            self.assertNotIn(gone, out)
-
-    def test_markdown_subset(self):
-        from core.management.commands.export_demo import md_to_html
-        out = md_to_html('# T\n\n> note\n\n1. one\n2. **two**\n\n| a | b |\n|---|---|\n| `c` | d |\n\ntext\nmore')
-        for part in ('<h1>T</h1>', '<blockquote>note</blockquote>', '<ol><li>one</li><li><strong>two</strong></li></ol>', '<th>a</th>', '<td><code>c</code></td>', '<p>text<br>more</p>'):
-            self.assertIn(part, out)
-
+class ManualTests(TestCase):
     def test_manual_is_japanese_and_uses_the_screen_terms(self):
         text = (settings.BASE_DIR / 'docs' / 'manual_ja.md').read_text(encoding='utf-8')
         self.assertFalse((settings.BASE_DIR / 'docs' / 'manual_en.md').exists())
@@ -850,10 +820,3 @@ class ExportDemoTests(TestCase):
         self.assertEqual(text.count('\n## よくある質問'), 1)
         self.assertGreaterEqual(text.count('**Q'), 5)
         self.assertLessEqual(text.count('**Q'), 8)
-
-    def test_pages_carry_the_data_the_demo_needs_only_when_exporting(self):
-        self.client.force_login(make_user('pl', 'Planner'))
-        self.assertNotContains(self.client.get('/analysis/'), 'id="demo-facts"')
-        with override_settings(DEMO_EXPORT=True):
-            self.assertContains(self.client.get('/analysis/'), 'id="demo-facts"')
-            self.assertContains(self.client.get('/shipping/'), 'id="demo-facts"')

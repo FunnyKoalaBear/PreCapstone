@@ -2,7 +2,6 @@ import re
 from datetime import date, datetime, time, timedelta
 from urllib.parse import urlencode
 
-from django.conf import settings
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db.models import Count, Q, Sum
@@ -21,9 +20,9 @@ from orders.models import Customer, OrderItem, Process, Vendor
 from .forms import AssignTagForm, CorrectEventForm, PickTagForm, ResultForm, SimulateScanForm
 from .models import Event, Tag, TagAssignment
 from .overview import active_boxes
-from .analysis import Filters, facts_json, plan_rows, result_rows, slowest, step_facts
+from .analysis import Filters, plan_rows, result_rows, slowest, step_facts
 from .priority import TIER_LABELS, TIERS, priority
-from .shipping import months_json, shipping_overview
+from .shipping import shipping_overview
 from .services import assign_tag, can_correct, correct_event as correct_event_service, next_step, record_event, record_result, record_step_state, release_assignment, replace_tag, resolve_tag, cancel_item, ship_item
 from .status import box_captions, AT_VENDOR, CANCELLED, COMPLETE, IN_PROGRESS, LABELS, NOT_STARTED, PAUSED, WAITING, current_row, item_status, item_statuses
 
@@ -320,8 +319,6 @@ def analysis(request):
         rows, total = result_rows(f, facts)
         flag = lambda name: next((r for r in rows if name in r['hot']), None)
         ctx.update(rows=rows, total=total, longest_wait=flag('wait'), longest_processing=flag('processing'))
-    if settings.DEMO_EXPORT:
-        ctx['facts_json'] = facts_json()
     return render(request, 'tracking/analysis.html', ctx)
 
 
@@ -346,10 +343,9 @@ def shipping(request):
         ready_customer=num('r_customer'), ready_q=ready_p['r_q'], due_from=parse_date(ready_p['due_from']), due_to=parse_date(ready_p['due_to']),
         month_customer=num('m_customer'), month_q=month_p['m_q'], month_from=month_p['month_from'], month_to=month_p['month_to'])
     hidden = lambda p: [(k, v) for k, v in p.items() if v]
-    facts = months_json() if settings.DEMO_EXPORT else ''
     return render(request, 'tracking/shipping.html', {
         'ready': ready, 'months': months, 'customers': Customer.objects.order_by('name'), 'r': ready_p, 'm': month_p,
-        'ready_hidden': hidden(ready_p), 'month_hidden': hidden(month_p), 'facts_json': facts,
+        'ready_hidden': hidden(ready_p), 'month_hidden': hidden(month_p),
     })
 
 
