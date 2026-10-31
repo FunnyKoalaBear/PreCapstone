@@ -1,6 +1,8 @@
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
+from . import accounts
+from .forms import ROLE_LABELS
 from .permissions import ADMIN, OPERATOR, PLANNER, ROLES, role_level
 
 # (group, [(label, url name, icon, minimum role or None, url names that count as this item)])
@@ -45,7 +47,7 @@ def roles(request):
 def nav(request):
     """Sidebar groups for the user's role, with the item of the current page marked active."""
     if not request.user.is_authenticated:
-        return {'nav': []}
+        return {'nav': [], 'account': None}
     level = _level(request)
     current = request.resolver_match.url_name if request.resolver_match else None
     groups = []
@@ -54,4 +56,6 @@ def nav(request):
                  for text, name, icon, role, names in entries if role is None or level >= ROLES.index(role)]
         if items:
             groups.append({'label': label, 'items': items})
-    return {'nav': groups}
+    user = request.user
+    account = {'initials': accounts.initials(user), 'full_name': user.get_full_name(), 'role': ROLE_LABELS[ROLES[level]] if level >= 0 else ''}
+    return {'nav': groups, 'account': account}

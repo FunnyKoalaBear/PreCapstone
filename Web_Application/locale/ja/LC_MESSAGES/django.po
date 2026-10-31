@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Factory Tracker\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-01 02:25+0900\n"
+"POT-Creation-Date: 2026-11-01 02:36+0900\n"
 "PO-Revision-Date: 2026-10-11 17:00+0900\n"
 "Last-Translator: Claude\n"
 "Language-Team: Japanese\n"
@@ -16,93 +16,93 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-#: .\core\accounts.py:53
+#: .\core\accounts.py:60
 msgid "You cannot assign this role."
 msgstr "この権限は割り当てられません。"
 
-#: .\core\accounts.py:57
+#: .\core\accounts.py:64
 msgid "You cannot change your own role or deactivate yourself."
 msgstr "自分自身の権限の変更や無効化はできません。"
 
-#: .\core\accounts.py:59
+#: .\core\accounts.py:66
 msgid "The last active Planner cannot be deactivated or demoted."
 msgstr ""
 "有効な計画担当が最後の1人のときは、無効化や権限の引き下げはできません。"
 
 # CHECK: group label of the sidebar
-#: .\core\context_processors.py:8
+#: .\core\context_processors.py:10
 msgid "Work"
 msgstr "作業"
 
-#: .\core\context_processors.py:9 .\templates\403.html:9
+#: .\core\context_processors.py:11 .\templates\403.html:9
 #: .\templates\base.html:26 .\templates\base.html:30 .\templates\base.html:40
 #: .\templates\core\home.html:4 .\templates\core\home.html:7
 msgid "Home"
 msgstr "ホーム"
 
-#: .\core\context_processors.py:10 .\orders\views.py:247
+#: .\core\context_processors.py:12 .\orders\views.py:247
 #: .\templates\orders\customer_detail.html:16 .\templates\orders\hub.html:4
 #: .\templates\orders\hub.html:7
 msgid "Orders"
 msgstr "受注一覧"
 
-#: .\core\context_processors.py:13 .\templates\tracking\priorities.html:4
+#: .\core\context_processors.py:15 .\templates\tracking\priorities.html:4
 #: .\templates\tracking\priorities.html:7
 msgid "Priorities"
 msgstr "優先度"
 
 # CHECK: group label of the sidebar
-#: .\core\context_processors.py:15
+#: .\core\context_processors.py:17
 msgid "Review"
 msgstr "確認"
 
-#: .\core\context_processors.py:16 .\templates\tracking\analysis.html:4
+#: .\core\context_processors.py:18 .\templates\tracking\analysis.html:4
 #: .\templates\tracking\analysis.html:7
 msgid "Analysis"
 msgstr "分析"
 
-#: .\core\context_processors.py:18 .\templates\tracking\shipping.html:4
+#: .\core\context_processors.py:20 .\templates\tracking\shipping.html:4
 #: .\templates\tracking\shipping.html:7
 msgid "Shipping"
 msgstr "出荷"
 
-#: .\core\context_processors.py:19 .\templates\core\dashboard.html:4
+#: .\core\context_processors.py:21 .\templates\core\dashboard.html:4
 #: .\templates\core\dashboard.html:7
 msgid "Dashboard"
 msgstr "ダッシュボード"
 
-#: .\core\context_processors.py:21
+#: .\core\context_processors.py:23
 msgid "Manage"
 msgstr "管理"
 
 # CHECK: 得意先 is marked unsure in the glossary (alternative: 顧客)
-#: .\core\context_processors.py:22 .\templates\orders\customer_list.html:4
+#: .\core\context_processors.py:24 .\templates\orders\customer_list.html:4
 #: .\templates\orders\customer_list.html:7
 msgid "Customers"
 msgstr "得意先"
 
-#: .\core\context_processors.py:23 .\templates\includes\tag_tabs.html:3
+#: .\core\context_processors.py:25 .\templates\includes\tag_tabs.html:3
 #: .\templates\tracking\tag_manage.html:4
 #: .\templates\tracking\tag_manage.html:7
 msgid "Tags"
 msgstr "タグ管理"
 
-#: .\core\context_processors.py:25 .\templates\core\user_form.html:4
+#: .\core\context_processors.py:27 .\templates\core\user_form.html:4
 #: .\templates\core\user_form.html:7 .\templates\core\user_list.html:4
 #: .\templates\core\user_list.html:7
 msgid "Users"
 msgstr "ユーザー"
 
-#: .\core\context_processors.py:26 .\templates\tracking\settings.html:4
+#: .\core\context_processors.py:28 .\templates\tracking\settings.html:4
 #: .\templates\tracking\settings.html:7
 msgid "Settings"
 msgstr "設定"
 
-#: .\core\context_processors.py:28
+#: .\core\context_processors.py:30
 msgid "Developer"
 msgstr "開発者"
 
-#: .\core\context_processors.py:29 .\templates\tracking\simulate.html:4
+#: .\core\context_processors.py:31 .\templates\tracking\simulate.html:4
 #: .\templates\tracking\simulate.html:7
 msgid "Simulate scan"
 msgstr "スキャンのシミュレーション"
@@ -961,7 +961,7 @@ msgstr "アクセスできません"
 
 # CHECK: glossary marks 工程進捗管理 as unsure (product name)
 #: .\templates\403.html:4 .\templates\base.html:6 .\templates\base.html:26
-#: .\templates\base.html:30 .\templates\base.html:40 .\templates\base.html:70
+#: .\templates\base.html:30 .\templates\base.html:40 .\templates\base.html:69
 #: .\templates\core\dashboard.html:4 .\templates\core\home.html:4
 #: .\templates\core\user_form.html:4 .\templates\core\user_list.html:4
 #: .\templates\core\user_password.html:4 .\templates\core\user_reset.html:4
@@ -1229,18 +1229,39 @@ msgstr ""
 "%(name)s の新しい一時パスワードを作成しますか？古いパスワードは使えなくなりま"
 "す。"
 
-#: .\templates\includes\account.html:6
+#: .\templates\includes\account.html:15
 #: .\templates\registration\password_change_form.html:4
 #: .\templates\registration\password_change_form.html:7
 #: .\templates\registration\password_change_form.html:12
 msgid "Change password"
 msgstr "パスワードを変更"
 
-#: .\templates\includes\account.html:7
+#: .\templates\includes\account.html:16 .\templates\includes\account.html:17
+#: .\templates\includes\theme_toggle.html:2
+msgid "Theme"
+msgstr "テーマ"
+
+#: .\templates\includes\account.html:18
+#: .\templates\includes\theme_toggle.html:2
+#: .\templates\includes\theme_toggle.html:4
+msgid "Auto"
+msgstr "自動"
+
+#: .\templates\includes\account.html:19
+#: .\templates\includes\theme_toggle.html:2
+msgid "Light"
+msgstr "ライト"
+
+#: .\templates\includes\account.html:20
+#: .\templates\includes\theme_toggle.html:2
+msgid "Dark"
+msgstr "ダーク"
+
+#: .\templates\includes\account.html:25
 msgid "Log out"
 msgstr "ログアウト"
 
-#: .\templates\includes\account.html:10 .\templates\registration\login.html:4
+#: .\templates\includes\account.html:30 .\templates\registration\login.html:4
 #: .\templates\registration\login.html:7 .\templates\registration\login.html:12
 msgid "Log in"
 msgstr "ログイン"
@@ -1283,23 +1304,6 @@ msgstr "タグの紐付け履歴"
 #: .\templates\tracking\device_list.html:7
 msgid "Devices"
 msgstr "読取端末"
-
-#: .\templates\includes\theme_toggle.html:2
-msgid "Theme"
-msgstr "テーマ"
-
-#: .\templates\includes\theme_toggle.html:2
-#: .\templates\includes\theme_toggle.html:4
-msgid "Auto"
-msgstr "自動"
-
-#: .\templates\includes\theme_toggle.html:2
-msgid "Light"
-msgstr "ライト"
-
-#: .\templates\includes\theme_toggle.html:2
-msgid "Dark"
-msgstr "ダーク"
 
 #: .\templates\orders\_box_detail.html:16
 msgid "Plan / actual (days)"

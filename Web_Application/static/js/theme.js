@@ -27,7 +27,7 @@
   window.addEventListener('beforeprint', () => { printing = true; apply(); });
   window.addEventListener('afterprint', () => { printing = false; apply(); });
 
-  // Temporary buttons (U3 moves them into the account menu): cycle Auto, Light, Dark
+  // Header button (logged-out pages): cycle Auto, Light, Dark; the account menu has radio buttons
   document.addEventListener('DOMContentLoaded', () => {
     const buttons = document.querySelectorAll('[data-theme-toggle]');
     const order = ['auto', 'light', 'dark'];
@@ -41,5 +41,12 @@
     buttons.forEach((button) => button.addEventListener('click', () => window.FT.setTheme(order[(order.indexOf(mode) + 1) % 3])));
     document.addEventListener('themechange', show);
     show();
+
+    // Radio buttons of the account menu
+    const radios = document.querySelectorAll('[data-theme-radio]');
+    const check = () => radios.forEach((r) => r.setAttribute('aria-checked', String(r.dataset.themeRadio === mode)));
+    radios.forEach((r) => r.addEventListener('click', () => window.FT.setTheme(r.dataset.themeRadio)));
+    document.addEventListener('themechange', check);
+    check();
   });
 })();

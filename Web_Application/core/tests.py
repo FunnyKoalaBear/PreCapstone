@@ -596,6 +596,60 @@ class ResponsiveLayoutTests(TestCase):
         self.assertFalse((settings.BASE_DIR / 'static' / 'js' / 'nav.js').exists())
 
 
+class AccountChipTests(TestCase):
+    def page(self, user):
+        self.client.force_login(user)
+        return self.client.get('/').content.decode()
+
+    def test_initials_helper(self):
+        from core.accounts import initials
+        make = lambda **kw: User(**kw)
+        self.assertEqual(initials(make(username='sato01', first_name='Taro Sato')), 'TS')
+        self.assertEqual(initials(make(username='sato01', first_name='Taro', last_name='Yamada')), 'TY')
+        self.assertEqual(initials(make(username='sato01', first_name='Taro Ichiro Sato')), 'TS')
+        self.assertEqual(initials(make(username='sato01')), 'SA')
+        self.assertEqual(initials(make(username='x', first_name='Single')), 'X')
+
+    def test_chip_shows_avatar_username_and_role_label_per_role(self):
+        for name, role, label in (('op', 'Operator', 'Operator'), ('pl', 'Planner', 'Planner'), ('ad', 'Admin', 'Admin')):
+            html = self.page(make_user(name, role))
+            self.assertIn('aria-haspopup="menu" aria-expanded="false"', html)
+            self.assertIn(f'<span class="chip-role">{label}</span>', html)
+            self.assertIn(f'<span class="avatar" aria-hidden="true">{name.upper()}</span>', html)
+        self.assertIn('<span class="chip-role">Admin</span>', self.page(User.objects.create_superuser('root', password='x')))
+        self.assertIn('<span class="chip-role"></span>', self.page(make_user('nobody')))
+
+    def test_menu_has_name_password_link_theme_radios_and_a_post_logout(self):
+        user = make_user('pl', 'Planner')
+        user.first_name = 'Hanako Sato'
+        user.save()
+        html = self.page(user)
+        menu = html[html.index('id="account-menu"'):]
+        menu = menu[:menu.index('</form>')]
+        self.assertIn('Hanako Sato', menu)
+        self.assertIn('class="pill role-pill">Planner', menu)
+        self.assertIn('href="/account/password/"', menu)
+        self.assertEqual(menu.count('role="radio"'), 3)
+        self.assertEqual(menu.count('aria-checked="true"'), 1)
+        self.assertIn('data-theme-radio="auto"', menu)
+        self.assertRegex(menu, r'<form action="/logout/" method="post">\s*<input type="hidden" name="csrfmiddlewaretoken"')
+        self.assertIn('role="menuitem">', menu)
+        self.assertNotIn('data-theme-toggle', html)  # the temporary header button is gone from the sidebar
+        for gone in ('account-name', 'class="account"\n'):
+            self.assertNotIn(gone, html)
+
+    def test_anonymous_sees_a_log_in_link_and_no_chip(self):
+        html = self.client.get('/login/').content.decode()
+        self.assertIn('<a class="account" href="/login/">Log in</a>', html)
+        self.assertNotIn('account-chip', html)
+
+    def test_account_script_handles_escape_arrows_and_outside_clicks(self):
+        js = (settings.BASE_DIR / 'static' / 'js' / 'account.js').read_text(encoding='utf-8')
+        for part in ("e.key === 'Escape'", 'ArrowDown', 'ArrowUp', "document.addEventListener('click'", 'aria-expanded', 'transitionend', 'button.focus()'):
+            self.assertIn(part, js)
+        self.assertIn('js/account.js', self.client.get('/login/').content.decode())
+
+
 class SidebarNavTests(TestCase):
     def labels(self, user, url='/'):
         self.client.force_login(user)

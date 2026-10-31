@@ -12,16 +12,6 @@ Order matters. [ ] todo, [!] blocked. Finished entries are deleted; git history 
 - Every new string gets Japanese per docs/glossary.md. Update docs/manual_ja.md where a page or control changes.
 - Demo data: nothing new is needed; use the existing demo data to check every page.
 
-### [ ] U3 Account chip
-Why: name, Change password and Log out take too much space.
-What:
-- Bottom of the sidebar: a chip with an initials avatar, username, role label and a chevron. In the collapsed rail it shows the avatar only, with the username as tooltip. Initials come from a small helper (first letters of first and last name if set, else the first two letters of the username, uppercase).
-- Click or Enter opens a popover above it (aria-haspopup="menu", aria-expanded) containing: avatar, username, full name if set and the role label as a pill; "Change password" (link to the existing password change page); Theme as a radiogroup Auto / Light / Dark (reflects FT.getTheme and calls FT.setTheme); a divider; "Log out" (POST form with CSRF). Escape closes and returns focus; clicking outside closes; arrow keys move between items; it closes if the rail collapses while open.
-- Remove the temporary header theme button from U1 and delete the old account.html markup and CSS. Logged-out pages show a "Log in" link in the slim bar.
-- Role label is translated and comes from role_level; superusers show Admin.
-Decisions made: the language switch stays outside the chip, always visible.
-Tests: role label per role; logout is a POST form with csrf; change-password link; theme control has three options and marks the current one; anonymous sees Log in; the initials helper.
-
 ### [ ] U4 Feedback for actions: toasts, undo, confirm
 Why: planners can now change a lot. They need clear feedback, a safety net for reversible toggles, and a confirm step for risky actions.
 What:

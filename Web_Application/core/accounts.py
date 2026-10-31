@@ -27,6 +27,13 @@ def current_role(user):
     return max((r for r in ROLES if r in names), key=ROLES.index, default=None)
 
 
+def initials(user):
+    """First letters of the first and last word of the name, else the first two letters of the username."""
+    words = user.get_full_name().split()
+    letters = words[0][0] + words[-1][0] if len(words) > 1 else user.get_username()[:2]
+    return letters.upper()
+
+
 def is_admin(user):
     return current_role(user) == ADMIN
 
