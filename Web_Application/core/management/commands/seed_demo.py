@@ -10,6 +10,7 @@ from django.db import transaction
 from django.db.models import Case, ProtectedError, Q, Value, When
 from django.utils import timezone
 
+from core.models import SiteSetting
 from orders.models import Customer, Order, OrderItem, Process, RouteStep, Vendor
 from tracking.models import DefectCause, Event, Machine, ScannerDevice, Tag, TagAssignment, Worker
 from tracking.services import record_event
@@ -96,6 +97,9 @@ class Command(BaseCommand):
         orders.delete()
         Tag.objects.filter(uid__in=uids).delete()
         User.objects.filter(username__startswith='demo_').delete()
+        site = SiteSetting.get()  # the Rules tab goes back to the defaults
+        site.reset()
+        site.save()
         shutil.rmtree(settings.MEDIA_ROOT / DEMO_DIR, ignore_errors=True)
         Customer.objects.filter(name__startswith='DEMO ').delete()
         # Old demo processes and scanners stay (with a warning) if a real record still points at them

@@ -15,12 +15,13 @@ from django.utils.translation import gettext as _
 from django.utils.translation import get_language, gettext_lazy
 
 from core.permissions import ADMIN, OPERATOR, PLANNER, has_role, role_required
+from core.rules import min_rate_quantity
 from orders.models import Customer, OrderItem, Process, Vendor
 
 from .forms import AssignTagForm, CorrectEventForm, PickTagForm, ResultForm, SimulateScanForm
 from .models import Event, Tag, TagAssignment
 from .overview import active_boxes
-from .analysis import DEFECT_ORDERS, MIN_RATE_QUANTITY, PLAN_ORDERS, RECORD_CAP, RECORD_LIMIT, RESULT_ORDERS, Filters, cause_rows, defect_detail, defect_rate_rows, plan_rows, record_rows, result_events, result_rows, slowest, step_facts, vendor_rows
+from .analysis import DEFECT_ORDERS, PLAN_ORDERS, RECORD_CAP, RECORD_LIMIT, RESULT_ORDERS, Filters, cause_rows, defect_detail, defect_rate_rows, plan_rows, record_rows, result_events, result_rows, slowest, step_facts, vendor_rows
 from .priority import TIER_LABELS, TIERS, priority
 from .shipping import shipping_overview
 from .services import assign_tag, can_correct, correct_event as correct_event_service, next_step, record_event, record_result, record_step_state, release_assignment, replace_tag, resolve_tag, cancel_item, ship_item
@@ -349,7 +350,7 @@ def analysis(request):
         flag = lambda name: next((r for r in rows if name in r['hot']), None)
         ctx.update(rows=rows, total=total, longest_wait=flag('wait'), longest_processing=flag('processing'),
                    machine_rows=defect_rate_rows(events, 'machine', _('No machine recorded')), cause_rows=cause_rows(events, _('No cause recorded')),
-                   show_workers=has_role(request.user, PLANNER), min_quantity=MIN_RATE_QUANTITY)
+                   show_workers=has_role(request.user, PLANNER), min_quantity=min_rate_quantity())
         if ctx['show_workers']:
             ctx['worker_rows'] = defect_rate_rows(events, 'worker', _('No worker recorded'))
         ctx.update(_defect_context(g, events, ctx))

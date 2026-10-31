@@ -8,7 +8,7 @@ from django.shortcuts import render
 from django.utils.dateparse import parse_date
 from django.utils import timezone
 
-from core.rules import silent_after
+from core.rules import silent_after, void_window
 from core.permissions import OPERATOR, PLANNER, ROLES, role_level, role_required
 from orders.models import Customer, OrderItem
 from tracking.matrix import matrix
@@ -51,7 +51,6 @@ def home(request):
 
 
 DASHBOARD_STATUSES = [NOT_STARTED, WAITING, IN_PROGRESS, AT_VENDOR, PAUSED, COMPLETE, SHIPPED, CANCELLED]
-VOID_WINDOW = timedelta(days=7)
 
 
 @role_required(PLANNER)
@@ -66,5 +65,5 @@ def dashboard(request):
         'statuses': [(c, LABELS[c], statuses[c]) for c in DASHBOARD_STATUSES],
         'events_today': Event.objects.filter(received_at__gte=today_start).count(),
         'silent_devices': silent,
-        'voided': Event.objects.filter(event_type=Event.Type.CORRECTION, occurred_at__gte=now - VOID_WINDOW).count(),
+        'voided': Event.objects.filter(event_type=Event.Type.CORRECTION, occurred_at__gte=now - void_window()).count(),
     })

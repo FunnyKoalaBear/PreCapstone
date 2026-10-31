@@ -7,6 +7,24 @@
   <h1>{% trans "Settings" %}</h1>
   {% trans "Settings sections" as tabs_label %}
   {% include "includes/tab_bar.html" with label=tabs_label %}
+  {% if tab == 'rules' %}
+  <form method="post" action="{{ back }}" class="card">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    {% for field, default in form.rows %}
+      <div>
+        <label for="{{ field.id_for_label }}">{{ field.label|capfirst }}</label>
+        {{ field }}
+        <p class="note">{{ field.help_text }} {% blocktrans %}Default: {{ default }}{% endblocktrans %}</p>
+        {{ field.errors }}
+      </div>
+    {% endfor %}
+    <div class="form-actions">
+      <button type="submit" name="action" value="save" class="button">{% trans "Save changes" %}</button>
+      <button type="submit" name="action" value="reset" class="button-secondary" formnovalidate>{% trans "Reset to defaults" %}</button>
+    </div>
+  </form>
+  {% else %}
 
   <form method="post" action="{{ back }}" class="filters">
     {% csrf_token %}
@@ -82,4 +100,5 @@
       </tbody>
     </table>
   {% endscroll_panel %}
+  {% endif %}
 {% endblock %}

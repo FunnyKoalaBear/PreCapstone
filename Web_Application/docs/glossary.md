@@ -368,3 +368,14 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | Last seen (JST) | 最終受信（JST） |
 | Never (last seen) | 未受信 |
 | Silent (device) | 通信なし ? |
+
+## Terms added for the Rules tab
+
+| English | Japanese |
+|---|---|
+| Rules (Settings tab) | 基準値 ? |
+| Silent after (hours) | 通信なしと判定するまで（時間） |
+| Void window (days) | 取消の集計期間（日） |
+| Minimum pieces for a rate | 不良率を出す最小数量 |
+| Default: N | 標準: N |
+| Reset to defaults | 標準に戻す |

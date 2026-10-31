@@ -6,6 +6,7 @@ from django.utils.dateparse import parse_date
 from django.utils.translation import get_language
 from django.utils.translation import gettext as _
 
+from core.rules import min_rate_quantity
 from core.templatetags.duration import duration
 from orders.models import OrderItem, Process, RouteStep, Vendor
 
@@ -15,7 +16,6 @@ from .status import DONE, item_statuses, timeline
 
 CHECK_FACTOR, CHECK_MIN_STEPS = 3, 5  # a step is flagged above 3x its process median, once the process has 5 finished steps
 RECORD_LIMIT, RECORD_CAP = 200, 2000
-MIN_RATE_QUANTITY = 20  # a defect rate from fewer pieces than this is shown greyed as 'few data'
 SEVERITY = ((60, 'severe'), (30, 'major'), (10, 'minor'))  # overrun % above which a step is minor / major / severe
 
 
@@ -257,7 +257,8 @@ def defect_rate_rows(events, key, none_label):
         g['records'] += 1
         g['quantity'] += e.quantity
         g['defects'] += e.defects or 0
-    rows = [{**g, 'rate': g['defects'] * 100 / g['quantity'], 'few': g['quantity'] < MIN_RATE_QUANTITY} for g in groups.values()]
+    few = min_rate_quantity()
+    rows = [{**g, 'rate': g['defects'] * 100 / g['quantity'], 'few': g['quantity'] < few} for g in groups.values()]
     rows.sort(key=lambda r: (-r['rate'], r['name']))
     return rows
 
@@ -304,7 +305,8 @@ def defect_detail(events, field, value, only_defects=True, order='defects', plan
             if g:
                 g['base_quantity'] += e.quantity
                 g['base_defects'] += e.defects or 0
-    parts = [{**g, 'rate': g['defects'] * 100 / g['quantity'], 'few': g['quantity'] < MIN_RATE_QUANTITY,
+    few = min_rate_quantity()
+    parts = [{**g, 'rate': g['defects'] * 100 / g['quantity'], 'few': g['quantity'] < few,
               'base_rate': g['base_defects'] * 100 / g['base_quantity'] if g['base_quantity'] else None} for g in groups.values()]
     parts.sort(key=lambda r: (-r['defects'], -r['rate'], r['part'], r['process']))
     records = []

@@ -11,6 +11,7 @@ from django.utils.translation import gettext as _
 from django.utils.translation import gettext_lazy
 
 from core import audit
+from core.models import SiteSetting
 from core.permissions import PLANNER, role_required
 
 from .models import DefectCause, Machine, Worker
@@ -20,6 +21,7 @@ TABS = [
     ('workers', gettext_lazy('Workers'), Worker),
     ('machines', gettext_lazy('Machines'), Machine),
     ('causes', gettext_lazy('Defect causes'), DefectCause),
+    ('rules', gettext_lazy('Rules'), None),  # the thresholds form, not a name list
 ]
 NAME_MAX = 100
 
@@ -104,12 +106,53 @@ def _paste(request, model):
     messages.success(request, _('Added %(added)d, skipped %(skipped)d (already listed or too long).') % {'added': len(ids), 'skipped': skipped})
 
 
+class RulesForm(forms.ModelForm):
+    class Meta:
+        model = SiteSetting
+        fields = SiteSetting.FIELDS
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for name, field in self.fields.items():
+            validators = self.instance._meta.get_field(name).validators
+            field.widget.attrs.update(min=validators[0].limit_value, max=validators[1].limit_value)
+
+    def rows(self):
+        """Each field with its default, for the template."""
+        return [(f, self.instance._meta.get_field(f.name).default) for f in self]
+
+
+def _rules(request, back):
+    setting = SiteSetting.get()
+    old = {n: getattr(setting, n) for n in SiteSetting.FIELDS}
+    reset = request.method == 'POST' and request.POST.get('action') == 'reset'
+    if reset:
+        setting.reset()
+        form = RulesForm(instance=setting)
+    else:
+        form = RulesForm(request.POST or None, instance=setting)
+    if request.method == 'POST' and (reset or form.is_valid()):
+        setting.save()
+        changes = [f'{n} {old[n]} -> {getattr(setting, n)}' for n in SiteSetting.FIELDS if old[n] != getattr(setting, n)]
+        if changes:
+            audit.log(request.user, setting, CHANGE, ('Reset: ' if reset else 'Changed: ') + '; '.join(changes) + '.')
+        messages.success(request, _('Rules reset to the defaults.') if reset else _('Rules saved.'))
+        return redirect(back)
+    return form
+
+
 @role_required(PLANNER)
 def settings_page(request):
     """Settings: one URL, three tabs (?tab=workers|machines|causes) over the same list screen."""
     key = request.GET.get('tab')
     key, label, model = next((t for t in TABS if t[0] == key), TABS[0])
     back = _tab_url(key)
+    tabs = [{'key': k, 'label': lab, 'url': _tab_url(k)} for k, lab, _m in TABS]
+    if key == 'rules':
+        form = _rules(request, back)
+        if not isinstance(form, RulesForm):
+            return form
+        return render(request, 'tracking/settings.html', {'tab': key, 'tabs': tabs, 'label': label, 'form': form, 'back': back})
     if request.method == 'POST':
         action, pk = request.POST.get('action'), request.POST.get('pk', '')
         obj = model.objects.filter(pk=pk).first() if pk.isdigit() else None
@@ -129,5 +172,4 @@ def settings_page(request):
     rows = model.objects.annotate(used=Count('event')).order_by('name')
     if q:
         rows = rows.filter(Q(name__icontains=q) | Q(name_ja__icontains=q))
-    tabs = [{'key': k, 'label': lab, 'url': _tab_url(k)} for k, lab, _m in TABS]
     return render(request, 'tracking/settings.html', {'tab': key, 'tabs': tabs, 'label': label, 'rows': rows, 'q': q, 'back': back})
