@@ -24,13 +24,13 @@
      and the lightness of each differs, so states are not told apart by hue alone. Always show the state's text label too. */
   --status-shipped: #2f2a88;
   --status-cancelled: #3f434b;
-  --status-overdue: #9d1b1b;
-  --status-in-progress: #1e51c0;
-  --status-at-vendor: #7637e1;
-  --status-paused: #b93a09;
-  --status-complete: #117d39;
-  --status-waiting: #ab5e05;
-  --status-not-started: #72777f;
+  --status-overdue: #991a1a;
+  --status-in-progress: #1d50bc;
+  --status-at-vendor: #7232e0;
+  --status-paused: #b53909;
+  --status-complete: #117a37;
+  --status-waiting: #a55b05;
+  --status-not-started: #6e727a;
   --status-partial: #0f766e;
   --color-danger: var(--status-overdue);
 
@@ -72,8 +72,8 @@
   --gantt-track-bg: #222a35;
   --gantt-vendor-stripe: #7a55c9;
 
-  --status-shipped: #887ff5;
-  --status-cancelled: #7f8692;
+  --status-shipped: #8c84f5;
+  --status-cancelled: #868d98;
   --status-overdue: #f47575;
   --status-in-progress: #6ba6f7;
   --status-at-vendor: #b379f4;
@@ -113,6 +113,17 @@
   --weight-medium: 500;
   --weight-semibold: 600;
   --weight-bold: 700;
+
+  /* Spacing and controls: buttons, inputs and selects share the height and radius so filter rows line up */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --control-h: 2.25rem;
+  --control-h-sm: 1.75rem;
+  --radius: 6px;
 }
 
 /* Responsive layout. The breakpoints live only here: 768px (tablet) and 480px (phone). */

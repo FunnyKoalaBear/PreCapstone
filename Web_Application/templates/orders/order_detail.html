@@ -103,14 +103,14 @@
         <form method="post" action="{% url 'item_action' entry.item.pk %}" data-confirm="{{ confirm_ship|force_escape }}" data-confirm-button="{% trans 'Mark as shipped' %}">
           {% csrf_token %}
           <input type="hidden" name="action" value="ship">
-          <button type="submit" class="button">{% trans "Mark as shipped" %}</button>
+          <button type="submit" class="button-secondary">{% trans "Mark as shipped" %}</button>
         </form>
       {% endif %}
 
       {% if entry.cancelled %}
         <p class="cancelled-note">
           {% blocktrans with d=entry.cancelled.occurred_at|date:"Y-m-d H:i" u=entry.cancelled.created_by r=entry.cancelled.reason %}Cancelled on {{ d }} by {{ u }}: {{ r }}{% endblocktrans %}
-          {% if can.planner %}<a class="button" href="{% url 'correct_event' entry.cancelled.pk %}?next={{ request.get_full_path|urlencode }}">{% trans "Undo cancellation" %}</a>{% endif %}
+          {% if can.planner %}<a class="button-secondary" href="{% url 'correct_event' entry.cancelled.pk %}?next={{ request.get_full_path|urlencode }}">{% trans "Undo cancellation" %}</a>{% endif %}
         </p>
       {% elif can.planner and entry.status.code != "COMPLETE" and entry.status.code != "SHIPPED" %}
         <details class="result-details">
@@ -121,7 +121,7 @@
             <input type="hidden" name="action" value="cancel">
             <label for="reason-{{ entry.item.pk }}">{% trans "Reason" %}</label>
             <textarea id="reason-{{ entry.item.pk }}" name="reason" rows="2" required></textarea>
-            <button type="submit" class="button">{% trans "Cancel item" %}</button>
+            <button type="submit" class="button-danger">{% trans "Cancel item" %}</button>
           </form>
         </details>
       {% endif %}
@@ -131,7 +131,7 @@
         {% if entry.result_form %}
           <form method="post" action="{% url 'record_result' entry.item.pk %}" class="result-form" enctype="multipart/form-data">
             {% csrf_token %}
-            {{ entry.result_form }}
+            {% include "includes/form_fields.html" with form=entry.result_form %}
             <button type="submit" class="button">{% trans "Record result" %}</button>
           </form>
         {% else %}

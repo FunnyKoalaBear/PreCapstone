@@ -403,3 +403,9 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | Notifications | 通知 |
 | Close | 閉じる |
 | Confirm | 確認 |
+
+## Terms added for the form fields
+
+| English | Japanese |
+|---|---|
+| required (read after a label) | 必須 |

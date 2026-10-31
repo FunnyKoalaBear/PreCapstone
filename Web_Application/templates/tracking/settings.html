@@ -47,7 +47,7 @@
       <input type="hidden" name="action" value="paste">
       <p class="note">{% trans "One name per line, or name, Japanese name. Names already listed are skipped." %}</p>
       <textarea name="lines" rows="6" aria-label="{% trans 'Paste a list' %}"></textarea>
-      <button type="submit" class="button">{% trans "Add" %}</button>
+      <button type="submit" class="button-secondary">{% trans "Add" %}</button>
     </form>
   </details>
 
@@ -57,7 +57,7 @@
       <label for="q">{% trans "Search" %}</label>
       <input type="search" id="q" name="q" value="{{ q }}">
     </div>
-    <button type="submit" class="button">{% trans "Search" %}</button>
+    <button type="submit" class="button-secondary">{% trans "Search" %}</button>
   </form>
 
   {% scroll_panel %}
@@ -79,17 +79,17 @@
               <div class="inline-actions">
                 <form method="post" action="{{ back }}" id="rename-{{ r.pk }}" class="inline-actions">
                   {% csrf_token %}<input type="hidden" name="pk" value="{{ r.pk }}">
-                  <button type="submit" name="action" value="rename" class="link-button">{% trans "Save" %}</button>
+                  <button type="submit" name="action" value="rename" class="button-ghost button-sm">{% trans "Save" %}</button>
                 </form>
                 <form method="post" action="{{ back }}" class="inline-actions">
                   {% csrf_token %}<input type="hidden" name="pk" value="{{ r.pk }}">
-                  <button type="submit" name="action" value="toggle" class="link-button">{% if r.active %}{% trans "Deactivate" %}{% else %}{% trans "Reactivate" %}{% endif %}</button>
+                  <button type="submit" name="action" value="toggle" class="button-ghost button-sm">{% if r.active %}{% trans "Deactivate" %}{% else %}{% trans "Reactivate" %}{% endif %}</button>
                 </form>
                 {% if not r.used %}
                   <form method="post" action="{{ back }}" class="inline-actions">
                     {% csrf_token %}<input type="hidden" name="pk" value="{{ r.pk }}">
                     {% blocktrans with kind=noun name=r.name asvar confirm %}Delete {{ kind }} "{{ name }}"? This can't be undone.{% endblocktrans %}
-                    <button type="submit" name="action" value="delete" class="link-button" data-confirm="{{ confirm|force_escape }}" data-confirm-danger data-confirm-button="{% trans 'Delete' %}">{% trans "Delete" %}</button>
+                    <button type="submit" name="action" value="delete" class="button-danger button-sm" data-confirm="{{ confirm|force_escape }}" data-confirm-danger data-confirm-button="{% trans 'Delete' %}">{% trans "Delete" %}</button>
                   </form>
                 {% endif %}
               </div>

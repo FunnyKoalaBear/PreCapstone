@@ -65,7 +65,7 @@
             <span class="toast-icon">{% if message.level_tag == 'success' %}{% include "includes/icon.html" with name="check" %}{% elif message.level_tag == 'warning' %}{% include "includes/icon.html" with name="warning" %}{% elif message.level_tag == 'error' %}{% include "includes/icon.html" with name="error" %}{% else %}{% include "includes/icon.html" with name="info" %}{% endif %}</span>
             <span class="toast-text">{{ message }}</span>
             {% with token=message|undo_token %}{% if token %}
-            <form method="post" action="{% url 'undo' token %}" class="toast-undo">{% csrf_token %}<button type="submit" class="link-button">{% trans "Undo" %}</button></form>
+            <form method="post" action="{% url 'undo' token %}" class="toast-undo">{% csrf_token %}<button type="submit" class="button-ghost button-sm">{% trans "Undo" %}</button></form>
             {% endif %}{% endwith %}
           </li>
           {% endfor %}

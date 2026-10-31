@@ -23,7 +23,7 @@
       </select>
     </div>
     <label class="check"><input type="checkbox" name="late" value="1"{% if late %} checked{% endif %}> {% trans "Overdue only" %}</label>
-    <button type="submit" class="button">{% trans "Apply" %}</button>
+    <button type="submit" class="button-secondary">{% trans "Apply" %}</button>
     {% if can.planner %}<a href="{% url 'order_export' %}?{{ request.GET.urlencode }}">{% trans "Export CSV" %}</a>{% endif %}
   </form>
 

@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Factory Tracker\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-01 02:50+0900\n"
+"POT-Creation-Date: 2026-11-01 03:22+0900\n"
 "PO-Revision-Date: 2026-10-11 17:00+0900\n"
 "Last-Translator: Claude\n"
 "Language-Team: Japanese\n"
@@ -1039,9 +1039,13 @@ msgstr "元に戻す"
 msgid "Confirm"
 msgstr "確定"
 
-#: .\templates\base.html:84 .\templates\orders\tabs\codes.html:66
+#: .\templates\base.html:84 .\templates\core\user_form.html:17
+#: .\templates\orders\_order_form.html:18
+#: .\templates\orders\customer_edit.html:15
+#: .\templates\orders\tabs\codes.html:66
 #: .\templates\orders\tabs\processes.html:63
 #: .\templates\tracking\correct_event.html:18
+#: .\templates\tracking\device_form.html:16
 msgid "Cancel"
 msgstr "キャンセル"
 
@@ -1167,7 +1171,7 @@ msgid "Show more"
 msgstr "さらに表示"
 
 # CHECK: 得意先 is marked unsure in the glossary (alternative: 顧客)
-#: .\templates\core\user_form.html:8 .\templates\core\user_form.html:15
+#: .\templates\core\user_form.html:8 .\templates\core\user_form.html:16
 #: .\templates\core\user_list.html:7
 msgid "Add user"
 msgstr "ユーザーを追加"
@@ -1188,16 +1192,16 @@ msgstr "無効にする"
 msgid "A temporary password is shown once after you save."
 msgstr "一時パスワードは、保存後に一度だけ表示されます。"
 
-#: .\templates\core\user_form.html:15 .\templates\orders\_order_form.html:18
-#: .\templates\orders\customer_edit.html:13
+#: .\templates\core\user_form.html:16 .\templates\orders\_order_form.html:17
+#: .\templates\orders\customer_edit.html:14
 #: .\templates\orders\tabs\codes.html:65
 #: .\templates\orders\tabs\processes.html:62
-#: .\templates\tracking\device_form.html:14
+#: .\templates\tracking\device_form.html:15
 #: .\templates\tracking\settings.html:23
 msgid "Save changes"
 msgstr "変更を保存"
 
-#: .\templates\core\user_form.html:16 .\templates\core\user_reset.html:4
+#: .\templates\core\user_form.html:18 .\templates\core\user_reset.html:4
 #: .\templates\core\user_reset.html:8 .\templates\core\user_reset.html:10
 #: .\templates\core\user_reset.html:13
 msgid "Reset password"
@@ -1265,9 +1269,10 @@ msgstr "ユーザー一覧に戻る"
 #: .\templates\core\user_reset.html:9
 #, python-format
 msgid "Reset the password of \"%(name)s\"? The old password stops working."
-msgstr "「%(name)s」のパスワードをリセットしますか？古いパスワードは使えなくなります。"
-"%(name)s の新しい一時パスワードを作成しますか？古いパスワードは使えなくなりま"
-"す。"
+msgstr ""
+"「%(name)s」のパスワードをリセットしますか？古いパスワードは使えなくなりま"
+"す。%(name)s の新しい一時パスワードを作成しますか？古いパスワードは使えなくな"
+"ります。"
 
 #: .\templates\core\user_reset.html:12
 #, python-format
@@ -1313,6 +1318,11 @@ msgstr "ログアウト"
 #: .\templates\registration\login.html:7 .\templates\registration\login.html:12
 msgid "Log in"
 msgstr "ログイン"
+
+# CHECK: read aloud after a field label
+#: .\templates\includes\field.html:6
+msgid "required"
+msgstr "必須"
 
 #: .\templates\includes\late_by.html:1
 #, python-format
@@ -1560,12 +1570,12 @@ msgid "Copy route from last order"
 msgstr "前回の受注から工程順をコピー"
 
 #: .\templates\orders\_order_form.html:17
-msgid "Add another item"
-msgstr "品目を追加"
-
-#: .\templates\orders\_order_form.html:18
 msgid "Create order"
 msgstr "受注を登録"
+
+#: .\templates\orders\_order_form.html:19
+msgid "Add another item"
+msgstr "品目を追加"
 
 #: .\templates\orders\customer_detail.html:7
 msgid "Back to Customers"
@@ -2411,7 +2421,7 @@ msgid "Save correction"
 msgstr "訂正を保存"
 
 #: .\templates\tracking\device_form.html:8
-#: .\templates\tracking\device_form.html:14
+#: .\templates\tracking\device_form.html:15
 #: .\templates\tracking\device_list.html:7
 msgid "Add device"
 msgstr "端末を追加"
@@ -2420,7 +2430,7 @@ msgstr "端末を追加"
 msgid "The API key is shown once after you save."
 msgstr "APIキーは、保存後に一度だけ表示されます。"
 
-#: .\templates\tracking\device_form.html:15
+#: .\templates\tracking\device_form.html:17
 #: .\templates\tracking\device_regenerate.html:4
 #: .\templates\tracking\device_regenerate.html:8
 #: .\templates\tracking\device_regenerate.html:10
@@ -2482,7 +2492,8 @@ msgstr "端末はまだありません。"
 #: .\templates\tracking\device_regenerate.html:9
 #, python-format
 msgid "Regenerate the key of \"%(name)s\"? The old key stops working at once."
-msgstr "「%(name)s」のキーを再発行しますか？古いキーはすぐに使えなくなります。"
+msgstr ""
+"「%(name)s」のキーを再発行しますか？古いキーはすぐに使えなくなります。"
 "%(name)s の新しい一時パスワードを作成しますか？古いパスワードは使えなくなりま"
 "す。"
 

@@ -26,7 +26,7 @@
       <label for="to">{% trans "To" %}</label>
       <input type="date" id="to" name="to" value="{{ d_to }}"{% if range != "custom" %} disabled{% endif %}>
     </div>
-    <button type="submit" class="button">{% trans "Apply" %}</button>
+    <button type="submit" class="button-secondary">{% trans "Apply" %}</button>
   </form>
 
   {% if rows %}

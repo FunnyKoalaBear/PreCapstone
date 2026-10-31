@@ -8,7 +8,7 @@
 
   <form method="post" class="card">
     {% csrf_token %}
-    {{ form }}
+    {% include "includes/form_fields.html" %}
     <button type="submit" class="button">{% trans "Add customer" %}</button>
   </form>
 
@@ -17,7 +17,7 @@
       <label for="q">{% trans "Search" %}</label>
       <input type="search" id="q" name="q" value="{{ q }}">
     </div>
-    <button type="submit" class="button">{% trans "Search" %}</button>
+    <button type="submit" class="button-secondary">{% trans "Search" %}</button>
   </form>
 
   {% scroll_panel %}

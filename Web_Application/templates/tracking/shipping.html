@@ -19,7 +19,7 @@
     </div>
     <div><label for="due_from">{% trans "Due from" %}</label><input type="date" id="due_from" name="due_from" value="{{ r.due_from }}"></div>
     <div><label for="due_to">{% trans "Due to" %}</label><input type="date" id="due_to" name="due_to" value="{{ r.due_to }}"></div>
-    <button type="submit" class="button">{% trans "Apply" %}</button>
+    <button type="submit" class="button-secondary">{% trans "Apply" %}</button>
   </form>
   {% scroll_panel label=_("Ready to ship") %}
     <table class="table table-cards">
@@ -60,7 +60,7 @@
     </div>
     <div><label for="month_from">{% trans "From month" %}</label><input type="month" id="month_from" name="month_from" value="{{ m.month_from }}"></div>
     <div><label for="month_to">{% trans "To month" %}</label><input type="month" id="month_to" name="month_to" value="{{ m.month_to }}"></div>
-    <button type="submit" class="button">{% trans "Apply" %}</button>
+    <button type="submit" class="button-secondary">{% trans "Apply" %}</button>
   </form>
   {% scroll_panel label=_("On-time delivery by month") %}
     <table class="table table-cards">

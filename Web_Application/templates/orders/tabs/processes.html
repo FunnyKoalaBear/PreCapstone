@@ -5,7 +5,7 @@
     <label for="q">{% trans "Search" %}</label>
     <input type="search" id="q" name="q" value="{{ q }}">
   </div>
-  <button type="submit" class="button">{% trans "Search" %}</button>
+  <button type="submit" class="button-secondary">{% trans "Search" %}</button>
 </form>
 
 {% trans "name" as l_name %}{% trans "kind" as l_kind %}{% trans "default vendor" as l_vendor %}{% trans "vendor lead days" as l_lead %}{% trans "stagnation hours" as l_stag %}
@@ -39,10 +39,10 @@
             <form method="post" action="{{ back }}" class="inline-actions">
               {% csrf_token %}
               <input type="hidden" name="process" value="{{ p.pk }}">
-              <a href="{{ back }}&amp;edit={{ p.pk }}#process-form">{% trans "Edit" %}</a>
-              {% if p.active %}<button type="submit" name="action" value="deactivate" class="link-button">{% trans "Deactivate" %}</button>
-              {% else %}<button type="submit" name="action" value="reactivate" class="link-button">{% trans "Reactivate" %}</button>{% endif %}
-              {% if not p.routes and not p.events %}{% blocktrans with name=p.name asvar confirm %}Delete process "{{ name }}"? This can't be undone.{% endblocktrans %}<button type="submit" name="action" value="delete" class="link-button" data-confirm="{{ confirm|force_escape }}" data-confirm-danger data-confirm-button="{% trans 'Delete' %}">{% trans "Delete" %}</button>{% endif %}
+              <a class="button-ghost button-sm" href="{{ back }}&amp;edit={{ p.pk }}#process-form">{% trans "Edit" %}</a>
+              {% if p.active %}<button type="submit" name="action" value="deactivate" class="button-ghost button-sm">{% trans "Deactivate" %}</button>
+              {% else %}<button type="submit" name="action" value="reactivate" class="button-ghost button-sm">{% trans "Reactivate" %}</button>{% endif %}
+              {% if not p.routes and not p.events %}{% blocktrans with name=p.name asvar confirm %}Delete process "{{ name }}"? This can't be undone.{% endblocktrans %}<button type="submit" name="action" value="delete" class="button-danger button-sm" data-confirm="{{ confirm|force_escape }}" data-confirm-danger data-confirm-button="{% trans 'Delete' %}">{% trans "Delete" %}</button>{% endif %}
             </form>
           </td>
         </tr>

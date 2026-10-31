@@ -10,7 +10,7 @@
   <form method="post" class="card">
     {% csrf_token %}
     <input type="hidden" name="action" value="assign">
-    {{ form }}
+    {% include "includes/form_fields.html" %}
     <datalist id="tag-uids">
       {% for uid in tag_uids %}<option value="{{ uid }}">{% endfor %}
     </datalist>
@@ -23,7 +23,7 @@
       <label for="q">{% trans "Search" %}</label>
       <input type="search" id="q" name="q" value="{{ q }}" placeholder="{% trans 'Item, job, part, customer or tag' %}">
     </div>
-    <button type="submit" class="button">{% trans "Search" %}</button>
+    <button type="submit" class="button-secondary">{% trans "Search" %}</button>
   </form>
   <p>{% blocktrans count n=in_use %}{{ n }} tag in use.{% plural %}{{ n }} tags in use.{% endblocktrans %}</p>
 

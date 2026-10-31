@@ -23,7 +23,7 @@
     if (!ask) return;
     e.preventDefault();
     text.textContent = ask;
-    ok.className = source.hasAttribute('data-confirm-danger') ? 'button button-danger' : 'button';
+    ok.className = source.hasAttribute('data-confirm-danger') ? 'button-danger' : 'button';
     ok.textContent = source.dataset.confirmButton || dialog.dataset.confirm;
     dialog.returnValue = '';
     dialog.addEventListener('close', () => {

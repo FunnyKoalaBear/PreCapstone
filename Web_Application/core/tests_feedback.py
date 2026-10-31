@@ -59,7 +59,7 @@ class UndoTests(TestCase):
         r = self.toggle_worker(worker)
         token = token_of(r)
         self.assertTrue(token)
-        self.assertContains(r, 'class="link-button">Undo</button>')
+        self.assertContains(r, 'class="button-ghost button-sm">Undo</button>')
         worker.refresh_from_db()
         self.assertFalse(worker.active)
         r = self.client.post(f'/undo/{token}/', follow=True)

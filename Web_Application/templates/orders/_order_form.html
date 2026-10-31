@@ -1,7 +1,7 @@
 {% load i18n static %}
   <form method="post" enctype="multipart/form-data">
     {% csrf_token %}
-    <div class="card">{{ form }}</div>
+    <div class="card">{% include "includes/form_fields.html" %}</div>
 
     {{ formset.management_form }}
     {{ formset.non_form_errors }}
@@ -13,9 +13,10 @@
       {% include "orders/_item_card.html" with f=formset.empty_form n="" %}
     </template>
 
-    <div class="form-actions">
-      <button type="button" id="add-item" class="button-secondary">{% trans "Add another item" %}</button>
+    <div class="form-actions form-actions-sticky">
       <button type="submit" class="button">{% if order %}{% trans "Save changes" %}{% else %}{% trans "Create order" %}{% endif %}</button>
+      <a class="button-secondary" href="{% if order %}{% url 'order_detail' order.job_number %}{% else %}{% url 'order_list' %}{% endif %}">{% trans "Cancel" %}</a>
+      <button type="button" id="add-item" class="button-secondary">{% trans "Add another item" %}</button>
     </div>
   </form>
 

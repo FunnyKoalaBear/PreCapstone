@@ -12,7 +12,7 @@
     </select>
   </div>
   <label class="check"><input type="checkbox" name="inactive" value="1"{% if show_inactive %} checked{% endif %}> {% trans "Show inactive" %}</label>
-  <button type="submit" class="button">{% trans "Search" %}</button>
+  <button type="submit" class="button-secondary">{% trans "Search" %}</button>
 </form>
 
 {% trans "code" as l_code %}{% trans "name" as l_name %}{% trans "kind" as l_kind %}{% trans "lead days" as l_lead %}{% trans "notes" as l_notes %}
@@ -42,9 +42,9 @@
             <form method="post" action="{{ back }}" class="inline-actions">
               {% csrf_token %}
               <input type="hidden" name="vendor" value="{{ v.pk }}">
-              <a href="{{ back }}&amp;edit={{ v.pk }}#code-form">{% trans "Edit" %}</a>
-              {% if v.active %}<button type="submit" name="action" value="deactivate" class="link-button">{% trans "Deactivate" %}</button>
-              {% else %}<button type="submit" name="action" value="reactivate" class="link-button">{% trans "Reactivate" %}</button>{% endif %}
+              <a class="button-ghost button-sm" href="{{ back }}&amp;edit={{ v.pk }}#code-form">{% trans "Edit" %}</a>
+              {% if v.active %}<button type="submit" name="action" value="deactivate" class="button-ghost button-sm">{% trans "Deactivate" %}</button>
+              {% else %}<button type="submit" name="action" value="reactivate" class="button-ghost button-sm">{% trans "Reactivate" %}</button>{% endif %}
             </form>
           </td>
         </tr>

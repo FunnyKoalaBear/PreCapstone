@@ -29,6 +29,7 @@ NAV = [
     ]),
     (_('Developer'), [
         (_('Simulate scan'), 'simulate', 'simulate', ADMIN, {'simulate'}),
+        ('Style guide', 'styleguide', 'palette', ADMIN, {'styleguide'}),  # English only: a developer page
     ]),
 ]
 

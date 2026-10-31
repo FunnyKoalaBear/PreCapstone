@@ -665,7 +665,7 @@ class SidebarNavTests(TestCase):
                                                                   'Customers', 'Tags', 'Users', 'Settings'])
         admin = self.labels(make_user('ad', 'Admin'))
         self.assertEqual([g for g, _ in admin], ['Work', 'Review', 'Manage', 'Developer'])
-        self.assertEqual(admin[-1][1], ['Simulate scan'])
+        self.assertEqual(admin[-1][1], ['Simulate scan', 'Style guide'])
         for user in (make_user('op2', 'Operator'), make_user('pl2', 'Planner')):
             self.assertTrue(all(items for _, items in self.labels(user)))
         self.assertNotIn('Developer', [g for g, _ in self.labels(make_user('pl3', 'Planner'))])
