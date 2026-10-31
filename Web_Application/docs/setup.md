@@ -148,7 +148,7 @@ Open points:
 - [ ] `migrate` ran without errors.
 - [ ] `http://PI_ADDRESS:8000/` opens from the laptop and the admin login works.
 - [ ] A scanner device exists and you have its API key.
-- [ ] A box, tag and item are linked (Tags page in the web app).
+- [ ] A tag and an item are linked (Tags page in the web app).
 - [ ] This curl from the laptop returns `"ok": true`:
 
   ```powershell

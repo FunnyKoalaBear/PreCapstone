@@ -19,7 +19,7 @@ from core.templatetags.duration import duration
 from core.management.commands.seed_demo import DEMO_UIDS, read_csv
 from core.testing import TestCase, make_user
 from orders.models import Customer, Order, OrderItem, Process, RouteStep, Vendor
-from tracking.models import Box, Event, Machine, ScannerDevice, Tag, TagAssignment, Worker
+from tracking.models import Event, Machine, ScannerDevice, Tag, TagAssignment, Worker
 from tracking.overview import board_groups
 from tracking.planning import process_averages
 from tracking.priority import priority
@@ -111,7 +111,7 @@ class HomeDashboardTests(TestCase):
             RouteStep.objects.create(item=item, sequence=i, process=proc)
         uid = f'T{self.n}'
         TagAssignment.objects.create(
-            tag=Tag.objects.create(uid=uid), box=Box.objects.create(label=f'B{self.n}'), item=item,
+            tag=Tag.objects.create(uid=uid), item=item,
             start_at=since or timezone.now(),
         )
         return item, uid
@@ -243,7 +243,7 @@ class HomeDashboardTests(TestCase):
         item.box_count = 3
         item.save()
         now = timezone.now()
-        TagAssignment.objects.create(tag=Tag.objects.create(uid='T2X'), box=Box.objects.create(label='BX2'), item=item,
+        TagAssignment.objects.create(tag=Tag.objects.create(uid='T2X'), item=item,
                                      start_at=now - timedelta(days=3))
         record_event(self.device, uid1, self.material, 'ARRIVED')
         record_event(self.device, uid1, self.milling, 'STARTED')
@@ -251,8 +251,8 @@ class HomeDashboardTests(TestCase):
         r = self.home()
         milling = self.card(r, 'in_house', 'Milling')
         rows = milling['waiting'] + milling['running']
-        self.assertEqual([(e['box_label'], e['code'], e['stagnant'], e['multi']) for e in rows],
-                         [('BX2', 'WAITING', True, True), ('B1', 'IN_PROGRESS', False, True)])
+        self.assertEqual([(e['tag_uid'], e['code'], e['stagnant'], e['caption']) for e in rows],
+                         [('T2X', 'WAITING', True, 'Box 1 of 3'), (uid1, 'IN_PROGRESS', False, 'Box 2 of 3')])
         c = r.context['counters']
         self.assertEqual((c['in_progress'], c['waiting'], c['not_started'], c['stagnant'], c['overdue']), (1, 1, 1, 1, 0))
 
@@ -262,12 +262,12 @@ class HomeDashboardTests(TestCase):
         item.box_count = 2
         item.save()
         now = timezone.now()
-        TagAssignment.objects.create(tag=Tag.objects.create(uid='T2Y'), box=Box.objects.create(label='BY2'), item=item,
+        TagAssignment.objects.create(tag=Tag.objects.create(uid='T2Y'), item=item,
                                      start_at=now - timedelta(days=9))
         record_event(self.device, uid1, proc, 'SENT_OUT')
         record_event(self.device, 'T2Y', proc, 'SENT_OUT', occurred_at=now - timedelta(days=6))
         rows = [c for c in self.groups('outsourced') if c['process'] == proc][0]['running']
-        self.assertEqual([(e['box_label'], e['late_days'] > 0) for e in rows], [('BY2', True), ('B1', False)])
+        self.assertEqual([(e['tag_uid'], e['late_days'] > 0) for e in rows], [('T2Y', True), (uid1, False)])
 
 
 class SeedDemoTests(TestCase):
@@ -503,7 +503,7 @@ class ResponsiveLayoutTests(TestCase):
         self.client.force_login(make_user('pl', 'Planner'))
         order = Order.objects.create(customer=Customer.objects.create(name='C'), due_date=timezone.localdate())
         item = OrderItem.objects.create(order=order, part_name='P', quantity=1)
-        TagAssignment.objects.create(tag=Tag.objects.create(uid='CARD1'), box=Box.objects.create(label='BC'), item=item)
+        TagAssignment.objects.create(tag=Tag.objects.create(uid='CARD1'), item=item)
         Vendor.objects.create(code='00001', name='V', kind=Vendor.Kind.INTERNAL)
         pages = {'/orders/': 1, '/orders/?tab=codes': 1, '/analysis/?tab=results': 1, '/shipping/': 2, '/tags/?q=CARD1': 1}
         for url, tables in pages.items():
@@ -621,7 +621,7 @@ class DashboardTests(TestCase):
         for i, p in enumerate(route or [Process.objects.get_or_create(name='Mat', kind=K.MATERIAL)[0]], 1):
             RouteStep.objects.create(item=item, sequence=i, process=p)
         n = OrderItem.objects.count()
-        a = TagAssignment.objects.create(tag=Tag.objects.create(uid=f'DB{n}'), box=Box.objects.create(label=f'DBB{n}'), item=item,
+        a = TagAssignment.objects.create(tag=Tag.objects.create(uid=f'DB{n}'), item=item,
                                          start_at=self.now - timedelta(days=30))
         return item, a
 

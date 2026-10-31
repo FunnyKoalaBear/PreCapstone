@@ -19,13 +19,13 @@ from core.permissions import ADMIN, OPERATOR, PLANNER, role_required
 from orders.models import Customer, OrderItem, Process, Vendor
 
 from .forms import AssignTagForm, CorrectEventForm, PickTagForm, ResultForm, SimulateScanForm
-from .models import Box, Event, Tag, TagAssignment
+from .models import Event, Tag, TagAssignment
 from .overview import active_boxes
 from .analysis import Filters, facts_json, plan_rows, result_rows, slowest, step_facts
 from .priority import TIER_LABELS, TIERS, priority
 from .shipping import months_json, shipping_overview
 from .services import assign_tag, can_correct, correct_event as correct_event_service, next_step, record_event, record_result, record_step_state, release_assignment, replace_tag, resolve_tag, cancel_item, ship_item
-from .status import AT_VENDOR, CANCELLED, COMPLETE, IN_PROGRESS, LABELS, NOT_STARTED, PAUSED, WAITING, current_row, item_status, item_statuses
+from .status import box_captions, AT_VENDOR, CANCELLED, COMPLETE, IN_PROGRESS, LABELS, NOT_STARTED, PAUSED, WAITING, current_row, item_status, item_statuses
 
 
 def _next_step(uid):
@@ -72,19 +72,19 @@ def simulate(request):
             form.add_error(None, e)
         else:
             if assignment:
-                messages.success(request, _('Saved: box %(box)s, item %(item)s, status: %(status)s') % {
-                    'box': assignment.box, 'item': assignment.item.item_code,
+                messages.success(request, _('Saved: item %(item)s, status: %(status)s') % {
+                    'item': assignment.item.item_code,
                     'status': item_status(assignment.item).label,
                 })
             else:
                 messages.warning(request, _('Event saved, but tag %(uid)s matches no item.') % {'uid': event.tag_uid})
             return redirect('simulate')
     uid = request.GET.get('tag', '').strip().upper()
-    open_ = TagAssignment.objects.filter(end_at__isnull=True).select_related('tag', 'box', 'item__order').order_by('tag__uid')
+    open_ = TagAssignment.objects.filter(end_at__isnull=True).select_related('tag', 'item__order').order_by('tag__uid')
     return render(request, 'tracking/simulate.html', {
         'form': form, 'pick': PickTagForm(initial={'device': request.GET.get('device'), 'tag': uid}),
         'uid': uid, 'device': request.GET.get('device', ''), 'step': _next_step(uid) if uid else None,
-        'picks': [(a.tag.uid, f'{a.tag.uid} - {a.item.item_code} - box {a.box.label} - {a.item.part_name}') for a in open_],
+        'picks': [(a.tag.uid, f'{a.tag.uid} - {a.item.item_code} - {a.item.part_name}') for a in open_],
         'events': Event.objects.select_related('device', 'process').order_by('-occurred_at', '-pk')[:10],
     })
 
@@ -103,46 +103,45 @@ def tag_manage(request):
             pk = request.POST.get('assignment', '')
             if not pk.isdigit():
                 raise Http404
-            a = release_assignment(get_object_or_404(TagAssignment, pk=pk, end_at__isnull=True))
-            messages.success(request, _('Tag %(tag)s released from box %(box)s.') % {'tag': a.tag, 'box': a.box})
+            a = release_assignment(get_object_or_404(TagAssignment.objects.select_related('tag', 'item'), pk=pk, end_at__isnull=True))
+            messages.success(request, _('Tag %(tag)s released from item %(item)s.') % {'tag': a.tag, 'item': a.item.item_code})
             return redirect(_tags_url(request))
         if request.POST.get('action') == 'replace':
             pk = request.POST.get('assignment', '')
             if not pk.isdigit():
                 raise Http404
-            old = get_object_or_404(TagAssignment.objects.select_related('tag', 'box'), pk=pk)
+            old = get_object_or_404(TagAssignment.objects.select_related('tag', 'item'), pk=pk)
             try:
                 new = replace_tag(old, request.POST.get('new_uid', ''), mark_lost=request.POST.get('mark_lost') == 'on')
             except ValidationError as e:
                 messages.error(request, ' '.join(e.messages))
             else:
-                messages.success(request, _('Tag %(old)s replaced by %(new)s in box %(box)s.') % {'old': old.tag, 'new': new.tag, 'box': new.box})
+                messages.success(request, _('Tag %(old)s replaced by %(new)s for item %(item)s.') % {'old': old.tag, 'new': new.tag, 'item': new.item.item_code})
             return redirect(_tags_url(request))
         if form.is_valid():
             d = form.cleaned_data
             try:
-                a = assign_tag(d['item'], d['box_label'], d['tag_uid'])
+                a = assign_tag(d['item'], d['tag_uid'])
             except ValidationError as e:
                 form.add_error(None, e)
             else:
-                messages.success(request, _('Tag %(tag)s linked to box %(box)s, item %(item)s.') % {
-                    'tag': a.tag, 'box': a.box, 'item': a.item.item_code,
+                messages.success(request, _('Tag %(tag)s linked to item %(item)s.') % {
+                    'tag': a.tag, 'item': a.item.item_code,
                 })
                 return redirect('tag_manage')
-    assignments = TagAssignment.objects.select_related('tag', 'box', 'item__order__customer')
+    assignments = TagAssignment.objects.select_related('tag', 'item__order__customer')
     open_ = list(assignments.filter(end_at__isnull=True).order_by('item__order__job_number', 'item__item_no', 'start_at'))
-    seen = {}
-    for a in open_:  # position of the box within its item
-        seen[a.item_id] = a.nth = seen.get(a.item_id, 0) + 1
     q, in_use = request.GET.get('q', '').strip().lower(), len(open_)
     if q:
-        hay = lambda a: [a.item.item_code, a.item.order.job_number, a.item.part_name, a.item.order.customer.name, a.box.label, a.tag.uid]
+        hay = lambda a: [a.item.item_code, a.item.order.job_number, a.item.part_name, a.item.order.customer.name, a.tag.uid]
         open_ = [a for a in open_ if any(q in h.lower() for h in hay(a))]
+    captions = box_captions(open_)
+    for a in open_:
+        a.caption = captions[a.pk]
     return render(request, 'tracking/tag_manage.html', {
         'form': form,
         'open': open_ if q else [], 'q': q, 'in_use': in_use,
         'tag_uids': Tag.objects.filter(active=True).values_list('uid', flat=True),
-        'box_labels': Box.objects.filter(active=True).values_list('label', flat=True),
     })
 
 
@@ -176,11 +175,14 @@ def tag_history(request):
     now = timezone.now()
     key, start, end, d_from, d_to = _history_range(request, now)
     q = request.GET.get('q', '').strip()
-    rows = TagAssignment.objects.select_related('tag', 'box', 'item__order').filter(
+    rows = TagAssignment.objects.select_related('tag', 'item__order').filter(
         Q(end_at__isnull=True) | Q(end_at__gte=start), start_at__lt=end)
     if q:
-        rows = rows.filter(Q(tag__uid__icontains=q) | Q(box__label__icontains=q))
+        rows = rows.filter(tag__uid__icontains=q)
     rows = list(rows.order_by('-start_at', '-pk')[:HISTORY_CAP + 1])
+    captions = box_captions(rows)
+    for a in rows:
+        a.caption = captions[a.pk]
     return render(request, 'tracking/tag_history.html', {
         'rows': rows[:HISTORY_CAP], 'capped': len(rows) > HISTORY_CAP, 'cap': HISTORY_CAP, 'q': q, 'range': key,
         'ranges': [(k, label) for k, _n, label in HISTORY_RANGES] + [('custom', gettext_lazy('Custom'))],
@@ -200,7 +202,7 @@ PRIORITY_SORT_CHOICES = [('risk', gettext_lazy('Risk')), ('process', gettext_laz
 def priorities(request):
     items = list(OrderItem.objects.select_related('order__customer').order_by('order__due_date'))
     statuses = item_statuses(items)  # derived once for the idle times and the rows
-    idle = {(e['item'].pk, e['box_label']): e['idle'] for e in active_boxes(items=items, statuses=statuses)}
+    idle = {(e['item'].pk, e['box'].number): e['idle'] for e in active_boxes(items=items, statuses=statuses)}
     rows = []
     for item in items:
         st = statuses[item.pk]
@@ -215,8 +217,8 @@ def priorities(request):
             p = priority(item.order, box)
             rows.append({
                 'item': item, 'status': box, 'process': row.step.process if row else None,
-                'box_label': box.label, 'multi': len(st.boxes) > 1, **p, 'label': TIER_LABELS[p['tier']],
-                'idle': idle.get((item.pk, box.label)), 'risk_key': TIERS.index(p['tier']) * 100000 + p['slack'] + 50000,
+                'caption': box.caption, **p, 'label': TIER_LABELS[p['tier']],
+                'idle': idle.get((item.pk, box.number)), 'risk_key': TIERS.index(p['tier']) * 100000 + p['slack'] + 50000,
             })
     sort = request.GET.get('sort') if request.GET.get('sort') in PRIORITY_SORTS else 'risk'
     rows.sort(key=PRIORITY_SORTS[sort])
@@ -239,7 +241,7 @@ BOX_STATUSES = {
 
 BOX_SORTS = {
     'process': lambda e: (e['process'].name if e['process'] else '￿', e['due_date'], e['order'].job_number, e['item'].item_no),
-    'due': lambda e: (e['due_date'], e['order'].job_number, e['item'].item_no, e['box_label'] or ''),
+    'due': lambda e: (e['due_date'], e['order'].job_number, e['item'].item_no, e['box'].number or 0),
     'customer': lambda e: (str(e['order'].customer), e['due_date'], e['order'].job_number, e['item'].item_no),
     'waiting': lambda e: (e['idle'] is None, -e['idle'].total_seconds() if e['idle'] else 0, e['due_date'], e['order'].job_number),
 }
@@ -375,7 +377,7 @@ def item_action(request, pk):
             messages.success(request, _('Item %(item)s marked as shipped.') % {'item': item.item_code})
         elif action in STEP_ACTIONS:
             box = request.POST.get('box', '')
-            assignment = get_object_or_404(TagAssignment.objects.select_related('tag', 'box', 'item'), pk=box if box.isdigit() else 0, item=item, end_at__isnull=True)
+            assignment = get_object_or_404(TagAssignment.objects.select_related('tag', 'item'), pk=box if box.isdigit() else 0, item=item, end_at__isnull=True)
             event_type, done = STEP_ACTIONS[action]
             record_step_state(request.user, assignment, event_type, reason)
             messages.success(request, done)

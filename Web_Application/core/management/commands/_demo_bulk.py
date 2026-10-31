@@ -1,12 +1,12 @@
 import random
-from datetime import datetime, timedelta, timezone as dt_timezone
+from datetime import timedelta
 from math import sin
 
 from django.db.models import F, Max
 from django.utils import timezone
 
 from orders.models import Customer, Order, OrderItem, Process, RouteStep
-from tracking.models import Box, Event, Machine, Tag, TagAssignment, Worker
+from tracking.models import Event, Machine, Tag, TagAssignment, Worker
 from tracking.services import record_event
 
 SEED = 2610
@@ -188,7 +188,7 @@ def seed_bulk(procs, vendors, devices, stdout=None):
     people = list(Worker.objects.all())
     machines = {m.name: m for m in Machine.objects.all()}
     voids = 0
-    boxes, seq, tag_n = {}, {}, 0  # boxes: label -> list of (start, end) windows
+    seq, tag_n = {}, 0
     for s in specs:
         c = rng.randrange(len(customers))
         prefix = timezone.localtime(s['start']).strftime('%y%m')
@@ -206,13 +206,10 @@ def seed_bulk(procs, vendors, devices, stdout=None):
             proc = procs[st['name']]
             vendor = st['alt'] or (vendors[rng.choice(('00101', '00102', '00103'))] if st['name'] == 'Material' else proc.default_vendor)
             steps[st['name']] = RouteStep.objects.create(item=item, sequence=i, process=proc, vendor=vendor, due_date=st['due'])
-        end = s['end'] or datetime.max.replace(tzinfo=dt_timezone.utc)
-        label = next(f'DEMO-B{i:02d}' for i in range(1, 999) if all(e <= s['start'] or b >= end for b, e in boxes.get(f'DEMO-B{i:02d}', [])))
-        boxes.setdefault(label, []).append((s['start'], end))
         tag_n += 1
         uid = f'{0xD0000000 + tag_n * 7919:08X}'
         TagAssignment.objects.create(
-            tag=Tag.objects.get_or_create(uid=uid, defaults={'note': 'DEMO'})[0], box=Box.objects.get_or_create(label=label)[0],
+            tag=Tag.objects.get_or_create(uid=uid, defaults={'note': 'DEMO'})[0],
             item=item, start_at=s['start'], end_at=s['end'])
         for when, pname, etype in s['events']:
             record_event(devices[0] if KINDS[pname] == Process.Kind.MACHINING else devices[1], uid, procs[pname], etype, occurred_at=when)

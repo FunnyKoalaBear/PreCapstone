@@ -9,6 +9,7 @@ from orders.models import OrderItem, Process
 
 from .models import Event, Machine, ScannerDevice, TagAssignment, Worker
 from .services import resolve_tag
+from .status import box_captions
 
 
 class SimulateScanForm(forms.Form):
@@ -50,9 +51,6 @@ class PickTagForm(forms.Form):
 
 class AssignTagForm(forms.Form):
     item = forms.ModelChoiceField(label=_('Item'), queryset=OrderItem.objects.none())
-    box_label = forms.CharField(
-        label=_('Box label'), max_length=100, widget=forms.TextInput(attrs={'list': 'box-labels', 'autocomplete': 'off'}),
-    )
     tag_uid = forms.CharField(label=_('Tag UID'), max_length=100)
 
     def __init__(self, *args, **kwargs):
@@ -101,7 +99,7 @@ class CorrectEventForm(forms.Form):
 
 class ResultForm(forms.Form):
     """Quantity done and defects at one step of an item, for one of its linked boxes."""
-    box = forms.ChoiceField(label=_('Box'))
+    box = forms.ChoiceField(label=_('Tag'))
     process = forms.ModelChoiceField(label=_('Process'), queryset=Process.objects.none())
     worker = forms.ModelChoiceField(label=_('Worker'), queryset=Worker.objects.filter(active=True), required=False)
     machine = forms.ModelChoiceField(label=_('Machine'), queryset=Machine.objects.filter(active=True), required=False)
@@ -112,8 +110,9 @@ class ResultForm(forms.Form):
         kwargs.setdefault('prefix', f'result{item.pk}')
         super().__init__(*args, **kwargs)
         self.item = item
-        self.assignments = {str(a.pk): a for a in item.tagassignment_set.filter(end_at__isnull=True).select_related('tag', 'box')}
-        self.fields['box'].choices = [(pk, a.box.label) for pk, a in self.assignments.items()]
+        self.assignments = {str(a.pk): a for a in item.tagassignment_set.filter(end_at__isnull=True).select_related('tag', 'item')}
+        captions = box_captions(list(self.assignments.values()))
+        self.fields['box'].choices = [(pk, f'{a.tag} ({captions[a.pk]})' if captions[a.pk] else str(a.tag)) for pk, a in self.assignments.items()]
         self.fields['process'].queryset = Process.objects.filter(pk__in=item.steps.values('process')).order_by('name')
         self.fields['quantity'].initial = item.quantity
 

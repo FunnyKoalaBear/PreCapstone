@@ -75,7 +75,7 @@
       <p>
         {% if entry.single %}
           {% if entry.assignment %}
-            {% blocktrans with box=entry.assignment.box tag=entry.assignment.tag %}Box {{ box }}, tag {{ tag }}{% endblocktrans %}
+            {% blocktrans with tag=entry.assignment.tag %}Tag {{ tag }}{% endblocktrans %}
           {% else %}
             {% trans "No tag assigned." %}
           {% endif %}
@@ -147,7 +147,7 @@
         {% for b in entry.boxes %}
           <section class="box-section">
             {% if b.box.assignment %}
-              <h3>{% blocktrans with l=b.box.label %}Box {{ l }}{% endblocktrans %}{% if not b.open %} <small>{% trans "(released)" %}</small>{% endif %}
+              <h3>{% blocktrans with tag=b.box.assignment.tag %}Tag {{ tag }}{% endblocktrans %}{% if b.box.caption %} <small>{{ b.box.caption }}</small>{% endif %}{% if not b.open %} <small>{% trans "(released)" %}</small>{% endif %}
                 <span class="badge badge-{{ b.box.code|lower }}">{{ b.box.code_label }}</span></h3>
               {% include "orders/_box_detail.html" with b=b single=False %}
             {% else %}

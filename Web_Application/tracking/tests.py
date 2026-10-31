@@ -9,7 +9,9 @@ from types import SimpleNamespace
 from unittest import mock
 
 from django.template.loader import render_to_string
-from django.test import override_settings
+from django.db import connection
+from django.db.migrations.executor import MigrationExecutor
+from django.test import TransactionTestCase, override_settings
 from django.utils import timezone
 
 from core.testing import TestCase, make_user
@@ -17,12 +19,12 @@ from orders.models import Customer, Order, OrderItem, Process, RouteStep, Vendor
 
 from .forms import AssignTagForm
 from .matrix import matrix as build_matrix
-from .models import Box, Event, Machine, ScannerDevice, Tag, TagAssignment, Worker
+from .models import Event, Machine, ScannerDevice, Tag, TagAssignment, Worker
 from .overview import active_boxes, process_board
 from .planning import step_plan
 from .priority import priority
 from .services import assign_tag, cancel_item, correct_event, record_event, record_step_state, release_assignment, replace_tag, ship_item
-from .status import manual_actions, order_summary, gantt, AT_VENDOR, COMPLETE, IN_PROGRESS, NOT_STARTED, WAITING, BoxStatus, ItemStatus, _roll_up, events_for_item, days_late, next_action, due_back, idle_for, is_stagnant, item_status, timeline
+from .status import box_caption, box_captions, manual_actions, order_summary, gantt, AT_VENDOR, COMPLETE, IN_PROGRESS, NOT_STARTED, WAITING, BoxStatus, ItemStatus, _roll_up, events_for_item, days_late, next_action, due_back, idle_for, is_stagnant, item_status, timeline
 
 E = Event.Type
 K = Process.Kind
@@ -39,7 +41,7 @@ class ItemStatusTests(TestCase):
         self.device = ScannerDevice.objects.create(name='D')
         self.start = self.now - timedelta(hours=10)
         TagAssignment.objects.create(
-            tag=Tag.objects.create(uid='AB12'), box=Box.objects.create(label='B'), item=self.item, start_at=self.start,
+            tag=Tag.objects.create(uid='AB12'), item=self.item, start_at=self.start,
         )
 
     def ev(self, kind, etype, hours=0, **kw):
@@ -107,7 +109,7 @@ class RecordEventTests(TestCase):
         self.item = OrderItem.objects.create(order=order, part_name='P', quantity=1)
 
     def assign(self, uid):
-        TagAssignment.objects.create(tag=Tag.objects.create(uid=uid), box=Box.objects.create(label='B'), item=self.item)
+        TagAssignment.objects.create(tag=Tag.objects.create(uid=uid), item=self.item)
 
     def test_saves_event_and_returns_assignment(self):
         self.assign('AB12')
@@ -141,10 +143,10 @@ class TagSearchAndHistoryTests(TestCase):
         self.now = timezone.now()
         self.client.force_login(make_user('s', 'Admin'))
 
-    def link(self, uid, box, start_days, end_days=None):
+    def link(self, uid, start_days, end_days=None):
         """An assignment that began start_days ago and ended end_days ago (open when None)."""
         return TagAssignment.objects.create(
-            tag=Tag.objects.get_or_create(uid=uid)[0], box=Box.objects.get_or_create(label=box)[0], item=self.item,
+            tag=Tag.objects.get_or_create(uid=uid)[0], item=self.item,
             start_at=self.now - timedelta(days=start_days), end_at=None if end_days is None else self.now - timedelta(days=end_days))
 
     def history(self, **params):
@@ -153,8 +155,8 @@ class TagSearchAndHistoryTests(TestCase):
         return [a.tag.uid for a in r.context['rows']], r
 
     def test_in_use_shows_count_without_rows_until_searched(self):
-        self.link('AA11', 'BX1', 5)
-        self.link('BB22', 'BX2', 6)
+        self.link('AA11', 5)
+        self.link('BB22', 6)
         r = self.client.get('/tags/')
         self.assertEqual((r.context['open'], r.context['in_use']), ([], 2))
         self.assertContains(r, '2 tags in use.')
@@ -166,22 +168,22 @@ class TagSearchAndHistoryTests(TestCase):
         self.assertContains(self.client.get('/tags/', {'q': 'zzz'}), 'No tags in use match this search.')
 
     def test_release_keeps_the_search(self):
-        a = self.link('AA11', 'BX1', 5)
+        a = self.link('AA11', 5)
         r = self.client.post('/tags/', {'action': 'release', 'assignment': a.pk, 'q': 'aa'})
         self.assertRedirects(r, '/tags/?q=aa')
-        self.assertRedirects(self.client.post('/tags/', {'action': 'release', 'assignment': self.link('CC33', 'BX3', 1).pk}), '/tags/')
+        self.assertRedirects(self.client.post('/tags/', {'action': 'release', 'assignment': self.link('CC33', 1).pk}), '/tags/')
 
     def test_history_page_is_staff_only(self):
         self.client.logout()
         self.assertEqual(self.client.get('/tags/history/').status_code, 302)
 
     def test_history_ranges_overlap_rule(self):
-        self.link('D10', 'B10', 20, 10)      # inside every range
-        self.link('D100', 'B100', 120, 100)  # 3-6 months ago
-        self.link('D200', 'B200', 250, 200)  # 6-12 months ago
-        self.link('D400', 'B400', 500, 400)  # older than a year
-        self.link('OPEN', 'BOP', 400)        # open since long ago: overlaps everything
-        self.link('NEW', 'BNW', 2)           # open, started recently
+        self.link('D10', 20, 10)      # inside every range
+        self.link('D100', 120, 100)  # 3-6 months ago
+        self.link('D200', 250, 200)  # 6-12 months ago
+        self.link('D400', 500, 400)  # older than a year
+        self.link('OPEN', 400)        # open since long ago: overlaps everything
+        self.link('NEW', 2)           # open, started recently
         expect = {'1m': {'D10', 'OPEN', 'NEW'}, '3m': {'D10', 'OPEN', 'NEW'}, '6m': {'D10', 'D100', 'OPEN', 'NEW'},
                   '1y': {'D10', 'D100', 'D200', 'OPEN', 'NEW'}}
         for key, uids in expect.items():
@@ -190,16 +192,16 @@ class TagSearchAndHistoryTests(TestCase):
         self.assertEqual(set(self.history(range='bogus')[0]), expect['3m'])
 
     def test_history_is_newest_first_and_shows_in_use(self):
-        self.link('OLD1', 'B1', 30, 20)
-        self.link('NEW1', 'B2', 3)
+        self.link('OLD1', 30, 20)
+        self.link('NEW1', 3)
         uids, r = self.history()
         self.assertEqual(uids, ['NEW1', 'OLD1'])
         self.assertContains(r, 'In use')
         self.assertContains(r, f'href="/orders/{self.item.order.job_number}/"')
 
     def test_history_custom_range_and_fallbacks(self):
-        self.link('D10', 'B10', 20, 10)
-        self.link('D100', 'B100', 120, 100)
+        self.link('D10', 20, 10)
+        self.link('D100', 120, 100)
         day = lambda n: timezone.localtime(self.now - timedelta(days=n)).date().isoformat()
         uids, r = self.history(range='custom', **{'from': day(125), 'to': day(95)})
         self.assertEqual(uids, ['D100'])
@@ -212,17 +214,16 @@ class TagSearchAndHistoryTests(TestCase):
             self.assertEqual(uids, ['D10'], params)  # 3m fallback
             self.assertEqual(r.context['range'], '3m')
 
-    def test_history_search_by_tag_and_box(self):
-        self.link('AB12', 'SHELF-1', 5, 2)
-        self.link('CD34', 'SHELF-2', 5, 2)
+    def test_history_search_by_tag(self):
+        self.link('AB12', 5, 2)
+        self.link('CD34', 5, 2)
         self.assertEqual(self.history(q='ab1')[0], ['AB12'])
-        self.assertEqual(self.history(q='shelf-2')[0], ['CD34'])
-        self.assertEqual(sorted(self.history(q='SHELF')[0]), ['AB12', 'CD34'])
+        self.assertEqual(self.history(q='cd')[0], ['CD34'])
         self.assertEqual(self.history(q='nothing')[0], [])
 
     def test_history_cap(self):
         for i in range(201):
-            self.link(f'T{i:03d}', f'X{i:03d}', 10, 5)
+            self.link(f'T{i:03d}', 10, 5)
         uids, r = self.history()
         self.assertEqual((len(uids), r.context['capped']), (200, True))
         self.assertContains(r, 'Showing only the newest 200 records.')
@@ -236,31 +237,31 @@ class TagManageTests(TestCase):
         self.item2 = OrderItem.objects.create(order=order, part_name='B', quantity=1)
         RouteStep.objects.create(item=self.item2, sequence=1, process=self.proc)
 
-    def test_assign_creates_box_tag_and_open_assignment(self):
-        a = assign_tag(self.item1, ' B1 ', 'ab12')
-        self.assertEqual((a.box.label, a.tag.uid, a.end_at), ('B1', 'AB12', None))
+    def test_assign_creates_tag_and_open_assignment_without_a_box(self):
+        a = assign_tag(self.item1, ' ab12 ')
+        self.assertEqual((a.tag.uid, a.item, a.end_at, a.replaces), ('AB12', self.item1, None, None))
 
     def test_uid_is_uppercased(self):
-        assign_tag(self.item1, 'B1', ' ab12 ')
+        assign_tag(self.item1, ' ab12 ')
         self.assertTrue(Tag.objects.filter(uid='AB12').exists())
 
     def test_tag_in_use_is_rejected(self):
-        assign_tag(self.item1, 'B1', 'AB')
+        assign_tag(self.item1, 'AB')
         with self.assertRaises(ValidationError):
-            assign_tag(self.item2, 'B2', 'ab')
-        self.assertFalse(Box.objects.filter(label='B2').exists())
+            assign_tag(self.item2, 'ab')
+        self.assertEqual(TagAssignment.objects.count(), 1)
 
     def test_item_with_assignment_is_rejected(self):
-        assign_tag(self.item1, 'B1', 'AB')
+        assign_tag(self.item1, 'AB')
         with self.assertRaises(ValidationError):
-            assign_tag(self.item1, 'B2', 'CD')
+            assign_tag(self.item1, 'CD')
 
     def test_release_then_reuse_and_events_count_for_new_item(self):
-        old = assign_tag(self.item1, 'B1', 'AB')
+        old = assign_tag(self.item1, 'AB')
         release_assignment(old)
         old.refresh_from_db()
         self.assertIsNotNone(old.end_at)
-        assign_tag(self.item2, 'B1', 'AB')
+        assign_tag(self.item2, 'AB')
         record_event(ScannerDevice.objects.create(name='D'), 'AB', self.proc, E.ARRIVED)
         self.assertEqual(item_status(self.item2).code, COMPLETE)
         self.assertEqual(item_status(self.item1).code, NOT_STARTED)
@@ -269,9 +270,10 @@ class TagManageTests(TestCase):
         self.assertEqual(self.client.get('/tags/').status_code, 302)
         self.client.force_login(make_user('s', 'Admin'))
         self.assertEqual(self.client.get('/tags/').status_code, 200)
-        r = self.client.post('/tags/', {'action': 'assign', 'item': self.item1.pk, 'box_label': 'B1', 'tag_uid': 'ab'})
+        r = self.client.post('/tags/', {'action': 'assign', 'item': self.item1.pk, 'box_label': 'STRAY', 'tag_uid': 'ab'})
         self.assertRedirects(r, '/tags/')
         a = TagAssignment.objects.get()
+        self.assertEqual(a.tag.uid, 'AB')  # the stray box_label is ignored
         self.client.post('/tags/', {'action': 'release', 'assignment': a.pk})
         a.refresh_from_db()
         self.assertIsNotNone(a.end_at)
@@ -281,8 +283,8 @@ class TagManageTests(TestCase):
     def test_assign_dropdown_only_offers_items_with_a_free_box_slot(self):
         self.item2.box_count = 2
         self.item2.save()
-        assign_tag(self.item1, 'B1', 'AB')
-        assign_tag(self.item2, 'B2', 'CD')
+        assign_tag(self.item1, 'AB')
+        assign_tag(self.item2, 'CD')
         field = AssignTagForm().fields['item']
         self.assertEqual(list(field.queryset), [self.item2])
         label = field.label_from_instance(field.queryset.get())
@@ -292,12 +294,12 @@ class TagManageTests(TestCase):
     def test_tags_page_labels_each_open_box_of_an_item(self):
         self.item1.box_count = 2
         self.item1.save()
-        assign_tag(self.item1, 'B1', 'AB')
-        assign_tag(self.item1, 'B2', 'CD')
+        assign_tag(self.item1, 'AB')
+        assign_tag(self.item1, 'CD')
         self.client.force_login(make_user('s', 'Admin'))
-        r = self.client.get('/tags/', {'q': 'b'})
-        self.assertContains(r, 'Box B1 (1 of 2)')
-        self.assertContains(r, 'Box B2 (2 of 2)')
+        r = self.client.get('/tags/', {'q': self.item1.order.job_number})
+        self.assertContains(r, 'Box 1 of 2')
+        self.assertContains(r, 'Box 2 of 2')
 
 
 class DueBackTests(TestCase):
@@ -421,7 +423,7 @@ class PriorityTests(TestCase):
         for i, k in enumerate(kinds, 1):
             RouteStep.objects.create(item=item, sequence=i, process=self.procs[k])
         tag = Tag.objects.create(uid=f'T{self.n}')
-        TagAssignment.objects.create(tag=tag, box=Box.objects.create(label=f'B{self.n}'), item=item, start_at=timezone.now() - timedelta(days=30))
+        TagAssignment.objects.create(tag=tag, item=item, start_at=timezone.now() - timedelta(days=30))
         if send_days_ago is not None:
             Event.objects.create(device=self.device, tag_uid=tag.uid, event_type=E.SENT_OUT, process=self.procs[K.OUTSOURCED],
                                  occurred_at=timezone.now() - timedelta(days=send_days_ago))
@@ -521,14 +523,14 @@ class PriorityTests(TestCase):
         item.save()
         mach = self.procs[K.MACHINING]
         a1 = item.tagassignment_set.get()
-        TagAssignment.objects.create(tag=Tag.objects.create(uid='T2B'), box=Box.objects.create(label='B2b'), item=item,
+        TagAssignment.objects.create(tag=Tag.objects.create(uid='T2B'), item=item,
                                      start_at=timezone.now() - timedelta(days=5))
         for etype in (E.STARTED, E.FINISHED):  # box 1 finishes step 1
             Event.objects.create(device=self.device, tag_uid=a1.tag.uid, event_type=etype, process=mach)
         self.client.force_login(make_user('s', 'Admin'))
         rows = self.client.get('/priorities/').context['rows']
-        self.assertEqual([(r['box_label'], r['tier'], r['multi']) for r in rows],
-                         [('B2b', 'CRITICAL', True), (a1.box.label, 'WATCH', True)])  # unlinked third box left out
+        self.assertEqual([(r['caption'], r['tier']) for r in rows],
+                         [('Box 2 of 3', 'CRITICAL'), ('Box 1 of 3', 'WATCH')])  # unlinked third box left out
 
 
 @override_settings(STAGNATION_DEFAULT_HOURS=24)
@@ -579,7 +581,7 @@ class MultiBoxTests(TestCase):
 
     def link(self, uid, item=None, start=None, end=None):
         return TagAssignment.objects.create(
-            tag=Tag.objects.get_or_create(uid=uid)[0], box=Box.objects.create(label=f'B{uid}{Box.objects.count()}'), item=item or self.item,
+            tag=Tag.objects.get_or_create(uid=uid)[0], item=item or self.item,
             start_at=start or self.start, end_at=end,
         )
 
@@ -637,7 +639,7 @@ class MultiBoxTests(TestCase):
         self.assertEqual(item_status(self.item).code, COMPLETE)
 
     def test_roll_up_codes(self):
-        box = lambda c: BoxStatus(None, '', c, c)
+        box = lambda c: BoxStatus(None, None, c, c)
         cases = [
             ([COMPLETE, COMPLETE], COMPLETE), ([NOT_STARTED, NOT_STARTED], NOT_STARTED),
             ([IN_PROGRESS, WAITING], IN_PROGRESS), ([WAITING, AT_VENDOR], WAITING),
@@ -648,13 +650,13 @@ class MultiBoxTests(TestCase):
             self.assertEqual(_roll_up([box(c) for c in codes]).code, expected, codes)
 
     def test_assign_tag_respects_box_count(self):
-        assign_tag(self.item, 'L1', 'U1')
-        assign_tag(self.item, 'L2', 'U2')
+        assign_tag(self.item, 'U1')
+        assign_tag(self.item, 'U2')
         with self.assertRaisesMessage(ValidationError, 'already has all 2 boxes linked'):
-            assign_tag(self.item, 'L3', 'U3')
+            assign_tag(self.item, 'U3')
         self.item.box_count = 3
         self.item.save()
-        assign_tag(self.item, 'L3', 'U3')
+        assign_tag(self.item, 'U3')
         self.assertEqual(self.item.tagassignment_set.count(), 3)
 
     def test_reassigned_tag_does_not_leak_events(self):
@@ -687,7 +689,7 @@ class OverviewBase(TestCase):
             RouteStep.objects.create(item=item, sequence=i, process=p)
         for uid in uids:
             TagAssignment.objects.create(
-                tag=Tag.objects.create(uid=uid), box=Box.objects.create(label=f'L{uid}'), item=item,
+                tag=Tag.objects.create(uid=uid), item=item,
                 start_at=self.now - timedelta(days=20), end_at=self.now - timedelta(days=1) if uid in ended else None,
             )
         return item
@@ -721,21 +723,21 @@ class OverviewBase(TestCase):
 class ActiveBoxesTests(OverviewBase):
     def test_each_status_placeholder_and_released_box(self):
         self.scenario()
-        rows = {(e['item'].part_name, e['box_label']): e for e in active_boxes(self.now)}
+        rows = {(e['item'].part_name, e['tag_uid']): e for e in active_boxes(self.now)}
         self.assertEqual(len(rows), 7)
-        self.assertEqual(rows['P1', 'LA']['code'], IN_PROGRESS)
-        self.assertEqual(rows['P1', 'LA']['process'], self.cut)
-        b = rows['P2', 'LB']
+        self.assertEqual(rows['P1', 'A']['code'], IN_PROGRESS)
+        self.assertEqual(rows['P1', 'A']['process'], self.cut)
+        b = rows['P2', 'B']
         self.assertEqual((b['code'], b['process'], b['stagnant'], b['late']), (WAITING, self.weld, True, True))
         self.assertEqual(b['idle'], timedelta(hours=30))
-        c = rows['P3', 'LC']
+        c = rows['P3', 'C']
         self.assertEqual((c['code'], c['late_days'], c['vendor']), (AT_VENDOR, 2, 'PV'))
         self.assertEqual(c['due_back'], due_back(c['started_at'], 3))
-        self.assertEqual(rows['P4', 'LD']['code'], NOT_STARTED)
+        self.assertEqual(rows['P4', 'D']['code'], NOT_STARTED)
         self.assertIn(('P5', None), rows)  # placeholder
         self.assertEqual(rows['P5', None]['code'], NOT_STARTED)
         self.assertIn(('P6', None), rows)
-        self.assertNotIn(('P6', 'LF'), rows)  # released finished box is done
+        self.assertNotIn(('P6', 'F'), rows)  # released finished box is done
         self.assertFalse([k for k in rows if k[0] == 'P7'])  # complete item
 
 
@@ -801,7 +803,7 @@ class BoxesPageTests(OverviewBase):
         self.assertGreater(len(known), 1)
         for bad in ('?sort=bogus', '?sort='):
             self.assertEqual(self.client.get('/boxes/' + bad).context['sort'], 'due')
-            key = lambda rows: [(r['item'].pk, r['box_label']) for r in rows]
+            key = lambda rows: [(r['item'].pk, r['tag_uid']) for r in rows]
             self.assertEqual(key(self.rows(bad)), key(self.rows('?sort=due')))
 
     def test_sort_control_keeps_filters(self):
@@ -852,13 +854,13 @@ class ProcessBoardTests(OverviewBase):
         cards = {c['process'].name: c for c in process_board(self.now)}
         self.assertEqual(sorted(cards), ['Cut', 'Paint', 'Weld'])  # material is skipped
         cut, weld, paint = cards['Cut'], cards['Weld'], cards['Paint']
-        self.assertEqual([b['box_label'] for b in cut['running']], ['LR1', 'LR2'])  # longest first
+        self.assertEqual([b['tag_uid'] for b in cut['running']], ['R1', 'R2'])  # longest first
         self.assertEqual(cut['running'][0]['running_for'], timedelta(hours=5))
         self.assertEqual((cut['waiting'], cut['queue']), ([], False))
         self.assertEqual(weld['running'], [])
-        self.assertEqual([b['box_label'] for b in weld['waiting']], ['LW1', 'LW3', 'LW2'])  # longest idle first
+        self.assertEqual([b['tag_uid'] for b in weld['waiting']], ['W1', 'W3', 'W2'])  # longest idle first
         self.assertTrue(weld['queue'])
-        self.assertEqual(([b['box_label'] for b in paint['running']], paint['outsourced']), (['LV1'], True))
+        self.assertEqual(([b['tag_uid'] for b in paint['running']], paint['outsourced']), (['V1'], True))
 
 
 class InactiveProcessBoardTests(OverviewBase):
@@ -916,10 +918,10 @@ class ReplaceTagTests(OverviewBase):
         self.assertEqual(st.boxes[0].assignment, new)
         self.assertEqual(len(st.boxes[0].assignments), 2)
 
-    def test_replacement_keeps_history_and_box(self):
+    def test_replacement_keeps_history_and_links_the_old_tag(self):
         new = replace_tag(self.old, ' new ')
         self.old.refresh_from_db()
-        self.assertEqual((new.tag.uid, new.box, new.item, new.end_at), ('NEW', self.old.box, self.item1, None))
+        self.assertEqual((new.tag.uid, new.replaces, new.item, new.end_at), ('NEW', self.old, self.item1, None))
         self.assertEqual(self.old.end_at, new.start_at)
         self.assertEqual(TagAssignment.objects.count(), 2)
 
@@ -946,7 +948,7 @@ class ReplaceTagTests(OverviewBase):
         self.old.tag.refresh_from_db()
         self.assertFalse(self.old.tag.active)
         with self.assertRaisesMessage(ValidationError, 'inactive'):
-            assign_tag(self.item([self.cut]), 'BX', 'OLD')
+            assign_tag(self.item([self.cut]), 'OLD')
         a = self.item([self.cut], uids=['KEEP']).tagassignment_set.get()
         replace_tag(a, 'n2', mark_lost=False)
         a.tag.refresh_from_db()
@@ -958,7 +960,7 @@ class ReplaceTagTests(OverviewBase):
         uids = lambda q: [a.tag.uid for a in self.client.get('/tags/', {'q': q}).context['open']]
         self.assertEqual(uids(''), [])  # no query: no rows
         self.assertEqual(uids('old'), ['OLD'])
-        self.assertEqual(uids('LOTHER'), ['OTHER'])  # box label
+        self.assertEqual(uids('other'), ['OTHER'])
         self.assertEqual(uids(self.item1.part_name), ['OLD'])
         self.assertEqual(uids(self.item1.order.job_number), ['OLD'])
         self.assertEqual(uids('nothing'), [])
@@ -1000,7 +1002,7 @@ class ReplaceTagTests(OverviewBase):
         self.assertNotContains(r, 'Other action')
         self.assertNotContains(r, 'Record event')
         self.assertNotContains(r, 'tag-uids')
-        self.assertContains(r, f'OLD - {self.item1.item_code} - box LOLD - {self.item1.part_name}')
+        self.assertContains(r, f'OLD - {self.item1.item_code} - {self.item1.part_name}')
         self.assertContains(r, 'Confirm')
         r = self.client.post('/simulate/', {'tag_uid': 'OLD', 'device': self.device.pk, 'action': r.context['step']['value']})
         self.assertRedirects(r, '/simulate/')
@@ -1043,7 +1045,7 @@ class ScanApiTests(TestCase):
         order = Order.objects.create(customer=Customer.objects.create(name='C'), due_date=timezone.now().date())
         self.item = OrderItem.objects.create(order=order, part_name='P', quantity=1)
         RouteStep.objects.create(item=self.item, sequence=1, process=self.mat)
-        TagAssignment.objects.create(tag=Tag.objects.create(uid='AB12'), box=Box.objects.create(label='B1'), item=self.item)
+        TagAssignment.objects.create(tag=Tag.objects.create(uid='AB12'), item=self.item)
 
     def post(self, body=None, key='default', **kw):
         body = {'tag_uid': 'ab12', 'process': self.mat.pk, 'event_type': 'ARRIVED'} if body is None else body
@@ -1068,7 +1070,7 @@ class ScanApiTests(TestCase):
         r = self.post()
         self.assertEqual(r.status_code, 200)
         j = r.json()
-        self.assertEqual((j['ok'], j['tag_uid'], j['box'], j['item']), (True, 'AB12', 'B1', self.item.item_code))
+        self.assertEqual((j['ok'], j['tag_uid'], j['item']), (True, 'AB12', self.item.item_code))
         self.assertEqual(j['event_id'], Event.objects.get().pk)
         self.device.refresh_from_db()
         self.assertIsNotNone(self.device.last_seen)
@@ -1154,7 +1156,7 @@ class CorrectEventTests(TestCase):
         for i, p in enumerate((self.mat, self.mach), 1):
             RouteStep.objects.create(item=self.item, sequence=i, process=p)
         self.start = self.now - timedelta(hours=10)
-        TagAssignment.objects.create(tag=Tag.objects.create(uid='AB12'), box=Box.objects.create(label='B'), item=self.item, start_at=self.start)
+        TagAssignment.objects.create(tag=Tag.objects.create(uid='AB12'), item=self.item, start_at=self.start)
         self.device = ScannerDevice.objects.create(name='D')
         self.event = Event.objects.create(device=self.device, tag_uid='AB12', event_type=E.ARRIVED, process=self.mat, occurred_at=self.start + timedelta(hours=1))
         self.user = make_user('planner', 'Planner')
@@ -1252,7 +1254,7 @@ class ProgressMatrixTests(TestCase):
         for i, proc in enumerate(route or [self.mat, self.mill, self.plate], 1):
             RouteStep.objects.create(item=item, sequence=i, process=proc, vendor=proc.default_vendor)
         uid = f'M{self.n}'
-        TagAssignment.objects.create(tag=Tag.objects.create(uid=uid), box=Box.objects.create(label=f'MB{self.n}'), item=item,
+        TagAssignment.objects.create(tag=Tag.objects.create(uid=uid), item=item,
                                      start_at=timezone.now() - timedelta(days=1))
         return item, uid
 
@@ -1377,7 +1379,7 @@ class ResultTests(TestCase):
         self.item = OrderItem.objects.create(order=order, part_name='Shaft', quantity=10, box_count=2)
         for i, p in enumerate((self.mat, self.mill), 1):
             RouteStep.objects.create(item=self.item, sequence=i, process=p)
-        self.a = TagAssignment.objects.create(tag=Tag.objects.create(uid='RA'), box=Box.objects.create(label='BA'), item=self.item,
+        self.a = TagAssignment.objects.create(tag=Tag.objects.create(uid='RA'), item=self.item,
                                               start_at=timezone.now() - timedelta(days=2))
         self.url = f'/items/{self.item.pk}/result/'
         self.detail = f'/orders/{order.job_number}/'
@@ -1442,10 +1444,10 @@ class ResultTests(TestCase):
         self.assertFalse(self.results().exists())
 
     def test_second_box_uses_its_own_tag(self):
-        b = TagAssignment.objects.create(tag=Tag.objects.create(uid='RB'), box=Box.objects.create(label='BB'), item=self.item)
+        b = TagAssignment.objects.create(tag=Tag.objects.create(uid='RB'), item=self.item)
         self.post(box=b.pk)
         self.assertEqual(self.results().get().tag_uid, 'RB')
-        self.assertContains(self.client.get(self.detail), 'BB')
+        self.assertContains(self.client.get(self.detail), 'Tag RB')
 
     def test_no_form_without_a_linked_box_and_roles(self):
         self.a.release()
@@ -1515,7 +1517,7 @@ class PlanVsActualTests(TestCase):
         for i, (p, due) in enumerate(((self.mat, None), (self.mill, day(mill_due)), (self.plate, day(plate_due))), 1):
             RouteStep.objects.create(item=item, sequence=i, process=p, due_date=due)
         uid = f'PV{self.n}'
-        TagAssignment.objects.create(tag=Tag.objects.create(uid=uid), box=Box.objects.create(label=f'PB{self.n}'), item=item,
+        TagAssignment.objects.create(tag=Tag.objects.create(uid=uid), item=item,
                                      start_at=self.now - timedelta(days=20))
         ago = lambda d: self.now - timedelta(days=d)
         record_event(self.device, uid, self.mat, 'ARRIVED', occurred_at=ago(arrived))
@@ -1589,7 +1591,7 @@ class StepStateTests(TestCase):
         item = OrderItem.objects.create(order=order, part_name=f'P{self.n}', quantity=3)
         for i, p in enumerate(route or [self.mat, self.mill, self.plate], 1):
             RouteStep.objects.create(item=item, sequence=i, process=p)
-        a = TagAssignment.objects.create(tag=Tag.objects.create(uid=f'ST{self.n}'), box=Box.objects.create(label=f'SB{self.n}'), item=item,
+        a = TagAssignment.objects.create(tag=Tag.objects.create(uid=f'ST{self.n}'), item=item,
                                          start_at=timezone.now() - timedelta(days=20))
         return item, a
 
@@ -1842,7 +1844,7 @@ class ShippedTests(TestCase):
         item = OrderItem.objects.create(order=order, part_name=f'P{self.n}', quantity=3)
         for i, p in enumerate(route or [self.mat], 1):
             RouteStep.objects.create(item=item, sequence=i, process=p)
-        a = TagAssignment.objects.create(tag=Tag.objects.create(uid=f'SH{self.n}'), box=Box.objects.create(label=f'SHB{self.n}'), item=item,
+        a = TagAssignment.objects.create(tag=Tag.objects.create(uid=f'SH{self.n}'), item=item,
                                          start_at=timezone.now() - timedelta(days=30))
         if done:
             record_event(self.device, a.tag.uid, self.mat, 'ARRIVED', occurred_at=timezone.now() - timedelta(days=2))
@@ -2017,3 +2019,71 @@ class ShippingFilterTests(TestCase):
 
     def test_bad_month_text_is_ignored(self):
         self.assertEqual(self.client.get('/shipping/', {'month_from': 'abc'}).status_code, 200)
+
+
+class BoxCaptionTests(TestCase):
+    """'Box k of n' shows only for items with more than one box; k follows start time, then pk."""
+
+    def setUp(self):
+        order = Order.objects.create(customer=Customer.objects.create(name='C'), due_date=timezone.localdate())
+        self.single = OrderItem.objects.create(order=order, part_name='One', quantity=1)
+        self.multi = OrderItem.objects.create(order=order, part_name='Many', quantity=1, box_count=3)
+        self.client.force_login(make_user('s', 'Admin'))
+
+    def test_caption_helper(self):
+        self.assertEqual(box_caption(2, 3), 'Box 2 of 3')
+        self.assertEqual((box_caption(1, 1), box_caption(None, 3)), ('', ''))
+
+    def test_hidden_for_a_single_box_item(self):
+        a = assign_tag(self.single, 'ONE')
+        self.assertEqual(box_captions([a]), {a.pk: ''})
+        self.assertEqual(item_status(self.single).boxes[0].caption, '')
+        r = self.client.get('/tags/', {'q': 'one'})
+        self.assertContains(r, 'ONE')
+        self.assertNotContains(r, 'Box 1 of 1')
+        self.assertNotContains(r, ' of 1<')
+
+    def test_shown_for_several_boxes_in_start_order(self):
+        a, b = assign_tag(self.multi, 'M1'), assign_tag(self.multi, 'M2')
+        self.assertEqual(box_captions([b, a]), {a.pk: 'Box 1 of 3', b.pk: 'Box 2 of 3'})
+        self.assertEqual([x.caption for x in item_status(self.multi).boxes], ['Box 1 of 3', 'Box 2 of 3', ''])  # unlinked third: none
+        self.assertContains(self.client.get('/tags/', {'q': 'm2'}), 'Box 2 of 3')
+        self.assertContains(self.client.get('/tags/history/'), 'Box 1 of 3')
+        self.assertContains(self.client.get(f'/orders/{self.multi.order.job_number}/'), 'Box 2 of 3')
+
+    def test_replaced_tag_keeps_its_box_number(self):
+        a, b = assign_tag(self.multi, 'M1'), assign_tag(self.multi, 'M2')
+        new = replace_tag(a, 'M3')
+        self.assertEqual(box_captions([a, b, new]), {a.pk: 'Box 1 of 3', b.pk: 'Box 2 of 3', new.pk: 'Box 1 of 3'})
+
+    def test_second_assignment_of_the_same_tag_is_refused(self):
+        assign_tag(self.single, 'SAME')
+        with self.assertRaisesMessage(ValidationError, 'already in use'):
+            assign_tag(self.multi, 'same')
+        self.assertEqual(TagAssignment.objects.count(), 1)
+
+
+class RemoveBoxMigrationTests(TransactionTestCase):
+    """History (tag, item, start, end) survives dropping Box; same-box assignments become a replacement chain."""
+    serialized_rollback = True
+
+    def test_history_survives(self):
+        executor = MigrationExecutor(connection)
+        executor.migrate([('tracking', '0007_event_tag_time_index')])
+        old = executor.loader.project_state([('tracking', '0007_event_tag_time_index')]).apps
+        Box, OldTag, OldAssignment = (old.get_model('tracking', n) for n in ('Box', 'Tag', 'TagAssignment'))
+        order = Order.objects.create(customer=Customer.objects.create(name='C'), due_date=timezone.localdate())
+        item = OrderItem.objects.create(order=order, part_name='P', quantity=1)
+        other = OrderItem.objects.create(order=order, part_name='Q', quantity=1)
+        now = timezone.now()
+        b1, b2 = Box.objects.create(label='B1'), Box.objects.create(label='B2')
+        t = {u: OldTag.objects.create(uid=u) for u in ('A', 'B', 'C', 'D')}
+        mk = lambda tag, box, it, s, e=None: OldAssignment.objects.create(tag=t[tag], box=box, item_id=it.pk, start_at=now - timedelta(days=s), end_at=e and now - timedelta(days=e)).pk
+        a, b, c, d = mk('A', b1, item, 9, 5), mk('B', b1, item, 5), mk('C', b2, item, 8), mk('D', b1, other, 7, 3)
+        executor = MigrationExecutor(connection)
+        executor.migrate([('tracking', '0008_remove_box')])
+        rows = {x.pk: x for x in TagAssignment.objects.select_related('tag')}
+        self.assertEqual({k: (v.tag.uid, v.item_id, v.replaces_id) for k, v in rows.items()},
+                         {a: ('A', item.pk, None), b: ('B', item.pk, a), c: ('C', item.pk, None), d: ('D', other.pk, None)})
+        self.assertEqual((rows[a].start_at, rows[a].end_at, rows[b].end_at), (now - timedelta(days=9), now - timedelta(days=5), None))
+        self.assertEqual(len(item_status(item).boxes), 2)

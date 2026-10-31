@@ -53,7 +53,7 @@ class StepRow:
 @dataclass
 class BoxStatus:
     assignment: object
-    label: str
+    number: int | None
     code: str
     code_label: str
     current_step: object = None
@@ -61,6 +61,7 @@ class BoxStatus:
     warnings: list = field(default_factory=list)
     last_event_at: datetime | None = None
     assignments: list = field(default_factory=list)
+    caption: str = ''  # 'Box k of n' for an item with several boxes
 
 
 @dataclass
@@ -90,6 +91,32 @@ def _live(q):
     """Scan events matching q, minus those voided by a CORRECTION, oldest first. RESULT events never change status."""
     corrected = Event.objects.filter(event_type=Event.Type.CORRECTION).values('corrects_id')
     return Event.objects.filter(q).exclude(pk__in=corrected).exclude(event_type__in=NO_STATUS_TYPES).order_by('occurred_at', 'pk')
+
+
+def box_chains(assignments):
+    """Group assignments (oldest first) by box: a replacement joins the chain of the tag it replaced."""
+    root, chains = {}, {}
+    for a in assignments:
+        root[a.pk] = root.get(a.replaces_id, a.pk)
+        chains.setdefault(root[a.pk], []).append(a)
+    return chains
+
+
+def box_caption(number, total):
+    """'Box k of n' for one of several boxes; empty for a single-box item or an unlinked box."""
+    return _('Box %(k)s of %(n)s') % {'k': number, 'n': total} if number and total > 1 else ''
+
+
+def box_captions(assignments):
+    """{assignment pk: caption} for assignments whose .item is loaded; one query, none for single-box items."""
+    totals = {a.item_id: a.item.box_count for a in assignments if a.item.box_count > 1}
+    by_item, out = defaultdict(list), {}
+    for a in TagAssignment.objects.filter(item_id__in=totals).order_by('start_at', 'pk'):
+        by_item[a.item_id].append(a)
+    for item_id, rows in by_item.items():
+        for n, chain in enumerate(box_chains(rows).values(), 1):
+            out.update({a.pk: box_caption(n, totals[item_id]) for a in chain})
+    return {a.pk: out.get(a.pk, '') for a in assignments}
 
 
 def events_for_box(assignments):
@@ -178,7 +205,7 @@ def _current(rows):
     return next((r for r in rows if r.state != DONE), None)
 
 
-def _replay(steps, assignments, events):
+def _replay(steps, assignments, events, number=None):
     """Status of one (item, box) pair: replay its events over fresh rows of the item's route."""
     rows, warnings = [StepRow(st) for st in steps], []
     for e in events:
@@ -197,9 +224,8 @@ def _replay(steps, assignments, events):
     else:
         code = {STEP_IN_PROGRESS: IN_PROGRESS, STEP_AT_VENDOR: AT_VENDOR}.get(current.state, WAITING)
     assignment = assignments[-1] if assignments else None
-    label = assignment.box.label if assignment else ''
     last = events[-1].occurred_at if events else None
-    return BoxStatus(assignment, label, code, LABELS[code], current.step if current else None, rows,
+    return BoxStatus(assignment, number, code, LABELS[code], current.step if current else None, rows,
                      list(dict.fromkeys(map(str, warnings))), last, list(assignments))
 
 
@@ -209,8 +235,9 @@ def _steps(item):
 
 def box_status(assignment):
     """Status of the (item, box) pair the assignment belongs to."""
-    group = list(assignment.item.tagassignment_set.filter(box=assignment.box).select_related('tag', 'box').order_by('start_at', 'pk'))
-    return _replay(_steps(assignment.item), group, list(events_for_box(group)))
+    chains = list(box_chains(assignment.item.tagassignment_set.select_related('tag').order_by('start_at', 'pk')).values())
+    number, group = next((i, g) for i, g in enumerate(chains, 1) if any(a.pk == assignment.pk for a in g))
+    return _replay(_steps(assignment.item), group, list(events_for_box(group)), number)
 
 
 def _roll_up(boxes):
@@ -251,14 +278,14 @@ def _in_window(by_uid, a):
 def _load_chunk(items):
     """Everything the replay needs for these items, in a fixed number of queries."""
     by_id = {i.pk: i for i in items}
-    steps, groups = defaultdict(list), defaultdict(dict)  # item -> steps; item -> box -> assignments
+    steps, groups = defaultdict(list), defaultdict(list)  # item -> steps; item -> assignments
     for s in RouteStep.objects.filter(item_id__in=by_id).select_related('process__default_vendor', 'vendor').order_by('item_id', 'sequence'):
         s.item = by_id[s.item_id]
         steps[s.item_id].append(s)
-    assignments = list(TagAssignment.objects.filter(item_id__in=by_id).select_related('tag', 'box').order_by('start_at', 'pk'))
+    assignments = list(TagAssignment.objects.filter(item_id__in=by_id).select_related('tag').order_by('start_at', 'pk'))
     for a in assignments:
         a.item = by_id[a.item_id]
-        groups[a.item_id].setdefault(a.box_id, []).append(a)  # a box keeps its status across replaced tags
+        groups[a.item_id].append(a)
     by_uid = {}  # tag uid -> (times, events), both oldest first
     if assignments:
         events = (Event.objects.filter(tag_uid__in={a.tag.uid for a in assignments}, occurred_at__gte=min(a.start_at for a in assignments))
@@ -281,10 +308,12 @@ def _chunk_statuses(items):
     for item in items:
         try:
             boxes = []
-            for g in groups[item.pk].values():
+            for n, g in enumerate(box_chains(groups[item.pk]).values(), 1):
                 merged = {e.pk: e for a in g for e in _in_window(by_uid, a)}  # one event per pk even if windows overlap
-                boxes.append(_replay(steps[item.pk], g, sorted(merged.values(), key=lambda e: (e.occurred_at, e.pk))))
+                boxes.append(_replay(steps[item.pk], g, sorted(merged.values(), key=lambda e: (e.occurred_at, e.pk)), n))
             boxes += [_replay(steps[item.pk], [], []) for _ in range(max(item.box_count - len(boxes), 0 if boxes else 1))]
+            for b in boxes:
+                b.caption = box_caption(b.number, item.box_count)
             status = _roll_up(boxes)
             if cancel := latest.get((item.pk, Event.Type.CANCELLED)):
                 status.code, status.label, status.cancel_event = CANCELLED, LABELS[CANCELLED], cancel

@@ -15,7 +15,7 @@ from django.utils import timezone
 from core.permissions import OPERATOR
 from core.testing import TestCase, make_user
 from orders.models import Customer, Order, OrderItem, Process, RouteStep
-from tracking.models import Box, Event, ScannerDevice, Tag, TagAssignment
+from tracking.models import Event, ScannerDevice, Tag, TagAssignment
 
 from .planning import process_averages
 from .status import (
@@ -50,10 +50,9 @@ class World:
             RouteStep.objects.create(item=item, sequence=seq, process=p)
         return item
 
-    def assign(self, item, uid, start, end=None, box=None, active=True):
+    def assign(self, item, uid, start, end=None, replaces=None, active=True):
         tag = Tag.objects.get_or_create(uid=uid, defaults={'active': active})[0]
-        box = Box.objects.get_or_create(label=box or f'B-{uid}')[0]
-        return TagAssignment.objects.create(tag=tag, box=box, item=item, start_at=self.at(start), end_at=None if end is None else self.at(end))
+        return TagAssignment.objects.create(tag=tag, item=item, start_at=self.at(start), end_at=None if end is None else self.at(end), replaces=replaces)
 
     def ev(self, uid, proc, etype, hours):
         process = None if proc is None else self.procs[proc]
@@ -86,7 +85,7 @@ def standard(w):
     items['multi_box'] = w.item(box_count=3)
     w.assign(items['multi_box'], 'M1', 0); w.run('M1', 7); w.assign(items['multi_box'], 'M2', 0); w.run('M2', 2)
     items['replaced_tag'] = w.item()
-    w.assign(items['replaced_tag'], 'R1', 0, 10, box='RB'); w.assign(items['replaced_tag'], 'R2', 10, None, box='RB')
+    r1 = w.assign(items['replaced_tag'], 'R1', 0, 10); w.assign(items['replaced_tag'], 'R2', 10, None, replaces=r1)
     w.run('R1', 3, 1, 2); w.ev('R2', 2, E.STARTED, 12)
     items['voided'] = w.item(); w.assign(items['voided'], 'VO', 0)
     w.run('VO', 2); w.void(w.ev('VO', 1, E.FINISHED, 30))
@@ -100,6 +99,7 @@ def build_random(w, rng, n_items, prefix=''):
     open_tags, open_boxes, items = set(), set(), []
     for _ in range(n_items):
         item = w.item(rng.sample(w.procs, rng.randint(0, len(w.procs))), rng.randint(1, 3), rng.randint(-10, 10))
+        picks, last = [], {}
         for _ in range(rng.randint(0, 4)):
             uid, box, start = rng.choice(tags), rng.choice(boxes), rng.randint(0, 150)
             end = rng.choice([None, start + rng.randint(1, 80)])
@@ -108,7 +108,9 @@ def build_random(w, rng, n_items, prefix=''):
             if end is None:
                 open_tags.add(uid)
                 open_boxes.add(box)
-            w.assign(item, uid, start, end, box, active=rng.random() > 0.2)
+            picks.append((start, uid, box, end, rng.random() > 0.2))
+        for start, uid, box, end, active in sorted(picks, key=lambda x: x[0]):  # a box chains its assignments in start order
+            last[box] = w.assign(item, uid, start, end, last.get(box), active=active)
         items.append(item)
     kinds = [E.ARRIVED, E.STARTED, E.FINISHED, E.PAUSED, E.RESUMED, E.PARTIAL, E.SENT_OUT, E.RETURNED, E.RESULT]
     events = Event.objects.bulk_create([
@@ -203,8 +205,8 @@ class EdgeCaseTests(TestCase):
 
     def test_tag_reused_across_items_at_different_times(self):
         first, second = self.w.item(), self.w.item()
-        self.w.assign(first, 'A', 0, 20, box='B1')
-        self.w.assign(second, 'A', 20, None, box='B2')
+        self.w.assign(first, 'A', 0, 20)
+        self.w.assign(second, 'A', 20, None)
         self.w.run('A', 7, 1, 2)
         self.w.run('A', 2, 22, 2)
         statuses = self.same([first, second])
@@ -212,10 +214,10 @@ class EdgeCaseTests(TestCase):
 
     def test_overlapping_and_back_to_back_windows(self):
         item, other = self.w.item(box_count=2), self.w.item()
-        self.w.assign(item, 'A', 0, 10, box='B1')
-        self.w.assign(item, 'B', 10, 30, box='B1')  # back to back, same box
-        self.w.assign(item, 'A', 5, 25, box='B2')  # overlaps the first window on the same tag
-        self.w.assign(other, 'A', 8, 12, box='B3')  # another item's overlap
+        first = self.w.assign(item, 'A', 0, 10)
+        self.w.assign(item, 'B', 10, 30, replaces=first)  # back to back, same box
+        self.w.assign(item, 'A', 5, 25)  # overlaps the first window on the same tag
+        self.w.assign(other, 'A', 8, 12)  # another item's overlap
         for hours in (1, 5, 9, 10, 11, 25):
             self.w.ev('A', 1, E.STARTED, hours)
             self.w.ev('B', 1, E.FINISHED, hours + 1)

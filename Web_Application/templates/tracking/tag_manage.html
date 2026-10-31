@@ -10,9 +10,6 @@
     {% csrf_token %}
     <input type="hidden" name="action" value="assign">
     {{ form }}
-    <datalist id="box-labels">
-      {% for label in box_labels %}<option value="{{ label }}">{% endfor %}
-    </datalist>
     <datalist id="tag-uids">
       {% for uid in tag_uids %}<option value="{{ uid }}">{% endfor %}
     </datalist>
@@ -23,7 +20,7 @@
   <form method="get" class="filters">
     <div>
       <label for="q">{% trans "Search" %}</label>
-      <input type="search" id="q" name="q" value="{{ q }}" placeholder="{% trans 'Item, job, part, customer, box or tag' %}">
+      <input type="search" id="q" name="q" value="{{ q }}" placeholder="{% trans 'Item, job, part, customer or tag' %}">
     </div>
     <button type="submit" class="button">{% trans "Search" %}</button>
     <a href="{% url 'tag_history' %}">{% trans "Tag history" %}</a>
@@ -36,7 +33,6 @@
         <thead>
           <tr>
             <th>{% trans "Tag" %}</th>
-            <th>{% trans "Box" %}</th>
             <th>{% trans "Item" %}</th>
             <th>{% trans "Since (JST)" %}</th>
             <th></th>
@@ -45,8 +41,7 @@
         <tbody>
           {% for a in open %}
             <tr>
-              <td data-label="{% trans 'Tag' %}">{{ a.tag }}</td>
-              <td data-label="{% trans 'Box' %}">{% blocktrans with l=a.box n=a.nth t=a.item.box_count %}Box {{ l }} ({{ n }} of {{ t }}){% endblocktrans %}</td>
+              <td data-label="{% trans 'Tag' %}">{{ a.tag }}{% if a.caption %} <small>{{ a.caption }}</small>{% endif %}</td>
               <td data-label="{% trans 'Item' %}"><span><a href="{% url 'order_detail' a.item.order.job_number %}">{{ a.item.item_code }}</a> {{ a.item.part_name }}</span></td>
               <td data-label="{% trans 'Since (JST)' %}">{{ a.start_at|date:"Y-m-d H:i" }}</td>
               <td>

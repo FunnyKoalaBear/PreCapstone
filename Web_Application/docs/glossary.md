@@ -23,7 +23,7 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | Drawing | 図面 |
 | Open drawing / No drawing | 図面を開く / 図面なし |
 | Box | 箱 |
-| Box number / label | 箱番号 |
+| Box k of n | n箱中k箱目 |
 | Tag | タグ |
 | Tags | タグ管理 |
 | Release tag | タグを解除 |

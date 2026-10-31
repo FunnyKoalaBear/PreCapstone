@@ -11,20 +11,6 @@ from django.utils.translation import gettext_lazy as _
 from orders.models import Process
 
 
-class Box(models.Model):
-    label = models.CharField(_('label'), max_length=100, unique=True)
-    notes = models.TextField(_('notes'), blank=True)
-    active = models.BooleanField(_('active'), default=True)
-    created_at = models.DateTimeField(_('created at'), auto_now_add=True)
-
-    class Meta:
-        verbose_name = _('box')
-        verbose_name_plural = _('boxes')
-
-    def __str__(self):
-        return self.label
-
-
 class Tag(models.Model):
     uid = models.CharField(_('UID'), max_length=100, unique=True)
     active = models.BooleanField(_('active'), default=True)
@@ -53,10 +39,11 @@ class TagAssignmentQuerySet(models.QuerySet):
 
 class TagAssignment(models.Model):
     tag = models.ForeignKey(Tag, on_delete=models.PROTECT, verbose_name=_('tag'))
-    box = models.ForeignKey(Box, on_delete=models.PROTECT, verbose_name=_('box'))
     item = models.ForeignKey('orders.OrderItem', on_delete=models.PROTECT, verbose_name=_('item'))
     start_at = models.DateTimeField(_('start'), default=timezone.now)
     end_at = models.DateTimeField(_('end'), null=True, blank=True)
+    # The assignment whose tag this one replaced (same physical box)
+    replaces = models.ForeignKey('self', on_delete=models.PROTECT, null=True, blank=True, related_name='replaced_by', verbose_name=_('replaces'))
 
     objects = TagAssignmentQuerySet.as_manager()
 
@@ -67,16 +54,13 @@ class TagAssignment(models.Model):
             models.UniqueConstraint(
                 fields=['tag'], condition=Q(end_at__isnull=True), name='one_open_assignment_per_tag',
             ),
-            models.UniqueConstraint(
-                fields=['box'], condition=Q(end_at__isnull=True), name='one_open_assignment_per_box',
-            ),
             models.CheckConstraint(
                 condition=Q(end_at__isnull=True) | Q(end_at__gt=F('start_at')), name='end_after_start',
             ),
         ]
 
     def __str__(self):
-        return f'{self.tag} / {self.box} / {self.item}'
+        return f'{self.tag} / {self.item}'
 
     def release(self):
         if self.end_at is None:

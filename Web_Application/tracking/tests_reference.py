@@ -1,6 +1,6 @@
 """The original per-item status code, kept only as the correctness oracle for item_statuses. The app never calls it."""
 from .models import Event
-from .status import CANCELLED, COMPLETE, LABELS, SHIPPED, _replay, _roll_up, _steps, events_for_box
+from .status import CANCELLED, COMPLETE, LABELS, SHIPPED, _replay, _roll_up, _steps, box_chains, events_for_box
 
 
 def _item_event(item, event_type):
@@ -12,11 +12,8 @@ def _item_event(item, event_type):
 
 def reference_item_status(item):
     steps = _steps(item)
-    assignments = item.tagassignment_set.select_related('tag', 'box').order_by('start_at', 'pk')
-    groups = {}  # a box keeps its status across replaced tags
-    for a in assignments:
-        groups.setdefault(a.box_id, []).append(a)
-    boxes = [_replay(steps, g, list(events_for_box(g))) for g in groups.values()]
+    assignments = item.tagassignment_set.select_related('tag').order_by('start_at', 'pk')
+    boxes = [_replay(steps, g, list(events_for_box(g)), n) for n, g in enumerate(box_chains(assignments).values(), 1)]  # a box keeps its status across replaced tags
     boxes += [_replay(steps, [], []) for _ in range(max(item.box_count - len(boxes), 0 if boxes else 1))]
     status = _roll_up(boxes)
     if cancel := _item_event(item, Event.Type.CANCELLED):
@@ -32,7 +29,7 @@ def _row(r):
 
 def _box(b):
     return {
-        'assignment': b.assignment and b.assignment.pk, 'label': b.label, 'code': b.code, 'code_label': str(b.code_label),
+        'assignment': b.assignment and b.assignment.pk, 'number': b.number, 'code': b.code, 'code_label': str(b.code_label),
         'current_step': b.current_step and b.current_step.pk, 'rows': [_row(r) for r in b.rows], 'warnings': list(b.warnings),
         'last_event_at': b.last_event_at, 'assignments': [a.pk for a in b.assignments],
     }

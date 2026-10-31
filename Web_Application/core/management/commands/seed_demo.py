@@ -9,7 +9,7 @@ from django.db.models import Case, ProtectedError, Q, Value, When
 from django.utils import timezone
 
 from orders.models import Customer, Order, OrderItem, Process, RouteStep, Vendor
-from tracking.models import Box, Event, Machine, ScannerDevice, Tag, TagAssignment, Worker
+from tracking.models import Event, Machine, ScannerDevice, Tag, TagAssignment, Worker
 from tracking.services import record_event
 from tracking.status import DONE, item_statuses
 
@@ -33,10 +33,10 @@ def read_csv(name):
 
 
 CUSTOMERS = ('東洋機械', '北斗製作所')
-# 4-byte tag UIDs of the demo scenarios (box labels stay DEMO-xx)
+# 4-byte tag UIDs of the demo scenarios
 DEMO_UIDS = (
     '0781DD5E', 'F8DF3064', '74BA7571', '8EFBD21A', '57E36722', 'FC3F61E6', '092C4B14',
-    '3E180A05', '03193FDF', '414D497D', 'C36F67C6', 'D795A680', 'B15D6B73', '5A1C9E02', '9B27F4D6',
+    '3E180A05', '03193FDF', 'C36F67C6', 'D795A680', 'B15D6B73', '5A1C9E02', '9B27F4D6',
 )
 
 
@@ -73,7 +73,6 @@ class Command(BaseCommand):
         orders.delete()
         Tag.objects.filter(uid__in=uids).delete()
         User.objects.filter(username__startswith='demo_').delete()
-        Box.objects.filter(label__startswith='DEMO').delete()
         Customer.objects.filter(name__startswith='DEMO ').delete()
         # Old demo processes and scanners stay (with a warning) if a real record still points at them
         for obj in [*ScannerDevice.objects.filter(name__startswith='DEMO '), *Process.objects.filter(name__startswith='DEMO ')]:
@@ -114,14 +113,14 @@ class Command(BaseCommand):
         c1, c2 = (Customer.objects.get_or_create(name=f'DEMO {n}')[0] for n in CUSTOMERS)
         created = []
 
-        def link(item, uid, box, start=None, end=None):
+        def link(item, uid, start=None, end=None):
             TagAssignment.objects.create(
-                tag=Tag.objects.get_or_create(uid=uid)[0], box=Box.objects.get_or_create(label=box)[0],
+                tag=Tag.objects.get_or_create(uid=uid)[0],
                 item=item, start_at=start or ago(days=21), end_at=end,
             )
 
-        def make(label, customer, part, route, due, uid, box, number, start=None, end=None, box_count=1, ids=('', '', '')):
-            """One order with one item, its route, and a tag/box assignment; ids = part number, drawing number, revision."""
+        def make(label, customer, part, route, due, uid, number, start=None, end=None, box_count=1, ids=('', '', '')):
+            """One order with one item, its route, and a tag assignment; ids = part number, drawing number, revision."""
             order = Order.objects.create(customer=customer, customer_order_number=number, due_date=today + timedelta(days=due))
             item = OrderItem.objects.create(
                 order=order, part_name=part, quantity=10, box_count=box_count, material=MATERIALS[len(created) % len(MATERIALS)],
@@ -129,7 +128,7 @@ class Command(BaseCommand):
             for i, name in enumerate(route, 1):  # step due dates spread back from the order due date, two days per step
                 RouteStep.objects.create(item=item, sequence=i, process=procs[name], vendor=procs[name].default_vendor,
                                          due_date=today + timedelta(days=due - 2 * (len(route) - i)))
-            link(item, uid, box, start, end)
+            link(item, uid, start, end)
             created.append((label, item))
             return item
 
@@ -138,31 +137,31 @@ class Command(BaseCommand):
 
         full = ['Milling', 'Lathe', 'Assembly', 'Inspection']
         # 1 Healthy: material arrived, two steps done with a 4h wait, third running
-        make('Healthy', c1, 'ブラケット', ['Material'] + full, 10, '0781DD5E', 'DEMO-01', 'TY-2610-014', ids=('BRK-100', 'DWG-1001', 'A'))
+        make('Healthy', c1, 'ブラケット', ['Material'] + full, 10, '0781DD5E', 'TY-2610-014', ids=('BRK-100', 'DWG-1001', 'A'))
         scan('0781DD5E', 'Material', 'ARRIVED', ago(hours=34))
         for name, s, f in (('Milling', 30, 26), ('Lathe', 22, 18)):
             scan('0781DD5E', name, 'STARTED', ago(hours=s))
             scan('0781DD5E', name, 'FINISHED', ago(hours=f))
         scan('0781DD5E', 'Assembly', 'STARTED', ago(hours=3), d2)
         # 2 Overdue
-        make('Overdue', c1, 'フランジ', ['Milling', 'Lathe', 'Inspection'], -3, 'F8DF3064', 'DEMO-02', 'TY-2610-009', ids=('FLG-200', 'DWG-2001', 'B'))
+        make('Overdue', c1, 'フランジ', ['Milling', 'Lathe', 'Inspection'], -3, 'F8DF3064', 'TY-2610-009', ids=('FLG-200', 'DWG-2001', 'B'))
         scan('F8DF3064', 'Milling', 'STARTED', ago(hours=80))
         scan('F8DF3064', 'Milling', 'FINISHED', ago(hours=70))
         scan('F8DF3064', 'Lathe', 'STARTED', ago(hours=2), d2)
         # 3 Critical: due soon, 4 steps left, nothing scanned yet
-        make('Critical', c2, 'ハウジング', full, 2, '74BA7571', 'DEMO-03', 'HS-45021')
+        make('Critical', c2, 'ハウジング', full, 2, '74BA7571', 'HS-45021')
         # 4 Vendor late: Coating out 10 days, planned back 5 days ago (step due date and slip)
-        late = make('Vendor late', c2, 'カバー', ['Milling', 'Coating'], 4, '8EFBD21A', 'DEMO-04', 'HS-45017')
+        late = make('Vendor late', c2, 'カバー', ['Milling', 'Coating'], 4, '8EFBD21A', 'HS-45017')
         scan('8EFBD21A', 'Milling', 'STARTED', ago(days=12))
         scan('8EFBD21A', 'Milling', 'FINISHED', ago(days=11))
         scan('8EFBD21A', 'Coating', 'SENT_OUT', ago(days=10), d2)
         late.steps.filter(process=procs['Coating']).update(due_date=today - timedelta(days=5), slip_number='SL-0412')
         # 5 Stagnant: finished a step 40h ago, nothing since
-        make('Stagnant', c1, 'シャフト', ['Milling', 'Lathe', 'Inspection'], 6, '57E36722', 'DEMO-05', 'TY-2610-021')
+        make('Stagnant', c1, 'シャフト', ['Milling', 'Lathe', 'Inspection'], 6, '57E36722', 'TY-2610-021')
         scan('57E36722', 'Milling', 'STARTED', ago(hours=46))
         scan('57E36722', 'Milling', 'FINISHED', ago(hours=40))
         # 6 Complete, due yesterday
-        make('Complete', c2, 'プレート', ['Milling', 'Lathe', 'Plating'], -1, 'FC3F61E6', 'DEMO-06', 'HS-44986')
+        make('Complete', c2, 'プレート', ['Milling', 'Lathe', 'Plating'], -1, 'FC3F61E6', 'HS-44986')
         scan('FC3F61E6', 'Milling', 'STARTED', ago(days=6))
         scan('FC3F61E6', 'Milling', 'FINISHED', ago(days=5, hours=20))
         scan('FC3F61E6', 'Lathe', 'STARTED', ago(days=5))
@@ -170,9 +169,9 @@ class Command(BaseCommand):
         scan('FC3F61E6', 'Plating', 'SENT_OUT', ago(days=3), d2)
         scan('FC3F61E6', 'Plating', 'RETURNED', ago(days=1), d2)
         # 7 Not started
-        make('Not started', c1, 'ピン', ['Milling', 'Lathe', 'Assembly'], 20, '092C4B14', 'DEMO-07', 'TY-2610-027', ids=('PIN-300', '', ''))
+        make('Not started', c1, 'ピン', ['Milling', 'Lathe', 'Assembly'], 20, '092C4B14', 'TY-2610-027', ids=('PIN-300', '', ''))
         # 8 Messy scans: skipped step, process not in route, unassigned tag, voided wrong scan
-        make('Messy scans', c2, 'ギア', full, 5, '3E180A05', 'DEMO-08', 'HS-45030')
+        make('Messy scans', c2, 'ギア', full, 5, '3E180A05', 'HS-45030')
         scan('3E180A05', 'Milling', 'STARTED', ago(hours=30))
         scan('3E180A05', 'Milling', 'FINISHED', ago(hours=28))
         scan('3E180A05', 'Assembly', 'STARTED', ago(hours=20))
@@ -183,19 +182,19 @@ class Command(BaseCommand):
         fix.save()
         Tag.objects.get_or_create(uid='B15D6B73')
         scan('B15D6B73', 'Milling', 'STARTED', ago(hours=6), d2)
-        # 9 Reused box: DEMO-09 carried a finished order, now carries a new one
-        old = make('Reused box (old)', c2, '旧部品', ['Milling'], -10, '03193FDF', 'DEMO-09', 'HS-44871', ago(days=21), ago(days=9), ids=('FLG-200', 'DWG-2001', 'A'))
+        # 9 Reused tag: it carried a finished order, now carries a new one
+        old = make('Reused tag (old)', c2, '旧部品', ['Milling'], -10, '03193FDF', 'HS-44871', ago(days=21), ago(days=9), ids=('FLG-200', 'DWG-2001', 'A'))
         scan('03193FDF', 'Milling', 'STARTED', ago(days=19))
         scan('03193FDF', 'Milling', 'FINISHED', ago(days=18))
         self.manual(d2, '', None, Event.Type.SHIPPED, ago(days=8), '', item=old)  # shipped two days after its due date
-        make('Reused box (now)', c1, '新部品', ['Milling', 'Lathe'], 7, '414D497D', 'DEMO-09', 'TY-2610-025', ago(days=2), ids=('flg-200', 'DWG-2001', 'B'))
-        scan('414D497D', 'Milling', 'STARTED', ago(hours=30))
-        scan('414D497D', 'Milling', 'FINISHED', ago(hours=20))
-        scan('414D497D', 'Lathe', 'STARTED', ago(hours=2), d2)
+        make('Reused tag (now)', c1, '新部品', ['Milling', 'Lathe'], 7, '03193FDF', 'TY-2610-025', ago(days=2), ids=('flg-200', 'DWG-2001', 'B'))
+        scan('03193FDF', 'Milling', 'STARTED', ago(hours=30))
+        scan('03193FDF', 'Milling', 'FINISHED', ago(hours=20))
+        scan('03193FDF', 'Lathe', 'STARTED', ago(hours=2), d2)
         # 10 Split item: 3 boxes expected; one finished, one at step 2, one not linked yet
         route = ['Milling', 'Lathe', 'Assembly']
-        split = make('Split item', c1, 'フレーム', route, 8, 'C36F67C6', 'DEMO-10', 'TY-2610-018', box_count=3)
-        link(split, 'D795A680', 'DEMO-11')
+        split = make('Split item', c1, 'フレーム', route, 8, 'C36F67C6', 'TY-2610-018', box_count=3)
+        link(split, 'D795A680')
         for name, s, f in (('Milling', 40, 36), ('Lathe', 34, 30), ('Assembly', 28, 24)):
             scan('C36F67C6', name, 'STARTED', ago(hours=s))
             scan('C36F67C6', name, 'FINISHED', ago(hours=f))
@@ -204,12 +203,12 @@ class Command(BaseCommand):
         scan('D795A680', 'Lathe', 'STARTED', ago(hours=1), d2)
 
         # 11 Paused: milling started, then put on hold by the planner
-        make('Paused', c1, 'ベース', ['Material', 'Milling', 'Inspection'], 12, '5A1C9E02', 'DEMO-12', 'TY-2610-030', ids=('BRK-100', 'DWG-1001', 'A'))
+        make('Paused', c1, 'ベース', ['Material', 'Milling', 'Inspection'], 12, '5A1C9E02', 'TY-2610-030', ids=('BRK-100', 'DWG-1001', 'A'))
         scan('5A1C9E02', 'Material', 'ARRIVED', ago(hours=30))
         scan('5A1C9E02', 'Milling', 'STARTED', ago(hours=6))
         self.manual(d1, '5A1C9E02', procs['Milling'], Event.Type.PAUSED, ago(hours=2), 'Waiting for a tool')
         # 12 Cancelled: the customer withdrew the order after the first step
-        gone = make('Cancelled', c2, 'リング', ['Milling', 'Lathe'], 5, '9B27F4D6', 'DEMO-13', 'HS-45040', ids=('BRK-100', 'DWG-1001', 'B'))
+        gone = make('Cancelled', c2, 'リング', ['Milling', 'Lathe'], 5, '9B27F4D6', 'HS-45040', ids=('BRK-100', 'DWG-1001', 'B'))
         scan('9B27F4D6', 'Milling', 'STARTED', ago(hours=8))
         self.manual(d2, '', None, Event.Type.CANCELLED, ago(hours=5), 'Withdrawn by the customer', item=gone)
         # The healthy order's assembly is only partly done

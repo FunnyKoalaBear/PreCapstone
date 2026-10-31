@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.translation import gettext_lazy as _
 
-from .models import Box, Event, Machine, ScannerDevice, Tag, TagAssignment, Worker
+from .models import Event, Machine, ScannerDevice, Tag, TagAssignment, Worker
 
 
 class OpenFilter(admin.SimpleListFilter):
@@ -18,13 +18,6 @@ class OpenFilter(admin.SimpleListFilter):
             return queryset.filter(end_at__isnull=False)
 
 
-@admin.register(Box)
-class BoxAdmin(admin.ModelAdmin):
-    list_display = ['label', 'active', 'created_at']
-    list_filter = ['active']
-    search_fields = ['label']
-
-
 @admin.register(Tag)
 class TagAdmin(admin.ModelAdmin):
     list_display = ['uid', 'active', 'note', 'created_at']
@@ -34,7 +27,7 @@ class TagAdmin(admin.ModelAdmin):
 
 @admin.register(TagAssignment)
 class TagAssignmentAdmin(admin.ModelAdmin):
-    list_display = ['tag', 'box', 'item', 'start_at', 'end_at']
+    list_display = ['tag', 'item', 'start_at', 'end_at']
     list_filter = [OpenFilter]
     actions = ['release_selected']
 

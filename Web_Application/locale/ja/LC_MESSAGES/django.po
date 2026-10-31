@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Factory Tracker\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-22 04:06+0900\n"
+"POT-Creation-Date: 2026-10-31 15:12+0900\n"
 "PO-Revision-Date: 2026-10-11 17:00+0900\n"
 "Last-Translator: Claude\n"
 "Language-Team: Japanese\n"
@@ -16,22 +16,22 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-#: .\core\templatetags\duration.py:15
+#: .\core\templatetags\duration.py:15 .\tracking\analysis.py:162
 #, python-format
 msgid "%(d)dd %(h)dh"
 msgstr "%(d)d日%(h)d時間"
 
-#: .\core\templatetags\duration.py:17
+#: .\core\templatetags\duration.py:17 .\tracking\analysis.py:162
 #, python-format
 msgid "%(h)dh %(m)dm"
 msgstr "%(h)d時間%(m)d分"
 
-#: .\core\templatetags\duration.py:18
+#: .\core\templatetags\duration.py:18 .\tracking\analysis.py:162
 #, python-format
 msgid "%(m)dm"
 msgstr "%(m)d分"
 
-#: .\core\templatetags\duration.py:18
+#: .\core\templatetags\duration.py:18 .\tracking\analysis.py:162
 msgid "<1m"
 msgstr "1分未満"
 
@@ -47,19 +47,19 @@ msgstr "選択した工程を有効に戻す"
 msgid "status"
 msgstr "状態"
 
-#: .\orders\export.py:79
+#: .\orders\export.py:101
 msgid "yes"
 msgstr "はい"
 
-#: .\orders\export.py:79
+#: .\orders\export.py:101
 msgid "no"
 msgstr "いいえ"
 
 #: .\orders\forms.py:18 .\orders\models.py:14 .\orders\models.py:40
 #: .\orders\models.py:74 .\templates\orders\customer_detail.html:11
 #: .\templates\orders\customer_list.html:27
-#: .\templates\orders\tabs\codes.html:18 .\tracking\models.py:89
-#: .\tracking\models.py:118
+#: .\templates\orders\tabs\codes.html:18 .\tracking\models.py:73
+#: .\tracking\models.py:102
 msgid "name"
 msgstr "名称"
 
@@ -229,7 +229,6 @@ msgstr "データ行がありません。"
 
 #: .\orders\models.py:16 .\orders\models.py:106
 #: .\templates\orders\customer_detail.html:13 .\tracking\models.py:18
-#: .\tracking\models.py:32
 msgid "created at"
 msgstr "作成日時"
 
@@ -265,7 +264,7 @@ msgstr "コードは5桁の数字で入力してください。"
 
 #: .\orders\models.py:41 .\orders\models.py:75
 #: .\templates\orders\tabs\codes.html:25 .\templates\orders\tabs\codes.html:37
-#: .\tracking\models.py:90
+#: .\tracking\models.py:74
 msgid "Japanese name"
 msgstr "日本語名"
 
@@ -279,12 +278,12 @@ msgid "lead days"
 msgstr "リードタイム（日）"
 
 #: .\orders\models.py:44 .\orders\models.py:105
-#: .\templates\orders\tabs\codes.html:18 .\tracking\models.py:16
+#: .\templates\orders\tabs\codes.html:18
 msgid "notes"
 msgstr "備考"
 
-#: .\orders\models.py:45 .\orders\models.py:85 .\tracking\models.py:17
-#: .\tracking\models.py:30 .\tracking\models.py:91 .\tracking\models.py:121
+#: .\orders\models.py:45 .\orders\models.py:85 .\tracking\models.py:16
+#: .\tracking\models.py:75 .\tracking\models.py:105
 msgid "active"
 msgstr "有効"
 
@@ -333,7 +332,7 @@ msgstr "滞留判定時間（時間）"
 msgid "Blank = use the default."
 msgstr "空欄の場合は既定値を使います。"
 
-#: .\orders\models.py:88 .\orders\models.py:185 .\tracking\models.py:165
+#: .\orders\models.py:88 .\orders\models.py:185 .\tracking\models.py:149
 msgid "process"
 msgstr "工程"
 
@@ -409,8 +408,8 @@ msgid "order items"
 msgstr "受注品目"
 
 # CHECK: 品目 is marked unsure in the glossary (alternative: 明細)
-#: .\orders\models.py:183 .\orders\models.py:220 .\tracking\models.py:57
-#: .\tracking\models.py:176
+#: .\orders\models.py:183 .\orders\models.py:220 .\tracking\models.py:42
+#: .\tracking\models.py:160
 msgid "item"
 msgstr "品目"
 
@@ -505,7 +504,7 @@ msgstr "製番"
 #: .\templates\tracking\boxes.html:31 .\templates\tracking\priorities.html:36
 #: .\templates\tracking\shipping.html:14 .\templates\tracking\shipping.html:30
 #: .\templates\tracking\shipping.html:39 .\templates\tracking\shipping.html:55
-#: .\tracking\views.py:245
+#: .\tracking\views.py:250
 msgid "Customer"
 msgstr "得意先"
 
@@ -530,7 +529,7 @@ msgstr "品名"
 #: .\templates\orders\tabs\orders.html:48 .\templates\tracking\boxes.html:34
 #: .\templates\tracking\priorities.html:37
 #: .\templates\tracking\shipping.html:31 .\templates\tracking\shipping.html:40
-#: .\tracking\views.py:244
+#: .\tracking\views.py:249
 msgid "Due date"
 msgstr "納期"
 
@@ -557,8 +556,8 @@ msgstr "順"
 #: .\templates\tracking\analysis_plan.html:26
 #: .\templates\tracking\analysis_results.html:13
 #: .\templates\tracking\analysis_results.html:25
-#: .\templates\tracking\simulate.html:53 .\tracking\forms.py:105
-#: .\tracking\views.py:293
+#: .\templates\tracking\simulate.html:53 .\tracking\analysis.py:156
+#: .\tracking\forms.py:103 .\tracking\views.py:298
 msgid "Process"
 msgstr "工程"
 
@@ -574,7 +573,7 @@ msgstr "計画納期"
 msgid "Date"
 msgstr "日付"
 
-#: .\orders\pdf.py:68 .\tracking\forms.py:106
+#: .\orders\pdf.py:68 .\tracking\forms.py:104
 msgid "Worker"
 msgstr "作業者"
 
@@ -584,7 +583,8 @@ msgstr "実績数"
 
 #: .\orders\pdf.py:68 .\templates\tracking\analysis_results.html:16
 #: .\templates\tracking\analysis_results.html:28
-#: .\templates\tracking\analysis_results.html:43 .\tracking\forms.py:109
+#: .\templates\tracking\analysis_results.html:43 .\tracking\analysis.py:158
+#: .\tracking\forms.py:107
 msgid "Defects"
 msgstr "不良数"
 
@@ -609,45 +609,45 @@ msgstr "新しい順"
 msgid "Customer %(name)s added."
 msgstr "得意先 %(name)s を追加しました。"
 
-#: .\orders\views.py:67
+#: .\orders\views.py:69
 #, python-format
 msgid "Customer %(name)s updated."
 msgstr "得意先 %(name)s を更新しました。"
 
-#: .\orders\views.py:126
+#: .\orders\views.py:128
 #, python-format
 msgid "Order %(job)s updated."
 msgstr "受注 %(job)s を更新しました。"
 
-#: .\orders\views.py:171
+#: .\orders\views.py:175
 #, python-format
 msgid "Order %(job)s created."
 msgstr "受注 %(job)s を登録しました。"
 
-#: .\orders\views.py:181
+#: .\orders\views.py:185
 msgid "The upload expired. Choose the file again."
 msgstr ""
 "アップロードの有効期限が切れました。ファイルをもう一度選択してください。"
 
-#: .\orders\views.py:187
+#: .\orders\views.py:191
 #, python-format
 msgid "Imported %(orders)d orders with %(items)d items."
 msgstr "%(orders)d件の受注（%(items)d品目）を取り込みました。"
 
-#: .\orders\views.py:193
+#: .\orders\views.py:197
 msgid "Choose a CSV file."
 msgstr "CSVファイルを選択してください。"
 
-#: .\orders\views.py:195
+#: .\orders\views.py:199
 msgid "The file is too large (limit 2 MB)."
 msgstr "ファイルが大きすぎます（上限2MB）。"
 
-#: .\orders\views.py:197
+#: .\orders\views.py:201
 msgid "Could not read the file. Save it as UTF-8 or Shift-JIS CSV."
 msgstr ""
 "ファイルを読み込めません。UTF-8またはShift-JISのCSVで保存してください。"
 
-#: .\orders\views.py:204 .\templates\core\home.html:25
+#: .\orders\views.py:208 .\templates\core\home.html:25
 #: .\templates\core\home.html:32 .\templates\orders\tabs\orders.html:11
 #: .\templates\tracking\analysis.html:18 .\templates\tracking\analysis.html:25
 #: .\templates\tracking\analysis.html:32
@@ -656,50 +656,50 @@ msgstr ""
 msgid "All"
 msgstr "すべて"
 
-#: .\orders\views.py:204
+#: .\orders\views.py:208
 msgid "In-house"
 msgstr "社内"
 
-#: .\orders\views.py:204
+#: .\orders\views.py:208
 msgid "External"
 msgstr "外部"
 
-#: .\orders\views.py:217
+#: .\orders\views.py:221
 #, python-format
 msgid "Code %(code)s reactivated."
 msgstr "コード %(code)s を有効に戻しました。"
 
-#: .\orders\views.py:217
+#: .\orders\views.py:221
 #, python-format
 msgid "Code %(code)s deactivated."
 msgstr "コード %(code)s を無効にしました。"
 
-#: .\orders\views.py:223
+#: .\orders\views.py:227
 #, python-format
 msgid "Code %(code)s updated."
 msgstr "コード %(code)s を更新しました。"
 
-#: .\orders\views.py:223
+#: .\orders\views.py:227
 #, python-format
 msgid "Code %(code)s added."
 msgstr "コード %(code)s を追加しました。"
 
-#: .\orders\views.py:242 .\templates\base.html:18
+#: .\orders\views.py:246 .\templates\base.html:18
 #: .\templates\orders\customer_detail.html:16 .\templates\orders\hub.html:4
 #: .\templates\orders\hub.html:7
 msgid "Orders"
 msgstr "受注一覧"
 
-#: .\orders\views.py:242 .\templates\orders\order_form.html:4
+#: .\orders\views.py:246 .\templates\orders\order_form.html:4
 #: .\templates\orders\order_form.html:11
 msgid "New order"
 msgstr "新規受注"
 
-#: .\orders\views.py:243 .\templates\orders\tabs\import.html:22
+#: .\orders\views.py:247 .\templates\orders\tabs\import.html:22
 msgid "Import"
 msgstr "取り込み"
 
-#: .\orders\views.py:243
+#: .\orders\views.py:247
 msgid "Codes"
 msgstr "コード一覧"
 
@@ -814,36 +814,36 @@ msgid "Events voided in the last 7 days"
 msgstr "過去7日間に取消されたイベント"
 
 #: .\templates\core\home.html:10 .\templates\includes\matrix_legend.html:4
-#: .\templates\orders\_box_detail.html:68 .\tracking\status.py:20
-#: .\tracking\status.py:32 .\tracking\views.py:231
+#: .\templates\orders\_box_detail.html:68 .\tracking\status.py:24
+#: .\tracking\status.py:36 .\tracking\views.py:236
 msgid "In progress"
 msgstr "作業中"
 
-#: .\templates\core\home.html:11 .\tracking\status.py:19
-#: .\tracking\views.py:231
+#: .\templates\core\home.html:11 .\tracking\status.py:23
+#: .\tracking\views.py:236
 msgid "Waiting"
 msgstr "待機中"
 
 #: .\templates\core\home.html:12 .\templates\includes\matrix_legend.html:5
-#: .\templates\orders\_box_detail.html:69 .\tracking\status.py:21
-#: .\tracking\status.py:33 .\tracking\views.py:232
+#: .\templates\orders\_box_detail.html:69 .\tracking\status.py:25
+#: .\tracking\status.py:37 .\tracking\views.py:237
 msgid "At vendor"
 msgstr "外注中"
 
 #: .\templates\core\home.html:13 .\templates\includes\matrix_legend.html:6
-#: .\tracking\models.py:141 .\tracking\status.py:23 .\tracking\status.py:35
-#: .\tracking\views.py:233
+#: .\tracking\models.py:125 .\tracking\status.py:27 .\tracking\status.py:39
+#: .\tracking\views.py:238
 msgid "Paused"
 msgstr "一時停止中"
 
-#: .\templates\core\home.html:14 .\tracking\status.py:18
-#: .\tracking\views.py:232
+#: .\templates\core\home.html:14 .\tracking\status.py:22
+#: .\tracking\views.py:237
 msgid "Not started"
 msgstr "未着手"
 
 # CHECK: 滞留 is marked unsure in the glossary (alternative: 停滞)
 #: .\templates\core\home.html:15 .\templates\tracking\boxes.html:52
-#: .\tracking\views.py:263
+#: .\tracking\views.py:268
 msgid "Stagnant"
 msgstr "滞留"
 
@@ -854,7 +854,7 @@ msgstr "納期遅れの受注"
 
 # CHECK: short form of 外注先の納期遅れ; unsure
 #: .\templates\core\home.html:17 .\templates\tracking\boxes.html:53
-#: .\tracking\views.py:258
+#: .\tracking\views.py:263
 msgid "Vendor overdue"
 msgstr "外注遅れ"
 
@@ -907,11 +907,6 @@ msgstr "ログアウト"
 msgid "Log in"
 msgstr "ログイン"
 
-#: .\templates\includes\item_box.html:1
-#, python-format
-msgid "box %(l)s"
-msgstr "箱 %(l)s"
-
 #: .\templates\includes\late_by.html:1
 #, python-format
 msgid "%(counter)s day"
@@ -922,12 +917,12 @@ msgstr[0] "%(counter)s日"
 msgid "Legend"
 msgstr "凡例"
 
-#: .\templates\includes\matrix_legend.html:3 .\tracking\status.py:31
+#: .\templates\includes\matrix_legend.html:3 .\tracking\status.py:35
 msgid "Pending"
 msgstr "未処理"
 
 #: .\templates\includes\matrix_legend.html:7
-#: .\templates\orders\_box_detail.html:67 .\tracking\status.py:34
+#: .\templates\orders\_box_detail.html:67 .\tracking\status.py:38
 msgid "Done"
 msgstr "完了"
 
@@ -939,12 +934,12 @@ msgstr "現在の工程"
 msgid "Plan / actual (days)"
 msgstr "計画 / 実績（日）"
 
-#: .\templates\orders\_box_detail.html:17 .\tracking\models.py:135
+#: .\templates\orders\_box_detail.html:17 .\tracking\models.py:119
 msgid "Started"
 msgstr "開始"
 
 #: .\templates\orders\_box_detail.html:18
-#: .\templates\orders\order_detail.html:49 .\tracking\models.py:136
+#: .\templates\orders\order_detail.html:49 .\tracking\models.py:120
 msgid "Finished"
 msgstr "完了"
 
@@ -958,7 +953,7 @@ msgid "Waited before"
 msgstr "直前の待ち時間"
 
 #: .\templates\orders\_box_detail.html:27 .\templates\tracking\_matrix.html:26
-#: .\tracking\models.py:143
+#: .\tracking\models.py:127
 msgid "Partial"
 msgstr "一部完了"
 
@@ -1026,7 +1021,7 @@ msgid "Details"
 msgstr "詳細"
 
 #: .\templates\orders\_box_detail.html:87 .\templates\tracking\simulate.html:55
-#: .\tracking\forms.py:16 .\tracking\forms.py:44
+#: .\tracking\forms.py:17 .\tracking\forms.py:45
 msgid "Device"
 msgstr "読取端末"
 
@@ -1060,9 +1055,9 @@ msgstr "削除"
 #: .\templates\orders\_item_card.html:8 .\templates\tracking\_matrix.html:7
 #: .\templates\tracking\boxes.html:28 .\templates\tracking\priorities.html:34
 #: .\templates\tracking\shipping.html:28 .\templates\tracking\shipping.html:37
-#: .\templates\tracking\tag_history.html:39
-#: .\templates\tracking\tag_manage.html:40
-#: .\templates\tracking\tag_manage.html:50 .\tracking\forms.py:52
+#: .\templates\tracking\tag_history.html:38
+#: .\templates\tracking\tag_manage.html:36
+#: .\templates\tracking\tag_manage.html:45 .\tracking\forms.py:53
 msgid "Item"
 msgstr "品目"
 
@@ -1173,8 +1168,8 @@ msgstr "得意先を追加"
 #: .\templates\orders\tabs\orders.html:5 .\templates\tracking\shipping.html:12
 #: .\templates\tracking\shipping.html:53
 #: .\templates\tracking\tag_history.html:12
+#: .\templates\tracking\tag_manage.html:22
 #: .\templates\tracking\tag_manage.html:25
-#: .\templates\tracking\tag_manage.html:28
 msgid "Search"
 msgstr "検索"
 
@@ -1216,9 +1211,10 @@ msgid "Time per step"
 msgstr "工程ごとの所要時間"
 
 #: .\templates\orders\order_detail.html:78
+#: .\templates\orders\order_detail.html:150
 #, python-format
-msgid "Box %(box)s, tag %(tag)s"
-msgstr "箱 %(box)s、タグ %(tag)s"
+msgid "Tag %(tag)s"
+msgstr "タグ %(tag)s"
 
 #: .\templates\orders\order_detail.html:80
 msgid "No tag assigned."
@@ -1268,7 +1264,7 @@ msgstr "キャンセルを取り消す"
 msgid "Cancel item"
 msgstr "品目をキャンセル"
 
-#: .\templates\orders\order_detail.html:120 .\tracking\forms.py:73
+#: .\templates\orders\order_detail.html:120 .\tracking\forms.py:71
 msgid "Reason"
 msgstr "理由"
 
@@ -1280,11 +1276,6 @@ msgstr "実績を記録"
 #: .\templates\orders\order_detail.html:136
 msgid "Link a tag to a box of this item first."
 msgstr "先にこの品目の箱にタグを紐付けてください。"
-
-#: .\templates\orders\order_detail.html:150
-#, python-format
-msgid "Box %(l)s"
-msgstr "箱 %(l)s"
 
 #: .\templates\orders\order_detail.html:150
 msgid "(released)"
@@ -1448,7 +1439,7 @@ msgstr ""
 msgid "Row"
 msgstr "行"
 
-#: .\templates\orders\tabs\import.html:31 .\tracking\models.py:140
+#: .\templates\orders\tabs\import.html:31 .\tracking\models.py:124
 msgid "Result"
 msgstr "結果"
 
@@ -1513,58 +1504,61 @@ msgid ""
 "Days counted from the finish of the previous step. Planned is the step's due "
 "date; actual is when the step finished. Only finished steps with a due date "
 "are counted. The overrun is how much longer the actual time was than planned."
-msgstr "日数は前の工程の完了日から数えます。計画は工程の納期、実績は工程が完了した日です。納期のある完了済みの工程だけが対象です。超過率は、実績が計画より何％長かったかを示します。"
+msgstr ""
+"日数は前の工程の完了日から数えます。計画は工程の納期、実績は工程が完了した日"
+"です。納期のある完了済みの工程だけが対象です。超過率は、実績が計画より何％長"
+"かったかを示します。"
 
-#: .\templates\tracking\analysis_plan.html:5
+#: .\templates\tracking\analysis_plan.html:5 .\tracking\analysis.py:160
 msgid "Worst step"
 msgstr "最も遅い工程"
 
-#: .\templates\tracking\analysis_plan.html:6
+#: .\templates\tracking\analysis_plan.html:6 .\tracking\analysis.py:160
 msgid "Top 3 slowest"
 msgstr "遅い工程ワースト3"
 
-#: .\templates\tracking\analysis_plan.html:11 .\tracking\views.py:292
+#: .\templates\tracking\analysis_plan.html:11 .\tracking\views.py:297
 msgid "Plan vs actual"
 msgstr "計画と実績"
 
 #: .\templates\tracking\analysis_plan.html:16
-#: .\templates\tracking\analysis_plan.html:27
+#: .\templates\tracking\analysis_plan.html:27 .\tracking\analysis.py:156
 msgid "Steps"
 msgstr "工程数"
 
 #: .\templates\tracking\analysis_plan.html:17
-#: .\templates\tracking\analysis_plan.html:28
+#: .\templates\tracking\analysis_plan.html:28 .\tracking\analysis.py:156
 msgid "Average planned (days)"
 msgstr "平均計画（日）"
 
 #: .\templates\tracking\analysis_plan.html:18
-#: .\templates\tracking\analysis_plan.html:29
+#: .\templates\tracking\analysis_plan.html:29 .\tracking\analysis.py:156
 msgid "Average actual (days)"
 msgstr "平均実績（日）"
 
 #: .\templates\tracking\analysis_plan.html:19
-#: .\templates\tracking\analysis_plan.html:30
+#: .\templates\tracking\analysis_plan.html:30 .\tracking\analysis.py:157
 msgid "Average difference (days)"
 msgstr "平均差（日）"
 
 #: .\templates\tracking\analysis_plan.html:20
-#: .\templates\tracking\analysis_plan.html:31
+#: .\templates\tracking\analysis_plan.html:31 .\tracking\analysis.py:157
 msgid "Overrun"
 msgstr "超過率"
 
-#: .\templates\tracking\analysis_plan.html:31
+#: .\templates\tracking\analysis_plan.html:31 .\tracking\analysis.py:157
 msgid "Severe"
 msgstr "重大"
 
-#: .\templates\tracking\analysis_plan.html:31
+#: .\templates\tracking\analysis_plan.html:31 .\tracking\analysis.py:157
 msgid "Major"
 msgstr "大"
 
-#: .\templates\tracking\analysis_plan.html:31
+#: .\templates\tracking\analysis_plan.html:31 .\tracking\analysis.py:157
 msgid "Minor"
 msgstr "軽微"
 
-#: .\templates\tracking\analysis_plan.html:34
+#: .\templates\tracking\analysis_plan.html:34 .\tracking\analysis.py:161
 msgid "No finished steps with a due date yet."
 msgstr "計画納期のある完了済みの工程はまだありません。"
 
@@ -1573,58 +1567,61 @@ msgid ""
 "Quantity done and defects recorded per process. The defect rate is defects "
 "divided by quantity done. Times are averages per finished step; the longest "
 "are marked."
-msgstr "工程ごとの完了数量と不良数です。不良率は不良数を完了数量で割った値です。時間は完了した工程ごとの平均で、最長のものに印が付きます。"
+msgstr ""
+"工程ごとの完了数量と不良数です。不良率は不良数を完了数量で割った値です。時間"
+"は完了した工程ごとの平均で、最長のものに印が付きます。"
 
-#: .\templates\tracking\analysis_results.html:5
+#: .\templates\tracking\analysis_results.html:5 .\tracking\analysis.py:160
 msgid "Longest processing"
 msgstr "最長の加工時間"
 
-#: .\templates\tracking\analysis_results.html:6
+#: .\templates\tracking\analysis_results.html:6 .\tracking\analysis.py:160
 msgid "Longest wait"
 msgstr "最長の待ち時間"
 
-#: .\templates\tracking\analysis_results.html:9 .\tracking\views.py:292
+#: .\templates\tracking\analysis_results.html:9 .\tracking\views.py:297
 msgid "Results"
 msgstr "作業実績"
 
 #: .\templates\tracking\analysis_results.html:14
 #: .\templates\tracking\analysis_results.html:26
-#: .\templates\tracking\analysis_results.html:41
+#: .\templates\tracking\analysis_results.html:41 .\tracking\analysis.py:158
 msgid "Records"
 msgstr "件数"
 
 #: .\templates\tracking\analysis_results.html:15
 #: .\templates\tracking\analysis_results.html:27
-#: .\templates\tracking\analysis_results.html:42 .\tracking\forms.py:108
+#: .\templates\tracking\analysis_results.html:42 .\tracking\analysis.py:158
+#: .\tracking\forms.py:106
 msgid "Quantity done"
 msgstr "完了数量"
 
 #: .\templates\tracking\analysis_results.html:17
 #: .\templates\tracking\analysis_results.html:29
-#: .\templates\tracking\analysis_results.html:44
+#: .\templates\tracking\analysis_results.html:44 .\tracking\analysis.py:158
 msgid "Defect rate"
 msgstr "不良率"
 
 #: .\templates\tracking\analysis_results.html:18
-#: .\templates\tracking\analysis_results.html:30
+#: .\templates\tracking\analysis_results.html:30 .\tracking\analysis.py:159
 msgid "Average processing time"
 msgstr "平均加工時間"
 
 #: .\templates\tracking\analysis_results.html:19
-#: .\templates\tracking\analysis_results.html:31
+#: .\templates\tracking\analysis_results.html:31 .\tracking\analysis.py:159
 msgid "Average wait before"
 msgstr "平均待ち時間（直前）"
 
 #: .\templates\tracking\analysis_results.html:30
-#: .\templates\tracking\analysis_results.html:31
+#: .\templates\tracking\analysis_results.html:31 .\tracking\analysis.py:159
 msgid "Longest"
 msgstr "最長"
 
-#: .\templates\tracking\analysis_results.html:34
+#: .\templates\tracking\analysis_results.html:34 .\tracking\analysis.py:161
 msgid "No results recorded yet."
 msgstr "まだ実績が記録されていません。"
 
-#: .\templates\tracking\analysis_results.html:40
+#: .\templates\tracking\analysis_results.html:40 .\tracking\analysis.py:159
 msgid "Total"
 msgstr "合計"
 
@@ -1632,24 +1629,26 @@ msgstr "合計"
 msgid "Back to Home"
 msgstr "ホームに戻る"
 
-#: .\templates\tracking\boxes.html:29 .\templates\tracking\tag_history.html:38
-#: .\templates\tracking\tag_manage.html:39
-#: .\templates\tracking\tag_manage.html:49 .\tracking\forms.py:104
-msgid "Box"
-msgstr "箱"
+#: .\templates\tracking\boxes.html:29 .\templates\tracking\simulate.html:52
+#: .\templates\tracking\tag_history.html:37
+#: .\templates\tracking\tag_manage.html:35
+#: .\templates\tracking\tag_manage.html:44 .\tracking\forms.py:47
+#: .\tracking\forms.py:102
+msgid "Tag"
+msgstr "タグ"
 
 #: .\templates\tracking\boxes.html:30 .\templates\tracking\priorities.html:35
 msgid "Part"
 msgstr "品名"
 
 #: .\templates\tracking\boxes.html:32 .\templates\tracking\priorities.html:40
-#: .\tracking\views.py:195 .\tracking\views.py:244
+#: .\tracking\views.py:198 .\tracking\views.py:249
 msgid "Current process"
 msgstr "現在の工程"
 
 # CHECK: glossary says 滞留時間 (time since the last scan)
 #: .\templates\tracking\boxes.html:35 .\templates\tracking\priorities.html:41
-#: .\tracking\views.py:195 .\tracking\views.py:245
+#: .\tracking\views.py:198 .\tracking\views.py:250
 msgid "Idle for"
 msgstr "滞留時間"
 
@@ -1679,7 +1678,7 @@ msgstr "残日数"
 msgid "Slack"
 msgstr "余裕日数"
 
-#: .\templates\tracking\priorities.html:42 .\tracking\views.py:195
+#: .\templates\tracking\priorities.html:42 .\tracking\views.py:198
 msgid "Risk"
 msgstr "リスク"
 
@@ -1722,7 +1721,7 @@ msgid "Month"
 msgstr "月"
 
 #: .\templates\tracking\shipping.html:70 .\templates\tracking\shipping.html:79
-#: .\tracking\models.py:145 .\tracking\status.py:25
+#: .\tracking\models.py:129 .\tracking\status.py:29
 msgid "Shipped"
 msgstr "出荷済み"
 
@@ -1749,14 +1748,14 @@ msgstr "タグ %(uid)s は品目に紐付いていません。"
 
 #: .\templates\tracking\simulate.html:27
 #, python-format
-msgid "Tag %(uid)s: item %(item)s, box %(box)s, %(part)s"
-msgstr "タグ %(uid)s: 品目 %(item)s、箱 %(box)s、%(part)s"
+msgid "Tag %(uid)s: item %(item)s, %(part)s"
+msgstr "タグ %(uid)s: 品目 %(item)s、%(part)s"
 
 #: .\templates\tracking\simulate.html:31
 msgid "This box has finished its whole route. Nothing left to scan."
 msgstr "この箱は全工程を完了しています。スキャンする操作はありません。"
 
-#: .\templates\tracking\simulate.html:37 .\tracking\forms.py:17
+#: .\templates\tracking\simulate.html:37 .\tracking\forms.py:18
 msgid "What happened"
 msgstr "実施した操作"
 
@@ -1768,16 +1767,9 @@ msgstr "確定"
 msgid "Last 10 events"
 msgstr "直近10件のイベント"
 
-#: .\templates\tracking\simulate.html:52
-#: .\templates\tracking\tag_history.html:37
-#: .\templates\tracking\tag_manage.html:38
-#: .\templates\tracking\tag_manage.html:48 .\tracking\forms.py:46
-msgid "Tag"
-msgstr "タグ"
-
 #: .\templates\tracking\tag_history.html:4
 #: .\templates\tracking\tag_history.html:8
-#: .\templates\tracking\tag_manage.html:29
+#: .\templates\tracking\tag_manage.html:26
 msgid "Tag history"
 msgstr "タグの紐付け履歴"
 
@@ -1793,75 +1785,70 @@ msgstr "タグまたは箱"
 msgid "Period"
 msgstr "期間"
 
-#: .\templates\tracking\tag_history.html:40
+#: .\templates\tracking\tag_history.html:39
 msgid "From (JST)"
 msgstr "開始（JST）"
 
-#: .\templates\tracking\tag_history.html:41
+#: .\templates\tracking\tag_history.html:40
 msgid "To (JST)"
 msgstr "終了（JST）"
 
-#: .\templates\tracking\tag_history.html:51
-#: .\templates\tracking\tag_manage.html:22
+#: .\templates\tracking\tag_history.html:49
+#: .\templates\tracking\tag_manage.html:19
 msgid "In use"
 msgstr "使用中"
 
-#: .\templates\tracking\tag_history.html:57
+#: .\templates\tracking\tag_history.html:55
 #, python-format
 msgid "Showing only the newest %(cap)s records."
 msgstr "新しい順に %(cap)s 件のみ表示しています。"
 
-#: .\templates\tracking\tag_history.html:59
+#: .\templates\tracking\tag_history.html:57
 msgid "No history yet."
 msgstr "履歴はまだありません。"
 
-#: .\templates\tracking\tag_manage.html:19
+#: .\templates\tracking\tag_manage.html:16
 msgid "Link tag"
 msgstr "タグを紐付ける"
 
-#: .\templates\tracking\tag_manage.html:26
-msgid "Item, job, part, customer, box or tag"
-msgstr "品目、製番、品名、得意先、箱、タグ"
+#: .\templates\tracking\tag_manage.html:23
+msgid "Item, job, part, customer or tag"
+msgstr "品目、製番、品名、得意先、タグ"
 
-#: .\templates\tracking\tag_manage.html:31
+#: .\templates\tracking\tag_manage.html:28
 #, python-format
 msgid "%(n)s tag in use."
 msgid_plural "%(n)s tags in use."
 msgstr[0] "使用中のタグ: %(n)s 件"
 
-#: .\templates\tracking\tag_manage.html:41
-#: .\templates\tracking\tag_manage.html:51
+#: .\templates\tracking\tag_manage.html:37
+#: .\templates\tracking\tag_manage.html:46
 msgid "Since (JST)"
 msgstr "開始（JST）"
 
-#: .\templates\tracking\tag_manage.html:49
-#, python-format
-msgid "Box %(l)s (%(n)s of %(t)s)"
-msgstr "箱 %(l)s（%(t)s個中%(n)s個目）"
-
 # CHECK: button label; glossary says タグを解除
-#: .\templates\tracking\tag_manage.html:58
+#: .\templates\tracking\tag_manage.html:53
 msgid "Release"
 msgstr "タグを解除"
 
-#: .\templates\tracking\tag_manage.html:61
+#: .\templates\tracking\tag_manage.html:56
 msgid "Replace tag"
 msgstr "タグを交換"
 
-#: .\templates\tracking\tag_manage.html:67
+#: .\templates\tracking\tag_manage.html:62
 msgid "New tag UID"
 msgstr "新しいタグUID"
 
 # CHECK: 紛失扱い; check wording
-#: .\templates\tracking\tag_manage.html:68
+#: .\templates\tracking\tag_manage.html:63
 msgid "Mark the old tag as lost"
 msgstr "旧タグを紛失扱いにする"
 
-#: .\templates\tracking\tag_manage.html:69
+#: .\templates\tracking\tag_manage.html:64
 msgid "Replace"
 msgstr "交換"
 
-#: .\templates\tracking\tag_manage.html:79
+#: .\templates\tracking\tag_manage.html:74
 msgid "No tags in use match this search."
 msgstr "該当する使用中のタグはありません。"
 
@@ -1875,269 +1862,258 @@ msgstr "使用中"
 msgid "Closed"
 msgstr "終了済み"
 
-#: .\tracking\admin.py:41
+#: .\tracking\admin.py:34
 msgid "Release selected"
 msgstr "選択したタグを解除"
 
-#: .\tracking\forms.py:15 .\tracking\forms.py:56
+#: .\tracking\forms.py:16 .\tracking\forms.py:54
 msgid "Tag UID"
 msgstr "タグUID"
 
-#: .\tracking\forms.py:47
+#: .\tracking\forms.py:48
 msgid "Search or pick a tag"
 msgstr "タグを検索または選択"
 
-#: .\tracking\forms.py:54
-msgid "Box label"
-msgstr "箱番号"
-
-#: .\tracking\forms.py:66
+#: .\tracking\forms.py:64
 #, python-format
 msgid "%(code)s - %(part)s (%(n)s of %(total)s boxes linked)"
 msgstr "%(code)s - %(part)s（%(total)s箱中%(n)s箱を紐付け済み）"
 
-#: .\tracking\forms.py:74 .\tracking\models.py:139
+#: .\tracking\forms.py:72 .\tracking\models.py:123
 msgid "Correction"
 msgstr "訂正"
 
-#: .\tracking\forms.py:75 .\tracking\forms.py:81
+#: .\tracking\forms.py:73 .\tracking\forms.py:79
 msgid "Void only"
 msgstr "取消のみ"
 
-#: .\tracking\forms.py:75
+#: .\tracking\forms.py:73
 msgid "Void and replace"
 msgstr "取消して置き換え"
 
-#: .\tracking\forms.py:76
+#: .\tracking\forms.py:74
 msgid "Replace with"
 msgstr "置き換え内容"
 
-#: .\tracking\forms.py:93
+#: .\tracking\forms.py:91
 msgid "Choose the replacement event."
 msgstr "置き換えるイベントを選択してください。"
 
-#: .\tracking\forms.py:107
+#: .\tracking\forms.py:105
 msgid "Machine"
 msgstr "機械"
 
 #: .\tracking\models.py:15
-msgid "label"
-msgstr "箱番号"
-
-#: .\tracking\models.py:21 .\tracking\models.py:56
-msgid "box"
-msgstr "箱"
-
-#: .\tracking\models.py:22
-msgid "boxes"
-msgstr "箱"
-
-#: .\tracking\models.py:29
 msgid "UID"
 msgstr "UID"
 
-#: .\tracking\models.py:31
+#: .\tracking\models.py:17
 msgid "note"
 msgstr "メモ"
 
-#: .\tracking\models.py:35 .\tracking\models.py:55
+#: .\tracking\models.py:21 .\tracking\models.py:41
 msgid "tag"
 msgstr "タグ"
 
-#: .\tracking\models.py:36
+#: .\tracking\models.py:22
 msgid "tags"
 msgstr "タグ"
 
-#: .\tracking\models.py:58
+#: .\tracking\models.py:43
 msgid "start"
 msgstr "開始"
 
-#: .\tracking\models.py:59
+#: .\tracking\models.py:44
 msgid "end"
 msgstr "終了"
 
-#: .\tracking\models.py:64
+# CHECK: the earlier assignment whose tag this one replaced
+#: .\tracking\models.py:46
+msgid "replaces"
+msgstr "交換元"
+
+#: .\tracking\models.py:51
 msgid "tag assignment"
 msgstr "タグ紐付け"
 
-#: .\tracking\models.py:65
+#: .\tracking\models.py:52
 msgid "tag assignments"
 msgstr "タグ紐付け"
 
-#: .\tracking\models.py:103 .\tracking\models.py:178
+#: .\tracking\models.py:87 .\tracking\models.py:162
 msgid "worker"
 msgstr "作業者"
 
-#: .\tracking\models.py:104
+#: .\tracking\models.py:88
 msgid "workers"
 msgstr "作業者"
 
-#: .\tracking\models.py:109 .\tracking\models.py:179
+#: .\tracking\models.py:93 .\tracking\models.py:163
 msgid "machine"
 msgstr "機械"
 
-#: .\tracking\models.py:110
+#: .\tracking\models.py:94
 msgid "machines"
 msgstr "機械"
 
-#: .\tracking\models.py:119
+#: .\tracking\models.py:103
 msgid "location"
 msgstr "設置場所"
 
-#: .\tracking\models.py:120
+#: .\tracking\models.py:104
 msgid "API key"
 msgstr "APIキー"
 
 # CHECK: scanner device last contact; 最終通信 is my choice
-#: .\tracking\models.py:122
+#: .\tracking\models.py:106
 msgid "last seen"
 msgstr "最終通信"
 
-#: .\tracking\models.py:125
+#: .\tracking\models.py:109
 msgid "scanner device"
 msgstr "読取端末"
 
-#: .\tracking\models.py:126
+#: .\tracking\models.py:110
 msgid "scanner devices"
 msgstr "読取端末"
 
-#: .\tracking\models.py:134
+#: .\tracking\models.py:118
 msgid "Arrived"
 msgstr "入荷"
 
-#: .\tracking\models.py:137
+#: .\tracking\models.py:121
 msgid "Sent out"
 msgstr "外注出し"
 
-#: .\tracking\models.py:138
+#: .\tracking\models.py:122
 msgid "Returned"
 msgstr "外注戻り"
 
-#: .\tracking\models.py:142
+#: .\tracking\models.py:126
 msgid "Resumed"
 msgstr "再開"
 
-#: .\tracking\models.py:144 .\tracking\status.py:24
+#: .\tracking\models.py:128 .\tracking\status.py:28
 msgid "Cancelled"
 msgstr "キャンセル済み"
 
-#: .\tracking\models.py:161
+#: .\tracking\models.py:145
 msgid "occurred at"
 msgstr "発生日時"
 
-#: .\tracking\models.py:162
+#: .\tracking\models.py:146
 msgid "received at"
 msgstr "受信日時"
 
-#: .\tracking\models.py:163
+#: .\tracking\models.py:147
 msgid "device"
 msgstr "読取端末"
 
-#: .\tracking\models.py:164
+#: .\tracking\models.py:148
 msgid "tag UID"
 msgstr "タグUID"
 
-#: .\tracking\models.py:166
+#: .\tracking\models.py:150
 msgid "event type"
 msgstr "イベント種別"
 
 # CHECK: the event a correction points to; 訂正対象 is my choice
-#: .\tracking\models.py:168
+#: .\tracking\models.py:152
 msgid "corrects"
 msgstr "訂正対象"
 
-#: .\tracking\models.py:170
+#: .\tracking\models.py:154
 msgid "reason"
 msgstr "理由"
 
 # CHECK: flag for hand-entered events; 手動入力 is my choice
-#: .\tracking\models.py:171
+#: .\tracking\models.py:155
 msgid "manual"
 msgstr "手動入力"
 
-#: .\tracking\models.py:173
+#: .\tracking\models.py:157
 msgid "created by"
 msgstr "作成者"
 
-#: .\tracking\models.py:180
+#: .\tracking\models.py:164
 msgid "quantity done"
 msgstr "完了数量"
 
-#: .\tracking\models.py:181
+#: .\tracking\models.py:165
 msgid "defects"
 msgstr "不良数"
 
-#: .\tracking\models.py:184
+#: .\tracking\models.py:168
 msgid "event"
 msgstr "イベント"
 
-#: .\tracking\models.py:185
+#: .\tracking\models.py:169
 msgid "events"
 msgstr "イベント"
 
 # CHECK: permission name shown in admin; イベントを訂正できる is my choice
-#: .\tracking\models.py:187
+#: .\tracking\models.py:171
 msgid "Can correct events"
 msgstr "イベントを訂正できる"
 
-#: .\tracking\models.py:195
+#: .\tracking\models.py:180
 msgid "An event needs a scanner device or a user."
 msgstr "イベントには読取端末またはユーザーが必要です。"
 
-#: .\tracking\models.py:197
+#: .\tracking\models.py:182
 msgid "A tag UID is required."
 msgstr "タグUIDが必要です。"
 
-#: .\tracking\models.py:200
+#: .\tracking\models.py:185
 msgid "A cancellation or shipment names an item and no process."
 msgstr "キャンセルまたは出荷には、品目を指定し、工程は指定しません。"
 
-#: .\tracking\models.py:202
+#: .\tracking\models.py:187
 msgid "Only a cancellation or shipment names an item."
 msgstr "品目を指定できるのはキャンセルまたは出荷のみです。"
 
-#: .\tracking\models.py:206
+#: .\tracking\models.py:191
 msgid "Worker, machine, quantity and defects are only for results."
 msgstr "作業者・機械・数量・不良数は実績にのみ指定できます。"
 
-#: .\tracking\models.py:208
+#: .\tracking\models.py:193
 msgid "A reason is required."
 msgstr "理由を入力してください。"
 
-#: .\tracking\models.py:211
+#: .\tracking\models.py:196
 msgid "A correction must reference the event it corrects."
 msgstr "訂正には訂正対象のイベントを指定してください。"
 
-#: .\tracking\models.py:213
+#: .\tracking\models.py:198
 msgid "A correction must not have a process."
 msgstr "訂正に工程は指定できません。"
 
-#: .\tracking\models.py:215
+#: .\tracking\models.py:200
 msgid "This event type requires a process."
 msgstr "このイベントには工程が必要です。"
 
-#: .\tracking\models.py:219
+#: .\tracking\models.py:204
 #, python-format
 msgid "This event type requires a process of kind: %(kind)s."
 msgstr "このイベント種別には、種別が「%(kind)s」の工程が必要です。"
 
-#: .\tracking\models.py:229
+#: .\tracking\models.py:214
 msgid "A result needs a process."
 msgstr "実績には工程が必要です。"
 
-#: .\tracking\models.py:231
+#: .\tracking\models.py:216
 msgid "The quantity done must be at least 1."
 msgstr "完了数量は1以上にしてください。"
 
-#: .\tracking\models.py:235
+#: .\tracking\models.py:220
 msgid "Defects cannot be more than the quantity done."
 msgstr "不良数は完了数量を超えられません。"
 
-#: .\tracking\models.py:239
+#: .\tracking\models.py:224
 msgid "Events are append-only and cannot be changed."
 msgstr "イベントは追記専用のため、変更できません。"
 
-#: .\tracking\models.py:244
+#: .\tracking\models.py:229
 msgid "Events are append-only and cannot be deleted."
 msgstr "イベントは追記専用のため、削除できません。"
 
@@ -2175,21 +2151,16 @@ msgstr "納期を%(d)d日超過、残り%(s)d工程"
 msgid "%(n)d warnings"
 msgstr "警告 %(n)d件"
 
-#: .\tracking\services.py:46 .\tracking\services.py:79
-msgid "Box label and tag UID are required."
-msgstr "箱番号とタグUIDは必須です。"
+#: .\tracking\services.py:46 .\tracking\services.py:74
+msgid "Tag UID is required."
+msgstr "タグUIDは必須です。"
 
-#: .\tracking\services.py:51 .\tracking\services.py:84
+#: .\tracking\services.py:50 .\tracking\services.py:79
 #, python-format
 msgid "Tag %(tag)s is inactive."
 msgstr "タグ %(tag)s は無効です。"
 
 #: .\tracking\services.py:53
-#, python-format
-msgid "Box %(box)s is inactive."
-msgstr "箱 %(box)s は無効です。"
-
-#: .\tracking\services.py:56
 #, python-format
 msgid ""
 "Item %(item)s already has all %(n)s boxes linked. Raise its box count first."
@@ -2197,117 +2168,118 @@ msgstr ""
 "品目 %(item)s は、すでに%(n)s個の箱をすべて紐付け済みです。先に箱数を増やして"
 "ください。"
 
-#: .\tracking\services.py:60 .\tracking\services.py:86
+#: .\tracking\services.py:57 .\tracking\services.py:81
 #, python-format
 msgid "Tag %(tag)s is already in use for item %(item)s."
 msgstr "タグ %(tag)s は品目 %(item)s で使用中です。"
 
-#: .\tracking\services.py:62
-#, python-format
-msgid "Box %(box)s is already in use for item %(item)s."
-msgstr "箱 %(box)s は品目 %(item)s で使用中です。"
-
-#: .\tracking\services.py:77
+#: .\tracking\services.py:72
 msgid "This assignment has already ended."
 msgstr "この紐付けはすでに終了しています。"
 
-#: .\tracking\services.py:81
+#: .\tracking\services.py:76
 msgid "The new tag must differ from the old tag."
 msgstr "新しいタグは旧タグと異なるものにしてください。"
 
-#: .\tracking\services.py:110
+#: .\tracking\services.py:105
 msgid "A correction cannot be corrected."
 msgstr "訂正を訂正することはできません。"
 
-#: .\tracking\services.py:112
+#: .\tracking\services.py:107
 msgid "This event can only be voided."
 msgstr "このイベントは取り消しのみ可能です。"
 
-#: .\tracking\services.py:114
+#: .\tracking\services.py:109
 msgid "This event is already voided."
 msgstr "このイベントはすでに取り消されています。"
 
-#: .\tracking\services.py:152
+#: .\tracking\services.py:147
 msgid "This action is not available for this box right now."
 msgstr "この箱では、現在この操作はできません。"
 
-#: .\tracking\services.py:165
+#: .\tracking\services.py:160
 msgid "This item is already cancelled."
 msgstr "この品目はすでにキャンセルされています。"
 
-#: .\tracking\services.py:167
+#: .\tracking\services.py:162
 msgid "A finished item cannot be cancelled."
 msgstr "完了した品目はキャンセルできません。"
 
-#: .\tracking\services.py:179
+#: .\tracking\services.py:174
 msgid "Only a complete item can be marked as shipped."
 msgstr "完了した品目のみ出荷済みにできます。"
 
-#: .\tracking\status.py:22
+#: .\tracking\status.py:26
 msgid "Complete"
 msgstr "完了"
 
-#: .\tracking\status.py:163
+# CHECK: k-th of n boxes of one item
+#: .\tracking\status.py:107
+#, python-format
+msgid "Box %(k)s of %(n)s"
+msgstr "%(n)s箱中%(k)s箱目"
+
+#: .\tracking\status.py:195
 #, python-brace-format
 msgid "Event for a process not in the route: {}"
 msgstr "工程順にない工程のイベントです: {}"
 
 # CHECK: sentence with two placeholders in fixed order; wording is my choice
-#: .\tracking\status.py:165
+#: .\tracking\status.py:197
 #, python-brace-format
 msgid "Unexpected {} event for {}"
 msgstr "想定外の「{}」イベントです（工程: {}）"
 
-#: .\tracking\status.py:184
+#: .\tracking\status.py:216
 #, python-brace-format
 msgid "Step skipped: {}"
 msgstr "工程を飛ばしています: {}"
 
-#: .\tracking\status.py:266
+#: .\tracking\status.py:380
 #, python-brace-format
 msgid "In progress ({done}/{total} items complete)"
 msgstr "作業中（{total}品目中{done}品目が完了）"
 
-#: .\tracking\status.py:372
+#: .\tracking\status.py:493
 msgid "Pause"
 msgstr "一時停止"
 
-#: .\tracking\status.py:373
+#: .\tracking\status.py:494
 msgid "Resume"
 msgstr "再開"
 
-#: .\tracking\status.py:374
+#: .\tracking\status.py:495
 msgid "Mark partial"
 msgstr "一部完了にする"
 
-#: .\tracking\views.py:58
+#: .\tracking\views.py:59
 msgid "Event corrected."
 msgstr "イベントを訂正しました。"
 
-#: .\tracking\views.py:74
+#: .\tracking\views.py:75
 #, python-format
-msgid "Saved: box %(box)s, item %(item)s, status: %(status)s"
-msgstr "保存しました: 箱 %(box)s、品目 %(item)s、状態: %(status)s"
+msgid "Saved: item %(item)s, status: %(status)s"
+msgstr "保存しました: 品目 %(item)s、状態: %(status)s"
 
-#: .\tracking\views.py:79
+#: .\tracking\views.py:80
 #, python-format
 msgid "Event saved, but tag %(uid)s matches no item."
 msgstr "イベントを保存しましたが、タグ %(uid)s に該当する品目がありません。"
 
-#: .\tracking\views.py:106
+#: .\tracking\views.py:107
 #, python-format
-msgid "Tag %(tag)s released from box %(box)s."
-msgstr "タグ %(tag)s を箱 %(box)s から解除しました。"
+msgid "Tag %(tag)s released from item %(item)s."
+msgstr "タグ %(tag)s を品目 %(item)s から解除しました。"
 
-#: .\tracking\views.py:118
+#: .\tracking\views.py:119
 #, python-format
-msgid "Tag %(old)s replaced by %(new)s in box %(box)s."
-msgstr "箱 %(box)s のタグ %(old)s を %(new)s に交換しました。"
+msgid "Tag %(old)s replaced by %(new)s for item %(item)s."
+msgstr "品目 %(item)s のタグ %(old)s を %(new)s に交換しました。"
 
-#: .\tracking\views.py:127
+#: .\tracking\views.py:128
 #, python-format
-msgid "Tag %(tag)s linked to box %(box)s, item %(item)s."
-msgstr "タグ %(tag)s を箱 %(box)s（品目 %(item)s）に紐付けました。"
+msgid "Tag %(tag)s linked to item %(item)s."
+msgstr "タグ %(tag)s を品目 %(item)s に紐付けました。"
 
 #: .\tracking\views.py:149
 msgid "Last month"
@@ -2326,40 +2298,40 @@ msgid "Last year"
 msgstr "直近1年"
 
 # CHECK: 得意先 is marked unsure in the glossary (alternative: 顧客)
-#: .\tracking\views.py:185
+#: .\tracking\views.py:188
 msgid "Custom"
 msgstr "期間を指定"
 
-#: .\tracking\views.py:267
+#: .\tracking\views.py:272
 msgid "Active boxes"
 msgstr "進行中の箱"
 
-#: .\tracking\views.py:288
+#: .\tracking\views.py:293
 msgid "Result recorded."
 msgstr "実績を記録しました。"
 
-#: .\tracking\views.py:293
+#: .\tracking\views.py:298
 msgid "Biggest delay"
 msgstr "遅れが大きい順"
 
-#: .\tracking\views.py:349
+#: .\tracking\views.py:357
 msgid "Step paused."
 msgstr "工程を一時停止しました。"
 
-#: .\tracking\views.py:350
+#: .\tracking\views.py:358
 msgid "Step resumed."
 msgstr "工程を再開しました。"
 
-#: .\tracking\views.py:351
+#: .\tracking\views.py:359
 msgid "Step marked partial."
 msgstr "工程を一部完了にしました。"
 
-#: .\tracking\views.py:366
+#: .\tracking\views.py:374
 #, python-format
 msgid "Item %(item)s cancelled."
 msgstr "品目 %(item)s をキャンセルしました。"
 
-#: .\tracking\views.py:369
+#: .\tracking\views.py:377
 #, python-format
 msgid "Item %(item)s marked as shipped."
 msgstr "品目 %(item)s を出荷済みにしました。"
