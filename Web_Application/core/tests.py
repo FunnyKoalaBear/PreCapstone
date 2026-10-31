@@ -23,7 +23,7 @@ from core.templatetags.duration import duration
 from core.management.commands.seed_demo import DEMO_UIDS, read_csv
 from core.testing import TestCase, make_user
 from orders.models import Customer, Order, OrderItem, Process, RouteStep, Vendor
-from tracking.models import Event, Machine, ScannerDevice, Tag, TagAssignment, Worker
+from tracking.models import DefectCause, Event, Machine, ScannerDevice, Tag, TagAssignment, Worker
 from tracking.overview import board_groups
 from tracking.planning import process_averages
 from tracking.priority import priority
@@ -395,6 +395,14 @@ class SeedDemoTests(TestCase):
         self.assertGreater(results.exclude(worker=None).values('worker').distinct().count(), 2)
         self.assertEqual(set(Worker.objects.values_list('name', flat=True)), {r['name'] for r in read_csv('workers_machines.csv') if r['kind'] == 'WORKER'})
         self.assertEqual(Machine.objects.count(), len([r for r in read_csv('workers_machines.csv') if r['kind'] == 'MACHINE']))
+
+    @override_settings(DEBUG=True)
+    def test_seed_fills_all_three_settings_lists_with_one_inactive_entry_each(self):
+        self.seed()
+        for model in (Worker, Machine, DefectCause):
+            self.assertGreater(model.objects.filter(active=True).count(), 5)
+            self.assertEqual(model.objects.filter(active=False).count(), 1, model)
+            self.assertFalse(model.objects.get(active=False).event_set.exists())  # no demo result uses it
 
     @override_settings(DEBUG=True)
     def test_seed_has_paused_partial_and_cancelled_examples(self):

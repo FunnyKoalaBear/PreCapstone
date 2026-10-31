@@ -1,11 +1,12 @@
 import secrets
 
-from django.contrib.admin.models import ADDITION, CHANGE, LogEntry
+from django.contrib.admin.models import ADDITION, CHANGE
 from django.contrib.auth.models import Group, User
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils.translation import gettext as _
 
+from . import audit
 from .models import Profile
 from .permissions import ADMIN, OPERATOR, PLANNER, ROLES, role_level
 
@@ -58,10 +59,6 @@ def check_change(actor, target, role, active):
         raise ValidationError(_('The last active Planner cannot be deactivated or demoted.'))
 
 
-def _log(actor, target, flag, message):
-    LogEntry.objects.log_actions(actor.pk, User.objects.filter(pk=target.pk), flag, message)
-
-
 @transaction.atomic
 def create_user(actor, username, name, role):
     """Create the user with a temporary password; returns (user, password)."""
@@ -70,7 +67,7 @@ def create_user(actor, username, name, role):
     user = User.objects.create_user(username, first_name=name, password=password)
     user.groups.set([Group.objects.get(name=role)])
     Profile.objects.filter(user=user).update(must_change_password=True)
-    _log(actor, user, ADDITION, f'Created as {role}.')
+    audit.log(actor, user, ADDITION, f'Created as {role}.')
     return user, password
 
 
@@ -88,7 +85,7 @@ def update_user(actor, target, name, role, active):
     target.first_name, target.is_active = name, active
     target.save()
     if changes:
-        _log(actor, target, CHANGE, 'Changed: ' + ', '.join(changes) + '.')
+        audit.log(actor, target, CHANGE, 'Changed: ' + ', '.join(changes) + '.')
 
 
 @transaction.atomic
@@ -97,5 +94,5 @@ def reset_password(actor, target):
     target.set_password(password)
     target.save()
     Profile.objects.filter(user=target).update(must_change_password=True)
-    _log(actor, target, CHANGE, 'Password reset.')
+    audit.log(actor, target, CHANGE, 'Password reset.')
     return password

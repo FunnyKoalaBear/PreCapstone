@@ -9,7 +9,7 @@ Our own names and codes. None of the company's real codes, names or customers ar
 | `orders_demo.csv` | F42: 10 items in 7 orders. Should import with no errors |
 | `orders_demo_sjis.csv` | F42: same content in Shift-JIS (cp932). The importer must read it |
 | `orders_demo_errors.csv` | F42: one row per error type (table below) |
-| `workers_machines.csv` | F65 / F78: demo workers, machines and defect causes (`kind` = WORKER, MACHINE or CAUSE) |
+| `workers_machines.csv` | F65 / F78: demo workers, machines and defect causes (`kind` = WORKER, MACHINE or CAUSE; `active` = yes or no, one inactive entry of each) |
 
 ## Order CSV format
 Header row required, comma separated. One row = one item. Rows with the same customer and customer_order_number become one order. An empty customer_order_number makes its own order.

@@ -1,7 +1,7 @@
 from django.urls import path
 from django.views.generic import RedirectView
 
-from . import api, views
+from . import api, settings_page, views
 
 urlpatterns = [
     path('api/scan/', api.scan, name='api_scan'),
@@ -18,6 +18,7 @@ urlpatterns = [
     path('results/<int:pk>/photo/', views.result_photo, name='result_photo'),
     path('items/<int:pk>/result/', views.record_result_view, name='record_result'),
     path('items/<int:pk>/action/', views.item_action, name='item_action'),
+    path('settings/', settings_page.settings_page, name='settings'),
     path('tags/', views.tag_manage, name='tag_manage'),
     path('tags/history/', views.tag_history, name='tag_history'),
 ]

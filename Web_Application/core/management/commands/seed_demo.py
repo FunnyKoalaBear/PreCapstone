@@ -242,9 +242,11 @@ class Command(BaseCommand):
     def add_results(self, created, device):
         """Quantity-done results for finished steps; about one in ten has 1-2 defects, work spread over the CSV workers and machines."""
         people = read_csv('workers_machines.csv')
-        workers = [Worker.objects.get_or_create(name=r['name'], defaults={'name_ja': r['name_ja']})[0] for r in people if r['kind'] == 'WORKER']
-        machines = [Machine.objects.get_or_create(name=r['name'], defaults={'name_ja': r['name_ja']})[0] for r in people if r['kind'] == 'MACHINE']
-        causes = [DefectCause.objects.get_or_create(name=r['name'], defaults={'name_ja': r['name_ja']})[0] for r in people if r['kind'] == 'CAUSE']
+        def make(model, kind):  # every row is created; only active ones get results
+            rows = [model.objects.get_or_create(name=r['name'], defaults={'name_ja': r['name_ja'], 'active': r['active'] == 'yes'})[0] for r in people if r['kind'] == kind]
+            return [o for o in rows if o.active]
+
+        workers, machines, causes = make(Worker, 'WORKER'), make(Machine, 'MACHINE'), make(DefectCause, 'CAUSE')
         n, statuses = 0, item_statuses([item for _label, item in created])
         for _label, item in created:
             for box in statuses[item.pk].boxes:

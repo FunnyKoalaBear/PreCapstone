@@ -200,9 +200,9 @@ def seed_bulk(procs, vendors, devices, stdout=None):
     specs = [fill_events(rng, s, now, procs) for s in specs]
     specs.sort(key=lambda s: s['start'])
     customers = [Customer.objects.get_or_create(name=f'DEMO {n}')[0] for n, _p in CUSTOMERS]
-    people = list(Worker.objects.all())
-    machines = {m.name: m for m in Machine.objects.all()}
-    causes, cause_n = {c.name: c for c in DefectCause.objects.all()}, 0
+    people = list(Worker.objects.filter(active=True))
+    machines = {m.name: m for m in Machine.objects.filter(active=True)}
+    causes, cause_n = {c.name: c for c in DefectCause.objects.filter(active=True)}, 0
     people_by_name, seen, defect_n, photo_n = {w.name: w for w in people}, {}, 0, 0
     voids = 0
     seq, tag_n = {}, 0

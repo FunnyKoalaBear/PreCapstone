@@ -342,3 +342,14 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | Reset password | パスワードをリセット |
 | Change password | パスワードを変更 |
 | Copy / Print | コピー / 印刷 |
+
+## Terms added for the Settings page
+
+| English | Japanese |
+|---|---|
+| Settings | 設定 |
+| Workers / Machines / Defect causes (tabs) | 作業者 / 機械 / 不良原因 |
+| Used in (number of results) | 使用件数 |
+| Add / Save / Delete | 追加 / 保存 / 削除 |
+| Paste a list | 一覧を貼り付け |
+| Deactivate / Reactivate | 無効にする / 有効に戻す |
