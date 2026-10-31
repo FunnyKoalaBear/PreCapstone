@@ -23,6 +23,7 @@ MACHINES = {
     'Milling': ('Milling machine 1',), 'Lathe': ('Lathe 1', 'Lathe 2'), 'Machining centre': ('Machining centre 1', 'Machining centre 2'),
     'Grinding': ('Surface grinder 1',), 'Deburring': ('Deburring bench',), 'Inspection': ('Inspection bench',),
 }
+SLOW_VENDOR, SLOW_VENDOR_FACTOR, FORGOTTEN_DAYS = '00135', 2.0, 15  # the slow plating vendor; days added to the one forgotten-scan step
 ALT_VENDOR = {'Plating': '00135', 'Material': '00102'}  # now and then a step uses another vendor or supplier
 ROUTES = (
     ['Material', 'Milling', 'Lathe', 'Inspection'],
@@ -94,6 +95,8 @@ def fill_events(rng, s, now, procs):
         vendor = st['alt'] or procs[st['name']].default_vendor
         st['planned'] = PLAN_DAYS.get(st['name']) or (vendor.lead_days if vendor and vendor.lead_days else 3)
         st['span'] = max(st['planned'] * SLOW.get(st['name'], 1.0) * rng.gauss(1, 0.2), 0.4)
+        st['span'] *= SLOW_VENDOR_FACTOR if vendor and vendor.code == SLOW_VENDOR else 1  # one vendor is clearly slower
+        st['span'] += FORGOTTEN_DAYS if s.get('forgotten') == st['name'] else 0  # a forgotten scan: a huge gap in one step
     n = len(steps)
     machining = [i for i, st in enumerate(steps) if st['kind'] == Process.Kind.MACHINING]
     outsourced = [i for i, st in enumerate(steps) if st['kind'] == Process.Kind.OUTSOURCED]
@@ -182,7 +185,9 @@ def fill_events(rng, s, now, procs):
 def seed_bulk(procs, vendors, devices, stdout=None):
     """Create 100+ orders: a year of shipped ones plus every open state, all events through record_event."""
     rng, now = random.Random(SEED), timezone.now()
-    specs = [fill_events(rng, s, now, procs) for s in build_specs(rng, now, vendors)]
+    specs = build_specs(rng, now, vendors)
+    next(s for s in specs if s['state'] == 'shipped' and any(st['name'] == 'Milling' for st in s['steps']))['forgotten'] = 'Milling'
+    specs = [fill_events(rng, s, now, procs) for s in specs]
     specs.sort(key=lambda s: s['start'])
     customers = [Customer.objects.get_or_create(name=f'DEMO {n}')[0] for n, _p in CUSTOMERS]
     people = list(Worker.objects.all())

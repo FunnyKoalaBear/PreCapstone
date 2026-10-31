@@ -272,3 +272,21 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | Longest wait / Longest processing | 最長の待ち時間 / 最長の加工時間 |
 | Biggest delay | 遅れが大きい順 |
 | From month / To month | 開始月 / 終了月 |
+
+## Terms added for the Analysis records
+
+| English | Japanese |
+|---|---|
+| Median / Mean | 中央値 / 平均 |
+| Steps (n) | 工程数 (n) |
+| Median processing time / Median wait before | 加工時間の中央値 / 待ち時間（直前）の中央値 |
+| Median actual (days) | 中央値実績（日） |
+| Check scan | スキャン要確認 |
+| Records / Show records / Showing n of m | 記録 / 記録を表示 / m件中n件を表示 |
+| Ticked / Tick / Tick all / Select | 選択中 / 選択 / すべて選択 / 選択 |
+| x median | 中央値の倍率 |
+| Main cause (At vendor / Waited before the step / Processing) | 主な原因（外注中 / 工程の前に待っていた / 加工） |
+| Planned days / Actual days / Difference | 計画日数 / 実績日数 / 差 |
+| Wait before / Processing time | 直前の待ち時間 / 加工時間 |
+| Flags | 注意 |
+| By vendor | 外注先別 |

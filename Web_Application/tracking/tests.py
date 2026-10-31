@@ -1,4 +1,5 @@
 import json
+from collections import Counter
 from datetime import date, datetime, timedelta
 from datetime import timezone as dt_timezone
 
@@ -20,6 +21,7 @@ from orders.models import Customer, Order, OrderItem, Process, RouteStep, Vendor
 from .forms import AssignTagForm
 from .matrix import matrix as build_matrix
 from .models import Event, Machine, ScannerDevice, Tag, TagAssignment, Worker
+from .analysis import vendor_rows
 from .overview import active_boxes, process_board
 from .planning import step_plan
 from .priority import priority
@@ -1967,6 +1969,191 @@ class ShippedTests(TestCase):
         self.assertEqual(self.client.get('/shipping/').status_code, 302)
         self.client.force_login(self.planner)
         self.assertContains(self.client.get('/'), 'href="/shipping/"')
+
+
+class AnalysisRecordsTests(TestCase):
+    """Median, check-scan flags, the records panel (?sel=) and the vendor table of the Analysis page."""
+
+    def setUp(self):
+        self.client.force_login(make_user('op', 'Operator'))
+        self.device = ScannerDevice.objects.create(name='D')
+        self.mat = Process.objects.create(name='Mat', kind=K.MATERIAL)
+        self.mill = Process.objects.create(name='Mill', kind=K.MACHINING)
+        self.cut = Process.objects.create(name='Cut', kind=K.MACHINING)
+        self.customer = Customer.objects.create(name='C')
+        self.vendor = Vendor.objects.create(code='00131', name='Slow Co', kind=Vendor.Kind.VENDOR)
+        self.base = timezone.localtime(timezone.now() - timedelta(days=80)).replace(hour=12, minute=0, second=0, microsecond=0)
+        self.n = 0
+
+    def step(self, proc, wait_h=1, proc_h=24, planned=3, vendor=None, boxes=1):
+        """One item (material, then `proc`) with a finished step: wait_h hours of wait, proc_h hours of processing."""
+        self.n += 1
+        order = Order.objects.create(customer=self.customer, due_date=timezone.localdate() + timedelta(days=5))
+        item = OrderItem.objects.create(order=order, part_name=f'P{self.n}', quantity=1, box_count=boxes)
+        RouteStep.objects.create(item=item, sequence=1, process=self.mat)
+        RouteStep.objects.create(item=item, sequence=2, process=proc, vendor=vendor, due_date=self.base.date() + timedelta(days=planned))
+        uid = f'AR{self.n}'
+        TagAssignment.objects.create(tag=Tag.objects.create(uid=uid), item=item, start_at=self.base - timedelta(days=1))
+        hours = lambda h: self.base + timedelta(hours=h)
+        record_event(self.device, uid, self.mat, 'ARRIVED', occurred_at=self.base)
+        first, last = ('SENT_OUT', 'RETURNED') if proc.kind == K.OUTSOURCED else ('STARTED', 'FINISHED')
+        record_event(self.device, uid, proc, first, occurred_at=hours(wait_h))
+        record_event(self.device, uid, proc, last, occurred_at=hours(wait_h + proc_h))
+        return item
+
+    def get(self, tab='results', **params):
+        return self.client.get('/analysis/', {'tab': tab, **params})
+
+    def test_median_beside_the_mean_with_an_outlier(self):
+        from .analysis import _median
+        self.assertEqual((_median([1, 1, 2, 50]), sum([1, 1, 2, 50]) / 4), (1.5, 13.5))
+        self.assertEqual(_median([timedelta(hours=1), timedelta(hours=3)]), timedelta(hours=2))
+        self.assertIsNone(_median([None]))
+        for days in (1, 1, 2, 50):
+            self.step(self.mill, proc_h=24 * days)
+        row, = self.get('plan').context['rows']
+        self.assertEqual((row['n'], row['actual'], row['median_actual']), (4, 13.5, 1.5))
+        self.assertContains(self.get('plan'), 'Median actual (days)')
+
+    def test_results_show_median_and_step_count(self):
+        for h in (2, 2, 4, 40):
+            self.step(self.mill, wait_h=h, proc_h=h)
+        row, = [r for r in self.get().context['rows'] if r['process'] == 'Mill']
+        self.assertEqual((row['n'], row['processing_median'], row['wait_median']), (4, timedelta(hours=3), timedelta(hours=3)))
+        self.assertEqual(row['processing'], timedelta(hours=12))
+        page = self.get()
+        self.assertContains(page, 'Median processing time')
+        self.assertContains(page, 'nights and weekends included')
+        self.assertEqual([r['process'] for r in self.get(process=self.cut.pk).context['rows']], [])
+
+    def flags(self, **params):
+        return {r['item'].part_name: [f['key'] for f in r['flags']] for r in self.get(sel=self.mill.pk, **params).context['records']}
+
+    def test_check_scan_needs_five_steps_and_more_than_three_times_the_median(self):
+        for _i in range(3):
+            self.step(self.mill, wait_h=1, proc_h=2)
+        self.step(self.mill, wait_h=1, proc_h=20)  # only 4 finished steps: no flag
+        self.assertFalse(any(self.flags().values()))
+        self.step(self.mill, wait_h=1, proc_h=2)  # 5 steps, median 2h: 20h is flagged, 6h (3x) would not be
+        self.step(self.mill, wait_h=1, proc_h=6)
+        flagged = {k: v for k, v in self.flags().items() if v}
+        self.assertEqual(flagged, {'P4': ['processing']})
+        page = self.get(sel=self.mill.pk)
+        self.assertContains(page, 'Check scan')
+        self.assertContains(page, 'Processing time 20h 0m is more than 3 times the process median 2h 0m')
+
+    def test_sel_filters_the_records(self):
+        self.step(self.mill)
+        self.step(self.cut)
+        self.assertNotIn('records', self.get().context)
+        ctx = self.get(sel=self.cut.pk).context
+        self.assertEqual([r['process'] for r in ctx['records']], ['Cut'])
+        self.assertEqual(ctx['records_total'], 1)
+        both = self.client.get('/analysis/?tab=results&sel=%d&sel=%d' % (self.mill.pk, self.cut.pk)).context
+        self.assertEqual(sorted(r['process'] for r in both['records']), ['Cut', 'Mill'])
+        self.assertEqual(self.get(sel='x').context['sel'], [])
+
+    def test_record_columns_cause_and_box(self):
+        self.step(self.mill, wait_h=30, proc_h=5)
+        self.step(self.mill, wait_h=1, proc_h=5, boxes=2)
+        by_part = {r['item'].part_name: r for r in self.get(sel=self.mill.pk).context['records']}
+        self.assertEqual((by_part['P1']['cause'], by_part['P1']['total']), ('Waited before the step', timedelta(hours=35)))
+        self.assertEqual((by_part['P2']['cause'], by_part['P2']['box']), ('Processing', 'Box 1 of 2'))
+        self.assertEqual(by_part['P1']['box'], '')
+        page = self.get(sel=self.mill.pk)
+        self.assertContains(page, f'href="/orders/{by_part["P1"]["job"]}/"')
+        self.assertContains(page, 'Box 1 of 2')
+        self.assertNotContains(page, 'Box 1 of 1')
+
+    def test_outsourced_step_cause_is_at_vendor(self):
+        out = Process.objects.create(name='Plate', kind=K.OUTSOURCED)
+        self.step(out, wait_h=1, proc_h=48)
+        self.assertEqual(self.get(sel=out.pk).context['records'][0]['cause'], 'At vendor')
+
+    def test_default_and_whitelisted_order(self):
+        for h in (5, 50, 20):
+            self.step(self.mill, wait_h=1, proc_h=h)
+        totals = lambda **p: [r['total'] for r in self.get(sel=self.mill.pk, **p).context['records']]
+        longest_first = [timedelta(hours=51), timedelta(hours=21), timedelta(hours=6)]
+        self.assertEqual(totals(), longest_first)
+        self.assertEqual(totals(order='bogus'), longest_first)
+        self.assertEqual(totals(order='<script>'), longest_first)
+        self.assertEqual([r['item'].part_name for r in self.get(sel=self.mill.pk, order='item').context['records']], ['P1', 'P2', 'P3'])
+        ctx = self.get(sel=self.mill.pk, order='processing').context
+        self.assertEqual(ctx['order'], 'processing')
+        self.assertIn('order=wait', ctx['order_urls']['wait'])
+        self.assertIn(f'sel={self.mill.pk}', ctx['order_urls']['wait'])
+        plan = self.get('plan', sel=self.mill.pk, order='wait').context  # a results-only key falls back on the plan default
+        self.assertEqual(plan['order'], 'overrun')
+
+    def test_cap_and_show_more(self):
+        from . import views
+        self.assertEqual((views.RECORD_LIMIT, views.RECORD_CAP), (200, 2000))
+        for _i in range(8):
+            self.step(self.mill)
+        with mock.patch.object(views, 'RECORD_LIMIT', 3), mock.patch.object(views, 'RECORD_CAP', 6):
+            r = self.get(sel=self.mill.pk)
+            self.assertEqual((len(r.context['records']), r.context['records_total']), (3, 8))
+            self.assertContains(r, 'Showing 3 of 8')
+            self.assertIn('limit=6', r.context['more_url'])
+            self.assertContains(r, 'Show more')
+            r = self.get(sel=self.mill.pk, limit='6')
+            self.assertEqual(len(r.context['records']), 6)
+            self.assertEqual(r.context['more_url'], '')  # at the cap
+            self.assertEqual(len(self.get(sel=self.mill.pk, limit='999999').context['records']), 6)
+
+    def test_ticked_rows_summary_data(self):
+        self.step(self.mill, wait_h=2, proc_h=4)
+        page = self.get(sel=self.mill.pk)
+        self.assertContains(page, 'data-records-summary data-unit="seconds"')
+        self.assertContains(page, f'data-value="{6 * 3600}"')
+        self.assertContains(page, 'src="/static/js/records.js"')
+        self.assertContains(page, 'name="sel" value="%d" checked' % self.mill.pk)
+        plan = self.get('plan', sel=self.mill.pk)
+        self.assertContains(plan, 'data-unit="days"')
+        self.assertContains(plan, 'data-value="0"')  # finished the same JST day it arrived
+
+    def test_plan_records_overrun_first(self):
+        self.step(self.mill, proc_h=24, planned=3)   # actual 1, planned 3
+        self.step(self.mill, proc_h=24 * 6, planned=3)  # actual 6, planned 3: +100%
+        rows = self.get('plan', sel=self.mill.pk).context['records']
+        self.assertEqual([(r['actual'], r['planned'], r['diff'], r['pct']) for r in rows], [(6, 3, 3, 100.0), (1, 3, -2, -200 / 3)])
+        self.assertContains(self.get('plan', sel=self.mill.pk), 'Planned days')
+
+    def test_vendor_table(self):
+        fast = Vendor.objects.create(code='00132', name='Fast Co', kind=Vendor.Kind.VENDOR)
+        for days in (6, 8):
+            self.step(self.mill, proc_h=24 * days, vendor=self.vendor)
+        self.step(self.mill, proc_h=24, vendor=fast)
+        rows = self.get('plan').context['vendor_rows']
+        self.assertEqual([(r['vendor'], r['n'], r['actual'], r['median_actual'], r['planned']) for r in rows],
+                         [(self.vendor, 2, 7, 7, 3), (fast, 1, 1, 1, 3)])
+        self.assertEqual(rows[0]['pct'], (7 - 3) * 100 / 3)
+        page = self.get('plan')
+        self.assertContains(page, 'By vendor')
+        self.assertContains(page, 'Slow Co')
+        self.assertEqual(self.get('plan', vendor=fast.pk).context['vendor_rows'][0]['vendor'], fast)
+
+    def test_operator_can_open_both_tabs_but_anonymous_cannot(self):
+        self.step(self.mill)
+        for tab in ('results', 'plan'):
+            self.assertEqual(self.get(tab, sel=self.mill.pk).status_code, 200)
+        self.client.logout()
+        self.assertEqual(self.get(sel=self.mill.pk).status_code, 302)
+
+    def test_demo_data_has_enough_steps_a_forgotten_scan_and_a_slow_vendor(self):
+        from io import StringIO
+        from django.core.management import call_command
+        from .analysis import Filters, step_facts
+        with override_settings(DEBUG=True):
+            call_command('seed_demo', stdout=StringIO())
+        facts = step_facts(Filters())
+        per_process = Counter(x['process'].name for x in facts)
+        self.assertTrue(per_process and all(n >= 6 for n in per_process.values()), per_process)
+        self.assertTrue(any(x['flags'] for x in facts))
+        rows = {r['vendor'].code: r for r in vendor_rows(facts)}
+        others = [r['pct'] for code, r in rows.items() if code != '00135' and r['pct'] is not None]
+        self.assertGreater(rows['00135']['pct'], max(others))
 
 
 class AnalysisPageTests(TestCase):

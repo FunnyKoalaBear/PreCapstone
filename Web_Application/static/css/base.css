@@ -309,3 +309,6 @@ h1 .button-secondary, h2 .button-secondary {
 .sev-major { color: var(--risk-critical); }
 .sev-severe { color: var(--risk-overdue); font-weight: 700; }
 .table tr.hot td { background: color-mix(in srgb, var(--risk-critical) 10%, var(--color-surface)); }
+.badge-check { color: var(--status-paused); }
+.records-summary { position: sticky; top: 0; z-index: 4; display: flex; flex-wrap: wrap; gap: 0.25rem 1.25rem; margin: 0.5rem 0; padding: 0.4rem 0.75rem; background: var(--color-surface); border: 1px solid var(--color-border); border-left: 4px solid var(--color-primary); }
+#records th a { color: inherit; }

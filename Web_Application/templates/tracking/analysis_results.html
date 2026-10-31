@@ -1,51 +1,70 @@
 {% load i18n duration panels %}
 <p class="note">{% trans "Quantity done and defects recorded per process. The defect rate is defects divided by quantity done. Times are averages per finished step; the longest are marked." %}</p>
+<p class="note">{% trans "Times are calendar time, nights and weekends included. Check scan: a processing time or wait of more than 3 times the process median, once the process has 5 finished steps." %}</p>
 {% if longest_wait or longest_processing %}
   <ul class="summary-strip">
     {% if longest_processing %}<li><span class="summary-label">{% trans "Longest processing" %}</span> <strong>{{ longest_processing.process }}</strong> {{ longest_processing.processing|duration }}</li>{% endif %}
     {% if longest_wait %}<li><span class="summary-label">{% trans "Longest wait" %}</span> <strong>{{ longest_wait.process }}</strong> {{ longest_wait.wait|duration }}</li>{% endif %}
   </ul>
 {% endif %}
-{% scroll_panel label=_("Results") %}
-  <table class="table table-cards">
-    <thead>
-      <tr>
-        <th>{% trans "Process" %}</th>
-        <th>{% trans "Records" %}</th>
-        <th>{% trans "Quantity done" %}</th>
-        <th>{% trans "Defects" %}</th>
-        <th>{% trans "Defect rate" %}</th>
-        <th>{% trans "Average processing time" %}</th>
-        <th>{% trans "Average wait before" %}</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for r in rows %}
-        <tr{% if r.hot %} class="hot"{% endif %}>
-          <td data-label="{% trans 'Process' %}">{{ r.process }}</td>
-          <td data-label="{% trans 'Records' %}">{{ r.records }}</td>
-          <td data-label="{% trans 'Quantity done' %}">{{ r.quantity }}</td>
-          <td data-label="{% trans 'Defects' %}">{{ r.defects }}</td>
-          <td data-label="{% trans 'Defect rate' %}">{{ r.rate|floatformat:1 }}%</td>
-          <td data-label="{% trans 'Average processing time' %}"><span>{{ r.processing|duration|default:"-" }}{% if 'processing' in r.hot %} <span class="badge sev-severe">{% trans "Longest" %}</span>{% endif %}</span></td>
-          <td data-label="{% trans 'Average wait before' %}"><span>{{ r.wait|duration|default:"-" }}{% if 'wait' in r.hot %} <span class="badge sev-severe">{% trans "Longest" %}</span>{% endif %}</span></td>
-        </tr>
-      {% empty %}
-        <tr><td colspan="7">{% trans "No results recorded yet." %}</td></tr>
-      {% endfor %}
-    </tbody>
-    {% if rows %}
-      <tfoot>
+<form method="get" id="sel-form">
+  {% for k, v in hidden %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+  <input type="hidden" name="tab" value="results">
+  {% scroll_panel label=_("Results") %}
+    <table class="table table-cards">
+      <thead>
         <tr>
-          <th>{% trans "Total" %}</th>
-          <th data-label="{% trans 'Records' %}">{{ total.records }}</th>
-          <th data-label="{% trans 'Quantity done' %}">{{ total.quantity }}</th>
-          <th data-label="{% trans 'Defects' %}">{{ total.defects }}</th>
-          <th data-label="{% trans 'Defect rate' %}">{{ total.rate|floatformat:1 }}%</th>
           <th></th>
-          <th></th>
+          <th>{% trans "Process" %}</th>
+          <th>{% trans "Records" %}</th>
+          <th>{% trans "Quantity done" %}</th>
+          <th>{% trans "Defects" %}</th>
+          <th>{% trans "Defect rate" %}</th>
+          <th>{% trans "Steps (n)" %}</th>
+          <th>{% trans "Average processing time" %}</th>
+          <th>{% trans "Median processing time" %}</th>
+          <th>{% trans "Average wait before" %}</th>
+          <th>{% trans "Median wait before" %}</th>
         </tr>
-      </tfoot>
-    {% endif %}
-  </table>
-{% endscroll_panel %}
+      </thead>
+      <tbody>
+        {% for r in rows %}
+          <tr{% if r.hot %} class="hot"{% endif %}>
+            <td data-label="{% trans 'Select' %}"><input type="checkbox" name="sel" value="{{ r.pk }}"{% if r.pk in sel %} checked{% endif %} aria-label="{% trans 'Select' %}"></td>
+            <td data-label="{% trans 'Process' %}">{{ r.process }}</td>
+            <td data-label="{% trans 'Records' %}">{{ r.records }}</td>
+            <td data-label="{% trans 'Quantity done' %}">{{ r.quantity }}</td>
+            <td data-label="{% trans 'Defects' %}">{{ r.defects }}</td>
+            <td data-label="{% trans 'Defect rate' %}">{{ r.rate|floatformat:1 }}%</td>
+            <td data-label="{% trans 'Steps (n)' %}">{% if r.n %}{{ r.n }}{% else %}-{% endif %}</td>
+            <td data-label="{% trans 'Average processing time' %}"><span>{{ r.processing|duration|default:"-" }}{% if 'processing' in r.hot %} <span class="badge sev-severe">{% trans "Longest" %}</span>{% endif %}</span></td>
+            <td data-label="{% trans 'Median processing time' %}">{{ r.processing_median|duration|default:"-" }}</td>
+            <td data-label="{% trans 'Average wait before' %}"><span>{{ r.wait|duration|default:"-" }}{% if 'wait' in r.hot %} <span class="badge sev-severe">{% trans "Longest" %}</span>{% endif %}</span></td>
+            <td data-label="{% trans 'Median wait before' %}">{{ r.wait_median|duration|default:"-" }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="11">{% trans "No results recorded yet." %}</td></tr>
+        {% endfor %}
+      </tbody>
+      {% if rows %}
+        <tfoot>
+          <tr>
+            <th></th>
+            <th>{% trans "Total" %}</th>
+            <th data-label="{% trans 'Records' %}">{{ total.records }}</th>
+            <th data-label="{% trans 'Quantity done' %}">{{ total.quantity }}</th>
+            <th data-label="{% trans 'Defects' %}">{{ total.defects }}</th>
+            <th data-label="{% trans 'Defect rate' %}">{{ total.rate|floatformat:1 }}%</th>
+            <th></th>
+            <th></th>
+            <th></th>
+            <th></th>
+            <th></th>
+          </tr>
+        </tfoot>
+      {% endif %}
+    </table>
+  {% endscroll_panel %}
+  {% if rows %}<button type="submit" class="button">{% trans "Show records" %}</button>{% endif %}
+</form>
+{% if sel %}{% include "tracking/_records.html" %}{% endif %}

@@ -4,13 +4,17 @@ from datetime import timedelta
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.utils.translation import get_language
+from django.utils.translation import gettext as _
 
-from orders.models import OrderItem, RouteStep
+from core.templatetags.duration import duration
+from orders.models import OrderItem, Process, RouteStep, Vendor
 
 from .models import Event, TagAssignment
 from .planning import step_plan
 from .status import DONE, item_statuses, timeline
 
+CHECK_FACTOR, CHECK_MIN_STEPS = 3, 5  # a step is flagged above 3x its process median, once the process has 5 finished steps
+RECORD_LIMIT, RECORD_CAP = 200, 2000
 SEVERITY = ((60, 'severe'), (30, 'major'), (10, 'minor'))  # overrun % above which a step is minor / major / severe
 
 
@@ -55,9 +59,41 @@ def step_facts(f):
                 day = timezone.localdate(row.finished_at)
                 if (f.start and day < f.start) or (f.end and day > f.end):
                     continue
+                parts = [v for v in (t['duration'], t['wait_before']) if v is not None]
                 out.append({'process': step.process, **plan, 'processing': t['duration'], 'wait': t['wait_before'],
-                            'day': day, 'customer': item.order.customer_id, 'vendor': vendor})
+                            'total': sum(parts, timedelta()) if parts else None, 'day': day, 'customer': item.order.customer_id,
+                            'vendor': vendor, 'item': item, 'seq': step.sequence, 'box': box.caption})
+    flag_scans(out)
     return out
+
+
+def _median(values):
+    """Median of numbers or timedeltas (None values skipped); None when there are none."""
+    values = sorted(v for v in values if v is not None)
+    if not values:
+        return None
+    mid = len(values) // 2
+    return values[mid] if len(values) % 2 else (values[mid - 1] + values[mid]) / 2
+
+
+def process_stats(facts):
+    """{process id: finished steps, median processing time, median wait, median total}."""
+    groups = {}
+    for x in facts:
+        groups.setdefault(x['process'].pk, []).append(x)
+    return {pk: {'n': len(g), **{k: _median(x[k] for x in g) for k in ('processing', 'wait', 'total')}} for pk, g in groups.items()}
+
+
+def flag_scans(facts):
+    """Add x['flags']: processing time or wait above 3x the process median (only for processes with 5+ finished steps)."""
+    stats = process_stats(facts)
+    for x in facts:
+        st, x['flags'] = stats[x['process'].pk], []
+        if st['n'] < CHECK_MIN_STEPS:
+            continue
+        for key in ('processing', 'wait'):
+            if st[key] and x[key] is not None and x[key] > CHECK_FACTOR * st[key]:
+                x['flags'].append({'key': key, 'value': x[key], 'median': st[key]})
 
 
 def _avg(values):
@@ -75,12 +111,29 @@ def plan_rows(facts, sort='process'):
     for g in groups.values():
         planned, actual = sum(x['planned'] for x in g) / len(g), sum(x['actual'] for x in g) / len(g)
         pct = (actual - planned) * 100 / planned if planned > 0 else None
-        rows.append({'process': g[0]['process'], 'n': len(g), 'planned': planned, 'actual': actual, 'diff': actual - planned,
-                     'pct': pct, 'severity': severity(pct)})
+        rows.append({'process': g[0]['process'], 'pk': g[0]['process'].pk, 'n': len(g), 'planned': planned, 'actual': actual,
+                     'diff': actual - planned, 'median_actual': _median(x['actual'] for x in g), 'pct': pct, 'severity': severity(pct)})
     if sort == 'delay':
         rows.sort(key=lambda r: (r['pct'] is None, -(r['pct'] or 0)))
     else:
         rows.sort(key=lambda r: r['process'].name)
+    return rows
+
+
+def vendor_rows(facts):
+    """Per vendor: finished steps with a plan, average planned, average and median actual days, overrun %; biggest overrun first."""
+    groups = {}
+    for x in facts:
+        if x['diff'] is not None and x['vendor']:
+            groups.setdefault(x['vendor'], []).append(x)
+    names = Vendor.objects.in_bulk(groups)
+    rows = []
+    for pk, g in groups.items():
+        planned, actual = sum(x['planned'] for x in g) / len(g), sum(x['actual'] for x in g) / len(g)
+        pct = (actual - planned) * 100 / planned if planned > 0 else None
+        rows.append({'vendor': names[pk], 'n': len(g), 'planned': planned, 'actual': actual,
+                     'median_actual': _median(x['actual'] for x in g), 'pct': pct, 'severity': severity(pct)})
+    rows.sort(key=lambda r: (r['pct'] is None, -(r['pct'] or 0), str(r['vendor'])))
     return rows
 
 
@@ -112,8 +165,9 @@ def result_rows(f, facts):
     rows = []
     for g in groups.values():
         mine = [x for x in facts if x['process'].pk == g['process'].pk]
-        rows.append({**g, 'process': _name(g['process']), 'rate': g['defects'] * 100 / g['quantity'] if g['quantity'] else 0,
-                     'processing': _avg(x['processing'] for x in mine), 'wait': _avg(x['wait'] for x in mine), 'hot': set()})
+        rows.append({**g, 'process': _name(g['process']), 'pk': g['process'].pk, 'rate': g['defects'] * 100 / g['quantity'] if g['quantity'] else 0,
+                     'n': len(mine), 'processing': _avg(x['processing'] for x in mine), 'wait': _avg(x['wait'] for x in mine),
+                     'processing_median': _median(x['processing'] for x in mine), 'wait_median': _median(x['wait'] for x in mine), 'hot': set()})
     rows.sort(key=lambda r: r['process'])
     for key, flag in (('processing', 'processing'), ('wait', 'wait')):
         known = [r for r in rows if r[key]]
@@ -136,3 +190,50 @@ def owners(events):
         a = next((a for a in by_uid.get(e.tag_uid, []) if a.start_at <= e.occurred_at and (not a.end_at or a.end_at > e.occurred_at)), None)
         out[e.pk] = (a.item.order.customer_id, steps.get((a.item_id, e.process_id))) if a else (None, None)
     return out
+
+
+RESULT_ORDERS = ('total', 'wait', 'processing', 'ratio', 'item', 'process')
+PLAN_ORDERS = ('overrun', 'planned', 'actual', 'diff', 'item', 'process')
+
+
+def _cause(x):
+    if x['process'].kind == Process.Kind.OUTSOURCED:
+        return _('At vendor')
+    return _('Waited before the step') if (x['wait'] or timedelta()) > (x['processing'] or timedelta()) else _('Processing')
+
+
+def _flag_title(flag):
+    what = _('Processing time') if flag['key'] == 'processing' else _('Wait before')
+    return _('%(what)s %(value)s is more than %(n)s times the process median %(median)s') % {
+        'what': what, 'value': duration(flag['value']), 'n': CHECK_FACTOR, 'median': duration(flag['median'])}
+
+
+def record_rows(facts, tab, sel, order):
+    """One row per finished step of the selected processes, built from the same facts; sorted by `order` (whitelisted)."""
+    stats = process_stats(facts)
+    rows = []
+    for x in facts:
+        if x['process'].pk not in sel or (tab == 'plan' and x['diff'] is None):
+            continue
+        item = x['item']
+        row = {'item': item, 'job': item.order.job_number, 'box': x['box'], 'seq': x['seq'], 'part': item.part_name,
+               'customer': str(item.order.customer), 'process': _name(x['process']),
+               'flags': [{'key': f['key'], 'title': _flag_title(f)} for f in x['flags']]}
+        if tab == 'plan':
+            pct = x['diff'] * 100 / x['planned'] if x['planned'] > 0 else None
+            rows.append({**row, 'planned': x['planned'], 'actual': x['actual'], 'diff': x['diff'], 'pct': pct,
+                         'severity': severity(pct), 'value': x['actual']})
+        else:
+            med = stats[x['process'].pk]['total']
+            ratio = x['total'] / med if x['total'] is not None and med else None
+            rows.append({**row, 'wait': x['wait'], 'processing': x['processing'], 'total': x['total'], 'ratio': ratio,
+                         'cause': _cause(x), 'value': int(x['total'].total_seconds()) if x['total'] is not None else ''})
+    secs = lambda k: lambda r: (r[k] is None, -(r[k].total_seconds() if r[k] else 0))
+    keys = {
+        'total': secs('total'), 'wait': secs('wait'), 'processing': secs('processing'),
+        'ratio': lambda r: (r['ratio'] is None, -(r['ratio'] or 0)), 'overrun': lambda r: (r['pct'] is None, -(r['pct'] or 0)),
+        'planned': lambda r: -r['planned'], 'actual': lambda r: -r['actual'], 'diff': lambda r: -r['diff'],
+        'item': lambda r: (r['item'].item_code, r['seq']), 'process': lambda r: (r['process'], r['item'].item_code),
+    }
+    rows.sort(key=keys[order])
+    return rows

@@ -20,7 +20,7 @@ from orders.models import Customer, OrderItem, Process, Vendor
 from .forms import AssignTagForm, CorrectEventForm, PickTagForm, ResultForm, SimulateScanForm
 from .models import Event, Tag, TagAssignment
 from .overview import active_boxes
-from .analysis import Filters, plan_rows, result_rows, slowest, step_facts
+from .analysis import PLAN_ORDERS, RECORD_CAP, RECORD_LIMIT, RESULT_ORDERS, Filters, plan_rows, record_rows, result_rows, slowest, step_facts, vendor_rows
 from .priority import TIER_LABELS, TIERS, priority
 from .shipping import shipping_overview
 from .services import assign_tag, can_correct, correct_event as correct_event_service, next_step, record_event, record_result, record_step_state, release_assignment, replace_tag, resolve_tag, cancel_item, ship_item
@@ -314,12 +314,46 @@ def analysis(request):
     if tab == 'plan':
         sort = g.get('sort') if g.get('sort') in dict(PLAN_SORTS) else 'process'
         rows = plan_rows(facts, sort)
-        ctx.update(rows=rows, sort=sort, sort_choices=PLAN_SORTS, top=slowest(rows))
+        ctx.update(rows=rows, sort=sort, sort_choices=PLAN_SORTS, top=slowest(rows), vendor_rows=vendor_rows(facts))
+        orders, default_order = PLAN_ORDERS, 'overrun'
     else:
         rows, total = result_rows(f, facts)
         flag = lambda name: next((r for r in rows if name in r['hot']), None)
         ctx.update(rows=rows, total=total, longest_wait=flag('wait'), longest_processing=flag('processing'))
+        orders, default_order = RESULT_ORDERS, 'total'
+    ctx.update(_records_context(g, tab, facts, orders, default_order))
+    ctx['hidden'] = list(keep.items()) + ([('sort', ctx['sort'])] if tab == 'plan' else [])
     return render(request, 'tracking/analysis.html', ctx)
+
+
+def _records_context(g, tab, facts, orders, default_order):
+    """The records panel: steps of the ticked processes (?sel=), sorted by ?order=, at most ?limit= rows (200 more per click, 2000 max)."""
+    sel = [int(v) for v in g.getlist('sel') if v.isdigit()]
+    ctx = {'sel': sel}
+    if not sel:
+        return ctx
+    order = g.get('order') if g.get('order') in orders else default_order
+    limit = min(max(int(g['limit']) if g.get('limit', '').isdigit() else RECORD_LIMIT, RECORD_LIMIT), RECORD_CAP)
+    records = record_rows(facts, tab, set(sel), order)
+    url = lambda **kw: '?' + _query(g, **kw) + '#records'
+    ctx.update(
+        records=records[:limit], records_total=len(records), order=order, order_urls={k: url(order=k, limit=None) for k in orders},
+        more_url=url(limit=min(limit + RECORD_LIMIT, RECORD_CAP)) if len(records) > limit and limit < RECORD_CAP else '',
+        unit='days' if tab == 'plan' else 'seconds',
+        fmt={'dh': _('%(d)dd %(h)dh'), 'hm': _('%(h)dh %(m)dm'), 'm': _('%(m)dm'), 'lt1m': _('<1m')},
+    )
+    return ctx
+
+
+def _query(g, **changes):
+    """The current query string with some parameters replaced (None removes one); repeated keys such as sel are kept."""
+    q = g.copy()
+    for k, v in changes.items():
+        if v is None:
+            q.pop(k, None)
+        else:
+            q[k] = str(v)
+    return q.urlencode()
 
 
 def _old_analysis_url(tab):
