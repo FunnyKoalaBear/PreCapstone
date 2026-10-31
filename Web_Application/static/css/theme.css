@@ -1,10 +1,19 @@
-:root {
+/* Light values are the default; the dark block overrides every colour token. data-theme is set by static/js/theme.js */
+:root, :root[data-theme="light"] {
+  color-scheme: light;
   --color-bg: #f5f6f8;
   --color-surface: #ffffff;
+  --color-surface-2: #eef0f3; /* raised surfaces and popovers */
   --color-text: #1f2933;
   --color-muted: #5b6573;
   --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-on-primary: #ffffff;
   --color-border: #d9dee5;
+  --color-hover: #eef2f8; /* row hover */
+  --color-focus: #1d4ed8; /* focus ring */
+  --color-nav-active-bg: #e3ecff;
+  --color-overlay: rgba(15, 20, 26, 0.5); /* dialog backdrop */
   --color-scrollbar: #8a93a0;
   --color-on-status: #ffffff; /* text on a filled state colour */
   --frozen-shadow: 6px 0 6px -6px color-mix(in srgb, var(--color-text) 40%, transparent);
@@ -39,6 +48,55 @@
   --risk-critical: #c2410c;
   --risk-watch: #a16207;
   --risk-on-track: #15803d;
+}
+
+/* Dark: no pure black or white; state colours are lighter (they sit on a dark surface) and the text on a fill is dark */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-bg: #0f141a;
+  --color-surface: #171d25;
+  --color-surface-2: #1f2630;
+  --color-text: #e6eaf0;
+  --color-muted: #aab4c2;
+  --color-primary: #7aa2ff;
+  --color-primary-hover: #9bb9ff;
+  --color-on-primary: #0b1220;
+  --color-border: #2a323d;
+  --color-hover: #1d242e;
+  --color-focus: #9bb9ff;
+  --color-nav-active-bg: #1f2c47;
+  --color-overlay: rgba(0, 0, 0, 0.65);
+  --color-scrollbar: #5d6877;
+  --color-on-status: #0b1016;
+  --frozen-shadow: 6px 0 6px -6px rgba(0, 0, 0, 0.7);
+  --gantt-track-bg: #222a35;
+  --gantt-vendor-stripe: #7a55c9;
+
+  --status-shipped: #887ff5;
+  --status-cancelled: #7f8692;
+  --status-overdue: #f47575;
+  --status-in-progress: #6ba6f7;
+  --status-at-vendor: #b379f4;
+  --status-paused: #f79760;
+  --status-complete: #7ad89a;
+  --status-waiting: #f8cb73;
+  --status-not-started: #b7bcc4;
+  --status-partial: #33cabe;
+  --color-danger: var(--status-overdue);
+
+  --status-tint: 24%;
+  --status-not-started-tint: color-mix(in srgb, var(--status-not-started) var(--status-tint), var(--color-surface));
+  --status-in-progress-tint: color-mix(in srgb, var(--status-in-progress) var(--status-tint), var(--color-surface));
+  --status-at-vendor-tint: color-mix(in srgb, var(--status-at-vendor) var(--status-tint), var(--color-surface));
+  --status-complete-tint: color-mix(in srgb, var(--status-complete) var(--status-tint), var(--color-surface));
+  --status-paused-tint: color-mix(in srgb, var(--status-paused) var(--status-tint), var(--color-surface));
+
+  --stagnant-color: #f472b6;
+
+  --risk-overdue: #f47575;
+  --risk-critical: #fb923c;
+  --risk-watch: #eab308;
+  --risk-on-track: #4ade80;
 }
 
 /* Responsive layout. The breakpoints live only here: 768px (tablet) and 480px (phone). */

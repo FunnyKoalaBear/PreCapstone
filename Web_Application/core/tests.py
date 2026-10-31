@@ -608,7 +608,7 @@ def _mix(colour, background, percent):
     return '#%02x%02x%02x' % tuple(mixed)
 
 
-class StatusColourTests(SimpleTestCase):
+class StatusColourTests(TestCase):
     STATES = ('not-started', 'waiting', 'in-progress', 'at-vendor', 'complete', 'shipped', 'paused', 'cancelled', 'overdue')
     CSS = settings.BASE_DIR / 'static' / 'css'
     TEMPLATES = settings.BASE_DIR / 'templates'
@@ -616,11 +616,17 @@ class StatusColourTests(SimpleTestCase):
     def theme(self):
         return (self.CSS / 'theme.css').read_text(encoding='utf-8')
 
-    def variables(self):
-        return dict(re.findall(r'--([a-z-]+):\s*(#[0-9a-fA-F]{6})\b', self.theme()))
+    def block(self, mode):
+        start = {'light': ':root, :root[data-theme="light"] {', 'dark': ':root[data-theme="dark"] {'}[mode]
+        text = self.theme()
+        i = text.index(start)
+        return text[i:text.index('\n}', i)]
+
+    def variables(self, mode='light'):
+        return dict(re.findall(r'--([a-z0-9-]+):\s*(#[0-9a-fA-F]{6})\b', self.block(mode)))
 
     def test_no_hex_or_functional_colours_outside_theme_css(self):
-        files = [p for p in self.CSS.glob('*.css') if p.name != 'theme.css'] + list(self.TEMPLATES.rglob('*.html'))
+        files = [p for p in self.CSS.glob('*.css') if p.name != 'theme.css'] + list(self.TEMPLATES.rglob('*.html')) + list(self.CSS.parent.glob('js/*.js'))
         pattern = re.compile(r'(?<![&\w-])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})\b|\b(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch)\(')
         for path in files:
             self.assertEqual(pattern.findall(path.read_text(encoding='utf-8')), [], path.name)
@@ -659,6 +665,49 @@ class StatusColourTests(SimpleTestCase):
             self.assertIn(f'.matrix-{state} {{ background: var(--status-{name}); }}', base, state)
         self.assertIn('.matrix-pending { background: transparent;', base)
         self.assertNotIn('--matrix-', self.theme())
+
+    def test_every_light_colour_token_has_a_dark_value_and_new_tokens_exist(self):
+        names = lambda mode: set(re.findall(r'(--[a-z0-9-]+):', self.block(mode)))
+        self.assertEqual(names('light') - names('dark'), set())
+        for token in ('surface-2', 'hover', 'focus', 'nav-active-bg', 'on-primary', 'primary-hover', 'overlay'):
+            self.assertIn(f'--color-{token}', names('dark'), token)
+        self.assertIn('color-scheme: light;', self.block('light'))
+        self.assertIn('color-scheme: dark;', self.block('dark'))
+
+    def test_contrast_is_at_least_4_5_in_both_themes(self):
+        for mode in ('light', 'dark'):
+            v = self.variables(mode)
+            bg, surface, text, muted = v['color-bg'], v['color-surface'], v['color-text'], v['color-muted']
+            pairs = {'text/bg': (text, bg), 'text/surface': (text, surface), 'muted/surface': (muted, surface), 'muted/bg': (muted, bg),
+                     'primary/surface': (v['color-primary'], surface), 'on-primary/primary': (v['color-on-primary'], v['color-primary']),
+                     'danger/surface': (v['status-overdue'], surface)}
+            for state in self.STATES + ('partial',):
+                pairs[f'{state} as text'] = (v[f'status-{state}'], surface)
+                pairs[f'{state} fill'] = (v['color-on-status'], v[f'status-{state}'])
+            for name, (a, b) in pairs.items():
+                self.assertGreaterEqual(_contrast(a, b), 4.5, f'{mode}: {name}')
+            percent = int(re.search(r'--status-tint:\s*(\d+)%', self.block(mode)).group(1))
+            for state in ('not-started', 'in-progress', 'at-vendor', 'complete', 'paused'):
+                tint = _mix(v[f'status-{state}'], surface, percent)
+                self.assertGreaterEqual(_contrast(text, tint), 4.5, f'{mode}: text on {state} tint')
+                self.assertGreaterEqual(_contrast(muted, tint), 4.5, f'{mode}: muted on {state} tint')
+            for name in ('overdue', 'critical', 'watch', 'on-track'):
+                self.assertGreaterEqual(_contrast(v[f'risk-{name}'], surface), 4.5, f'{mode}: risk-{name}')
+            self.assertGreaterEqual(_contrast(v['stagnant-color'], surface), 4.5, mode)
+
+    def test_dark_states_still_differ_in_lightness(self):
+        v = self.variables('dark')
+        levels = sorted(_luminance(v[f'status-{s}']) for s in self.STATES)
+        self.assertGreaterEqual(min(b - a for a, b in zip(levels, levels[1:])), 0.01)
+
+    def test_theme_script_runs_before_the_first_stylesheet_and_the_toggle_exists(self):
+        html = self.client.get('/login/').content.decode()
+        self.assertLess(html.index('dataset.theme'), html.index('rel="stylesheet"'))
+        self.assertIn('js/theme.js', html)
+        self.assertIn('data-theme-toggle', html)
+        js = (settings.BASE_DIR / 'static' / 'js' / 'theme.js').read_text(encoding='utf-8')
+        for part in ('window.FT.setTheme', 'window.FT.getTheme', "'themechange'", 'beforeprint', 'afterprint', 'try {'):
+            self.assertIn(part, js)
 
 
 class DashboardTests(TestCase):

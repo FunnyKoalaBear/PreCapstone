@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Factory Tracker\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-31 23:57+0900\n"
+"POT-Creation-Date: 2026-11-01 01:55+0900\n"
 "PO-Revision-Date: 2026-10-11 17:00+0900\n"
 "Last-Translator: Claude\n"
 "Language-Team: Japanese\n"
@@ -81,7 +81,9 @@ msgstr "通信なしと判定するまで（時間）"
 msgid ""
 "A scanner that has not reported for this many hours is marked silent on the "
 "dashboard and the Devices list."
-msgstr "この時間以上受信がない読取端末は、ダッシュボードと端末一覧で「通信なし」と表示されます。"
+msgstr ""
+"この時間以上受信がない読取端末は、ダッシュボードと端末一覧で「通信なし」と表"
+"示されます。"
 
 #: .\core\models.py:23
 msgid "void window (days)"
@@ -99,7 +101,9 @@ msgstr "不良率を出す最小数量"
 msgid ""
 "A defect rate from fewer pieces than this is greyed out as \"few data\" in "
 "the analysis."
-msgstr "数量がこの値未満の不良率は、分析画面で「データが少ない」として灰色で表示されます。"
+msgstr ""
+"数量がこの値未満の不良率は、分析画面で「データが少ない」として灰色で表示され"
+"ます。"
 
 #: .\core\models.py:30
 msgid "site setting"
@@ -856,7 +860,7 @@ msgstr "コード %(code)s を更新しました。"
 msgid "Code %(code)s added."
 msgstr "コード %(code)s を追加しました。"
 
-#: .\orders\views.py:247 .\templates\base.html:18
+#: .\orders\views.py:247 .\templates\base.html:26
 #: .\templates\orders\customer_detail.html:16 .\templates\orders\hub.html:4
 #: .\templates\orders\hub.html:7
 msgid "Orders"
@@ -884,8 +888,8 @@ msgid "Access denied"
 msgstr "アクセスできません"
 
 # CHECK: glossary marks 工程進捗管理 as unsure (product name)
-#: .\templates\403.html:4 .\templates\base.html:6 .\templates\base.html:14
-#: .\templates\base.html:40 .\templates\core\dashboard.html:4
+#: .\templates\403.html:4 .\templates\base.html:6 .\templates\base.html:22
+#: .\templates\base.html:49 .\templates\core\dashboard.html:4
 #: .\templates\core\home.html:4 .\templates\core\user_form.html:4
 #: .\templates\core\user_list.html:4 .\templates\core\user_password.html:4
 #: .\templates\core\user_reset.html:4 .\templates\orders\customer_detail.html:4
@@ -912,7 +916,7 @@ msgstr "工程進捗管理"
 msgid "Your account does not have the role needed for this page."
 msgstr "このページを表示するために必要な権限がありません。"
 
-#: .\templates\403.html:9 .\templates\base.html:17 .\templates\core\home.html:4
+#: .\templates\403.html:9 .\templates\base.html:25 .\templates\core\home.html:4
 #: .\templates\core\home.html:7
 msgid "Home"
 msgstr "ホーム"
@@ -925,57 +929,73 @@ msgstr "Django サイト管理"
 msgid "Django administration"
 msgstr "Django 管理サイト"
 
-#: .\templates\base.html:15
+#: .\templates\base.html:23
 msgid "Menu"
 msgstr "メニュー"
 
 # CHECK: 得意先 is marked unsure in the glossary (alternative: 顧客)
-#: .\templates\base.html:19 .\templates\orders\customer_list.html:4
+#: .\templates\base.html:27 .\templates\orders\customer_list.html:4
 #: .\templates\orders\customer_list.html:7
 msgid "Customers"
 msgstr "得意先"
 
-#: .\templates\base.html:20 .\templates\tracking\analysis.html:4
+#: .\templates\base.html:28 .\templates\tracking\analysis.html:4
 #: .\templates\tracking\analysis.html:7
 msgid "Analysis"
 msgstr "分析"
 
-#: .\templates\base.html:21 .\templates\tracking\shipping.html:4
+#: .\templates\base.html:29 .\templates\tracking\shipping.html:4
 #: .\templates\tracking\shipping.html:7
 msgid "Shipping"
 msgstr "出荷"
 
-#: .\templates\base.html:22 .\templates\tracking\priorities.html:4
+#: .\templates\base.html:30 .\templates\tracking\priorities.html:4
 #: .\templates\tracking\priorities.html:7
 msgid "Priorities"
 msgstr "優先度"
 
-#: .\templates\base.html:23 .\templates\core\user_form.html:4
+#: .\templates\base.html:31 .\templates\core\user_form.html:4
 #: .\templates\core\user_form.html:7 .\templates\core\user_list.html:4
 #: .\templates\core\user_list.html:7
 msgid "Users"
 msgstr "ユーザー"
 
-#: .\templates\base.html:24 .\templates\tracking\settings.html:4
+#: .\templates\base.html:32 .\templates\tracking\settings.html:4
 #: .\templates\tracking\settings.html:7
 msgid "Settings"
 msgstr "設定"
 
-#: .\templates\base.html:25 .\templates\includes\tag_tabs.html:3
+#: .\templates\base.html:33 .\templates\includes\tag_tabs.html:3
 #: .\templates\tracking\tag_manage.html:4
 #: .\templates\tracking\tag_manage.html:7
 msgid "Tags"
 msgstr "タグ管理"
 
-#: .\templates\base.html:26 .\templates\core\dashboard.html:4
+#: .\templates\base.html:34 .\templates\core\dashboard.html:4
 #: .\templates\core\dashboard.html:7
 msgid "Dashboard"
 msgstr "ダッシュボード"
 
-#: .\templates\base.html:27 .\templates\tracking\simulate.html:4
+#: .\templates\base.html:35 .\templates\tracking\simulate.html:4
 #: .\templates\tracking\simulate.html:7
 msgid "Simulate scan"
 msgstr "スキャンのシミュレーション"
+
+#: .\templates\base.html:38
+msgid "Theme"
+msgstr "テーマ"
+
+#: .\templates\base.html:38
+msgid "Auto"
+msgstr "自動"
+
+#: .\templates\base.html:38
+msgid "Light"
+msgstr "ライト"
+
+#: .\templates\base.html:38
+msgid "Dark"
+msgstr "ダーク"
 
 #: .\templates\core\dashboard.html:10
 msgid "Users per role"
