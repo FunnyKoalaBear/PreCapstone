@@ -20,7 +20,7 @@ Edit `.env`, create an empty PostgreSQL database, then:
 
 ## Roles
 
-Migrations create the groups Operator, Planner and Admin. In /admin, add each user to one group (superusers count as Admin). Tick "Staff status" only for people who need /admin.
+Migrations create the groups Operator, Planner and Admin (superusers count as Admin). Planners manage Operator and Planner accounts on the Users page; only Admins see and assign the Admin role (in /admin or on the Users page). New and reset accounts get a temporary password shown once, and must change it at first login. Tick "Staff status" only for people who need /admin.
 
 ## Raspberry Pi setup
 

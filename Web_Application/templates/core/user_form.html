@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Users" %} - {% trans "Factory Tracker" %}{% endblock %}
+
+{% block content %}
+  <p><a href="{% url 'user_list' %}">&larr; {% trans "Users" %}</a></p>
+  <h1>{% if target %}{{ target.username }}{% else %}{% trans "Add user" %}{% endif %}</h1>
+
+  <form method="post" class="card">
+    {% csrf_token %}
+    {{ form }}
+    {% if not target %}<p>{% trans "A temporary password is shown once after you save." %}</p>{% endif %}
+    <button type="submit" class="button">{% if target %}{% trans "Save changes" %}{% else %}{% trans "Add user" %}{% endif %}</button>
+    {% if target %}<a class="button-secondary" href="{% url 'user_reset' target.pk %}">{% trans "Reset password" %}</a>{% endif %}
+  </form>
+{% endblock %}

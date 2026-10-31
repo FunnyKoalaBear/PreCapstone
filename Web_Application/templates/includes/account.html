@@ -3,6 +3,7 @@
 <form action="{% url 'logout' %}" method="post" class="account">
   {% csrf_token %}
   <span>{{ request.user.get_username }}</span>
+  <a href="{% url 'password_change' %}">{% trans "Change password" %}</a>
   <button type="submit">{% trans "Log out" %}</button>
 </form>
 {% else %}

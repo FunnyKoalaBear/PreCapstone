@@ -43,6 +43,12 @@ DEMO_UIDS = (
 )
 
 
+DEMO_USERS = (
+    ('demo_operator', 'Operator', ''), ('demo_planner', 'Planner', ''), ('demo_admin', 'Admin', ''),
+    ('demo_op_sato', 'Operator', '佐藤 健'), ('demo_op_tanaka', 'Operator', '田中 優子'),
+)
+
+
 class Command(BaseCommand):
     help = 'Create demo orders, tags and scans for reviewing the dashboard (DEBUG only).'
 
@@ -69,8 +75,9 @@ class Command(BaseCommand):
         password = os.environ.get('DEMO_PASSWORD')
         if not password:
             self.stdout.write(self.style.WARNING('DEMO_PASSWORD is not set; the demo users cannot log in.'))
-        for role in ('Operator', 'Planner', 'Admin'):
-            user = User.objects.get_or_create(username=f'demo_{role.lower()}')[0]
+        for username, role, name in DEMO_USERS:
+            user = User.objects.get_or_create(username=username)[0]
+            user.first_name = name
             user.set_password(password) if password else user.set_unusable_password()
             user.is_staff = user.is_superuser = False
             user.save()

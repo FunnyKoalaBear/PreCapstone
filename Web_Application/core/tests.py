@@ -6,7 +6,9 @@ from io import StringIO
 from unittest import mock
 
 from django.conf import settings
+from django.contrib.admin.models import ADDITION, CHANGE, LogEntry
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import SimpleTestCase
@@ -15,6 +17,8 @@ from django.test import override_settings
 from django.utils import translation
 from django.utils import timezone
 
+from core import accounts
+from core.models import Profile
 from core.templatetags.duration import duration
 from core.management.commands.seed_demo import DEMO_UIDS, read_csv
 from core.testing import TestCase, make_user
@@ -300,6 +304,8 @@ class SeedDemoTests(TestCase):
         admin = User.objects.get(username='demo_admin')
         self.assertTrue(admin.check_password('pw-1'))
         self.assertFalse(admin.is_staff or admin.is_superuser)
+        self.assertTrue(User.objects.get(username='demo_op_sato').check_password('pw-1'))
+        self.assertTrue(User.objects.get(username='demo_op_sato').profile)
         self.assertEqual(list(admin.groups.values_list('name', flat=True)), ['Admin'])
         with mock.patch.dict('os.environ', clear=False) as env:
             env.pop('DEMO_PASSWORD', None)
@@ -849,3 +855,167 @@ class ManualTests(TestCase):
         self.assertEqual(text.count('\n## よくある質問'), 1)
         self.assertGreaterEqual(text.count('**Q'), 5)
         self.assertLessEqual(text.count('**Q'), 8)
+
+
+class UserPageTests(TestCase):
+    def setUp(self):
+        self.planner = make_user('pl', 'Planner')
+        self.client.force_login(self.planner)
+
+    def post_edit(self, user, **data):
+        return self.client.post(f'/users/{user.pk}/', {'name': '', 'role': 'Operator', 'is_active': 'on', **data})
+
+    def test_operator_gets_403_and_anonymous_is_redirected(self):
+        self.client.force_login(make_user('op', 'Operator'))
+        for url in ('/users/', '/users/add/'):
+            self.assertEqual(self.client.get(url).status_code, 403)
+        self.client.logout()
+        self.assertEqual(self.client.get('/users/').status_code, 302)
+
+    def test_list_hides_admins_from_planners_and_searches(self):
+        make_user('sato', 'Operator')
+        make_user('boss', 'Admin')
+        User.objects.create_superuser('root', password='x')
+        r = self.client.get('/users/')
+        self.assertContains(r, '>sato<')
+        for hidden in ('boss', 'root'):
+            self.assertNotContains(r, f'>{hidden}<')
+        self.assertNotContains(self.client.get('/users/?q=zzz'), '>sato<')
+        self.client.force_login(make_user('adm', 'Admin'))
+        self.assertContains(self.client.get('/users/'), '>boss<')
+
+    def test_admin_user_by_url_is_404_for_planners(self):
+        boss, root = make_user('boss', 'Admin'), User.objects.create_superuser('root', password='x')
+        for u in (boss, root):
+            for url in (f'/users/{u.pk}/', f'/users/{u.pk}/reset/'):
+                self.assertEqual(self.client.get(url).status_code, 404)
+                self.assertEqual(self.client.post(url, {'role': 'Operator'}).status_code, 404)
+        self.client.force_login(make_user('adm', 'Admin'))
+        self.assertEqual(self.client.get(f'/users/{boss.pk}/').status_code, 200)
+
+    def test_create_shows_temporary_password_once_and_forces_change(self):
+        r = self.client.post('/users/add/', {'username': 'new', 'name': 'N', 'role': 'Operator'})
+        password = r.context['password']
+        self.assertEqual(len(password), 12)
+        self.assertFalse(set(password) & set('IOlo01'))
+        user = User.objects.get(username='new')
+        self.assertTrue(user.check_password(password) and user.profile.must_change_password)
+        self.assertEqual(user.groups.get().name, 'Operator')
+        self.assertNotContains(self.client.get('/users/'), password)
+        self.assertEqual(LogEntry.objects.filter(object_id=str(user.pk), action_flag=ADDITION).count(), 1)
+
+    def test_duplicate_username_is_rejected(self):
+        make_user('dup', 'Operator')
+        r = self.client.post('/users/add/', {'username': 'DUP', 'name': '', 'role': 'Operator'})
+        self.assertEqual(User.objects.count(), 2)
+        self.assertContains(r, 'already')
+
+    def test_planner_cannot_create_or_promote_to_admin(self):
+        r = self.client.post('/users/add/', {'username': 'x', 'name': '', 'role': 'Admin'})
+        self.assertFalse(User.objects.filter(username='x').exists())
+        self.assertEqual(r.status_code, 200)
+        op = make_user('op', 'Operator')
+        self.post_edit(op, role='Admin')
+        self.assertEqual(list(op.groups.values_list('name', flat=True)), ['Operator'])
+        with self.assertRaises(ValidationError):
+            accounts.update_user(self.planner, op, '', 'Admin', True)
+
+    def test_admin_may_assign_admin(self):
+        self.client.force_login(make_user('adm', 'Admin'))
+        self.client.post('/users/add/', {'username': 'x', 'name': '', 'role': 'Admin'})
+        self.assertEqual(User.objects.get(username='x').groups.get().name, 'Admin')
+
+    def test_edit_changes_role_and_name_and_logs(self):
+        op = make_user('op', 'Operator')
+        self.assertRedirects(self.post_edit(op, name='Sato', role='Planner'), '/users/')
+        op.refresh_from_db()
+        self.assertEqual((op.first_name, accounts.current_role(op)), ('Sato', 'Planner'))
+        self.assertTrue(LogEntry.objects.filter(object_id=str(op.pk), action_flag=CHANGE).exists())
+
+    def test_deactivate_via_switch_and_no_delete(self):
+        op = make_user('op', 'Operator')
+        self.post_edit(op, is_active='')
+        op.refresh_from_db()
+        self.assertFalse(op.is_active)
+        self.assertIn('deactivated', LogEntry.objects.get(object_id=str(op.pk)).change_message)
+        self.assertNotContains(self.client.get(f'/users/{op.pk}/'), 'Delete')
+
+    def test_nobody_changes_own_role_or_deactivates_self(self):
+        make_user('pl2', 'Planner')
+        self.post_edit(self.planner, role='Operator', is_active='')
+        self.planner.refresh_from_db()
+        self.assertTrue(self.planner.is_active)
+        self.assertEqual(accounts.current_role(self.planner), 'Planner')
+        with self.assertRaises(ValidationError):
+            accounts.update_user(self.planner, self.planner, '', 'Operator', True)
+        with self.assertRaises(ValidationError):
+            accounts.update_user(self.planner, self.planner, '', 'Planner', False)
+
+    def test_last_active_planner_is_protected(self):
+        self.client.force_login(make_user('adm', 'Admin'))
+        self.assertContains(self.post_edit(self.planner, role='Operator'), 'last active Planner')
+        self.post_edit(self.planner, role='Planner', is_active='')
+        self.planner.refresh_from_db()
+        self.assertTrue(self.planner.is_active)
+        make_user('pl2', 'Planner')
+        self.post_edit(self.planner, role='Operator')
+        self.assertEqual(accounts.current_role(User.objects.get(pk=self.planner.pk)), 'Operator')
+
+    def test_reset_makes_new_password_and_forces_change(self):
+        op = make_user('op', 'Operator')
+        self.assertContains(self.client.get(f'/users/{op.pk}/reset/'), 'Reset password')
+        r = self.client.post(f'/users/{op.pk}/reset/')
+        op.refresh_from_db()
+        self.assertTrue(op.check_password(r.context['password']) and op.profile.must_change_password)
+        self.assertIn('reset', LogEntry.objects.get(object_id=str(op.pk)).change_message)
+
+    def test_temporary_password_alphabet(self):
+        self.assertTrue(all(len(accounts.temp_password()) == 12 for _i in range(50)))
+        self.assertFalse(set(accounts.ALPHABET) & set('IOlo01'))
+
+
+class ForcedPasswordChangeTests(TestCase):
+    def login(self, must_change=True):
+        user = make_user('op', 'Operator')
+        Profile.objects.filter(user=user).update(must_change_password=must_change)
+        self.client.force_login(user)
+        return user
+
+    def test_profile_is_created_automatically(self):
+        self.assertFalse(make_user('anyone').profile.must_change_password)
+
+    def test_every_page_redirects_to_password_change(self):
+        self.login()
+        for url in ('/', '/orders/', '/users/'):
+            self.assertRedirects(self.client.get(url), '/account/password/', fetch_redirect_response=False)
+        self.assertEqual(self.client.get('/account/password/').status_code, 200)
+
+    def test_logout_stays_reachable(self):
+        self.login()
+        self.assertRedirects(self.client.post('/logout/'), '/login/', fetch_redirect_response=False)
+
+    def test_change_clears_flag(self):
+        user = self.login()
+        r = self.client.post('/account/password/', {'old_password': 'x', 'new_password1': 'Zq7-long-pass-9', 'new_password2': 'Zq7-long-pass-9'})
+        self.assertRedirects(r, '/', fetch_redirect_response=False)
+        user.refresh_from_db()
+        self.assertFalse(user.profile.must_change_password)
+        self.assertEqual(self.client.get('/orders/').status_code, 200)
+
+    def test_weak_password_keeps_flag(self):
+        user = self.login()
+        r = self.client.post('/account/password/', {'old_password': 'x', 'new_password1': '123', 'new_password2': '123'})
+        self.assertEqual(r.status_code, 200)
+        user.refresh_from_db()
+        self.assertTrue(user.profile.must_change_password)
+
+    def test_login_sets_flag_from_profile(self):
+        self.login()
+        self.client.logout()
+        r = self.client.post('/login/', {'username': 'op', 'password': 'x'})
+        self.assertRedirects(r, '/', fetch_redirect_response=False)
+        self.assertRedirects(self.client.get('/'), '/account/password/', fetch_redirect_response=False)
+
+    def test_everyone_has_change_password_link(self):
+        self.login(False)
+        self.assertContains(self.client.get('/'), 'href="/account/password/"')

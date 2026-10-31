@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Factory Tracker\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-31 19:30+0900\n"
+"POT-Creation-Date: 2026-10-31 21:33+0900\n"
 "PO-Revision-Date: 2026-10-11 17:00+0900\n"
 "Last-Translator: Claude\n"
 "Language-Team: Japanese\n"
@@ -15,6 +15,53 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
+
+#: .\core\accounts.py:52
+msgid "You cannot assign this role."
+msgstr "この権限は割り当てられません。"
+
+#: .\core\accounts.py:56
+msgid "You cannot change your own role or deactivate yourself."
+msgstr "自分自身の権限の変更や無効化はできません。"
+
+#: .\core\accounts.py:58
+msgid "The last active Planner cannot be deactivated or demoted."
+msgstr "有効な計画担当が最後の1人のときは、無効化や権限の引き下げはできません。"
+
+# CHECK: Operator role; same word as Worker
+#: .\core\forms.py:9
+msgid "Operator"
+msgstr "作業者"
+
+#: .\core\forms.py:9
+msgid "Planner"
+msgstr "計画担当"
+
+#: .\core\forms.py:9
+msgid "Admin"
+msgstr "管理者"
+
+#: .\core\forms.py:13 .\templates\core\user_list.html:21
+msgid "Name"
+msgstr "氏名"
+
+# CHECK: role of a user; the manual says 権限
+#: .\core\forms.py:14 .\templates\core\user_list.html:21
+msgid "Role"
+msgstr "権限"
+
+#: .\core\forms.py:23 .\templates\core\user_list.html:21
+#: .\templates\core\user_password.html:9
+msgid "Username"
+msgstr "ユーザー名"
+
+#: .\core\forms.py:30
+msgid "A user with that username already exists."
+msgstr "このユーザー名は既に使われています。"
+
+#: .\core\forms.py:35 .\templates\core\user_list.html:22
+msgid "Active"
+msgstr "有効"
 
 #: .\core\templatetags\duration.py:15 .\tracking\views.py:407
 #, python-format
@@ -34,6 +81,15 @@ msgstr "%(m)d分"
 #: .\core\templatetags\duration.py:18 .\tracking\views.py:407
 msgid "<1m"
 msgstr "1分未満"
+
+#: .\core\user_views.py:52
+#, python-format
+msgid "User %(name)s updated."
+msgstr "ユーザー %(name)s を更新しました。"
+
+#: .\core\user_views.py:67
+msgid "Your password was changed."
+msgstr "パスワードを変更しました。"
 
 #: .\orders\admin.py:33
 msgid "Mark selected processes as inactive"
@@ -731,13 +787,17 @@ msgstr "アクセスできません"
 
 # CHECK: glossary marks 工程進捗管理 as unsure (product name)
 #: .\templates\403.html:4 .\templates\base.html:6 .\templates\base.html:14
-#: .\templates\base.html:38 .\templates\core\dashboard.html:4
-#: .\templates\core\home.html:4 .\templates\orders\customer_detail.html:4
+#: .\templates\base.html:39 .\templates\core\dashboard.html:4
+#: .\templates\core\home.html:4 .\templates\core\user_form.html:4
+#: .\templates\core\user_list.html:4 .\templates\core\user_password.html:4
+#: .\templates\core\user_reset.html:4 .\templates\orders\customer_detail.html:4
 #: .\templates\orders\customer_edit.html:4
 #: .\templates\orders\customer_list.html:4 .\templates\orders\hub.html:4
 #: .\templates\orders\order_detail.html:4 .\templates\orders\order_form.html:4
-#: .\templates\registration\login.html:4 .\templates\tracking\analysis.html:4
-#: .\templates\tracking\boxes.html:4 .\templates\tracking\correct_event.html:4
+#: .\templates\registration\login.html:4
+#: .\templates\registration\password_change_form.html:4
+#: .\templates\tracking\analysis.html:4 .\templates\tracking\boxes.html:4
+#: .\templates\tracking\correct_event.html:4
 #: .\templates\tracking\priorities.html:4
 #: .\templates\tracking\result_detail.html:4
 #: .\templates\tracking\shipping.html:4 .\templates\tracking\simulate.html:4
@@ -788,17 +848,23 @@ msgstr "出荷"
 msgid "Priorities"
 msgstr "優先度"
 
-#: .\templates\base.html:23 .\templates\tracking\tag_manage.html:4
+#: .\templates\base.html:23 .\templates\core\user_form.html:4
+#: .\templates\core\user_form.html:7 .\templates\core\user_list.html:4
+#: .\templates\core\user_list.html:7
+msgid "Users"
+msgstr "ユーザー"
+
+#: .\templates\base.html:24 .\templates\tracking\tag_manage.html:4
 #: .\templates\tracking\tag_manage.html:7
 msgid "Tags"
 msgstr "タグ管理"
 
-#: .\templates\base.html:24 .\templates\core\dashboard.html:4
+#: .\templates\base.html:25 .\templates\core\dashboard.html:4
 #: .\templates\core\dashboard.html:7
 msgid "Dashboard"
 msgstr "ダッシュボード"
 
-#: .\templates\base.html:25 .\templates\tracking\simulate.html:4
+#: .\templates\base.html:26 .\templates\tracking\simulate.html:4
 #: .\templates\tracking\simulate.html:7
 msgid "Simulate scan"
 msgstr "スキャンのシミュレーション"
@@ -924,11 +990,96 @@ msgstr "適用"
 msgid "Show more"
 msgstr "さらに表示"
 
+# CHECK: 得意先 is marked unsure in the glossary (alternative: 顧客)
+#: .\templates\core\user_form.html:8 .\templates\core\user_form.html:14
+#: .\templates\core\user_list.html:7
+msgid "Add user"
+msgstr "ユーザーを追加"
+
+#: .\templates\core\user_form.html:13
+msgid "A temporary password is shown once after you save."
+msgstr "一時パスワードは、保存後に一度だけ表示されます。"
+
+#: .\templates\core\user_form.html:14 .\templates\orders\_order_form.html:18
+#: .\templates\orders\customer_edit.html:13
+#: .\templates\orders\tabs\codes.html:65
+msgid "Save changes"
+msgstr "変更を保存"
+
+#: .\templates\core\user_form.html:15 .\templates\core\user_reset.html:4
+#: .\templates\core\user_reset.html:8 .\templates\core\user_reset.html:12
+msgid "Reset password"
+msgstr "パスワードをリセット"
+
+#: .\templates\core\user_list.html:11 .\templates\core\user_list.html:14
+#: .\templates\orders\customer_list.html:17
+#: .\templates\orders\customer_list.html:20
+#: .\templates\orders\tabs\codes.html:5 .\templates\orders\tabs\codes.html:15
+#: .\templates\orders\tabs\orders.html:5 .\templates\tracking\shipping.html:12
+#: .\templates\tracking\shipping.html:53
+#: .\templates\tracking\tag_history.html:12
+#: .\templates\tracking\tag_manage.html:22
+#: .\templates\tracking\tag_manage.html:25
+msgid "Search"
+msgstr "検索"
+
+#: .\templates\core\user_list.html:22
+msgid "Last login"
+msgstr "最終ログイン"
+
+#: .\templates\core\user_list.html:31
+msgid "Yes"
+msgstr "はい"
+
+#: .\templates\core\user_list.html:31
+msgid "No"
+msgstr "いいえ"
+
+# CHECK: 得意先 is marked unsure in the glossary (alternative: 顧客)
+#: .\templates\core\user_list.html:35
+msgid "No users match."
+msgstr "該当するユーザーはありません。"
+
+#: .\templates\core\user_password.html:4 .\templates\core\user_password.html:7
+#: .\templates\core\user_password.html:10
+msgid "Temporary password"
+msgstr "一時パスワード"
+
+#: .\templates\core\user_password.html:11
+msgid ""
+"This password is shown only once. The user must change it at the first login."
+msgstr "このパスワードは一度しか表示されません。利用者は最初のログイン時に変更する必要があります。"
+
+#: .\templates\core\user_password.html:13
+msgid "Copy"
+msgstr "コピー"
+
+#: .\templates\core\user_password.html:14
+msgid "Print"
+msgstr "印刷"
+
+#: .\templates\core\user_password.html:15
+msgid "Back to Users"
+msgstr "ユーザー一覧に戻る"
+
+#: .\templates\core\user_reset.html:11
+#, python-format
+msgid ""
+"Make a new temporary password for %(name)s? The old password stops working."
+msgstr "%(name)s の新しい一時パスワードを作成しますか？古いパスワードは使えなくなります。"
+
 #: .\templates\includes\account.html:6
+#: .\templates\registration\password_change_form.html:4
+#: .\templates\registration\password_change_form.html:7
+#: .\templates\registration\password_change_form.html:12
+msgid "Change password"
+msgstr "パスワードを変更"
+
+#: .\templates\includes\account.html:7
 msgid "Log out"
 msgstr "ログアウト"
 
-#: .\templates\includes\account.html:9 .\templates\registration\login.html:4
+#: .\templates\includes\account.html:10 .\templates\registration\login.html:4
 #: .\templates\registration\login.html:7 .\templates\registration\login.html:12
 msgid "Log in"
 msgstr "ログイン"
@@ -1166,12 +1317,6 @@ msgid "Add another item"
 msgstr "品目を追加"
 
 #: .\templates\orders\_order_form.html:18
-#: .\templates\orders\customer_edit.html:13
-#: .\templates\orders\tabs\codes.html:65
-msgid "Save changes"
-msgstr "変更を保存"
-
-#: .\templates\orders\_order_form.html:18
 msgid "Create order"
 msgstr "受注を登録"
 
@@ -1206,17 +1351,6 @@ msgstr "得意先 %(name)s を編集"
 #: .\templates\orders\customer_list.html:12
 msgid "Add customer"
 msgstr "得意先を追加"
-
-#: .\templates\orders\customer_list.html:17
-#: .\templates\orders\customer_list.html:20
-#: .\templates\orders\tabs\codes.html:5 .\templates\orders\tabs\codes.html:15
-#: .\templates\orders\tabs\orders.html:5 .\templates\tracking\shipping.html:12
-#: .\templates\tracking\shipping.html:53
-#: .\templates\tracking\tag_history.html:12
-#: .\templates\tracking\tag_manage.html:22
-#: .\templates\tracking\tag_manage.html:25
-msgid "Search"
-msgstr "検索"
 
 #: .\templates\orders\customer_list.html:29
 msgid "Number of orders"
@@ -1518,6 +1652,10 @@ msgstr "（%(n)s箱）"
 msgid "No orders found."
 msgstr "受注が見つかりません。"
 
+#: .\templates\registration\password_change_form.html:8
+msgid "You must set a new password before you continue."
+msgstr "続ける前に、新しいパスワードを設定してください。"
+
 # CHECK: heading of the drill-down: 'Machine "Lathe 2"の実績'
 #: .\templates\tracking\_defect_records.html:3
 #, python-format
@@ -1537,7 +1675,9 @@ msgstr "部品別"
 msgid ""
 "A part that fails more here than elsewhere points to this machine, worker or "
 "setup."
-msgstr "他より多く不良が出ている部品は、この機械・作業者・段取りに原因がある可能性があります。"
+msgstr ""
+"他より多く不良が出ている部品は、この機械・作業者・段取りに原因がある可能性が"
+"あります。"
 
 #: .\templates\tracking\_defect_records.html:6
 #: .\templates\tracking\analysis_results.html:107
@@ -2251,13 +2391,17 @@ msgstr ""
 msgid ""
 "It cannot be edited later; void the result and record it again if it is "
 "wrong."
-msgstr "後から編集できません。誤りがあるときは、この実績を取り消して記録し直してください。"
+msgstr ""
+"後から編集できません。誤りがあるときは、この実績を取り消して記録し直してくだ"
+"さい。"
 
 #: .\tracking\forms.py:120
 msgid ""
 "JPEG, PNG or WEBP, up to 8 MB. It cannot be edited later; void the result "
 "and record it again if it is wrong."
-msgstr "JPEG・PNG・WEBP形式、8MBまで。後から編集できません。誤りがあるときは、この実績を取り消して記録し直してください。"
+msgstr ""
+"JPEG・PNG・WEBP形式、8MBまで。後から編集できません。誤りがあるときは、この実"
+"績を取り消して記録し直してください。"
 
 #: .\tracking\forms.py:142 .\tracking\models.py:234
 msgid "A main cause needs at least one defect."
@@ -2453,7 +2597,9 @@ msgstr "品目を指定できるのはキャンセルまたは出荷のみです
 msgid ""
 "Worker, machine, defect cause, quantity, defects, note and photo are only "
 "for results."
-msgstr "作業者・機械・不良原因・数量・不良数・備考・写真は作業実績にだけ付けられます。"
+msgstr ""
+"作業者・機械・不良原因・数量・不良数・備考・写真は作業実績にだけ付けられま"
+"す。"
 
 #: .\tracking\models.py:205
 msgid "A reason is required."

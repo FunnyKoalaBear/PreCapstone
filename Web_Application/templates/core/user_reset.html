@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Reset password" %} - {% trans "Factory Tracker" %}{% endblock %}
+
+{% block content %}
+  <p><a href="{% url 'user_edit' target.pk %}">&larr; {{ target.username }}</a></p>
+  <h1>{% trans "Reset password" %}</h1>
+  <form method="post" class="card">
+    {% csrf_token %}
+    <p>{% blocktrans with name=target.username %}Make a new temporary password for {{ name }}? The old password stops working.{% endblocktrans %}</p>
+    <button type="submit" class="button">{% trans "Reset password" %}</button>
+  </form>
+{% endblock %}

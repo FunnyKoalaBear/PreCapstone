@@ -325,3 +325,20 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | By part | 部品別 |
 | Rate for everyone else on the same part and process | 同じ部品・同じ工程での、他の機械・作業者の不良率 |
 | Only results with defects | 不良のある実績だけ |
+
+## Terms added for the Users page
+
+| English | Japanese |
+|---|---|
+| Users | ユーザー |
+| Add user | ユーザーを追加 |
+| Username | ユーザー名 |
+| Name (of a person) | 氏名 |
+| Role | 権限 |
+| Operator / Planner / Admin | 作業者 ? / 計画担当 / 管理者 |
+| Active | 有効 |
+| Last login | 最終ログイン |
+| Temporary password | 一時パスワード |
+| Reset password | パスワードをリセット |
+| Change password | パスワードを変更 |
+| Copy / Print | コピー / 印刷 |

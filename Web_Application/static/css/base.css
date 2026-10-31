@@ -317,3 +317,5 @@ h1 .button-secondary, h2 .button-secondary {
 .detail-list dt { color: var(--color-muted); }
 .detail-list dd { margin: 0; }
 .result-photo { display: block; max-width: min(100%, 480px); height: auto; }
+
+.temp-password { font-size: 1.5rem; letter-spacing: 0.1em; }
