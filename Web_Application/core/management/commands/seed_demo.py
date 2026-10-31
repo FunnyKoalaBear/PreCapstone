@@ -129,6 +129,11 @@ class Command(BaseCommand):
             notes=Case(*[When(code=r['code'], then=Value(r['notes'])) for r in read_csv('codes.csv') if r['notes']]))  # fill notes on codes made before the field existed
         procs = {r['name']: self.demo_process(r, vendors[DEFAULT_VENDOR[r['name']]]) for r in read_csv('processes.csv')}
         d1, d2, _silent = (ScannerDevice.objects.get_or_create(name=f'DEMO Scanner {i}')[0] for i in (1, 2, 3))  # scanner 3 never reports
+        setter = ScannerDevice.objects.get_or_create(name='DEMO Tag setter', defaults={'location': 'Office desk'})[0]
+        ScannerDevice.objects.get_or_create(name='DEMO Scanner 4 (retired)', defaults={'location': 'Old bench', 'active': False})
+        ScannerDevice.objects.filter(pk__in=[d1.pk, d2.pk, setter.pk]).update(last_seen=now - timedelta(hours=1))
+        for name, ja, active in (('DEMO Unused process', 'デモ未使用工程', True), ('DEMO Retired process', 'デモ廃止工程', False)):  # for the Processes tab
+            Process.objects.get_or_create(name=name, defaults={'name_ja': ja, 'kind': Process.Kind.MACHINING, 'active': active})
         c1, c2 = (Customer.objects.get_or_create(name=f'DEMO {n}')[0] for n in CUSTOMERS)
         created = []
 

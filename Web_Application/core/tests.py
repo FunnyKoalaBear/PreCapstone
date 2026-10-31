@@ -18,6 +18,7 @@ from django.utils import translation
 from django.utils import timezone
 
 from core import accounts
+from core.rules import silent_after
 from core.models import Profile
 from core.templatetags.duration import duration
 from core.management.commands.seed_demo import DEMO_UIDS, read_csv
@@ -369,8 +370,17 @@ class SeedDemoTests(TestCase):
         for e in events:
             self.assertEqual(e.process.kind, Event.REQUIRED_KIND[e.event_type], e)
         self.assertTrue(Event.objects.filter(event_type='CORRECTION').exists())
-        names = {r['name'] for r in read_csv('processes.csv')}
+        names = {r['name'] for r in read_csv('processes.csv')} | {'DEMO Unused process', 'DEMO Retired process'}
         self.assertEqual(set(Process.objects.values_list('name', flat=True)), names)
+
+    @override_settings(DEBUG=True)
+    def test_seed_has_an_inactive_and_an_unused_process_and_demo_devices(self):
+        self.seed()
+        self.assertFalse(Process.objects.get(name='DEMO Retired process').active)
+        self.assertFalse(Process.objects.get(name='DEMO Unused process').routestep_set.exists())
+        self.assertEqual(ScannerDevice.objects.filter(active=False).count(), 1)
+        silent = ScannerDevice.objects.filter(active=True, last_seen__isnull=True)
+        self.assertEqual([d.name for d in silent], ['DEMO Scanner 3'])
 
     @override_settings(DEBUG=True)
     def test_seed_uses_csv_codes_and_new_fields(self):
@@ -715,6 +725,16 @@ class DashboardTests(TestCase):
         for _ in range(3):
             record_event(device, a.tag.uid, item.steps.get().process, 'ARRIVED')
         self.assertEqual(self.client.get('/dashboard/').context['events_today'], 3)
+
+    def test_silent_limit_comes_from_rules(self):
+        self.assertEqual(silent_after(), timedelta(hours=24))
+        ScannerDevice.objects.create(name='Quiet', last_seen=self.now - timedelta(hours=5))
+        with mock.patch('core.views.silent_after', return_value=timedelta(hours=1)):
+            self.assertEqual([d.name for d in self.client.get('/dashboard/').context['silent_devices']], ['Quiet'])
+
+    def test_heading_buttons_use_the_compact_rule(self):
+        css = (settings.BASE_DIR / 'static' / 'css' / 'base.css').read_text(encoding='utf-8')
+        self.assertIn('h1 .button-secondary, h2 .button-secondary, h1 .button, h2 .button {', css)
 
     def test_scanners_not_seen_in_24_hours_are_listed_by_name(self):
         ScannerDevice.objects.create(name='Fresh', last_seen=self.now - timedelta(hours=2))

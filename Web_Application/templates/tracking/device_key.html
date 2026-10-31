@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% load i18n static %}
+
+{% block title %}{% trans "API key" %} - {% trans "Factory Tracker" %}{% endblock %}
+
+{% block content %}
+  <h1>{% trans "API key" %}</h1>
+  <div class="card">
+    <p>{% trans "Device" %}: <strong>{{ device.name }}</strong></p>
+    <p>{% trans "API key" %}: <code class="temp-password" id="temp-password">{{ api_key }}</code></p>
+    <p>{% trans "Put this key into the scanner/setter settings. It is shown only once." %}</p>
+    {% if not new %}<p>{% trans "The old key no longer works." %}</p>{% endif %}
+    <div class="form-actions no-print">
+      <button type="button" class="button" id="copy-password">{% trans "Copy" %}</button>
+      <a class="button-secondary" href="{% url 'device_list' %}">{% trans "Back to Devices" %}</a>
+    </div>
+  </div>
+  <script src="{% static 'js/copy.js' %}"></script>
+{% endblock %}

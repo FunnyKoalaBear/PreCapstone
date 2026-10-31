@@ -124,7 +124,7 @@ body {
   cursor: pointer;
 }
 
-h1 .button-secondary, h2 .button-secondary {
+h1 .button-secondary, h2 .button-secondary, h1 .button, h2 .button {
   font-size: 0.85rem; font-weight: 400; padding: 0.2rem 0.65rem; text-decoration: none;
   vertical-align: middle; margin-left: 0.5rem; line-height: 1.4; white-space: nowrap; display: inline-block;
 }
@@ -318,4 +318,4 @@ h1 .button-secondary, h2 .button-secondary {
 .detail-list dd { margin: 0; }
 .result-photo { display: block; max-width: min(100%, 480px); height: auto; }
 
-.temp-password { font-size: 1.5rem; letter-spacing: 0.1em; }
+.temp-password { font-size: 1.5rem; letter-spacing: 0.1em; overflow-wrap: anywhere; }

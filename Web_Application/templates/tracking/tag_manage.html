@@ -5,6 +5,7 @@
 
 {% block content %}
   <h1>{% trans "Tags" %}</h1>
+  {% include "includes/tag_tabs.html" with tab="tags" %}
 
   <form method="post" class="card">
     {% csrf_token %}
@@ -23,7 +24,6 @@
       <input type="search" id="q" name="q" value="{{ q }}" placeholder="{% trans 'Item, job, part, customer or tag' %}">
     </div>
     <button type="submit" class="button">{% trans "Search" %}</button>
-    <a href="{% url 'tag_history' %}">{% trans "Tag history" %}</a>
   </form>
   <p>{% blocktrans count n=in_use %}{{ n }} tag in use.{% plural %}{{ n }} tags in use.{% endblocktrans %}</p>
 

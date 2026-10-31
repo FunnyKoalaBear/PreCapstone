@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Devices" %} - {% trans "Factory Tracker" %}{% endblock %}
+
+{% block content %}
+  <p><a href="{% url 'device_list' %}">&larr; {% trans "Devices" %}</a></p>
+  <h1>{% if device %}{{ device.name }}{% else %}{% trans "Add device" %}{% endif %}</h1>
+
+  <form method="post" class="card">
+    {% csrf_token %}
+    {{ form }}
+    {% if not device %}<p>{% trans "The API key is shown once after you save." %}</p>{% endif %}
+    <button type="submit" class="button">{% if device %}{% trans "Save changes" %}{% else %}{% trans "Add device" %}{% endif %}</button>
+    {% if device %}<a class="button-secondary" href="{% url 'device_regenerate' device.pk %}">{% trans "Regenerate key" %}</a>{% endif %}
+  </form>
+{% endblock %}

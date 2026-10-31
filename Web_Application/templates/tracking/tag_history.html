@@ -4,8 +4,8 @@
 {% block title %}{% trans "Tag history" %} - {% trans "Factory Tracker" %}{% endblock %}
 
 {% block content %}
-  <p><a href="{% url 'tag_manage' %}">&larr; {% trans "Back to Tags" %}</a></p>
   <h1>{% trans "Tag history" %}</h1>
+  {% include "includes/tag_tabs.html" with tab="history" %}
 
   <form method="get" class="filters">
     <div>

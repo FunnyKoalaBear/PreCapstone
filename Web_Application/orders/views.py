@@ -23,6 +23,7 @@ from tracking.status import (
 from . import export, importer, pdf
 from .forms import CustomerForm, OrderForm, OrderItemFormSet, VendorForm
 from .models import Customer, Order, OrderChange, OrderItem, Vendor
+from .process_tab import _tab_processes
 from .runs import previous_runs
 
 SORTS = {
@@ -245,6 +246,7 @@ def _tab_codes(request):
 TABS = [
     ('orders', gettext_lazy('Orders'), OPERATOR, _tab_orders), ('new', gettext_lazy('New order'), PLANNER, _tab_new),
     ('import', gettext_lazy('Import'), PLANNER, _tab_import), ('codes', gettext_lazy('Codes'), PLANNER, _tab_codes),
+    ('processes', gettext_lazy('Processes'), PLANNER, _tab_processes),
 ]
 
 
@@ -254,7 +256,7 @@ def _tab_url(tab, **params):
 
 
 def order_list(request):
-    """The Orders page: one URL, four tabs (?tab=orders|new|import|codes), each with its own minimum role."""
+    """The Orders page: one URL, five tabs (?tab=orders|new|import|codes|processes), each with its own minimum role."""
     if not request.user.is_authenticated:
         return redirect_to_login(request.get_full_path())
     key = request.GET.get('tab')

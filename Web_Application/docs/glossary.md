@@ -353,3 +353,18 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | Add / Save / Delete | 追加 / 保存 / 削除 |
 | Paste a list | 一覧を貼り付け |
 | Deactivate / Reactivate | 無効にする / 有効に戻す |
+
+## Terms added for Processes and Devices
+
+| English | Japanese |
+|---|---|
+| Processes (Orders tab) | 工程 |
+| Used in routes | 工程順での使用数 |
+| Add a process | 工程を追加 |
+| Devices (scanner / tag setter) | 読取端末 |
+| Add device | 端末を追加 |
+| API key | APIキー |
+| Regenerate key | キーを再発行 |
+| Last seen (JST) | 最終受信（JST） |
+| Never (last seen) | 未受信 |
+| Silent (device) | 通信なし ? |
