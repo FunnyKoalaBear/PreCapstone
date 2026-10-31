@@ -290,3 +290,38 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | Wait before / Processing time | 直前の待ち時間 / 加工時間 |
 | Flags | 注意 |
 | By vendor | 外注先別 |
+
+## Terms added for defect analysis
+
+| English | Japanese |
+|---|---|
+| Defect cause / Main cause | 不良原因 / 主な原因 |
+| Defects by cause | 不良の原因別 |
+| Defect rate by machine / Defect rate by worker | 機械別の不良率 / 作業者別の不良率 |
+| Share / Cumulative | 構成比 / 累積 |
+| Few data | データが少ない |
+| No worker recorded / No machine recorded / No cause recorded | 作業者の記録なし / 機械の記録なし / 原因の記録なし |
+| Dimension out of tolerance | 寸法不良 |
+| Scratch | キズ |
+| Burr | バリ |
+| Missed machining | 加工忘れ |
+| Material defect | 材料不良 |
+| Surface treatment defect | 表面処理不良 |
+| Other | その他 |
+
+## Terms added for defect investigation
+
+| English | Japanese |
+|---|---|
+| Note | 備考 |
+| Photo | 写真 |
+| Result (detail page) | 実績の詳細 |
+| Recorded by | 記録者 |
+| Back to the order | 受注に戻る |
+| Voided on ... by ...: ... | ...に...が取り消しました: ... |
+| Records (link) | 実績を見る |
+| Records (list heading) | 実績の一覧 |
+| Clear | 解除 |
+| By part | 部品別 |
+| Rate for everyone else on the same part and process | 同じ部品・同じ工程での、他の機械・作業者の不良率 |
+| Only results with defects | 不良のある実績だけ |

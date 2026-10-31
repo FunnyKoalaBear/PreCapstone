@@ -15,3 +15,10 @@ MACHINE,Machining centre 2,マシニング2号機
 MACHINE,Surface grinder 1,平面研削盤1号機
 MACHINE,Deburring bench,バリ取り台
 MACHINE,Inspection bench,検査台
+CAUSE,Dimension out of tolerance,寸法不良
+CAUSE,Scratch,キズ
+CAUSE,Burr,バリ
+CAUSE,Missed machining,加工忘れ
+CAUSE,Material defect,材料不良
+CAUSE,Surface treatment defect,表面処理不良
+CAUSE,Other,その他

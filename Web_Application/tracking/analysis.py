@@ -15,6 +15,7 @@ from .status import DONE, item_statuses, timeline
 
 CHECK_FACTOR, CHECK_MIN_STEPS = 3, 5  # a step is flagged above 3x its process median, once the process has 5 finished steps
 RECORD_LIMIT, RECORD_CAP = 200, 2000
+MIN_RATE_QUANTITY = 20  # a defect rate from fewer pieces than this is shown greyed as 'few data'
 SEVERITY = ((60, 'severe'), (30, 'major'), (10, 'minor'))  # overrun % above which a step is minor / major / severe
 
 
@@ -143,10 +144,10 @@ def slowest(rows, n=3):
     return late[:n]
 
 
-def result_rows(f, facts):
-    """Per process: recorded quantity and defects (voided results left out), average processing time and wait, and the longest of each."""
+def result_events(f):
+    """RESULT events (voided ones left out) that match the page filters."""
     corrected = Event.objects.filter(event_type=Event.Type.CORRECTION).values('corrects_id')
-    events = list(Event.objects.filter(event_type=Event.Type.RESULT).exclude(pk__in=corrected).select_related('process'))
+    events = list(Event.objects.filter(event_type=Event.Type.RESULT).exclude(pk__in=corrected).select_related('process', 'worker', 'machine', 'defect_cause'))
     if f.process:
         events = [e for e in events if e.process_id == f.process]
     if f.start or f.end:
@@ -154,6 +155,12 @@ def result_rows(f, facts):
     if f.customer or f.vendor:
         own = owners(events)
         events = [e for e in events if (not f.customer or own[e.pk][0] == f.customer) and (not f.vendor or own[e.pk][1] == f.vendor)]
+    return events
+
+
+def result_rows(f, facts, events=None):
+    """Per process: recorded quantity and defects (voided results left out), average processing time and wait, and the longest of each."""
+    events = result_events(f) if events is None else events
     groups = {}
     for e in events:
         g = groups.setdefault(e.process_id, {'process': e.process, 'records': 0, 'quantity': 0, 'defects': 0})
@@ -178,18 +185,20 @@ def result_rows(f, facts):
     return rows, total
 
 
+def assigned(events):
+    """{event pk: the TagAssignment (with item, order, customer) active for the event's tag at that moment, or None}; one query."""
+    by_uid = {}
+    for a in TagAssignment.objects.filter(tag__uid__in={e.tag_uid for e in events}).select_related('item__order__customer', 'tag'):
+        by_uid.setdefault(a.tag.uid, []).append(a)
+    return {e.pk: next((a for a in by_uid.get(e.tag_uid, []) if a.start_at <= e.occurred_at and (not a.end_at or a.end_at > e.occurred_at)), None) for e in events}
+
+
 def owners(events):
     """{event pk: (customer id, vendor id)} from the tag assignment at that moment and the route step of the process."""
-    by_uid = {}
-    for a in TagAssignment.objects.filter(tag__uid__in={e.tag_uid for e in events}).select_related('item__order', 'tag'):
-        by_uid.setdefault(a.tag.uid, []).append(a)
+    found = assigned(events)
     steps = {(s.item_id, s.process_id): s.vendor_id or s.process.default_vendor_id
-             for s in RouteStep.objects.filter(item__in={a.item_id for v in by_uid.values() for a in v}).select_related('process')}
-    out = {}
-    for e in events:
-        a = next((a for a in by_uid.get(e.tag_uid, []) if a.start_at <= e.occurred_at and (not a.end_at or a.end_at > e.occurred_at)), None)
-        out[e.pk] = (a.item.order.customer_id, steps.get((a.item_id, e.process_id))) if a else (None, None)
-    return out
+             for s in RouteStep.objects.filter(item__in={a.item_id for a in found.values() if a}).select_related('process')}
+    return {e.pk: (a.item.order.customer_id, steps.get((a.item_id, e.process_id))) if a else (None, None) for e in events for a in [found[e.pk]]}
 
 
 RESULT_ORDERS = ('total', 'wait', 'processing', 'ratio', 'item', 'process')
@@ -237,3 +246,83 @@ def record_rows(facts, tab, sel, order):
     }
     rows.sort(key=keys[order])
     return rows
+
+
+def defect_rate_rows(events, key, none_label):
+    """Per worker or machine (key = 'worker' / 'machine'): records, quantity, defects and defect rate; highest rate first."""
+    groups = {}
+    for e in events:
+        g = groups.setdefault(getattr(e, f'{key}_id'), {'name': str(getattr(e, key)) if getattr(e, f'{key}_id') else none_label, 'known': bool(getattr(e, f'{key}_id')),
+                                                          'id': getattr(e, f'{key}_id') or 'none', 'records': 0, 'quantity': 0, 'defects': 0})
+        g['records'] += 1
+        g['quantity'] += e.quantity
+        g['defects'] += e.defects or 0
+    rows = [{**g, 'rate': g['defects'] * 100 / g['quantity'], 'few': g['quantity'] < MIN_RATE_QUANTITY} for g in groups.values()]
+    rows.sort(key=lambda r: (-r['rate'], r['name']))
+    return rows
+
+
+def cause_rows(events, none_label):
+    """Defects per main cause with share % and cumulative % in Pareto order; 'no cause recorded' comes last."""
+    groups = {}
+    for e in events:
+        if e.defects:
+            g = groups.setdefault(e.defect_cause_id, {'name': str(e.defect_cause) if e.defect_cause_id else none_label, 'known': bool(e.defect_cause_id),
+                                                              'id': e.defect_cause_id or 'none', 'defects': 0})
+            g['defects'] += e.defects
+    rows = sorted(groups.values(), key=lambda r: (not r['known'], -r['defects'], r['name']))
+    total, running = sum(r['defects'] for r in rows), 0
+    for r in rows:
+        running += r['defects']
+        r['share'], r['cumulative'] = r['defects'] * 100 / total, running * 100 / total
+    return rows
+
+
+DEFECT_ORDERS = ('defects', 'date', 'item', 'part', 'process', 'quantity', 'rate')
+
+
+def defect_detail(events, field, value, only_defects=True, order='defects', planner=False):
+    """Results of one worker / machine / cause (field = 'worker' / 'machine' / 'defect_cause'; value = id, None for 'none recorded').
+
+    Returns the 'by part' rows (with the rate of everyone else on the same part and process, except for causes) and the sorted records.
+    Everything is built from the given events with one assignment query, so the tables and the records always agree.
+    """
+    hit = lambda e: getattr(e, f'{field}_id') == value and (field != 'defect_cause' or bool(e.defects))
+    chosen = [e for e in events if hit(e)]
+    pool = chosen if field == 'defect_cause' else [e for e in events if e.process_id in {c.process_id for c in chosen}]
+    found = assigned(pool)
+    part = lambda e: (found[e.pk].item.part_number or found[e.pk].item.part_name) if found[e.pk] else ''
+    groups = {}
+    for e in chosen:
+        g = groups.setdefault((part(e), e.process_id), {'part': part(e), 'process': _name(e.process), 'records': 0, 'quantity': 0, 'defects': 0, 'base_quantity': 0, 'base_defects': 0})
+        g['records'] += 1
+        g['quantity'] += e.quantity
+        g['defects'] += e.defects or 0
+    if field != 'defect_cause':
+        for e in pool:
+            g = None if hit(e) else groups.get((part(e), e.process_id))
+            if g:
+                g['base_quantity'] += e.quantity
+                g['base_defects'] += e.defects or 0
+    parts = [{**g, 'rate': g['defects'] * 100 / g['quantity'], 'few': g['quantity'] < MIN_RATE_QUANTITY,
+              'base_rate': g['base_defects'] * 100 / g['base_quantity'] if g['base_quantity'] else None} for g in groups.values()]
+    parts.sort(key=lambda r: (-r['defects'], -r['rate'], r['part'], r['process']))
+    records = []
+    for e in chosen:
+        if only_defects and not e.defects:
+            continue
+        a = found[e.pk]
+        row = {'event': e, 'item': a.item if a else None, 'job': a.item.order.job_number if a else '', 'part': part(e),
+               'customer': str(a.item.order.customer) if a else '', 'process': _name(e.process), 'machine': str(e.machine) if e.machine_id else '',
+               'cause': str(e.defect_cause) if e.defect_cause_id else '', 'rate': (e.defects or 0) * 100 / e.quantity}
+        if planner:
+            row['worker'] = str(e.worker) if e.worker_id else ''
+        records.append(row)
+    newest = lambda r: -r['event'].occurred_at.timestamp()
+    keys = {
+        'defects': lambda r: (-(r['event'].defects or 0), newest(r)), 'date': newest, 'rate': lambda r: (-r['rate'], newest(r)),
+        'quantity': lambda r: (-r['event'].quantity, newest(r)), 'item': lambda r: (r['item'].item_code if r['item'] else '', newest(r)),
+        'part': lambda r: (r['part'], newest(r)), 'process': lambda r: (r['process'], newest(r)),
+    }
+    records.sort(key=keys[order])
+    return parts, records

@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Result" %} - {% trans "Factory Tracker" %}{% endblock %}
+
+{% block content %}
+  <h1>{% trans "Result" %}</h1>
+
+  {% if voided %}
+    <p class="cancelled-note">{% blocktrans with d=voided.occurred_at|date:"Y-m-d H:i" u=voided.created_by r=voided.reason %}Voided on {{ d }} by {{ u }}: {{ r }}{% endblocktrans %}</p>
+  {% endif %}
+
+  <div class="card">
+    <dl class="detail-list">
+      <dt>{% trans "Item" %}</dt>
+      <dd>{% if item %}<a href="{% url 'order_detail' item.order.job_number %}">{{ item.item_code }}</a>{% else %}-{% endif %}</dd>
+      <dt>{% trans "Part number" %}</dt>
+      <dd>{{ item.part_number|default:"-" }}</dd>
+      <dt>{% trans "Part name" %}</dt>
+      <dd>{{ item.part_name|default:"-" }}</dd>
+      <dt>{% trans "Customer" %}</dt>
+      <dd>{{ customer|default:"-" }}</dd>
+      {% if box %}<dt>{% trans "Box" %}</dt><dd>{{ box }}</dd>{% endif %}
+      <dt>{% trans "Process" %}</dt>
+      <dd>{{ e.process }}</dd>
+      <dt>{% trans "Time (JST)" %}</dt>
+      <dd>{{ e.occurred_at|date:"Y-m-d H:i:s" }}</dd>
+      <dt>{% trans "Quantity done" %}</dt>
+      <dd>{{ e.quantity }}</dd>
+      <dt>{% trans "Defects" %}</dt>
+      <dd>{{ e.defects }}</dd>
+      <dt>{% trans "Defect rate" %}</dt>
+      <dd>{{ rate|floatformat:1 }}%</dd>
+      <dt>{% trans "Main cause" %}</dt>
+      <dd>{{ e.defect_cause|default:"-" }}</dd>
+      <dt>{% trans "Machine" %}</dt>
+      <dd>{{ e.machine|default:"-" }}</dd>
+      {% if show_worker %}<dt>{% trans "Worker" %}</dt><dd>{{ e.worker|default:"-" }}</dd>{% endif %}
+      <dt>{% trans "Note" %}</dt>
+      <dd>{% if e.note %}{{ e.note|linebreaksbr }}{% else %}-{% endif %}</dd>
+      <dt>{% trans "Recorded by" %}</dt>
+      <dd>{{ e.created_by|default:e.device|default:"-" }}</dd>
+    </dl>
+    {% if e.photo %}
+      <h2>{% trans "Photo" %}</h2>
+      {% blocktrans asvar alt with p=e.process %}Photo of the defects, {{ p }}{% endblocktrans %}
+      <a href="{% url 'result_photo' e.pk %}" target="_blank" rel="noopener"><img class="result-photo" src="{% url 'result_photo' e.pk %}" alt="{{ alt }}"></a>
+    {% endif %}
+  </div>
+
+  {% if item %}<p><a href="{% url 'order_detail' item.order.job_number %}">{% trans "Back to the order" %}</a></p>{% endif %}
+{% endblock %}

@@ -7,7 +7,8 @@ from django.utils.translation import gettext
 
 from orders.models import OrderItem, Process
 
-from .models import Event, Machine, ScannerDevice, TagAssignment, Worker
+from .photos import process_photo
+from .models import DefectCause, Event, Machine, ScannerDevice, TagAssignment, Worker
 from .services import resolve_tag
 from .status import box_captions
 
@@ -105,6 +106,19 @@ class ResultForm(forms.Form):
     machine = forms.ModelChoiceField(label=_('Machine'), queryset=Machine.objects.filter(active=True), required=False)
     quantity = forms.IntegerField(label=_('Quantity done'), min_value=1)
     defects = forms.IntegerField(label=_('Defects'), min_value=0, initial=0, required=False)
+    defect_cause = forms.ModelChoiceField(
+        label=_('Main cause'), queryset=DefectCause.objects.filter(active=True), required=False,
+        help_text=_('Only when there are defects. If there are several kinds of defect, choose the main one.'),
+    )
+
+    note = forms.CharField(
+        label=_('Note'), max_length=1000, required=False, widget=forms.Textarea(attrs={'rows': 3}),
+        help_text=_('It cannot be edited later; void the result and record it again if it is wrong.'),
+    )
+    photo = forms.FileField(
+        label=_('Photo'), required=False, widget=forms.FileInput(attrs={'accept': 'image/*'}),
+        help_text=_('JPEG, PNG or WEBP, up to 8 MB. It cannot be edited later; void the result and record it again if it is wrong.'),
+    )
 
     def __init__(self, item, *args, **kwargs):
         kwargs.setdefault('prefix', f'result{item.pk}')
@@ -116,8 +130,14 @@ class ResultForm(forms.Form):
         self.fields['process'].queryset = Process.objects.filter(pk__in=item.steps.values('process')).order_by('name')
         self.fields['quantity'].initial = item.quantity
 
+    def clean_photo(self):
+        upload = self.cleaned_data.get('photo')
+        return process_photo(upload) if upload else None
+
     def clean(self):
         data = super().clean()
         if data.get('box') in self.assignments:
             data['assignment'] = self.assignments[data['box']]
+        if data.get('defect_cause') and not data.get('defects'):
+            self.add_error('defect_cause', _('A main cause needs at least one defect.'))
         return data

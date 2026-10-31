@@ -6,3 +6,5 @@ python-dotenv==1.2.4
 # PDF work instruction sheets (pure Python, also fine on the Pi); ReportLab brings Pillow.
 reportlab==5.0.1
 pypdf==6.21.1
+# Defect photos are checked and resized with Pillow directly (ReportLab also needs it).
+pillow==13.0.0

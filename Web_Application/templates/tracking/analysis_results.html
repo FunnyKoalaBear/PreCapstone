@@ -68,3 +68,41 @@
   {% if rows %}<button type="submit" class="button">{% trans "Show records" %}</button>{% endif %}
 </form>
 {% if sel %}{% include "tracking/_records.html" %}{% endif %}
+
+<h2>{% trans "Defects by cause" %}</h2>
+{% scroll_panel label=_("Defects by cause") %}
+  <table class="table table-cards">
+    <thead>
+      <tr>
+        <th>{% trans "Main cause" %}</th>
+        <th>{% trans "Defects" %}</th>
+        <th>{% trans "Share" %}</th>
+        <th>{% trans "Cumulative" %}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in cause_rows %}
+        <tr>
+          <td data-label="{% trans 'Main cause' %}">{{ r.name }}</td>
+          <td data-label="{% trans 'Defects' %}">{{ r.defects }}</td>
+          <td data-label="{% trans 'Share' %}">{{ r.share|floatformat:1 }}%</td>
+          <td data-label="{% trans 'Cumulative' %}">{{ r.cumulative|floatformat:1 }}%</td>
+          <td><a href="{{ r.url }}">{% trans "Records" context "link to the records" %}</a></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">{% trans "No defects recorded." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endscroll_panel %}
+
+<h2>{% trans "Defect rate by machine" %}</h2>
+{% include "tracking/_rate_table.html" with rate_rows=machine_rows first=_("Machine") label=_("Defect rate by machine") %}
+
+{% if show_workers %}
+  <h2>{% trans "Defect rate by worker" %}</h2>
+  {% include "tracking/_rate_table.html" with rate_rows=worker_rows first=_("Worker") label=_("Defect rate by worker") %}
+{% endif %}
+<p class="note">{% blocktrans with n=min_quantity %}A rate from fewer than {{ n }} pieces is greyed out: few data.{% endblocktrans %} {% trans "A higher rate is a reason to look, not a conclusion: check the process, machine and training first." %}</p>
+{% if drill %}{% include "tracking/_defect_records.html" %}{% endif %}

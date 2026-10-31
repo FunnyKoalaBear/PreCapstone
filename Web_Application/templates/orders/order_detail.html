@@ -127,7 +127,7 @@
       <details class="result-details">
         <summary>{% trans "Record result" %}</summary>
         {% if entry.result_form %}
-          <form method="post" action="{% url 'record_result' entry.item.pk %}" class="result-form">
+          <form method="post" action="{% url 'record_result' entry.item.pk %}" class="result-form" enctype="multipart/form-data">
             {% csrf_token %}
             {{ entry.result_form }}
             <button type="submit" class="button">{% trans "Record result" %}</button>

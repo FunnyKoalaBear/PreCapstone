@@ -6,8 +6,10 @@ from django.db.models import F, Max
 from django.utils import timezone
 
 from orders.models import Customer, Order, OrderItem, Process, RouteStep
-from tracking.models import Event, Machine, Tag, TagAssignment, Worker
+from tracking.models import DefectCause, Event, Machine, Tag, TagAssignment, Worker
 from tracking.services import record_event
+
+from ._demo_photos import demo_photo
 
 SEED = 2610
 N_SHIPPED, N_CANCELLED = 75, 3
@@ -24,6 +26,14 @@ MACHINES = {
     'Grinding': ('Surface grinder 1',), 'Deburring': ('Deburring bench',), 'Inspection': ('Inspection bench',),
 }
 SLOW_VENDOR, SLOW_VENDOR_FACTOR, FORGOTTEN_DAYS = '00135', 2.0, 15  # the slow plating vendor; days added to the one forgotten-scan step
+BAD_WORKER, BAD_WORKER_PROCESS = 'Suzuki Takumi', 'Milling'  # clearly worse: five times the usual defect rate
+BAD_MACHINE, BAD_MACHINE_PROCESS = 'Lathe 2', 'Lathe'
+CAUSE_CYCLE = ('Dimension out of tolerance',) * 4 + ('Scratch',) * 3 + ('Burr',) * 2 + ('Missed machining', 'Material defect', 'Other', None)  # None = not recorded
+BAD_PART, BAD_PART_PROCESS, BAD_PART_MACHINE = 'SPC-220', 'Machining centre', 'Machining centre 2'  # one part fails on one machine
+NEW_PART, NEW_PART_PROCESS, NEW_WORKER = 'ARM-510', 'Assembly', 'Nakamura Mio'  # a newer worker fails on one part
+PATTERN_FACTOR, MAX_PHOTOS = 8, 8
+NOTES = ('Burr left on the edge', '端面にバリが残っている', 'Gauge reads 0.03 mm over', 'Insert worn, changed after this lot',
+         'Scratch from the fixture', 'Offset not updated after the tool change', '寸法が公差の上限を超えた')
 ALT_VENDOR = {'Plating': '00135', 'Material': '00102'}  # now and then a step uses another vendor or supplier
 ROUTES = (
     ['Material', 'Milling', 'Lathe', 'Inspection'],
@@ -192,6 +202,8 @@ def seed_bulk(procs, vendors, devices, stdout=None):
     customers = [Customer.objects.get_or_create(name=f'DEMO {n}')[0] for n, _p in CUSTOMERS]
     people = list(Worker.objects.all())
     machines = {m.name: m for m in Machine.objects.all()}
+    causes, cause_n = {c.name: c for c in DefectCause.objects.all()}, 0
+    people_by_name, seen, defect_n, photo_n = {w.name: w for w in people}, {}, 0, 0
     voids = 0
     seq, tag_n = {}, 0
     for s in specs:
@@ -219,10 +231,31 @@ def seed_bulk(procs, vendors, devices, stdout=None):
         for when, pname, etype in s['events']:
             record_event(devices[0] if KINDS[pname] == Process.Kind.MACHINING else devices[1], uid, procs[pname], etype, occurred_at=when)
         for when, pname in s['results']:
-            made = [rng.random() < DEFECT_RATE[pname] for _ in range(s['qty'])]
+            draws = [rng.random() for _ in range(s['qty'])]
             machine = machines.get(rng.choice(MACHINES[pname])) if pname in MACHINES else None
+            worker = rng.choice(people)
+            part_no, key = s['part'][1], (s['part'][1], pname)
+            seen[key] = seen.get(key, 0) + 1
+            if key == (BAD_PART, BAD_PART_PROCESS) and seen[key] % 3:  # most runs of that part go to the bad machine
+                machine = machines[BAD_PART_MACHINE]
+            if key == (NEW_PART, NEW_PART_PROCESS) and seen[key] % 2:  # half of that part goes to the newer worker
+                worker = people_by_name[NEW_WORKER]
+            bad_part = (key == (BAD_PART, BAD_PART_PROCESS) and machine.name == BAD_PART_MACHINE) or (key == (NEW_PART, NEW_PART_PROCESS) and worker.name == NEW_WORKER)
+            bad_worker, bad_machine = (worker.name, pname) == (BAD_WORKER, BAD_WORKER_PROCESS), machine and (machine.name, pname) == (BAD_MACHINE, BAD_MACHINE_PROCESS)
+            defects = sum(d < DEFECT_RATE[pname] * (PATTERN_FACTOR if bad_part else 5 if bad_worker or bad_machine else 1) for d in draws)
+            cause = None
+            if defects:
+                cause_n += 1
+                cause = causes.get('Dimension out of tolerance' if key[0] == BAD_PART and bad_part else 'Scratch' if bad_part else 'Missed machining' if bad_worker else 'Dimension out of tolerance' if bad_machine else CAUSE_CYCLE[cause_n % len(CAUSE_CYCLE)])
+            note, photo = '', None
+            if defects:
+                defect_n += 1
+                note = NOTES[defect_n % len(NOTES)] if bad_part or defect_n % 3 == 1 else ''
+                if (bad_part or defect_n % 7 == 0) and photo_n < MAX_PHOTOS:
+                    photo_n += 1
+                    photo = demo_photo(photo_n, f'{part_no} {pname}')
             event = Event(device=devices[0], tag_uid=uid, process=procs[pname], event_type=Event.Type.RESULT, occurred_at=when,
-                          quantity=s['qty'], defects=sum(made), worker=rng.choice(people), machine=machine)
+                          quantity=s['qty'], defects=defects, worker=worker, machine=machine, defect_cause=cause, note=note, photo=photo)
             event.full_clean()
             event.save()
         extra = []

@@ -499,13 +499,13 @@ class ResponsiveLayoutTests(TestCase):
         for name in ('base.css', 'theme.css', 'lang.css'):
             self.assertEqual(re.findall(r'(?<![-\w])(?:width|min-width)\s*:\s*\d{3,}px', self.css(name)), [], name)
 
-    def test_five_tables_turn_into_cards_and_the_two_wide_ones_stay_tables(self):
+    def test_listed_tables_turn_into_cards_and_the_two_wide_ones_stay_tables(self):
         self.client.force_login(make_user('pl', 'Planner'))
         order = Order.objects.create(customer=Customer.objects.create(name='C'), due_date=timezone.localdate())
         item = OrderItem.objects.create(order=order, part_name='P', quantity=1)
         TagAssignment.objects.create(tag=Tag.objects.create(uid='CARD1'), item=item)
         Vendor.objects.create(code='00001', name='V', kind=Vendor.Kind.INTERNAL)
-        pages = {'/orders/': 1, '/orders/?tab=codes': 1, '/analysis/?tab=results': 1, '/shipping/': 2, '/tags/?q=CARD1': 1}
+        pages = {'/orders/': 1, '/orders/?tab=codes': 1, '/analysis/?tab=results': 4, '/shipping/': 2, '/tags/?q=CARD1': 1}
         for url, tables in pages.items():
             html = self.client.get(url).content.decode()
             self.assertEqual(html.count('class="table table-cards"'), tables, url)

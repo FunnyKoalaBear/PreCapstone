@@ -98,7 +98,7 @@
                   {% if e.voided_by %}<div class="event-reason">{{ e.voided_by.reason }}</div>{% elif e.is_manual or e.reason %}<div class="event-reason">{{ e.reason }}</div>{% endif %}
                 </td>
                 <td>{{ e.process|default_if_none:"-" }}</td>
-                <td>{% if e.event_type == "RESULT" %}{% blocktrans with q=e.quantity d=e.defects %}{{ q }} done, {{ d }} defects{% endblocktrans %}{% if e.worker %} &middot; {{ e.worker }}{% endif %}{% if e.machine %} &middot; {{ e.machine }}{% endif %}{% else %}-{% endif %}</td>
+                <td>{% if e.event_type == "RESULT" %}{% blocktrans with q=e.quantity d=e.defects %}{{ q }} done, {{ d }} defects{% endblocktrans %}{% if e.note %} <span class="badge">{% trans "Note" %}</span>{% endif %}{% if e.photo %} <span class="badge">{% trans "Photo" %}</span>{% endif %} <a href="{% url 'result_detail' e.pk %}">{% trans "Details" %}</a>{% else %}-{% endif %}</td>
                 <td>{{ e.device|default:e.created_by|default:"-" }}</td>
                 {% if can.planner %}
                   <td>{% if not e.voided_by %}<a class="button" href="{% url 'correct_event' e.pk %}?next={{ request.get_full_path|urlencode }}">{% trans "Correct" %}</a>{% endif %}</td>

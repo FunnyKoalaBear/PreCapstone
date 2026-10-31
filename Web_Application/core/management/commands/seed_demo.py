@@ -1,4 +1,5 @@
 import csv
+import shutil
 from datetime import timedelta
 
 from django.conf import settings
@@ -9,11 +10,12 @@ from django.db.models import Case, ProtectedError, Q, Value, When
 from django.utils import timezone
 
 from orders.models import Customer, Order, OrderItem, Process, RouteStep, Vendor
-from tracking.models import Event, Machine, ScannerDevice, Tag, TagAssignment, Worker
+from tracking.models import DefectCause, Event, Machine, ScannerDevice, Tag, TagAssignment, Worker
 from tracking.services import record_event
 from tracking.status import DONE, item_statuses
 
 from ._demo_bulk import seed_bulk
+from ._demo_photos import DEMO_DIR
 
 DATA_DIR = settings.BASE_DIR / 'docs' / 'demo-data'
 # default vendor code per process name, and lead days per vendor code (the CSV files carry neither)
@@ -73,6 +75,7 @@ class Command(BaseCommand):
         orders.delete()
         Tag.objects.filter(uid__in=uids).delete()
         User.objects.filter(username__startswith='demo_').delete()
+        shutil.rmtree(settings.MEDIA_ROOT / DEMO_DIR, ignore_errors=True)
         Customer.objects.filter(name__startswith='DEMO ').delete()
         # Old demo processes and scanners stay (with a warning) if a real record still points at them
         for obj in [*ScannerDevice.objects.filter(name__startswith='DEMO '), *Process.objects.filter(name__startswith='DEMO ')]:
@@ -225,6 +228,7 @@ class Command(BaseCommand):
         people = read_csv('workers_machines.csv')
         workers = [Worker.objects.get_or_create(name=r['name'], defaults={'name_ja': r['name_ja']})[0] for r in people if r['kind'] == 'WORKER']
         machines = [Machine.objects.get_or_create(name=r['name'], defaults={'name_ja': r['name_ja']})[0] for r in people if r['kind'] == 'MACHINE']
+        causes = [DefectCause.objects.get_or_create(name=r['name'], defaults={'name_ja': r['name_ja']})[0] for r in people if r['kind'] == 'CAUSE']
         n, statuses = 0, item_statuses([item for _label, item in created])
         for _label, item in created:
             for box in statuses[item.pk].boxes:
@@ -232,9 +236,10 @@ class Command(BaseCommand):
                     if n == MAX_RESULTS:
                         return
                     machining = row.step.process.kind == Process.Kind.MACHINING
+                    defects = (1 + n % 2) if n % 7 == 3 else 0
                     event = Event(
                         device=device, tag_uid=box.assignments[-1].tag.uid, process=row.step.process, event_type=Event.Type.RESULT,
-                        occurred_at=row.finished_at, quantity=item.quantity, defects=(1 + n % 2) if n % 7 == 3 else 0,
+                        occurred_at=row.finished_at, quantity=item.quantity, defects=defects, defect_cause=causes[n % len(causes)] if defects else None, note='Checked with the gauge' if defects else '',
                         worker=workers[n % len(workers)] if machining else None, machine=machines[n % len(machines)] if machining else None,
                     )
                     event.full_clean()

@@ -132,7 +132,7 @@ def events_with_voids(assignments):
     q = Q()
     for a in assignments:
         q |= _window(a)
-    events = list(Event.objects.filter(q).exclude(event_type=Event.Type.CORRECTION).select_related('process', 'device', 'worker', 'machine', 'created_by').order_by('occurred_at', 'pk')) if q else []
+    events = list(Event.objects.filter(q).exclude(event_type=Event.Type.CORRECTION).select_related('process', 'device', 'worker', 'machine', 'defect_cause', 'created_by').order_by('occurred_at', 'pk')) if q else []
     voids = {c.corrects_id: c for c in Event.objects.filter(event_type=Event.Type.CORRECTION, corrects__in=events)}
     for e in events:
         e.voided_by = voids.get(e.pk)

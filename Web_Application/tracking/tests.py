@@ -1,8 +1,12 @@
 import json
+import tempfile
 from collections import Counter
+from io import BytesIO, StringIO
+from pathlib import Path
 from datetime import date, datetime, timedelta
 from datetime import timezone as dt_timezone
 
+from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.exceptions import PermissionDenied, ValidationError
 from types import SimpleNamespace
@@ -10,18 +14,22 @@ from types import SimpleNamespace
 from unittest import mock
 
 from django.template.loader import render_to_string
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import connection
+from django.test.utils import CaptureQueriesContext
+from PIL import Image
 from django.db.migrations.executor import MigrationExecutor
 from django.test import TransactionTestCase, override_settings
-from django.utils import timezone
+from django.utils import timezone, translation
 
 from core.testing import TestCase, make_user
 from orders.models import Customer, Order, OrderItem, Process, RouteStep, Vendor
 
 from .forms import AssignTagForm
 from .matrix import matrix as build_matrix
-from .models import Event, Machine, ScannerDevice, Tag, TagAssignment, Worker
-from .analysis import vendor_rows
+from .models import DefectCause, Event, Machine, ScannerDevice, Tag, TagAssignment, Worker
+from .analysis import Filters, defect_detail, result_events, vendor_rows
+from .photos import process_photo
 from .overview import active_boxes, process_board
 from .planning import step_plan
 from .priority import priority
@@ -1971,6 +1979,168 @@ class ShippedTests(TestCase):
         self.assertContains(self.client.get('/'), 'href="/shipping/"')
 
 
+class DefectCauseTests(TestCase):
+    """Main cause on results, and the cause / machine / worker tables of the Analysis results tab."""
+
+    def setUp(self):
+        self.planner = make_user('pl', 'Planner')
+        self.client.force_login(self.planner)
+        self.mill = Process.objects.create(name='Mill', kind=K.MACHINING)
+        self.lathe = Process.objects.create(name='Lathe', kind=K.MACHINING)
+        self.w1, self.w2 = Worker.objects.create(name='W1', name_ja='作業者1'), Worker.objects.create(name='W2')
+        self.m1, self.m2 = Machine.objects.create(name='M1'), Machine.objects.create(name='M2')
+        self.scratch, self.burr = DefectCause.objects.get(name='Scratch'), DefectCause.objects.get(name='Burr')
+        self.customers = [Customer.objects.create(name='C1'), Customer.objects.create(name='C2')]
+        self.n = 0
+
+    def result(self, proc=None, qty=100, defects=0, worker=None, machine=None, cause=None, customer=0, days_ago=1):
+        """A saved RESULT event on its own item/tag, so the customer filter has an owner to find."""
+        self.n += 1
+        order = Order.objects.create(customer=self.customers[customer], due_date=timezone.localdate() + timedelta(days=5))
+        item = OrderItem.objects.create(order=order, part_name=f'P{self.n}', quantity=qty)
+        proc = proc or self.mill
+        RouteStep.objects.create(item=item, sequence=1, process=proc)
+        uid = f'DC{self.n}'
+        TagAssignment.objects.create(tag=Tag.objects.create(uid=uid), item=item, start_at=timezone.now() - timedelta(days=30))
+        e = Event(tag_uid=uid, process=proc, event_type=E.RESULT, quantity=qty, defects=defects, worker=worker, machine=machine,
+                  defect_cause=cause, created_by=self.planner, occurred_at=timezone.now() - timedelta(days=days_ago))
+        e.full_clean()
+        e.save()
+        return e
+
+    def tables(self, **params):
+        return self.client.get('/analysis/', {'tab': 'results', **params}).context
+
+    def test_causes_are_seeded_with_japanese_names(self):
+        self.assertEqual(DefectCause.objects.count(), 7)
+        with translation.override('ja'):
+            self.assertEqual(str(DefectCause.objects.get(name='Scratch')), 'キズ')
+        self.assertEqual(str(DefectCause.objects.get(name='Burr')), 'Burr')
+
+    def test_cause_is_only_for_results_with_defects(self):
+        bad = Event(tag_uid='X', event_type=E.ARRIVED, process=Process.objects.create(name='Mat', kind=K.MATERIAL),
+                    created_by=self.planner, defect_cause=self.scratch)
+        with self.assertRaises(ValidationError):
+            bad.full_clean()
+        with self.assertRaises(ValidationError):
+            self.result(defects=0, cause=self.scratch)
+        self.assertEqual(self.result(defects=2, cause=self.scratch).defect_cause, self.scratch)
+        self.assertIsNone(self.result(defects=0).defect_cause)
+
+    def test_cause_round_trips_through_the_form(self):
+        e = self.result()
+        item = OrderItem.objects.get()
+        a = item.tagassignment_set.get()
+        data = {f'result{item.pk}-box': a.pk, f'result{item.pk}-process': self.mill.pk, f'result{item.pk}-quantity': 10,
+                f'result{item.pk}-defects': 3, f'result{item.pk}-defect_cause': self.burr.pk}
+        r = self.client.post(f'/items/{item.pk}/result/', data, follow=True)
+        self.assertContains(r, 'Result recorded.')
+        saved = Event.objects.filter(event_type=E.RESULT).latest('pk')
+        self.assertEqual((saved.defects, saved.defect_cause), (3, self.burr))
+        self.assertContains(self.client.get(f'/results/{saved.pk}/'), 'Burr')
+        self.assertContains(self.client.get(f'/orders/{item.order.job_number}/'), 'Only when there are defects.')
+        data[f'result{item.pk}-defects'] = 0
+        before = Event.objects.count()
+        r = self.client.post(f'/items/{item.pk}/result/', data, follow=True)
+        self.assertContains(r, 'A main cause needs at least one defect.')
+        self.assertEqual(Event.objects.count(), before)
+        self.assertEqual(e.defect_cause_id, None)
+
+    def test_pareto_order_cumulative_ends_at_100_and_unrecorded_is_last(self):
+        self.result(defects=2, cause=self.burr)
+        self.result(defects=6, cause=self.scratch)
+        self.result(defects=2)  # defects without a cause
+        rows = self.tables()['cause_rows']
+        self.assertEqual([(r['name'], r['defects']) for r in rows], [('Scratch', 6), ('Burr', 2), ('No cause recorded', 2)])
+        self.assertEqual([round(r['share']) for r in rows], [60, 20, 20])
+        self.assertEqual([round(r['cumulative']) for r in rows], [60, 80, 100])
+        self.assertAlmostEqual(rows[-1]['cumulative'], 100)
+        self.assertContains(self.client.get('/analysis/'), 'Defects by cause')
+
+    def test_no_defects_gives_no_cause_rows(self):
+        self.result()
+        self.assertEqual(self.tables()['cause_rows'], [])
+        self.assertContains(self.client.get('/analysis/'), 'No defects recorded.')
+
+    def test_rate_tables_sort_highest_first_and_include_unrecorded(self):
+        self.result(qty=100, defects=1, worker=self.w1, machine=self.m1)
+        self.result(qty=100, defects=9, worker=self.w2, machine=self.m2)
+        self.result(qty=100, defects=4)
+        ctx = self.tables()
+        self.assertEqual([(r['name'], r['rate']) for r in ctx['machine_rows']], [('M2', 9.0), ('No machine recorded', 4.0), ('M1', 1.0)])
+        self.assertEqual([r['name'] for r in ctx['worker_rows']], ['W2', 'No worker recorded', 'W1'])
+        self.assertFalse(ctx['worker_rows'][1]['known'])
+
+    def test_few_data_below_twenty_pieces(self):
+        self.result(qty=19, defects=19, worker=self.w1)
+        self.result(qty=20, defects=1, worker=self.w2)
+        rows = {r['name']: r for r in self.tables()['worker_rows']}
+        self.assertEqual((rows['W1']['few'], rows['W2']['few']), (True, False))
+        page = self.client.get('/analysis/')
+        self.assertContains(page, 'class="few-data"')
+        self.assertContains(page, 'few data')
+        self.assertContains(page, 'A higher rate is a reason to look, not a conclusion')
+
+    def test_tables_follow_the_filters(self):
+        self.result(self.mill, defects=5, worker=self.w1, machine=self.m1, cause=self.scratch, customer=0)
+        self.result(self.lathe, defects=7, worker=self.w2, machine=self.m2, cause=self.burr, customer=1)
+        self.result(self.mill, defects=3, worker=self.w1, machine=self.m1, cause=self.burr, customer=0, days_ago=60)
+        names = lambda ctx, key: [r['name'] for r in ctx[key]]
+        self.assertEqual(sorted(names(self.tables(), 'worker_rows')), ['W1', 'W2'])
+        self.assertEqual(names(self.tables(process=self.lathe.pk), 'worker_rows'), ['W2'])
+        self.assertEqual(names(self.tables(process=self.lathe.pk), 'machine_rows'), ['M2'])
+        self.assertEqual([r['name'] for r in self.tables(process=self.mill.pk)['cause_rows']], ['Scratch', 'Burr'])
+        recent = timezone.localdate() - timedelta(days=10)
+        ctx = self.tables(date_from=recent.isoformat())
+        self.assertEqual({r['name']: r['defects'] for r in ctx['cause_rows']}, {'Scratch': 5, 'Burr': 7})
+        self.assertEqual(names(self.tables(customer=self.customers[1].pk), 'worker_rows'), ['W2'])
+
+    def test_voided_results_are_left_out(self):
+        e = self.result(defects=4, cause=self.scratch, worker=self.w1)
+        Event(tag_uid=e.tag_uid, event_type=E.CORRECTION, corrects=e, created_by=self.planner, reason='wrong').save()
+        ctx = self.tables()
+        self.assertEqual((ctx['cause_rows'], ctx['worker_rows']), ([], []))
+
+    def test_worker_table_is_hidden_from_operators(self):
+        self.result(defects=2, worker=self.w1, machine=self.m1, cause=self.scratch)
+        self.client.force_login(make_user('op', 'Operator'))
+        ctx = self.tables()
+        self.assertFalse(ctx['show_workers'])
+        self.assertNotIn('worker_rows', ctx)
+        page = self.client.get('/analysis/')
+        self.assertContains(page, 'Defect rate by machine')
+        self.assertContains(page, 'Defects by cause')
+        self.assertNotContains(page, 'Defect rate by worker')
+        self.assertNotContains(page, 'W1')
+        self.client.force_login(self.planner)
+        self.assertContains(self.client.get('/analysis/'), 'Defect rate by worker')
+
+    def test_japanese_page_uses_cause_names_in_japanese(self):
+        self.result(defects=2, cause=self.scratch)
+        from django.conf import settings
+        self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = 'ja'
+        ctx = self.client.get('/analysis/', {'tab': 'results'}).context
+        self.assertEqual(ctx['cause_rows'][0]['name'], 'キズ')
+
+    def test_demo_data_has_causes_a_bad_worker_and_a_bad_machine(self):
+        from io import StringIO
+        from django.core.management import call_command
+        from .analysis import Filters, defect_rate_rows, result_events
+        with override_settings(DEBUG=True):
+            call_command('seed_demo', stdout=StringIO())
+        events = result_events(Filters())
+        self.assertGreaterEqual(len(events), 30)
+        self.assertGreater(len({e.worker_id for e in events}), 3)
+        self.assertGreater(len({e.machine_id for e in events}), 3)
+        self.assertGreater(len({e.defect_cause_id for e in events if e.defect_cause_id}), 3)
+        milling = Process.objects.get(name='Milling')
+        top_worker = [r for r in defect_rate_rows(result_events(Filters(process=milling.pk)), 'worker', 'none') if not r['few']][0]
+        self.assertEqual(top_worker['name'], 'Suzuki Takumi')
+        lathe = Process.objects.get(name='Lathe')
+        top_machine = [r for r in defect_rate_rows(result_events(Filters(process=lathe.pk)), 'machine', 'none') if not r['few']][0]
+        self.assertEqual(top_machine['name'], 'Lathe 2')
+
+
 class AnalysisRecordsTests(TestCase):
     """Median, check-scan flags, the records panel (?sel=) and the vendor table of the Analysis page."""
 
@@ -2268,9 +2438,389 @@ class RemoveBoxMigrationTests(TransactionTestCase):
         mk = lambda tag, box, it, s, e=None: OldAssignment.objects.create(tag=t[tag], box=box, item_id=it.pk, start_at=now - timedelta(days=s), end_at=e and now - timedelta(days=e)).pk
         a, b, c, d = mk('A', b1, item, 9, 5), mk('B', b1, item, 5), mk('C', b2, item, 8), mk('D', b1, other, 7, 3)
         executor = MigrationExecutor(connection)
-        executor.migrate([('tracking', '0008_remove_box')])
+        executor.migrate(executor.loader.graph.leaf_nodes())  # forward again, to the latest migration
         rows = {x.pk: x for x in TagAssignment.objects.select_related('tag')}
         self.assertEqual({k: (v.tag.uid, v.item_id, v.replaces_id) for k, v in rows.items()},
                          {a: ('A', item.pk, None), b: ('B', item.pk, a), c: ('C', item.pk, None), d: ('D', other.pk, None)})
         self.assertEqual((rows[a].start_at, rows[a].end_at, rows[b].end_at), (now - timedelta(days=9), now - timedelta(days=5), None))
         self.assertEqual(len(item_status(item).boxes), 2)
+
+
+def image_file(fmt='JPEG', size=(40, 30), name='x.jpg', orientation=None, mode='RGB'):
+    """An uploaded image of that format; orientation adds a JPEG EXIF orientation (and a camera tag)."""
+    buf, kw = BytesIO(), {}
+    if orientation:
+        exif = Image.Exif()
+        exif[0x0112], exif[0x010F] = orientation, 'Camera'
+        kw['exif'] = exif
+    Image.new(mode, size, 'red').save(buf, fmt, **kw)
+    return SimpleUploadedFile(name, buf.getvalue())
+
+
+class InvestigationBase(TestCase):
+    """Results with their own item / tag, photos stored in a temporary MEDIA_ROOT."""
+
+    def setUp(self):
+        self.media = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.enterContext(override_settings(MEDIA_ROOT=self.media))
+        self.planner = make_user('pl', 'Planner')
+        self.client.force_login(self.planner)
+        self.mill = Process.objects.create(name='Mill', kind=K.MACHINING)
+        self.lathe = Process.objects.create(name='Lathe', kind=K.MACHINING)
+        self.w1, self.w2 = Worker.objects.create(name='Worker Alpha'), Worker.objects.create(name='Worker Beta')
+        self.m1, self.m2 = Machine.objects.create(name='M1'), Machine.objects.create(name='M2')
+        self.scratch, self.burr = DefectCause.objects.get(name='Scratch'), DefectCause.objects.get(name='Burr')
+        self.customers = [Customer.objects.create(name='C1'), Customer.objects.create(name='C2')]
+        self.n = 0
+
+    def result(self, part='PA', proc=None, qty=100, defects=0, worker=None, machine=None, cause=None, customer=0, days_ago=1, note='', photo=None):
+        self.n += 1
+        order = Order.objects.create(customer=self.customers[customer], due_date=timezone.localdate() + timedelta(days=5))
+        item = OrderItem.objects.create(order=order, part_name=f'Name {part}', part_number=part, quantity=qty)
+        proc = proc or self.mill
+        RouteStep.objects.create(item=item, sequence=1, process=proc)
+        uid = f'IV{self.n}'
+        TagAssignment.objects.create(tag=Tag.objects.create(uid=uid), item=item, start_at=timezone.now() - timedelta(days=30))
+        e = Event(tag_uid=uid, process=proc, event_type=E.RESULT, quantity=qty, defects=defects, worker=worker, machine=machine, defect_cause=cause,
+                  created_by=self.planner, occurred_at=timezone.now() - timedelta(days=days_ago), note=note)
+        if photo:
+            e.photo = photo
+        e.full_clean()
+        e.save()
+        return e
+
+    def page(self, **params):
+        return self.client.get('/analysis/', {'tab': 'results', **params})
+
+
+class ResultPhotoHelperTests(TestCase):
+    def setUp(self):
+        self.media = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.enterContext(override_settings(MEDIA_ROOT=self.media))
+
+    def test_accepts_jpeg_png_webp_and_returns_a_jpeg(self):
+        for fmt in ('JPEG', 'PNG', 'WEBP'):
+            out = Image.open(BytesIO(process_photo(image_file(fmt)).read()))
+            self.assertEqual((out.format, out.mode), ('JPEG', 'RGB'))
+
+    def test_transparent_png_becomes_rgb_on_white(self):
+        up = image_file('PNG', mode='RGBA')
+        out = Image.open(BytesIO(process_photo(up).read()))
+        self.assertEqual(out.mode, 'RGB')
+
+    def test_wrong_type_is_rejected(self):
+        with self.assertRaisesMessage(ValidationError, 'Upload a JPEG, PNG or WEBP image.'):
+            process_photo(image_file('GIF', name='x.jpg'))
+
+    def test_fake_extension_is_rejected_and_the_extension_is_not_trusted(self):
+        with self.assertRaises(ValidationError):
+            process_photo(SimpleUploadedFile('evil.jpg', b'<?php echo 1; ?>'))
+        process_photo(image_file('PNG', name='picture.exe'))  # a real PNG passes whatever it is called
+
+    def test_too_large_is_rejected(self):
+        with self.assertRaisesMessage(ValidationError, 'File too large (maximum 8 MB).'):
+            process_photo(SimpleUploadedFile('big.jpg', b'0' * (8 * 1024 * 1024 + 1)))
+
+    def test_exif_orientation_is_applied_exif_dropped_and_large_images_shrink(self):
+        out = Image.open(BytesIO(process_photo(image_file(size=(2000, 1000), orientation=6)).read()))
+        self.assertEqual(out.size, (800, 1600))  # rotated upright, long side 1600
+        self.assertEqual(len(out.getexif()), 0)
+        small = Image.open(BytesIO(process_photo(image_file(size=(100, 50))).read()))
+        self.assertEqual(small.size, (100, 50))  # never enlarged
+
+    def test_saved_name_is_random_under_year_and_month(self):
+        names = []
+        for _i in range(2):
+            e = Event(event_type=E.RESULT, tag_uid='N', created_by=make_user('np', 'Planner'), process=Process.objects.create(name=f'P{_i}', kind=K.MACHINING), quantity=1)
+            e.photo = process_photo(image_file(name='my holiday.jpg'))
+            e.full_clean()
+            e.save()
+            names.append(e.photo.name)
+        self.assertNotEqual(*names)
+        for name in names:
+            self.assertRegex(name, r'^defects/\d{4}/\d{2}/[0-9a-f]{32}\.jpg$')
+            self.assertNotIn('holiday', name)
+            self.assertTrue((self.media / name).exists())
+
+
+class ResultNotePhotoTests(InvestigationBase):
+    def test_note_and_photo_only_on_results(self):
+        mat = Process.objects.create(name='Mat', kind=K.MATERIAL)
+        for extra in ({'note': 'hello'}, {'photo': process_photo(image_file())}):
+            with self.assertRaises(ValidationError):
+                Event(tag_uid='X', event_type=E.ARRIVED, process=mat, created_by=self.planner, **extra).full_clean()
+        self.assertEqual(self.result(note='ok').note, 'ok')
+
+    def test_note_is_limited_to_1000_characters(self):
+        with self.assertRaises(ValidationError):
+            self.result(note='x' * 1001)
+
+    def post(self, item, **extra):
+        a = item.tagassignment_set.get()
+        data = {'box': a.pk, 'process': self.mill.pk, 'quantity': 10, 'defects': 2, **extra}
+        return self.client.post(f'/items/{item.pk}/result/', {f'result{item.pk}-{k}': v for k, v in data.items()}, follow=True)
+
+    def test_form_round_trip_with_multipart(self):
+        self.result()
+        item = OrderItem.objects.get()
+        self.assertContains(self.client.get(f'/orders/{item.order.job_number}/'), 'enctype="multipart/form-data"')
+        r = self.post(item, note='Edge chipped\nsecond line', photo=image_file(size=(2400, 1200), orientation=3))
+        self.assertContains(r, 'Result recorded.')
+        saved = Event.objects.filter(event_type=E.RESULT).latest('pk')
+        self.assertEqual(saved.note, 'Edge chipped\nsecond line')
+        self.assertTrue((self.media / saved.photo.name).exists())
+        self.assertContains(r, 'cannot be edited later')
+        self.assertContains(r, 'accept="image/*"')
+
+    def test_bad_upload_or_long_note_saves_nothing(self):
+        self.result()
+        item = OrderItem.objects.get()
+        before = Event.objects.count()
+        self.assertContains(self.post(item, photo=SimpleUploadedFile('a.jpg', b'not an image')), 'Upload a JPEG, PNG or WEBP image.')
+        self.assertContains(self.post(item, note='x' * 1001), 'at most 1000 characters')
+        self.assertEqual(Event.objects.count(), before)
+        self.assertEqual(list((self.media).rglob('*.jpg')), [])
+
+    def test_photo_view_needs_login_and_role_and_a_photo(self):
+        with_photo = self.result(photo=process_photo(image_file()))
+        without = self.result()
+        url = lambda e: f'/results/{e.pk}/photo/'
+        self.client.logout()
+        self.assertEqual(self.client.get(url(with_photo)).status_code, 302)
+        self.client.force_login(make_user('norole'))
+        self.assertEqual(self.client.get(url(with_photo)).status_code, 403)
+        self.client.force_login(make_user('op', 'Operator'))
+        r = self.client.get(url(with_photo))
+        self.assertEqual((r.status_code, r['Content-Type']), (200, 'image/jpeg'))
+        self.assertIn('private', r['Cache-Control'])
+        self.assertTrue(b''.join(r.streaming_content).startswith(b'\xff\xd8'))
+        self.assertEqual(self.client.get(url(without)).status_code, 404)
+        arrived = Event.objects.create(tag_uid='Z', event_type=E.ARRIVED, process=Process.objects.create(name='Mat', kind=K.MATERIAL), created_by=self.planner)
+        self.assertEqual(self.client.get(url(arrived)).status_code, 404)
+
+    def test_missing_file_is_a_404_not_a_crash(self):
+        e = self.result(photo=process_photo(image_file()))
+        (self.media / e.photo.name).unlink()
+        self.assertEqual(self.client.get(f'/results/{e.pk}/photo/').status_code, 404)
+
+    def test_detail_page_worker_row_is_for_planners_only(self):
+        e = self.result(defects=3, worker=self.w1, machine=self.m1, cause=self.scratch, note='Line one\n<b>two</b>', photo=process_photo(image_file()))
+        page = self.client.get(f'/results/{e.pk}/')
+        for text in ('Worker Alpha', 'M1', 'Scratch', '3.0%', 'Line one<br>&lt;b&gt;two&lt;/b&gt;', 'Name PA', 'C1', 'target="_blank"', 'alt="Photo of the defects'):
+            self.assertContains(page, text)
+        self.assertContains(page, f'href="/results/{e.pk}/photo/"')
+        self.assertNotContains(page, '/media/')
+        self.client.force_login(make_user('op', 'Operator'))
+        page = self.client.get(f'/results/{e.pk}/')
+        self.assertEqual(page.status_code, 200)
+        self.assertNotContains(page, 'Worker Alpha')
+        self.assertNotContains(page, '<dt>Worker</dt>')
+        self.assertContains(page, 'Scratch')
+
+    def test_detail_page_roles_404_and_voided_banner(self):
+        e = self.result(defects=1)
+        self.client.logout()
+        self.assertEqual(self.client.get(f'/results/{e.pk}/').status_code, 302)
+        self.client.force_login(self.planner)
+        self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = 'en'  # logout cleared the cookies
+        self.assertNotContains(self.client.get(f'/results/{e.pk}/'), 'Voided on')
+        Event(tag_uid=e.tag_uid, event_type=E.CORRECTION, corrects=e, created_by=self.planner, reason='Typed wrong quantity').save()
+        self.assertContains(self.client.get(f'/results/{e.pk}/'), 'Voided on')
+        self.assertContains(self.client.get(f'/results/{e.pk}/'), 'Typed wrong quantity')
+        arrived = Event.objects.create(tag_uid='Z', event_type=E.ARRIVED, process=Process.objects.create(name='Mat', kind=K.MATERIAL), created_by=self.planner)
+        self.assertEqual(self.client.get(f'/results/{arrived.pk}/').status_code, 404)
+
+    def test_event_history_shows_a_summary_and_details_link_only(self):
+        e = self.result(qty=5, defects=2, worker=self.w1, cause=self.scratch, note='Secret note text', photo=process_photo(image_file()))
+        item = OrderItem.objects.get()
+        page = self.client.get(f'/orders/{item.order.job_number}/')
+        self.assertContains(page, '5 done, 2 defects')
+        self.assertContains(page, f'href="/results/{e.pk}/"')
+        self.assertContains(page, '<span class="badge">Note</span>')
+        self.assertContains(page, '<span class="badge">Photo</span>')
+        for text in ('Secret note text', '/media/', e.photo.name, '&middot; Worker Alpha', 'Scratch</td>'):
+            self.assertNotContains(page, text)
+
+
+class DefectInvestigationTests(InvestigationBase):
+    def setUp(self):
+        super().setUp()
+        self.e1 = self.result('PA', defects=10, worker=self.w1, machine=self.m1, cause=self.scratch, note='n1')
+        self.e2 = self.result('PA', defects=2, worker=self.w2, machine=self.m2, cause=self.burr)
+        self.e3 = self.result('PA', defects=0, worker=self.w2)
+        self.e4 = self.result('PB', qty=50, defects=0, worker=self.w1, machine=self.m1)
+        self.e5 = self.result('PB', qty=10, defects=1, worker=self.w1, machine=self.m2)
+        self.e6 = self.result('PA', proc=self.lathe, defects=5, worker=self.w1, machine=self.m1, cause=self.scratch)
+        self.e7 = self.result('PB', defects=3, worker=self.w2, machine=self.m2)  # defects without a cause
+
+    def drill(self, **params):
+        return self.page(**params).context.get('drill')
+
+    def pks(self, drill):
+        return [r['event'].pk for r in drill['records']]
+
+    def test_each_parameter_filters_the_records_and_the_by_part_table(self):
+        d = self.drill(d_machine=self.m1.pk)
+        self.assertEqual(self.pks(d), [self.e1.pk, self.e6.pk])
+        self.assertEqual([(p['part'], p['process'], p['defects']) for p in d['parts']], [('PA', 'Mill', 10), ('PA', 'Lathe', 5), ('PB', 'Mill', 0)])
+        d = self.drill(d_worker=self.w2.pk)
+        self.assertEqual(sorted(self.pks(d)), sorted([self.e2.pk, self.e7.pk]))
+        self.assertEqual({(p['part'], p['defects']) for p in d['parts']}, {('PA', 2), ('PB', 3)})
+        d = self.drill(d_cause=self.scratch.pk)
+        self.assertEqual(sorted(self.pks(d)), sorted([self.e1.pk, self.e6.pk]))
+        self.assertFalse(d['baseline'])
+        d = self.drill(d_cause='none')
+        self.assertEqual(sorted(self.pks(d)), sorted([self.e5.pk, self.e7.pk]))  # only defects without a cause
+        d = self.drill(d_machine='none')
+        self.assertEqual(self.pks(d), [])  # the only result without a machine has no defects
+        self.assertEqual([(p['part'], p['quantity']) for p in d['parts']], [('PA', 100)])
+
+    def test_baseline_leaves_out_the_chosen_machine_or_worker(self):
+        by = {(p['part'], p['process']): p for p in self.drill(d_machine=self.m1.pk)['parts']}
+        self.assertEqual(by[('PA', 'Mill')]['rate'], 10.0)
+        self.assertEqual(by[('PA', 'Mill')]['base_rate'], 1.0)  # e2 + e3: 2 of 200
+        self.assertEqual(by[('PB', 'Mill')]['base_rate'], (1 + 3) * 100 / 110)  # e5 + e7
+        self.assertIsNone(by[('PA', 'Lathe')]['base_rate'])  # nobody else on that part and process
+        by = {(p['part'], p['process']): p for p in self.drill(d_worker=self.w1.pk)['parts']}
+        self.assertEqual(by[('PA', 'Mill')]['base_rate'], 1.0)  # e2 + e3 are worker Beta's
+        self.assertContains(self.page(d_machine=self.m1.pk), 'Rate for everyone else on the same part and process')
+        self.assertNotContains(self.page(d_cause=self.scratch.pk), 'Rate for everyone else')
+
+    def test_unrecorded_machine_baseline_is_everyone_with_a_machine(self):
+        by = {(p['part'], p['process']): p for p in self.drill(d_machine='none')['parts']}
+        self.assertEqual(by[('PA', 'Mill')]['base_rate'], 12 * 100 / 200)  # e1 + e2
+
+    def test_only_results_with_defects_is_on_by_default(self):
+        d = self.drill(d_machine=self.m1.pk)
+        self.assertTrue(d['only'])
+        d = self.drill(d_machine=self.m1.pk, d_only='0')
+        self.assertFalse(d['only'])
+        self.assertIn(self.e4.pk, self.pks(d))
+        self.assertTrue(self.drill(d_machine=self.m1.pk, d_only=['0', '1'])['only'])  # the checkbox sends the last value
+        self.assertContains(self.page(d_machine=self.m1.pk), 'Only results with defects')
+
+    def test_few_data_rows_are_greyed(self):
+        self.result('PE', qty=10, defects=5, machine=self.m2)
+        page = self.page(d_machine=self.m2.pk)
+        by = {(p['part'], p['process']): p for p in page.context['drill']['parts']}
+        self.assertEqual((by[('PE', 'Mill')]['few'], by[('PA', 'Mill')]['few']), (True, False))
+        self.assertContains(page, 'class="few-data"')
+        self.assertContains(page, 'A rate from fewer than 20 pieces')
+
+    def test_filters_apply_and_the_d_parameters_are_not_filters(self):
+        self.assertEqual(self.pks(self.drill(d_machine=self.m1.pk, process=self.lathe.pk)), [self.e6.pk])
+        self.assertEqual(self.pks(self.drill(d_machine=self.m1.pk, date_from=(timezone.localdate() + timedelta(days=1)).isoformat())), [])
+        self.result('PA', defects=4, machine=self.m1, customer=1)
+        self.assertEqual(len(self.pks(self.drill(d_machine=self.m1.pk, customer=self.customers[1].pk))), 1)
+        ctx = self.page(d_machine=self.m1.pk, process=self.mill.pk).context
+        self.assertEqual(ctx['values']['process'], str(self.mill.pk))
+        self.assertTrue(all('d_machine' not in t['url'] for t in ctx['tabs']))
+        self.assertFalse(hasattr(Filters, 'd_machine'))
+
+    def test_records_links_keep_the_other_filters(self):
+        ctx = self.page(process=self.mill.pk).context
+        row = next(r for r in ctx['machine_rows'] if r['id'] == self.m1.pk)
+        self.assertIn(f'd_machine={self.m1.pk}', row['url'])
+        self.assertIn(f'process={self.mill.pk}', row['url'])
+        self.assertTrue(row['url'].endswith('#defect-records'))
+        self.assertTrue(any(r['id'] == 'none' for r in self.page().context['cause_rows']))
+        page = self.page(d_machine=self.m1.pk)
+        self.assertContains(page, 'id="defect-records"')
+        self.assertContains(page, f'href="/results/{self.e1.pk}/"')
+        self.assertContains(page, 'Clear')
+        self.assertNotContains(self.page(), 'id="defect-records"')
+
+    def test_worker_names_and_d_worker_are_for_planners_only(self):
+        self.assertContains(self.page(d_worker=self.w1.pk), 'Worker Alpha')
+        self.client.force_login(make_user('op', 'Operator'))
+        page = self.page(d_worker=self.w1.pk)
+        self.assertIsNone(page.context.get('drill'))
+        self.assertNotContains(page, 'Worker Alpha')
+        page = self.page(d_machine=self.m1.pk)
+        self.assertIsNotNone(page.context['drill'])
+        self.assertNotContains(page, 'Worker Alpha')
+        self.assertNotContains(page, '<th>Worker</th>')
+        self.assertFalse(page.context['drill']['planner'])
+        self.assertTrue(all('worker' not in r for r in page.context['drill']['records']))
+        both = self.page(d_worker=self.w1.pk, d_machine=self.m1.pk)
+        self.assertEqual(self.pks(both.context['drill']), [self.e1.pk, self.e6.pk])  # d_worker ignored, d_machine used
+
+    def test_sorting_uses_a_whitelist(self):
+        d = self.drill(d_machine=self.m2.pk, d_only='0')
+        self.assertEqual(d['order'], 'defects')
+        self.assertEqual([r['event'].defects for r in d['records']], [3, 2, 1])
+        self.assertEqual(self.drill(d_machine=self.m2.pk, d_only='0', dorder='rate')['order'], 'rate')
+        self.assertEqual(self.drill(d_machine=self.m2.pk, dorder='nonsense')['order'], 'defects')
+        old = self.result('PA', defects=1, machine=self.m2, days_ago=20)
+        d = self.drill(d_machine=self.m2.pk, dorder='date')
+        self.assertEqual(self.pks(d)[-1], old.pk)
+
+    def test_records_are_capped_at_200_with_show_more(self):
+        e = self.e1
+        a = TagAssignment.objects.get(tag__uid=e.tag_uid)
+        Event.objects.bulk_create([
+            Event(tag_uid=e.tag_uid, process=self.mill, event_type=E.RESULT, quantity=10, defects=1, machine=self.m1, created_by=self.planner,
+                  occurred_at=timezone.now() - timedelta(minutes=i + 1)) for i in range(204)])
+        page = self.page(d_machine=self.m1.pk)
+        d = page.context['drill']
+        self.assertEqual((len(d['records']), d['total']), (200, 206))
+        self.assertContains(page, 'Showing 200 of 206')
+        self.assertIn('dlimit=400', d['more_url'])
+        d = self.drill(d_machine=self.m1.pk, dlimit=400)
+        self.assertEqual((len(d['records']), d['more_url']), (206, ''))
+        self.assertEqual(len(self.drill(d_machine=self.m1.pk, dlimit=5)['records']), 200)  # never below 200
+        self.assertEqual(a.tag.uid, e.tag_uid)
+
+    def test_query_count_does_not_grow_with_the_rows(self):
+        def count():
+            with CaptureQueriesContext(connection) as q:
+                defect_detail(result_events(Filters()), 'machine', self.m1.pk, True, 'defects', True)
+            return len(q)
+        before = count()
+        for i in range(15):
+            self.result('PC', defects=1, worker=self.w1, machine=self.m1)
+        self.assertEqual(count(), before)
+        with CaptureQueriesContext(connection) as small:
+            self.page(d_machine=self.m1.pk)
+        for i in range(15):
+            self.result('PD', defects=1, worker=self.w1, machine=self.m1)
+        with CaptureQueriesContext(connection) as big:
+            self.page(d_machine=self.m1.pk)
+        self.assertEqual(len(big), len(small))
+
+
+class DefectDemoDataTests(TestCase):
+    def setUp(self):
+        self.media = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.enterContext(override_settings(MEDIA_ROOT=self.media, DEBUG=True))
+
+    def test_demo_has_notes_photos_and_the_two_patterns(self):
+        from django.core.management import call_command
+        call_command('seed_demo', stdout=StringIO())
+        events = result_events(Filters())
+        photos = [e for e in events if e.photo]
+        self.assertTrue(6 <= len(photos) <= 8, len(photos))
+        for e in photos:
+            self.assertTrue((self.media / e.photo.name).exists())
+            self.assertRegex(e.photo.name, r'^defects/demo/demo-\d\d\.jpg$')
+        self.assertGreaterEqual(len([e for e in events if e.note]), 6)
+        self.assertGreaterEqual(len({e.worker_id for e in events}), 5)
+        machine = Machine.objects.get(name='Machining centre 2')
+        parts, _records = defect_detail(events, 'machine', machine.pk, True, 'defects', True)
+        top = next(p for p in parts if not p['few'])
+        self.assertEqual(top['part'], 'SPC-220')
+        self.assertGreater(top['rate'], 2 * top['base_rate'])
+        worker = Worker.objects.get(name='Nakamura Mio')
+        parts, _records = defect_detail(events, 'worker', worker.pk, True, 'defects', True)
+        top = next(p for p in parts if not p['few'])
+        self.assertEqual(top['part'], 'ARM-510')
+        self.assertGreater(top['rate'], 2 * top['base_rate'])
+
+    def test_reset_removes_and_recreates_the_demo_photos(self):
+        from django.core.management import call_command
+        call_command('seed_demo', stdout=StringIO())
+        folder = self.media / 'defects' / 'demo'
+        names = sorted(p.name for p in folder.iterdir())
+        (folder / 'stale.jpg').write_bytes(b'x')
+        call_command('seed_demo', reset=True, stdout=StringIO())
+        self.assertEqual(sorted(p.name for p in folder.iterdir()), names)  # deterministic names, stale file gone

@@ -126,12 +126,14 @@ def correct_event(event, user, reason, replacement=None):
     return correction, new
 
 
-def record_result(user, assignment, process, quantity, defects=0, worker=None, machine=None):
+def record_result(user, assignment, process, quantity, defects=0, worker=None, machine=None, defect_cause=None, note='', photo=None):
     """Record how much was done at a step (and how much of it was defective) for the box of an assignment; never changes status."""
     event = Event(
         tag_uid=assignment.tag.uid, process=process, event_type=Event.Type.RESULT, quantity=quantity, defects=defects,
-        worker=worker, machine=machine, created_by=user,
+        worker=worker, machine=machine, defect_cause=defect_cause, note=note.strip(), created_by=user,
     )
+    if photo:
+        event.photo = photo
     event.full_clean()
     event.save()
     return event
