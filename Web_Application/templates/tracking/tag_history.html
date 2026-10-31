@@ -36,8 +36,8 @@
           <tr>
             <th>{% trans "Tag" %}</th>
             <th>{% trans "Item" %}</th>
-            <th>{% trans "From (JST)" %}</th>
-            <th>{% trans "To (JST)" %}</th>
+            <th class="tnum">{% trans "From (JST)" %}</th>
+            <th class="tnum">{% trans "To (JST)" %}</th>
           </tr>
         </thead>
         <tbody>
@@ -45,8 +45,8 @@
             <tr>
               <td>{{ a.tag }}{% if a.caption %} <small>{{ a.caption }}</small>{% endif %}</td>
               <td><a href="{% url 'order_detail' a.item.order.job_number %}">{{ a.item.item_code }}</a> {{ a.item.part_name }}</td>
-              <td>{{ a.start_at|date:"Y-m-d H:i" }}</td>
-              <td>{% if a.end_at %}{{ a.end_at|date:"Y-m-d H:i" }}{% else %}{% trans "In use" %}{% endif %}</td>
+              <td class="tnum">{{ a.start_at|date:"Y-m-d H:i" }}</td>
+              <td class="tnum">{% if a.end_at %}{{ a.end_at|date:"Y-m-d H:i" }}{% else %}{% trans "In use" %}{% endif %}</td>
             </tr>
           {% endfor %}
         </tbody>

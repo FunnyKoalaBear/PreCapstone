@@ -21,15 +21,15 @@
           <th>{% trans "Customer" %}</th>
           <th><a href="{{ order_urls.process }}">{% trans "Process" %}</a></th>
           {% if tab == 'plan' %}
-            <th><a href="{{ order_urls.planned }}">{% trans "Planned days" %}</a></th>
-            <th><a href="{{ order_urls.actual }}">{% trans "Actual days" %}</a></th>
-            <th><a href="{{ order_urls.diff }}">{% trans "Difference" %}</a></th>
-            <th><a href="{{ order_urls.overrun }}">{% trans "Overrun" %}</a></th>
+            <th class="num"><a href="{{ order_urls.planned }}">{% trans "Planned days" %}</a></th>
+            <th class="num"><a href="{{ order_urls.actual }}">{% trans "Actual days" %}</a></th>
+            <th class="num"><a href="{{ order_urls.diff }}">{% trans "Difference" %}</a></th>
+            <th class="num"><a href="{{ order_urls.overrun }}">{% trans "Overrun" %}</a></th>
           {% else %}
-            <th><a href="{{ order_urls.wait }}">{% trans "Wait before" %}</a></th>
-            <th><a href="{{ order_urls.processing }}">{% trans "Processing time" %}</a></th>
-            <th><a href="{{ order_urls.total }}">{% trans "Total" %}</a></th>
-            <th><a href="{{ order_urls.ratio }}">{% trans "x median" %}</a></th>
+            <th class="num"><a href="{{ order_urls.wait }}">{% trans "Wait before" %}</a></th>
+            <th class="num"><a href="{{ order_urls.processing }}">{% trans "Processing time" %}</a></th>
+            <th class="num"><a href="{{ order_urls.total }}">{% trans "Total" %}</a></th>
+            <th class="num"><a href="{{ order_urls.ratio }}">{% trans "x median" %}</a></th>
             <th>{% trans "Main cause" %}</th>
           {% endif %}
           <th>{% trans "Flags" %}</th>
@@ -44,15 +44,15 @@
             <td>{{ r.customer }}</td>
             <td>{{ r.process }}</td>
             {% if tab == 'plan' %}
-              <td>{{ r.planned }}</td>
-              <td>{{ r.actual }}</td>
-              <td>{% if r.diff > 0 %}<span class="badge badge-overdue">+{{ r.diff }}</span>{% else %}{{ r.diff }}{% endif %}</td>
-              <td>{% if r.pct is None %}-{% elif r.severity %}<span class="badge sev-{{ r.severity }}">{{ r.pct|floatformat:0 }}%</span>{% else %}{{ r.pct|floatformat:0 }}%{% endif %}</td>
+              <td class="num">{{ r.planned }}</td>
+              <td class="num">{{ r.actual }}</td>
+              <td class="num">{% if r.diff > 0 %}<span class="badge badge-overdue">+{{ r.diff }}</span>{% else %}{{ r.diff }}{% endif %}</td>
+              <td class="num">{% if r.pct is None %}-{% elif r.severity %}<span class="badge sev-{{ r.severity }}">{{ r.pct|floatformat:0 }}%</span>{% else %}{{ r.pct|floatformat:0 }}%{% endif %}</td>
             {% else %}
-              <td>{{ r.wait|duration|default:"-" }}</td>
-              <td>{{ r.processing|duration|default:"-" }}</td>
-              <td>{{ r.total|duration|default:"-" }}</td>
-              <td>{% if r.ratio is None %}-{% else %}{{ r.ratio|floatformat:1 }}&times;{% endif %}</td>
+              <td class="num">{{ r.wait|duration|default:"-" }}</td>
+              <td class="num">{{ r.processing|duration|default:"-" }}</td>
+              <td class="num">{{ r.total|duration|default:"-" }}</td>
+              <td class="num">{% if r.ratio is None %}-{% else %}{{ r.ratio|floatformat:1 }}&times;{% endif %}</td>
               <td>{{ r.cause }}</td>
             {% endif %}
             <td>{% for f in r.flags %}<span class="badge badge-check" title="{{ f.title }}">{% trans "Check scan" %}</span> {% endfor %}</td>

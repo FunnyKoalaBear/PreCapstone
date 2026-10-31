@@ -65,7 +65,7 @@
       <thead>
         <tr>
           <th>{% trans "Name" %}</th><th>{% trans "Japanese name" %}</th><th>{% trans "Active" %}</th>
-          <th>{% trans "Used in" %}</th><th>{% trans "Actions" %}</th>
+          <th class="num">{% trans "Used in" %}</th><th>{% trans "Actions" %}</th>
         </tr>
       </thead>
       <tbody>
@@ -74,7 +74,7 @@
             <td data-label="{% trans 'Name' %}"><input type="text" form="rename-{{ r.pk }}" name="name" value="{{ r.name }}" maxlength="100" required aria-label="{% trans 'Name' %}"></td>
             <td data-label="{% trans 'Japanese name' %}"><input type="text" form="rename-{{ r.pk }}" name="name_ja" value="{{ r.name_ja }}" maxlength="100" aria-label="{% trans 'Japanese name' %}"></td>
             <td data-label="{% trans 'Active' %}">{% if r.active %}{% trans "Yes" %}{% else %}<span class="badge badge-cancelled">{% trans "Inactive" %}</span>{% endif %}</td>
-            <td data-label="{% trans 'Used in' %}">{{ r.used }}</td>
+            <td class="num" data-label="{% trans 'Used in' %}">{{ r.used }}</td>
             <td data-label="{% trans 'Actions' %}">
               <div class="inline-actions">
                 <form method="post" action="{{ back }}" id="rename-{{ r.pk }}" class="inline-actions">

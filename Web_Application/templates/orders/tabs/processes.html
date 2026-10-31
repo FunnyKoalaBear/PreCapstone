@@ -20,7 +20,7 @@
         <th>{{ l_lead|capfirst }}</th>
         <th>{{ l_stag|capfirst }}</th>
         <th>{% trans "Active" %}</th>
-        <th>{% trans "Used in routes" %}</th>
+        <th class="num">{% trans "Used in routes" %}</th>
         <th>{% trans "Actions" %}</th>
       </tr>
     </thead>
@@ -34,7 +34,7 @@
           <td data-label="{{ l_lead|capfirst }}">{{ p.vendor_lead_days|default_if_none:"-" }}</td>
           <td data-label="{{ l_stag|capfirst }}">{{ p.stagnation_hours|default_if_none:"-" }}</td>
           <td data-label="{% trans 'Active' %}">{% if p.active %}{% trans "Yes" %}{% else %}<span class="badge badge-cancelled">{% trans "Inactive" %}</span>{% endif %}</td>
-          <td data-label="{% trans 'Used in routes' %}">{{ p.routes }}</td>
+          <td class="num" data-label="{% trans 'Used in routes' %}">{{ p.routes }}</td>
           <td data-label="{% trans 'Actions' %}">
             <form method="post" action="{{ back }}" class="inline-actions">
               {% csrf_token %}

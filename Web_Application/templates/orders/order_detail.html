@@ -47,7 +47,7 @@
                 <tr>
                   <th>{% trans "Job number" %}</th>
                   <th>{% trans "Finished" %}</th>
-                  <th>{% trans "Total days" %}</th>
+                  <th class="num">{% trans "Total days" %}</th>
                   <th>{% trans "Time per step" %}</th>
                 </tr>
               </thead>
@@ -55,8 +55,8 @@
                 {% for run in entry.runs %}
                   <tr>
                     <td><a href="{% url 'order_detail' run.order.job_number %}">{{ run.item.item_code }}</a></td>
-                    <td>{{ run.finished|date:"Y-m-d"|default:"-" }}</td>
-                    <td>{{ run.total_days|default_if_none:"-" }}</td>
+                    <td class="tnum">{{ run.finished|date:"Y-m-d"|default:"-" }}</td>
+                    <td class="num">{{ run.total_days|default_if_none:"-" }}</td>
                     <td>
                       <ul class="run-steps">
                         {% for s in run.steps %}
@@ -177,7 +177,7 @@
       <tbody>
         {% for c in changes %}
           <tr>
-            <td>{{ c.changed_at|date:"Y-m-d H:i" }}</td>
+            <td class="tnum">{{ c.changed_at|date:"Y-m-d H:i" }}</td>
             <td>{{ c.changed_by|default:"-" }}</td>
             <td>{% if c.item_code %}{{ c.item_code }} {% endif %}{{ c.field_label }}</td>
             <td>{{ c.old_value|default:"-" }}</td>

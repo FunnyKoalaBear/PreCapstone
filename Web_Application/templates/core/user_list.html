@@ -29,7 +29,7 @@
             <td>{{ u.first_name|default:"-" }}</td>
             <td>{{ role }}</td>
             <td>{% if u.is_active %}{% trans "Yes" %}{% else %}{% trans "No" %}{% endif %}</td>
-            <td>{{ u.last_login|date:"Y-m-d H:i"|default:"-" }}</td>
+            <td class="tnum">{{ u.last_login|date:"Y-m-d H:i"|default:"-" }}</td>
           </tr>
         {% empty %}
           <tr><td colspan="5">{% trans "No users match." %}</td></tr>

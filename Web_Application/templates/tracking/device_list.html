@@ -14,7 +14,7 @@
       <thead>
         <tr>
           <th>{% trans "Name" %}</th><th>{{ l_location|capfirst }}</th><th>{% trans "Active" %}</th>
-          <th>{% trans "Last seen (JST)" %}</th><th>{% trans "Actions" %}</th>
+          <th class="tnum">{% trans "Last seen (JST)" %}</th><th>{% trans "Actions" %}</th>
         </tr>
       </thead>
       <tbody>
@@ -23,7 +23,7 @@
             <td data-label="{% trans 'Name' %}">{{ d.name }}</td>
             <td data-label="{{ l_location|capfirst }}">{{ d.location|default:"-" }}</td>
             <td data-label="{% trans 'Active' %}">{% if d.active %}{% trans "Yes" %}{% else %}<span class="badge badge-cancelled">{% trans "Inactive" %}</span>{% endif %}</td>
-            <td data-label="{% trans 'Last seen (JST)' %}">{% if d.last_seen %}{{ d.last_seen|date:"Y-m-d H:i" }}{% else %}{% trans "Never" %}{% endif %}
+            <td class="tnum" data-label="{% trans 'Last seen (JST)' %}">{% if d.last_seen %}{{ d.last_seen|date:"Y-m-d H:i" }}{% else %}{% trans "Never" %}{% endif %}
               {% if d.silent %}<span class="badge badge-overdue">{% trans "Silent" %}</span>{% endif %}</td>
             <td data-label="{% trans 'Actions' %}">
               <form method="post" class="inline-actions">

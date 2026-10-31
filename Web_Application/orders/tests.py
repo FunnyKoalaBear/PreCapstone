@@ -1417,7 +1417,7 @@ class CustomerDetailEditTests(TestCase):
     def test_heading_button_style_is_compact(self):
         from django.conf import settings
         css = (settings.BASE_DIR / 'static' / 'css' / 'base.css').read_text(encoding='utf-8')
-        self.assertIn('font-size: 0.85rem; font-weight: 400', css)
+        self.assertIn('font-size: var(--text-sm); font-weight: 400', css)
 
 
 class OrdersHubTests(TestCase):

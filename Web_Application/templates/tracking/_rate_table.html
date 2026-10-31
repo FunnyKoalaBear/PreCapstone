@@ -4,10 +4,10 @@
     <thead>
       <tr>
         <th>{{ first }}</th>
-        <th>{% trans "Records" %}</th>
-        <th>{% trans "Quantity done" %}</th>
-        <th>{% trans "Defects" %}</th>
-        <th>{% trans "Defect rate" %}</th>
+        <th class="num">{% trans "Records" %}</th>
+        <th class="num">{% trans "Quantity done" %}</th>
+        <th class="num">{% trans "Defects" %}</th>
+        <th class="num">{% trans "Defect rate" %}</th>
         <th></th>
       </tr>
     </thead>
@@ -15,10 +15,10 @@
       {% for r in rate_rows %}
         <tr>
           <td data-label="{{ first }}">{% if r.known %}{{ r.name }}{% else %}<em>{{ r.name }}</em>{% endif %}</td>
-          <td data-label="{% trans 'Records' %}">{{ r.records }}</td>
-          <td data-label="{% trans 'Quantity done' %}">{{ r.quantity }}</td>
-          <td data-label="{% trans 'Defects' %}">{{ r.defects }}</td>
-          <td data-label="{% trans 'Defect rate' %}"{% if r.few %} class="few-data" title="{% trans 'Few data' %}"{% endif %}>{{ r.rate|floatformat:1 }}%</td>
+          <td class="num" data-label="{% trans 'Records' %}">{{ r.records }}</td>
+          <td class="num" data-label="{% trans 'Quantity done' %}">{{ r.quantity }}</td>
+          <td class="num" data-label="{% trans 'Defects' %}">{{ r.defects }}</td>
+          <td class="num{% if r.few %} few-data{% endif %}" data-label="{% trans 'Defect rate' %}"{% if r.few %} title="{% trans 'Few data' %}"{% endif %}>{{ r.rate|floatformat:1 }}%</td>
           <td>{% if r.url %}<a href="{{ r.url }}">{% trans "Records" context "link to the records" %}</a>{% endif %}</td>
         </tr>
       {% empty %}

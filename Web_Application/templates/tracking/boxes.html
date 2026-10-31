@@ -31,8 +31,8 @@
             <th>{% trans "Customer" %}</th>
             <th>{% trans "Current process" %}</th>
             <th>{% trans "Status" %}</th>
-            <th>{% trans "Due date" %}</th>
-            <th>{% trans "Idle for" %}</th>
+            <th class="tnum">{% trans "Due date" %}</th>
+            <th class="num">{% trans "Idle for" %}</th>
             <th></th>
           </tr>
         </thead>
@@ -45,8 +45,8 @@
               <td>{{ e.order.customer }}</td>
               <td>{{ e.process|default:"-" }}</td>
               <td><span class="badge badge-{{ e.code|lower }}">{{ e.label }}</span></td>
-              <td>{{ e.due_date|date:"Y-m-d" }}</td>
-              <td>{% if e.idle %}{{ e.idle|duration }}{% else %}-{% endif %}</td>
+              <td class="tnum">{{ e.due_date|date:"Y-m-d" }}</td>
+              <td class="num">{% if e.idle %}{{ e.idle|duration }}{% else %}-{% endif %}</td>
               <td>
                 {% if e.late %}<span class="badge badge-overdue">{% trans "Overdue" %}</span>{% endif %}
                 {% if e.stagnant %}<span class="badge badge-stagnant">{% trans "Stagnant" %}</span>{% endif %}

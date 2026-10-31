@@ -2082,7 +2082,7 @@ class DefectCauseTests(TestCase):
         rows = {r['name']: r for r in self.tables()['worker_rows']}
         self.assertEqual((rows['W1']['few'], rows['W2']['few']), (True, False))
         page = self.client.get('/analysis/')
-        self.assertContains(page, 'class="few-data"')
+        self.assertContains(page, 'class="num few-data"')
         self.assertContains(page, 'few data')
         self.assertContains(page, 'A higher rate is a reason to look, not a conclusion')
 
@@ -2709,7 +2709,7 @@ class DefectInvestigationTests(InvestigationBase):
         page = self.page(d_machine=self.m2.pk)
         by = {(p['part'], p['process']): p for p in page.context['drill']['parts']}
         self.assertEqual((by[('PE', 'Mill')]['few'], by[('PA', 'Mill')]['few']), (True, False))
-        self.assertContains(page, 'class="few-data"')
+        self.assertContains(page, 'class="num few-data"')
         self.assertContains(page, 'A rate from fewer than 20 pieces')
 
     def test_filters_apply_and_the_d_parameters_are_not_filters(self):

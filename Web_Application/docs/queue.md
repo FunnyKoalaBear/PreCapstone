@@ -12,17 +12,6 @@ Order matters. [ ] todo, [!] blocked. Finished entries are deleted; git history 
 - Every new string gets Japanese per docs/glossary.md. Update docs/manual_ja.md where a page or control changes.
 - Demo data: nothing new is needed; use the existing demo data to check every page.
 
-### [ ] U5 Typography polish
-Why: consistent type scale, aligned numbers, better Japanese text, and readable sizes on a budget monitor.
-What:
-- Tokens in theme.css: --text-sm 0.8125rem (smallest allowed), --text-base 1rem, --text-table 0.9375rem, --text-lg 1.05rem, --text-xl 1.2rem, --text-2xl 1.5rem; --leading-tight 1.3, --leading-base 1.5, --leading-ja 1.7; weights 400, 500, 600 only (brand may use 700).
-- Apply: body base, h1 2xl, h2 xl, h3 lg (weight 600, tight leading), table cells --text-table with 1.4 leading, labels and helper text --text-sm in --color-muted. Replace every hard-coded font-size in base.css and inline styles with tokens; nothing below 0.8125rem.
-- Tabular numbers: `.num` class (font-variant-numeric: tabular-nums, right aligned in tables) on quantities, counts, durations, KPI figures; tabular-nums without alignment change on job numbers, dates and times. Audit orders, order detail, analysis, shipping, priorities, boxes, results, matrix counts and settings counts.
-- Japanese: `:lang(ja)` gets --leading-ja for paragraphs and notes, `line-break: strict`, and `font-feature-settings: "palt"` on headings and nav labels only.
-- Do not add web fonts or change the font stack. Check whether static/fonts/NotoSansJP.ttf is referenced by CSS; if it is only for PDFs, leave it out of the CSS.
-- Add a short "Type" rule to Web_Application/CLAUDE.md frontend rules: only --text-* tokens; numbers in tables use .num.
-Tests: no font-size below 0.8125rem (13px) in static/css or templates; scale tokens exist; a rendered orders page contains `class="num"` cells; existing suite passes.
-
 ### [ ] U6 Component polish: buttons, tables, forms
 Why: one consistent look and size for the building blocks on every page, in both themes. Toasts are done in U4.
 What:

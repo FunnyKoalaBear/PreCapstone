@@ -99,6 +99,22 @@
   --risk-on-track: #4ade80;
 }
 
+/* Type scale. Use only these tokens for font-size; weights are 400, 500 and 600 (the brand may use 700). */
+:root {
+  --text-sm: 0.8125rem; /* the smallest size allowed */
+  --text-base: 1rem;
+  --text-table: 0.9375rem;
+  --text-lg: 1.05rem;
+  --text-xl: 1.2rem;
+  --text-2xl: 1.5rem;
+  --leading-tight: 1.3;
+  --leading-base: 1.5;
+  --leading-ja: 1.7;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+}
+
 /* Responsive layout. The breakpoints live only here: 768px (tablet) and 480px (phone). */
 
 /* Desktop (above 768px): the collapsed sidebar is a 3.5rem icon rail that opens over the content while hovered or keyboard-focused */
@@ -131,7 +147,7 @@
   .table-cards tr { margin-bottom: 0.75rem; background: var(--color-surface); border: 1px solid var(--color-border); }
   .table-cards td, .table-cards th { display: flex; justify-content: space-between; gap: 1rem; text-align: right; }
   .scroll-panel-first .table-cards tr > :first-child { position: static; }
-  .table-cards [data-label]::before { content: attr(data-label); flex: none; color: var(--color-muted); font-weight: 600; text-align: left; }
+  .table-cards [data-label]::before { content: attr(data-label); flex: none; color: var(--color-muted); font-weight: var(--weight-semibold); text-align: left; }
 }
 
 @media (max-width: 480px) {

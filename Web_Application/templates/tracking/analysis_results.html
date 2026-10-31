@@ -16,15 +16,15 @@
         <tr>
           <th></th>
           <th>{% trans "Process" %}</th>
-          <th>{% trans "Records" %}</th>
-          <th>{% trans "Quantity done" %}</th>
-          <th>{% trans "Defects" %}</th>
-          <th>{% trans "Defect rate" %}</th>
-          <th>{% trans "Steps (n)" %}</th>
-          <th>{% trans "Average processing time" %}</th>
-          <th>{% trans "Median processing time" %}</th>
-          <th>{% trans "Average wait before" %}</th>
-          <th>{% trans "Median wait before" %}</th>
+          <th class="num">{% trans "Records" %}</th>
+          <th class="num">{% trans "Quantity done" %}</th>
+          <th class="num">{% trans "Defects" %}</th>
+          <th class="num">{% trans "Defect rate" %}</th>
+          <th class="num">{% trans "Steps (n)" %}</th>
+          <th class="num">{% trans "Average processing time" %}</th>
+          <th class="num">{% trans "Median processing time" %}</th>
+          <th class="num">{% trans "Average wait before" %}</th>
+          <th class="num">{% trans "Median wait before" %}</th>
         </tr>
       </thead>
       <tbody>
@@ -32,15 +32,15 @@
           <tr{% if r.hot %} class="hot"{% endif %}>
             <td data-label="{% trans 'Select' %}"><input type="checkbox" name="sel" value="{{ r.pk }}"{% if r.pk in sel %} checked{% endif %} aria-label="{% trans 'Select' %}"></td>
             <td data-label="{% trans 'Process' %}">{{ r.process }}</td>
-            <td data-label="{% trans 'Records' %}">{{ r.records }}</td>
-            <td data-label="{% trans 'Quantity done' %}">{{ r.quantity }}</td>
-            <td data-label="{% trans 'Defects' %}">{{ r.defects }}</td>
-            <td data-label="{% trans 'Defect rate' %}">{{ r.rate|floatformat:1 }}%</td>
-            <td data-label="{% trans 'Steps (n)' %}">{% if r.n %}{{ r.n }}{% else %}-{% endif %}</td>
-            <td data-label="{% trans 'Average processing time' %}"><span>{{ r.processing|duration|default:"-" }}{% if 'processing' in r.hot %} <span class="badge sev-severe">{% trans "Longest" %}</span>{% endif %}</span></td>
-            <td data-label="{% trans 'Median processing time' %}">{{ r.processing_median|duration|default:"-" }}</td>
-            <td data-label="{% trans 'Average wait before' %}"><span>{{ r.wait|duration|default:"-" }}{% if 'wait' in r.hot %} <span class="badge sev-severe">{% trans "Longest" %}</span>{% endif %}</span></td>
-            <td data-label="{% trans 'Median wait before' %}">{{ r.wait_median|duration|default:"-" }}</td>
+            <td class="num" data-label="{% trans 'Records' %}">{{ r.records }}</td>
+            <td class="num" data-label="{% trans 'Quantity done' %}">{{ r.quantity }}</td>
+            <td class="num" data-label="{% trans 'Defects' %}">{{ r.defects }}</td>
+            <td class="num" data-label="{% trans 'Defect rate' %}">{{ r.rate|floatformat:1 }}%</td>
+            <td class="num" data-label="{% trans 'Steps (n)' %}">{% if r.n %}{{ r.n }}{% else %}-{% endif %}</td>
+            <td class="num" data-label="{% trans 'Average processing time' %}"><span>{{ r.processing|duration|default:"-" }}{% if 'processing' in r.hot %} <span class="badge sev-severe">{% trans "Longest" %}</span>{% endif %}</span></td>
+            <td class="num" data-label="{% trans 'Median processing time' %}">{{ r.processing_median|duration|default:"-" }}</td>
+            <td class="num" data-label="{% trans 'Average wait before' %}"><span>{{ r.wait|duration|default:"-" }}{% if 'wait' in r.hot %} <span class="badge sev-severe">{% trans "Longest" %}</span>{% endif %}</span></td>
+            <td class="num" data-label="{% trans 'Median wait before' %}">{{ r.wait_median|duration|default:"-" }}</td>
           </tr>
         {% empty %}
           <tr><td colspan="11">{% trans "No results recorded yet." %}</td></tr>
@@ -51,10 +51,10 @@
           <tr>
             <th></th>
             <th>{% trans "Total" %}</th>
-            <th data-label="{% trans 'Records' %}">{{ total.records }}</th>
-            <th data-label="{% trans 'Quantity done' %}">{{ total.quantity }}</th>
-            <th data-label="{% trans 'Defects' %}">{{ total.defects }}</th>
-            <th data-label="{% trans 'Defect rate' %}">{{ total.rate|floatformat:1 }}%</th>
+            <th class="num" data-label="{% trans 'Records' %}">{{ total.records }}</th>
+            <th class="num" data-label="{% trans 'Quantity done' %}">{{ total.quantity }}</th>
+            <th class="num" data-label="{% trans 'Defects' %}">{{ total.defects }}</th>
+            <th class="num" data-label="{% trans 'Defect rate' %}">{{ total.rate|floatformat:1 }}%</th>
             <th></th>
             <th></th>
             <th></th>
@@ -75,9 +75,9 @@
     <thead>
       <tr>
         <th>{% trans "Main cause" %}</th>
-        <th>{% trans "Defects" %}</th>
-        <th>{% trans "Share" %}</th>
-        <th>{% trans "Cumulative" %}</th>
+        <th class="num">{% trans "Defects" %}</th>
+        <th class="num">{% trans "Share" %}</th>
+        <th class="num">{% trans "Cumulative" %}</th>
         <th></th>
       </tr>
     </thead>
@@ -85,9 +85,9 @@
       {% for r in cause_rows %}
         <tr>
           <td data-label="{% trans 'Main cause' %}">{{ r.name }}</td>
-          <td data-label="{% trans 'Defects' %}">{{ r.defects }}</td>
-          <td data-label="{% trans 'Share' %}">{{ r.share|floatformat:1 }}%</td>
-          <td data-label="{% trans 'Cumulative' %}">{{ r.cumulative|floatformat:1 }}%</td>
+          <td class="num" data-label="{% trans 'Defects' %}">{{ r.defects }}</td>
+          <td class="num" data-label="{% trans 'Share' %}">{{ r.share|floatformat:1 }}%</td>
+          <td class="num" data-label="{% trans 'Cumulative' %}">{{ r.cumulative|floatformat:1 }}%</td>
           <td><a href="{{ r.url }}">{% trans "Records" context "link to the records" %}</a></td>
         </tr>
       {% empty %}

@@ -10,11 +10,11 @@
         <tr>
           <th>{% trans "Part" %}</th>
           <th>{% trans "Process" %}</th>
-          <th>{% trans "Records" %}</th>
-          <th>{% trans "Quantity done" %}</th>
-          <th>{% trans "Defects" %}</th>
-          <th>{% trans "Defect rate" %}</th>
-          {% if drill.baseline %}<th>{% trans "Rate for everyone else on the same part and process" %}</th>{% endif %}
+          <th class="num">{% trans "Records" %}</th>
+          <th class="num">{% trans "Quantity done" %}</th>
+          <th class="num">{% trans "Defects" %}</th>
+          <th class="num">{% trans "Defect rate" %}</th>
+          {% if drill.baseline %}<th class="num">{% trans "Rate for everyone else on the same part and process" %}</th>{% endif %}
         </tr>
       </thead>
       <tbody>
@@ -22,11 +22,11 @@
           <tr>
             <td data-label="{% trans 'Part' %}">{{ r.part|default:"-" }}</td>
             <td data-label="{% trans 'Process' %}">{{ r.process }}</td>
-            <td data-label="{% trans 'Records' %}">{{ r.records }}</td>
-            <td data-label="{% trans 'Quantity done' %}">{{ r.quantity }}</td>
-            <td data-label="{% trans 'Defects' %}">{{ r.defects }}</td>
-            <td data-label="{% trans 'Defect rate' %}"{% if r.few %} class="few-data" title="{% trans 'Few data' %}"{% endif %}>{{ r.rate|floatformat:1 }}%</td>
-            {% if drill.baseline %}<td data-label="{% trans 'Rate for everyone else on the same part and process' %}">{% if r.base_rate is None %}-{% else %}{{ r.base_rate|floatformat:1 }}%{% endif %}</td>{% endif %}
+            <td class="num" data-label="{% trans 'Records' %}">{{ r.records }}</td>
+            <td class="num" data-label="{% trans 'Quantity done' %}">{{ r.quantity }}</td>
+            <td class="num" data-label="{% trans 'Defects' %}">{{ r.defects }}</td>
+            <td class="num{% if r.few %} few-data{% endif %}" data-label="{% trans 'Defect rate' %}"{% if r.few %} title="{% trans 'Few data' %}"{% endif %}>{{ r.rate|floatformat:1 }}%</td>
+            {% if drill.baseline %}<td class="num" data-label="{% trans 'Rate for everyone else on the same part and process' %}">{% if r.base_rate is None %}-{% else %}{{ r.base_rate|floatformat:1 }}%{% endif %}</td>{% endif %}
           </tr>
         {% empty %}
           <tr><td colspan="7">{% trans "No results recorded yet." %}</td></tr>
@@ -57,9 +57,9 @@
           <th><a href="{{ drill.order_urls.process }}">{% trans "Process" %}</a></th>
           <th>{% trans "Machine" %}</th>
           {% if drill.planner %}<th>{% trans "Worker" %}</th>{% endif %}
-          <th><a href="{{ drill.order_urls.quantity }}">{% trans "Quantity done" %}</a></th>
-          <th><a href="{{ drill.order_urls.defects }}">{% trans "Defects" %}</a></th>
-          <th><a href="{{ drill.order_urls.rate }}">{% trans "Defect rate" %}</a></th>
+          <th class="num"><a href="{{ drill.order_urls.quantity }}">{% trans "Quantity done" %}</a></th>
+          <th class="num"><a href="{{ drill.order_urls.defects }}">{% trans "Defects" %}</a></th>
+          <th class="num"><a href="{{ drill.order_urls.rate }}">{% trans "Defect rate" %}</a></th>
           <th>{% trans "Main cause" %}</th>
           <th></th>
         </tr>
@@ -67,16 +67,16 @@
       <tbody>
         {% for r in drill.records %}
           <tr>
-            <td>{{ r.event.occurred_at|date:"Y-m-d H:i" }}</td>
+            <td class="tnum">{{ r.event.occurred_at|date:"Y-m-d H:i" }}</td>
             <td>{% if r.item %}<a href="{% url 'order_detail' r.job %}">{{ r.item.item_code }}</a>{% else %}-{% endif %}</td>
             <td>{{ r.part|default:"-" }}</td>
             <td>{{ r.customer|default:"-" }}</td>
             <td>{{ r.process }}</td>
             <td>{{ r.machine|default:"-" }}</td>
             {% if drill.planner %}<td>{{ r.worker|default:"-" }}</td>{% endif %}
-            <td>{{ r.event.quantity }}</td>
-            <td>{{ r.event.defects }}</td>
-            <td>{{ r.rate|floatformat:1 }}%</td>
+            <td class="num">{{ r.event.quantity }}</td>
+            <td class="num">{{ r.event.defects }}</td>
+            <td class="num">{{ r.rate|floatformat:1 }}%</td>
             <td>{{ r.cause|default:"-" }}</td>
             <td>{% if r.event.note %}<span class="badge">{% trans "Note" %}</span> {% endif %}{% if r.event.photo %}<span class="badge">{% trans "Photo" %}</span> {% endif %}<a href="{% url 'result_detail' r.event.pk %}">{% trans "Details" %}</a></td>
           </tr>

@@ -25,19 +25,19 @@
     <table class="table table-cards">
       <thead>
         <tr>
-          <th>{% trans "Item" %}</th>
+          <th class="tnum">{% trans "Item" %}</th>
           <th>{% trans "Part name" %}</th>
           <th>{% trans "Customer" %}</th>
-          <th>{% trans "Due date" %}</th>
+          <th class="tnum">{% trans "Due date" %}</th>
         </tr>
       </thead>
       <tbody>
         {% for row in ready %}
           <tr>
-            <td data-label="{% trans 'Item' %}"><a href="{% url 'order_detail' row.order.job_number %}">{{ row.item.item_code }}</a></td>
+            <td class="tnum" data-label="{% trans 'Item' %}"><a href="{% url 'order_detail' row.order.job_number %}">{{ row.item.item_code }}</a></td>
             <td data-label="{% trans 'Part name' %}">{{ row.item.part_name }}</td>
             <td data-label="{% trans 'Customer' %}">{{ row.order.customer }}</td>
-            <td data-label="{% trans 'Due date' %}"><span>{{ row.order.due_date|date:"Y-m-d" }}{% if row.late %} <span class="badge badge-overdue">{% trans "Overdue" %}</span>{% endif %}</span></td>
+            <td class="tnum" data-label="{% trans 'Due date' %}"><span>{{ row.order.due_date|date:"Y-m-d" }}{% if row.late %} <span class="badge badge-overdue">{% trans "Overdue" %}</span>{% endif %}</span></td>
           </tr>
         {% empty %}
           <tr><td colspan="4">{% trans "Nothing is waiting to be shipped." %}</td></tr>
@@ -66,19 +66,19 @@
     <table class="table table-cards">
       <thead>
         <tr>
-          <th>{% trans "Month" %}</th>
-          <th>{% trans "Shipped" %}</th>
-          <th>{% trans "On time" %}</th>
-          <th>{% trans "On-time rate" %}</th>
+          <th class="tnum">{% trans "Month" %}</th>
+          <th class="num">{% trans "Shipped" %}</th>
+          <th class="num">{% trans "On time" %}</th>
+          <th class="num">{% trans "On-time rate" %}</th>
         </tr>
       </thead>
       <tbody>
         {% for row in months %}
           <tr>
-            <td data-label="{% trans 'Month' %}">{{ row.month }}</td>
-            <td data-label="{% trans 'Shipped' %}">{{ row.shipped }}</td>
-            <td data-label="{% trans 'On time' %}">{{ row.on_time }}</td>
-            <td data-label="{% trans 'On-time rate' %}">{{ row.rate }}%</td>
+            <td class="tnum" data-label="{% trans 'Month' %}">{{ row.month }}</td>
+            <td class="num" data-label="{% trans 'Shipped' %}">{{ row.shipped }}</td>
+            <td class="num" data-label="{% trans 'On time' %}">{{ row.on_time }}</td>
+            <td class="num" data-label="{% trans 'On-time rate' %}">{{ row.rate }}%</td>
           </tr>
         {% empty %}
           <tr><td colspan="4">{% trans "Nothing has been shipped yet." %}</td></tr>

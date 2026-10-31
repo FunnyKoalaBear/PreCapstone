@@ -13,11 +13,11 @@
               <th>{% trans "Process" %}</th>
               <th>{% trans "Status" %}</th>
               <th>{% trans "Planned due" %}</th>
-              <th>{% trans "Plan / actual (days)" %}</th>
+              <th class="num">{% trans "Plan / actual (days)" %}</th>
               <th>{% trans "Started" %}</th>
               <th>{% trans "Finished" %}</th>
-              <th>{% trans "Time spent" %}</th>
-              <th>{% trans "Waited before" %}</th>
+              <th class="num">{% trans "Time spent" %}</th>
+              <th class="num">{% trans "Waited before" %}</th>
             </tr>
           </thead>
           <tbody>
@@ -25,12 +25,12 @@
               <tr>
                 <td>{{ s.row.step.process }}{% if s.row.step.vendor_label %} <small>{{ s.row.step.vendor_label }}</small>{% endif %}</td>
                 <td><span class="badge badge-{{ s.badge }}">{{ s.label }}</span>{% if s.row.partial and s.row.state != "done" %} <span class="badge badge-partial">{% trans "Partial" %}</span>{% endif %}{% if s.late_days %} <span class="badge badge-overdue">{% blocktrans count counter=s.late_days %}Late by {{ counter }} day{% plural %}Late by {{ counter }} days{% endblocktrans %}</span>{% endif %}</td>
-                <td>{{ s.row.step.due_date|date:"Y-m-d"|default:"-" }}{% if s.row.step.slip_number %} <small>{% blocktrans with n=s.row.step.slip_number %}slip {{ n }}{% endblocktrans %}</small>{% endif %}</td>
-                <td>{% if s.plan.planned is not None %}{{ s.plan.planned }} / {{ s.plan.actual|default_if_none:"-" }}{% if s.plan.diff is not None and s.plan.diff > 0 %} <span class="badge badge-overdue">+{{ s.plan.diff }}</span>{% endif %}{% else %}-{% endif %}</td>
-                <td>{{ s.row.started_at|date:"Y-m-d H:i"|default:"-" }}</td>
-                <td>{{ s.row.finished_at|date:"Y-m-d H:i"|default:"-" }}</td>
-                <td>{% if s.duration %}{{ s.duration|duration }}{% if s.running %} {% trans "so far" %}{% endif %}{% else %}-{% endif %}</td>
-                <td>{% if s.wait_before %}{{ s.wait_before|duration }}{% else %}-{% endif %}</td>
+                <td class="tnum">{{ s.row.step.due_date|date:"Y-m-d"|default:"-" }}{% if s.row.step.slip_number %} <small>{% blocktrans with n=s.row.step.slip_number %}slip {{ n }}{% endblocktrans %}</small>{% endif %}</td>
+                <td class="num">{% if s.plan.planned is not None %}{{ s.plan.planned }} / {{ s.plan.actual|default_if_none:"-" }}{% if s.plan.diff is not None and s.plan.diff > 0 %} <span class="badge badge-overdue">+{{ s.plan.diff }}</span>{% endif %}{% else %}-{% endif %}</td>
+                <td class="tnum">{{ s.row.started_at|date:"Y-m-d H:i"|default:"-" }}</td>
+                <td class="tnum">{{ s.row.finished_at|date:"Y-m-d H:i"|default:"-" }}</td>
+                <td class="num">{% if s.duration %}{{ s.duration|duration }}{% if s.running %} {% trans "so far" %}{% endif %}{% else %}-{% endif %}</td>
+                <td class="num">{% if s.wait_before %}{{ s.wait_before|duration }}{% else %}-{% endif %}</td>
               </tr>
             {% endfor %}
           </tbody>
@@ -91,7 +91,7 @@
           <tbody>
             {% for e in b.events %}
               <tr{% if e.voided_by %} class="event-voided"{% endif %}>
-                <td>{{ e.occurred_at|date:"Y-m-d H:i:s" }}</td>
+                <td class="tnum">{{ e.occurred_at|date:"Y-m-d H:i:s" }}</td>
                 <td>{{ e.get_event_type_display }}
                   {% if e.is_manual %}<span class="badge badge-manual">{% trans "Manual" %}</span>{% endif %}
                   {% if e.voided_by %}<span class="badge badge-voided">{% trans "Voided" %}</span>{% endif %}

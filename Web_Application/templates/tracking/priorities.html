@@ -34,11 +34,11 @@
             <th>{% trans "Item" %}</th>
             <th>{% trans "Part" %}</th>
             <th>{% trans "Customer" %}</th>
-            <th>{% trans "Due date" %}</th>
-            <th>{% trans "Days left" %}</th>
-            <th>{% trans "Slack" %}</th>
+            <th class="tnum">{% trans "Due date" %}</th>
+            <th class="num">{% trans "Days left" %}</th>
+            <th class="num">{% trans "Slack" %}</th>
             <th>{% trans "Current process" %}</th>
-            <th>{% trans "Idle for" %}</th>
+            <th class="num">{% trans "Idle for" %}</th>
             <th>{% trans "Risk" %}</th>
             <th>{% trans "Reasons" %}</th>
           </tr>
@@ -49,11 +49,11 @@
               <td><a href="{% url 'order_detail' r.item.order.job_number %}">{% include "includes/item_box.html" with item=r.item caption=r.caption %}</a></td>
               <td>{{ r.item.part_name }}</td>
               <td>{{ r.item.order.customer }}</td>
-              <td>{{ r.item.order.due_date|date:"Y-m-d" }}</td>
-              <td>{{ r.days_left }}</td>
-              <td>{{ r.slack }}</td>
+              <td class="tnum">{{ r.item.order.due_date|date:"Y-m-d" }}</td>
+              <td class="num">{{ r.days_left }}</td>
+              <td class="num">{{ r.slack }}</td>
               <td>{{ r.process|default:"-" }}</td>
-              <td>{% if r.idle %}{{ r.idle|duration }}{% else %}-{% endif %}</td>
+              <td class="num">{% if r.idle %}{{ r.idle|duration }}{% else %}-{% endif %}</td>
               <td><span class="badge badge-risk-{{ r.tier|lower }}">{{ r.label }}</span></td>
               <td><ul class="reasons">{% for t in r.reasons %}<li>{{ t }}</li>{% endfor %}</ul></td>
             </tr>

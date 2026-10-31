@@ -18,12 +18,12 @@
         <tr>
           <th></th>
           <th>{% trans "Process" %}</th>
-          <th>{% trans "Steps" %}</th>
-          <th>{% trans "Average planned (days)" %}</th>
-          <th>{% trans "Average actual (days)" %}</th>
-          <th>{% trans "Median actual (days)" %}</th>
-          <th>{% trans "Average difference (days)" %}</th>
-          <th>{% trans "Overrun" %}</th>
+          <th class="num">{% trans "Steps" %}</th>
+          <th class="num">{% trans "Average planned (days)" %}</th>
+          <th class="num">{% trans "Average actual (days)" %}</th>
+          <th class="num">{% trans "Median actual (days)" %}</th>
+          <th class="num">{% trans "Average difference (days)" %}</th>
+          <th class="num">{% trans "Overrun" %}</th>
         </tr>
       </thead>
       <tbody>
@@ -31,12 +31,12 @@
           <tr{% if r.severity == 'severe' %} class="hot"{% endif %}>
             <td data-label="{% trans 'Select' %}"><input type="checkbox" name="sel" value="{{ r.pk }}"{% if r.pk in sel %} checked{% endif %} aria-label="{% trans 'Select' %}"></td>
             <td data-label="{% trans 'Process' %}">{{ r.process }}</td>
-            <td data-label="{% trans 'Steps' %}">{{ r.n }}</td>
-            <td data-label="{% trans 'Average planned (days)' %}">{{ r.planned|floatformat:1 }}</td>
-            <td data-label="{% trans 'Average actual (days)' %}">{{ r.actual|floatformat:1 }}</td>
-            <td data-label="{% trans 'Median actual (days)' %}">{{ r.median_actual|floatformat:1 }}</td>
-            <td data-label="{% trans 'Average difference (days)' %}">{% if r.diff > 0 %}<span class="badge badge-overdue">+{{ r.diff|floatformat:1 }}</span>{% else %}{{ r.diff|floatformat:1 }}{% endif %}</td>
-            <td data-label="{% trans 'Overrun' %}">{% if r.pct is None %}-{% elif r.severity %}<span class="badge sev-{{ r.severity }}">{{ r.pct|floatformat:0 }}% &middot; {% if r.severity == 'severe' %}{% trans "Severe" %}{% elif r.severity == 'major' %}{% trans "Major" %}{% else %}{% trans "Minor" %}{% endif %}</span>{% else %}{{ r.pct|floatformat:0 }}%{% endif %}</td>
+            <td class="num" data-label="{% trans 'Steps' %}">{{ r.n }}</td>
+            <td class="num" data-label="{% trans 'Average planned (days)' %}">{{ r.planned|floatformat:1 }}</td>
+            <td class="num" data-label="{% trans 'Average actual (days)' %}">{{ r.actual|floatformat:1 }}</td>
+            <td class="num" data-label="{% trans 'Median actual (days)' %}">{{ r.median_actual|floatformat:1 }}</td>
+            <td class="num" data-label="{% trans 'Average difference (days)' %}">{% if r.diff > 0 %}<span class="badge badge-overdue">+{{ r.diff|floatformat:1 }}</span>{% else %}{{ r.diff|floatformat:1 }}{% endif %}</td>
+            <td class="num" data-label="{% trans 'Overrun' %}">{% if r.pct is None %}-{% elif r.severity %}<span class="badge sev-{{ r.severity }}">{{ r.pct|floatformat:0 }}% &middot; {% if r.severity == 'severe' %}{% trans "Severe" %}{% elif r.severity == 'major' %}{% trans "Major" %}{% else %}{% trans "Minor" %}{% endif %}</span>{% else %}{{ r.pct|floatformat:0 }}%{% endif %}</td>
           </tr>
         {% empty %}
           <tr><td colspan="8">{% trans "No finished steps with a due date yet." %}</td></tr>
@@ -54,22 +54,22 @@
     <thead>
       <tr>
         <th>{% trans "Vendor" %}</th>
-        <th>{% trans "Steps" %}</th>
-        <th>{% trans "Average planned (days)" %}</th>
-        <th>{% trans "Average actual (days)" %}</th>
-        <th>{% trans "Median actual (days)" %}</th>
-        <th>{% trans "Overrun" %}</th>
+        <th class="num">{% trans "Steps" %}</th>
+        <th class="num">{% trans "Average planned (days)" %}</th>
+        <th class="num">{% trans "Average actual (days)" %}</th>
+        <th class="num">{% trans "Median actual (days)" %}</th>
+        <th class="num">{% trans "Overrun" %}</th>
       </tr>
     </thead>
     <tbody>
       {% for r in vendor_rows %}
         <tr{% if r.severity == 'severe' %} class="hot"{% endif %}>
           <td data-label="{% trans 'Vendor' %}">{{ r.vendor }}</td>
-          <td data-label="{% trans 'Steps' %}">{{ r.n }}</td>
-          <td data-label="{% trans 'Average planned (days)' %}">{{ r.planned|floatformat:1 }}</td>
-          <td data-label="{% trans 'Average actual (days)' %}">{{ r.actual|floatformat:1 }}</td>
-          <td data-label="{% trans 'Median actual (days)' %}">{{ r.median_actual|floatformat:1 }}</td>
-          <td data-label="{% trans 'Overrun' %}">{% if r.pct is None %}-{% elif r.severity %}<span class="badge sev-{{ r.severity }}">{{ r.pct|floatformat:0 }}%</span>{% else %}{{ r.pct|floatformat:0 }}%{% endif %}</td>
+          <td class="num" data-label="{% trans 'Steps' %}">{{ r.n }}</td>
+          <td class="num" data-label="{% trans 'Average planned (days)' %}">{{ r.planned|floatformat:1 }}</td>
+          <td class="num" data-label="{% trans 'Average actual (days)' %}">{{ r.actual|floatformat:1 }}</td>
+          <td class="num" data-label="{% trans 'Median actual (days)' %}">{{ r.median_actual|floatformat:1 }}</td>
+          <td class="num" data-label="{% trans 'Overrun' %}">{% if r.pct is None %}-{% elif r.severity %}<span class="badge sev-{{ r.severity }}">{{ r.pct|floatformat:0 }}%</span>{% else %}{{ r.pct|floatformat:0 }}%{% endif %}</td>
         </tr>
       {% empty %}
         <tr><td colspan="6">{% trans "No finished steps with a due date yet." %}</td></tr>
