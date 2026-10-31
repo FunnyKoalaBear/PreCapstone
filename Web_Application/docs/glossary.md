@@ -379,3 +379,18 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | Minimum pieces for a rate | 不良率を出す最小数量 |
 | Default: N | 標準: N |
 | Reset to defaults | 標準に戻す |
+
+## Terms added for the sidebar and theme
+
+| English | Japanese |
+|---|---|
+| Work (sidebar group) | 作業 ? |
+| Review (sidebar group) | 確認 ? |
+| Manage (sidebar group) | 管理 |
+| Developer (sidebar group) | 開発者 |
+| Sidebar | サイドバー |
+| Collapse sidebar | サイドバーを閉じる |
+| Pin sidebar | サイドバーを固定 |
+| Main menu | メインメニュー |
+| Theme | テーマ |
+| Auto / Light / Dark | 自動 / ライト / ダーク |

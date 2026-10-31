@@ -2,9 +2,9 @@
 {% if request.user.is_authenticated %}
 <form action="{% url 'logout' %}" method="post" class="account">
   {% csrf_token %}
-  <span>{{ request.user.get_username }}</span>
-  <a href="{% url 'password_change' %}">{% trans "Change password" %}</a>
-  <button type="submit">{% trans "Log out" %}</button>
+  <span class="account-name" title="{{ request.user.get_username }}">{{ request.user.get_username }}</span>
+  <a class="nav-item" href="{% url 'password_change' %}" title="{% trans 'Change password' %}" aria-label="{% trans 'Change password' %}">{% include "includes/icon.html" with name="key" %}<span class="nav-label">{% trans "Change password" %}</span></a>
+  <button type="submit" class="nav-item" title="{% trans 'Log out' %}" aria-label="{% trans 'Log out' %}">{% include "includes/icon.html" with name="logout" %}<span class="nav-label">{% trans "Log out" %}</span></button>
 </form>
 {% else %}
 <a class="account" href="{% url 'login' %}">{% trans "Log in" %}</a>

@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Factory Tracker\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-01 01:55+0900\n"
+"POT-Creation-Date: 2026-11-01 02:25+0900\n"
 "PO-Revision-Date: 2026-10-11 17:00+0900\n"
 "Last-Translator: Claude\n"
 "Language-Team: Japanese\n"
@@ -28,6 +28,84 @@ msgstr "自分自身の権限の変更や無効化はできません。"
 msgid "The last active Planner cannot be deactivated or demoted."
 msgstr ""
 "有効な計画担当が最後の1人のときは、無効化や権限の引き下げはできません。"
+
+# CHECK: group label of the sidebar
+#: .\core\context_processors.py:8
+msgid "Work"
+msgstr "作業"
+
+#: .\core\context_processors.py:9 .\templates\403.html:9
+#: .\templates\base.html:26 .\templates\base.html:30 .\templates\base.html:40
+#: .\templates\core\home.html:4 .\templates\core\home.html:7
+msgid "Home"
+msgstr "ホーム"
+
+#: .\core\context_processors.py:10 .\orders\views.py:247
+#: .\templates\orders\customer_detail.html:16 .\templates\orders\hub.html:4
+#: .\templates\orders\hub.html:7
+msgid "Orders"
+msgstr "受注一覧"
+
+#: .\core\context_processors.py:13 .\templates\tracking\priorities.html:4
+#: .\templates\tracking\priorities.html:7
+msgid "Priorities"
+msgstr "優先度"
+
+# CHECK: group label of the sidebar
+#: .\core\context_processors.py:15
+msgid "Review"
+msgstr "確認"
+
+#: .\core\context_processors.py:16 .\templates\tracking\analysis.html:4
+#: .\templates\tracking\analysis.html:7
+msgid "Analysis"
+msgstr "分析"
+
+#: .\core\context_processors.py:18 .\templates\tracking\shipping.html:4
+#: .\templates\tracking\shipping.html:7
+msgid "Shipping"
+msgstr "出荷"
+
+#: .\core\context_processors.py:19 .\templates\core\dashboard.html:4
+#: .\templates\core\dashboard.html:7
+msgid "Dashboard"
+msgstr "ダッシュボード"
+
+#: .\core\context_processors.py:21
+msgid "Manage"
+msgstr "管理"
+
+# CHECK: 得意先 is marked unsure in the glossary (alternative: 顧客)
+#: .\core\context_processors.py:22 .\templates\orders\customer_list.html:4
+#: .\templates\orders\customer_list.html:7
+msgid "Customers"
+msgstr "得意先"
+
+#: .\core\context_processors.py:23 .\templates\includes\tag_tabs.html:3
+#: .\templates\tracking\tag_manage.html:4
+#: .\templates\tracking\tag_manage.html:7
+msgid "Tags"
+msgstr "タグ管理"
+
+#: .\core\context_processors.py:25 .\templates\core\user_form.html:4
+#: .\templates\core\user_form.html:7 .\templates\core\user_list.html:4
+#: .\templates\core\user_list.html:7
+msgid "Users"
+msgstr "ユーザー"
+
+#: .\core\context_processors.py:26 .\templates\tracking\settings.html:4
+#: .\templates\tracking\settings.html:7
+msgid "Settings"
+msgstr "設定"
+
+#: .\core\context_processors.py:28
+msgid "Developer"
+msgstr "開発者"
+
+#: .\core\context_processors.py:29 .\templates\tracking\simulate.html:4
+#: .\templates\tracking\simulate.html:7
+msgid "Simulate scan"
+msgstr "スキャンのシミュレーション"
 
 # CHECK: Operator role; same word as Worker
 #: .\core\forms.py:9
@@ -860,12 +938,6 @@ msgstr "コード %(code)s を更新しました。"
 msgid "Code %(code)s added."
 msgstr "コード %(code)s を追加しました。"
 
-#: .\orders\views.py:247 .\templates\base.html:26
-#: .\templates\orders\customer_detail.html:16 .\templates\orders\hub.html:4
-#: .\templates\orders\hub.html:7
-msgid "Orders"
-msgstr "受注一覧"
-
 #: .\orders\views.py:247 .\templates\orders\order_form.html:4
 #: .\templates\orders\order_form.html:11
 msgid "New order"
@@ -888,11 +960,12 @@ msgid "Access denied"
 msgstr "アクセスできません"
 
 # CHECK: glossary marks 工程進捗管理 as unsure (product name)
-#: .\templates\403.html:4 .\templates\base.html:6 .\templates\base.html:22
-#: .\templates\base.html:49 .\templates\core\dashboard.html:4
-#: .\templates\core\home.html:4 .\templates\core\user_form.html:4
-#: .\templates\core\user_list.html:4 .\templates\core\user_password.html:4
-#: .\templates\core\user_reset.html:4 .\templates\orders\customer_detail.html:4
+#: .\templates\403.html:4 .\templates\base.html:6 .\templates\base.html:26
+#: .\templates\base.html:30 .\templates\base.html:40 .\templates\base.html:70
+#: .\templates\core\dashboard.html:4 .\templates\core\home.html:4
+#: .\templates\core\user_form.html:4 .\templates\core\user_list.html:4
+#: .\templates\core\user_password.html:4 .\templates\core\user_reset.html:4
+#: .\templates\orders\customer_detail.html:4
 #: .\templates\orders\customer_edit.html:4
 #: .\templates\orders\customer_list.html:4 .\templates\orders\hub.html:4
 #: .\templates\orders\order_detail.html:4 .\templates\orders\order_form.html:4
@@ -916,11 +989,6 @@ msgstr "工程進捗管理"
 msgid "Your account does not have the role needed for this page."
 msgstr "このページを表示するために必要な権限がありません。"
 
-#: .\templates\403.html:9 .\templates\base.html:25 .\templates\core\home.html:4
-#: .\templates\core\home.html:7
-msgid "Home"
-msgstr "ホーム"
-
 #: .\templates\admin\base_site.html:4
 msgid "Django site admin"
 msgstr "Django サイト管理"
@@ -929,73 +997,25 @@ msgstr "Django サイト管理"
 msgid "Django administration"
 msgstr "Django 管理サイト"
 
-#: .\templates\base.html:23
+#: .\templates\base.html:25
 msgid "Menu"
 msgstr "メニュー"
 
-# CHECK: 得意先 is marked unsure in the glossary (alternative: 顧客)
-#: .\templates\base.html:27 .\templates\orders\customer_list.html:4
-#: .\templates\orders\customer_list.html:7
-msgid "Customers"
-msgstr "得意先"
-
-#: .\templates\base.html:28 .\templates\tracking\analysis.html:4
-#: .\templates\tracking\analysis.html:7
-msgid "Analysis"
-msgstr "分析"
-
-#: .\templates\base.html:29 .\templates\tracking\shipping.html:4
-#: .\templates\tracking\shipping.html:7
-msgid "Shipping"
-msgstr "出荷"
-
-#: .\templates\base.html:30 .\templates\tracking\priorities.html:4
-#: .\templates\tracking\priorities.html:7
-msgid "Priorities"
-msgstr "優先度"
-
-#: .\templates\base.html:31 .\templates\core\user_form.html:4
-#: .\templates\core\user_form.html:7 .\templates\core\user_list.html:4
-#: .\templates\core\user_list.html:7
-msgid "Users"
-msgstr "ユーザー"
-
-#: .\templates\base.html:32 .\templates\tracking\settings.html:4
-#: .\templates\tracking\settings.html:7
-msgid "Settings"
-msgstr "設定"
-
-#: .\templates\base.html:33 .\templates\includes\tag_tabs.html:3
-#: .\templates\tracking\tag_manage.html:4
-#: .\templates\tracking\tag_manage.html:7
-msgid "Tags"
-msgstr "タグ管理"
-
-#: .\templates\base.html:34 .\templates\core\dashboard.html:4
-#: .\templates\core\dashboard.html:7
-msgid "Dashboard"
-msgstr "ダッシュボード"
-
-#: .\templates\base.html:35 .\templates\tracking\simulate.html:4
-#: .\templates\tracking\simulate.html:7
-msgid "Simulate scan"
-msgstr "スキャンのシミュレーション"
-
 #: .\templates\base.html:38
-msgid "Theme"
-msgstr "テーマ"
+msgid "Sidebar"
+msgstr "サイドバー"
 
-#: .\templates\base.html:38
-msgid "Auto"
-msgstr "自動"
+#: .\templates\base.html:41
+msgid "Collapse sidebar"
+msgstr "サイドバーを閉じる"
 
-#: .\templates\base.html:38
-msgid "Light"
-msgstr "ライト"
+#: .\templates\base.html:41
+msgid "Pin sidebar"
+msgstr "サイドバーを固定"
 
-#: .\templates\base.html:38
-msgid "Dark"
-msgstr "ダーク"
+#: .\templates\base.html:43
+msgid "Main menu"
+msgstr "メインメニュー"
 
 #: .\templates\core\dashboard.html:10
 msgid "Users per role"
@@ -1263,6 +1283,23 @@ msgstr "タグの紐付け履歴"
 #: .\templates\tracking\device_list.html:7
 msgid "Devices"
 msgstr "読取端末"
+
+#: .\templates\includes\theme_toggle.html:2
+msgid "Theme"
+msgstr "テーマ"
+
+#: .\templates\includes\theme_toggle.html:2
+#: .\templates\includes\theme_toggle.html:4
+msgid "Auto"
+msgstr "自動"
+
+#: .\templates\includes\theme_toggle.html:2
+msgid "Light"
+msgstr "ライト"
+
+#: .\templates\includes\theme_toggle.html:2
+msgid "Dark"
+msgstr "ダーク"
 
 #: .\templates\orders\_box_detail.html:16
 msgid "Plan / actual (days)"

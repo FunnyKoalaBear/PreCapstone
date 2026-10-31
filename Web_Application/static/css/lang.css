@@ -2,3 +2,5 @@
 .lang-switch button { padding: 0.25rem 0.75rem; border: 0; background: transparent; color: var(--color-primary); font: inherit; cursor: pointer; }
 .lang-switch button:hover, .lang-switch button:focus-visible { background: var(--color-hover); }
 .lang-switch button.active { background: var(--color-primary); color: var(--color-on-primary); cursor: default; font-weight: 700; }
+#sidebar .lang-switch { margin: 0; align-self: flex-start; }
+.nav-item.lang-compact { display: none; }

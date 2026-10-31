@@ -100,16 +100,30 @@
 }
 
 /* Responsive layout. The breakpoints live only here: 768px (tablet) and 480px (phone). */
+
+/* Desktop (above 768px): the collapsed sidebar is a 3.5rem icon rail that opens over the content while hovered or keyboard-focused */
+@media (min-width: 48.0625em) { /* 769px */
+  html[data-sidebar="collapsed"] #sidebar { width: var(--sidebar-rail); transition: width 150ms ease 200ms; }
+  html[data-sidebar="collapsed"] #sidebar:is(:hover, :has(:focus-visible)) { width: var(--sidebar-open); transition-delay: 0s; box-shadow: var(--frozen-shadow); }
+  html[data-sidebar="collapsed"] .app.has-sidebar .app-main { margin-left: var(--sidebar-rail); }
+  html[data-sidebar="collapsed"] #sidebar:not(:hover):not(:has(:focus-visible)) .nav-group-label { opacity: 0; }
+  html[data-sidebar="collapsed"] #sidebar:not(:hover):not(:has(:focus-visible)) .lang-switch { border: 0; background: transparent; }
+  html[data-sidebar="collapsed"] #sidebar:not(:hover):not(:has(:focus-visible)) .lang-switch button:not(.lang-compact) { display: none; }
+  html[data-sidebar="collapsed"] #sidebar:not(:hover):not(:has(:focus-visible)) .nav-item.lang-compact { display: flex; }
+}
+
 @media (max-width: 768px) {
-  .site-header { padding: 0.75rem 1rem; }
   .site-main { padding: 1rem; }
+
+  /* The sidebar becomes a drawer opened by the menu button; without JavaScript it stays in view */
+  html .site-header.mobile-bar { display: flex; padding: 0.5rem 1rem; }
+  html .app.has-sidebar .app-main { margin-left: 0; }
+  .js #sidebar { visibility: hidden; transform: translateX(-100%); z-index: 30; transition: transform 150ms ease, visibility 0s linear 150ms; }
+  .js.drawer-open #sidebar { visibility: visible; transform: none; box-shadow: var(--frozen-shadow); transition-delay: 0s; }
+  .js.drawer-open .sidebar-backdrop { display: block; position: fixed; inset: 0; z-index: 25; background: var(--color-overlay); }
+  html.js #sidebar .sidebar-toggle { display: none; }
   .gantt-row { grid-template-columns: 1fr; gap: 0.15rem; }
   .gantt-axis .gantt-name { display: none; }
-
-  /* The menu collapses behind a button (only when JavaScript runs, so the links stay reachable without it) */
-  .site-header .nav-toggle { display: inline-block; }
-  .js .site-nav { display: none; }
-  .js .site-nav.is-open { display: flex; flex-direction: column; flex-basis: 100%; }
 
   /* Tables marked table-cards turn into one card per row; the cell labels come from data-label */
   .table-cards thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
@@ -126,5 +140,10 @@
   .filters > div, .filters input[type="search"], .filters select { width: 100%; }
 }
 
-/* Temporary password page: print only the password */
-@media print { .site-header, .site-footer, .no-print, .messages { display: none; } }
+@media (prefers-reduced-motion: reduce) { #sidebar { transition: none !important; } }
+
+/* Printing: no sidebar or bars (the temporary password page prints only the password) */
+@media print {
+  .site-header, #sidebar, .sidebar-backdrop, .site-footer, .no-print, .messages { display: none; }
+  html .app.has-sidebar .app-main { margin-left: 0; }
+}

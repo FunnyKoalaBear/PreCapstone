@@ -1,0 +1,5 @@
+{% load i18n %}
+<button type="button" class="theme-toggle{% if side %} nav-item{% endif %}" data-theme-toggle data-mode="auto" data-label="{% trans 'Theme' %}" data-auto="{% trans 'Auto' %}" data-light="{% trans 'Light' %}" data-dark="{% trans 'Dark' %}">
+  <span class="theme-icon theme-icon-auto">{% include "includes/icon.html" with name="auto" %}</span><span class="theme-icon theme-icon-light">{% include "includes/icon.html" with name="sun" %}</span><span class="theme-icon theme-icon-dark">{% include "includes/icon.html" with name="moon" %}</span>
+  <span class="nav-label" data-theme-text>{% trans "Auto" %}</span>
+</button>

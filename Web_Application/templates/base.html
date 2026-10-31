@@ -6,48 +6,71 @@
   <title>{% block title %}{% trans "Factory Tracker" %}{% endblock %}</title>
   <script>
     (function () {
-      var m = 'auto';
-      try { m = localStorage.getItem('theme') || 'auto'; } catch (e) {}
+      var root = document.documentElement, m = 'auto', s = null;
+      try { m = localStorage.getItem('theme') || 'auto'; s = localStorage.getItem('sidebar'); } catch (e) {}
       if (m !== 'light' && m !== 'dark') m = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-      document.documentElement.dataset.theme = m;
+      root.dataset.theme = m;
+      if (s !== 'pinned' && s !== 'collapsed') s = window.innerWidth >= 1280 ? 'pinned' : 'collapsed';
+      root.dataset.sidebar = s;
+      root.classList.add('js');
     })();
   </script>
   <link rel="stylesheet" href="{% static 'css/theme.css' %}">
   <link rel="stylesheet" href="{% static 'css/base.css' %}">
   <link rel="stylesheet" href="{% static 'css/lang.css' %}">
-  <script>document.documentElement.classList.add('js')</script>
 </head>
 <body>
+  {% if request.user.is_authenticated %}
+  <header class="site-header mobile-bar">
+    <button type="button" class="hamburger" aria-controls="sidebar" aria-expanded="false" aria-label="{% trans 'Menu' %}">{% include "includes/icon.html" with name="menu" %}</button>
+    <a class="brand" href="{% url 'home' %}" aria-label="{% trans 'Home' %}" title="{% trans 'Home' %}">{% include "includes/icon.html" with name="logo" %}<span>{% trans "Factory Tracker" %}</span></a>
+  </header>
+  {% else %}
   <header class="site-header">
-    <span class="brand">{% trans "Factory Tracker" %}</span>
-    <button type="button" class="nav-toggle" aria-controls="site-nav" aria-expanded="false" aria-label="{% trans 'Menu' %}">&#9776;</button>
-    <nav class="site-nav" id="site-nav">
-      <a href="{% url 'home' %}">{% trans "Home" %}</a>
-      {% if can.operator %}<a href="{% url 'order_list' %}">{% trans "Orders" %}</a>{% endif %}
-      {% if can.planner %}<a href="{% url 'customer_list' %}">{% trans "Customers" %}</a>{% endif %}
-      {% if can.operator %}<a href="{% url 'analysis' %}">{% trans "Analysis" %}</a>{% endif %}
-      {% if can.planner %}<a href="{% url 'shipping' %}">{% trans "Shipping" %}</a>{% endif %}
-      {% if can.operator %}<a href="{% url 'priorities' %}">{% trans "Priorities" %}</a>{% endif %}
-      {% if can.planner %}<a href="{% url 'user_list' %}">{% trans "Users" %}</a>{% endif %}
-      {% if can.planner %}<a href="{% url 'settings' %}">{% trans "Settings" %}</a>{% endif %}
-      {% if can.planner %}<a href="{% url 'tag_manage' %}">{% trans "Tags" %}</a>{% endif %}
-      {% if can.planner %}<a href="{% url 'dashboard' %}">{% trans "Dashboard" %}</a>{% endif %}
-      {% if can.admin %}<a href="{% url 'simulate' %}">{% trans "Simulate scan" %}</a>{% endif %}
-    </nav>
+    <a class="brand" href="{% url 'home' %}" aria-label="{% trans 'Home' %}" title="{% trans 'Home' %}">{% include "includes/icon.html" with name="logo" %}<span>{% trans "Factory Tracker" %}</span></a>
     {% include "includes/account.html" %}
-    <button type="button" class="theme-toggle" data-theme-toggle data-label="{% trans 'Theme' %}" data-auto="{% trans 'Auto' %}" data-light="{% trans 'Light' %}" data-dark="{% trans 'Dark' %}">{% trans "Auto" %}</button>
+    {% include "includes/theme_toggle.html" %}
     {% include "includes/language_switch.html" %}
   </header>
-  <main class="site-main">
-    {% if messages %}
-      <ul class="messages">
-        {% for message in messages %}<li class="message {{ message.tags }}">{{ message }}</li>{% endfor %}
-      </ul>
+  {% endif %}
+  <div class="app{% if request.user.is_authenticated %} has-sidebar{% endif %}">
+    {% if request.user.is_authenticated %}
+    <aside id="sidebar" aria-label="{% trans 'Sidebar' %}">
+      <div class="sidebar-top">
+        <a class="brand" href="{% url 'home' %}" aria-label="{% trans 'Home' %}" title="{% trans 'Home' %}">{% include "includes/icon.html" with name="logo" %}<span class="nav-label">{% trans "Factory Tracker" %}</span></a>
+        <button type="button" class="nav-item sidebar-toggle" aria-pressed="true" aria-label="{% trans 'Collapse sidebar' %}" title="{% trans 'Collapse sidebar' %}" data-pin="{% trans 'Pin sidebar' %}" data-collapse="{% trans 'Collapse sidebar' %}">{% include "includes/icon.html" with name="panel-toggle" %}<span class="nav-label">{% trans "Collapse sidebar" %}</span></button>
+      </div>
+      <nav id="site-nav" aria-label="{% trans 'Main menu' %}">
+        {% for group in nav %}
+        <div class="nav-group">
+          <div class="nav-group-label">{{ group.label }}</div>
+          {% for item in group.items %}
+          <a class="nav-item" href="{{ item.url }}" title="{{ item.label }}" aria-label="{{ item.label }}"{% if item.active %} aria-current="page"{% endif %}>{% include "includes/icon.html" with name=item.icon %}<span class="nav-label">{{ item.label }}</span></a>
+          {% endfor %}
+        </div>
+        {% endfor %}
+      </nav>
+      <div class="sidebar-bottom">
+        {% include "includes/language_switch.html" with compact=True %}
+        {% include "includes/theme_toggle.html" with side=True %}
+        {% include "includes/account.html" %}
+      </div>
+    </aside>
+    <div class="sidebar-backdrop"></div>
     {% endif %}
-    {% block content %}{% endblock %}
-  </main>
-  <footer class="site-footer">{% trans "Factory Tracker" %}</footer>
+    <div class="app-main">
+      <main class="site-main">
+        {% if messages %}
+          <ul class="messages">
+            {% for message in messages %}<li class="message {{ message.tags }}">{{ message }}</li>{% endfor %}
+          </ul>
+        {% endif %}
+        {% block content %}{% endblock %}
+      </main>
+      <footer class="site-footer">{% trans "Factory Tracker" %}</footer>
+    </div>
+  </div>
   <script src="{% static 'js/theme.js' %}"></script>
-  <script src="{% static 'js/nav.js' %}"></script>
+  <script src="{% static 'js/sidebar.js' %}"></script>
 </body>
 </html>

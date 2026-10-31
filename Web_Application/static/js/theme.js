@@ -27,17 +27,18 @@
   window.addEventListener('beforeprint', () => { printing = true; apply(); });
   window.addEventListener('afterprint', () => { printing = false; apply(); });
 
-  // Temporary header button: cycles Auto, Light, Dark
+  // Temporary buttons (U3 moves them into the account menu): cycle Auto, Light, Dark
   document.addEventListener('DOMContentLoaded', () => {
-    const button = document.querySelector('[data-theme-toggle]');
-    if (!button) return;
+    const buttons = document.querySelectorAll('[data-theme-toggle]');
     const order = ['auto', 'light', 'dark'];
-    const show = () => {
+    const show = () => buttons.forEach((button) => {
       const name = button.dataset[mode];
-      button.textContent = name;
+      button.dataset.mode = mode;
+      button.querySelector('[data-theme-text]').textContent = name;
       button.setAttribute('aria-label', `${button.dataset.label}: ${name}`);
-    };
-    button.addEventListener('click', () => window.FT.setTheme(order[(order.indexOf(mode) + 1) % 3]));
+      button.title = `${button.dataset.label}: ${name}`;
+    });
+    buttons.forEach((button) => button.addEventListener('click', () => window.FT.setTheme(order[(order.indexOf(mode) + 1) % 3])));
     document.addEventListener('themechange', show);
     show();
   });

@@ -12,33 +12,6 @@ Order matters. [ ] todo, [!] blocked. Finished entries are deleted; git history 
 - Every new string gets Japanese per docs/glossary.md. Update docs/manual_ja.md where a page or control changes.
 - Demo data: nothing new is needed; use the existing demo data to check every page.
 
-### [ ] U2 Sidebar shell with always-available Home
-Why: the header has 11 links that wrap onto two rows, shows no current page, and has no constant way home. A sidebar with icons scales as pages are added.
-What: for logged-in users replace the top header with a left sidebar.
-- Layout: `<aside id="sidebar">` plus `.app-main` (messages, main, footer). A slim top bar is used only for logged-out pages (brand, language switch, theme button) and at 768px and below (hamburger and brand).
-- Brand block at the top of the sidebar: logo mark plus "Factory Tracker", a link to the home page with aria-label "Home" and a tooltip. It is present in every sidebar state and on the mobile bar. This is the always-available way home. The Home item stays in the list too.
-- Icons: inline SVG sprite in templates/includes (reuse the style of the existing tab_icon.html): 24 viewBox, stroke 1.75, currentColor, aria-hidden. Include tag `{% include "includes/icon.html" with name="..." %}`. Icons: home, orders, priorities, analysis, shipping, dashboard, customers, tags, users, settings, simulate, pin, panel-toggle, chevron, key, logout, sun, moon, auto.
-- Groups and items, with exactly today's can.* gating: Work (Home, Orders, Priorities); Review (Analysis, Shipping, Dashboard); Manage (Customers, Tags, Users, Settings); Developer (Simulate scan, admin only). Hide a group label when it has no visible items.
-- Active item: context processor `nav` in core/context_processors.py returns the groups as {label, url, icon, active}. Active is decided by request.resolver_match.url_name with a map for child pages (order detail/edit/sheet -> Orders, customer pages -> Customers, tag history -> Tags, result pages -> Analysis, etc.; check every URL name). The active item has aria-current="page" and --color-nav-active-bg with primary text.
-- Modes saved in localStorage 'sidebar' (pinned or collapsed) and applied to <html data-sidebar> by the inline head script, so there is no layout jump:
-  - pinned: 220px, icons plus labels, pushes the content.
-  - collapsed: 56px icon rail, labels visually hidden but still read by screen readers, each item has title and aria-label. Hovering or focusing the rail expands it temporarily as an overlay without moving the content (150ms, collapses after the pointer leaves for 200ms), like the Claude interface.
-  - A button at the top of the sidebar toggles pinned and collapsed (aria-pressed, label "Pin sidebar" or "Collapse sidebar").
-  - Default: pinned at 1280px and wider, collapsed below. Respect prefers-reduced-motion.
-  - At 768px and below the sidebar is an off-canvas drawer opened by the hamburger, with a backdrop. It closes on link click, Escape and backdrop click, and focus returns to the hamburger. Replace the old nav.js and remove .site-nav and .nav-toggle CSS after grepping for other uses.
-- Language switch: at the bottom of the sidebar, always visible, using the existing form. In the collapsed rail show one button labelled with the other language ("EN" or "日本語"). Logged-out pages show both in the slim bar.
-- The current account form stays at the bottom of the sidebar, minimal, until U3.
-- No-JS fallback: the sidebar renders pinned and every link works; the toggle button is hidden when JS is off (use the existing .js class).
-Decisions made:
-- "Fixed" means pinned. "Disappear" means collapsing to the rail, with a hover peek. A fully hidden mode is not built.
-- Only existing pages appear in the nav. Tabs inside pages (Orders hub, Settings, Tags) are not added to the sidebar.
-Tests:
-- nav context per role: Operator sees Home, Orders, Priorities, Analysis only; Planner also sees Shipping, Dashboard, Customers, Tags, Users, Settings; Admin also sees Simulate scan; no empty group labels.
-- Active flag for child pages (order detail marks Orders, tag history marks Tags, etc.); exactly one aria-current per page.
-- The brand link points to home on every page, including login. The logged-out page has no sidebar but has the language form.
-- The head script sets data-sidebar before the stylesheet link.
-- Every main page returns 200 for each role.
-
 ### [ ] U3 Account chip
 Why: name, Change password and Log out take too much space.
 What:

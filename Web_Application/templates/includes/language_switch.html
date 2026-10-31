@@ -4,4 +4,5 @@
   <input type="hidden" name="next" value="{{ request.get_full_path }}">
   <button type="submit" name="language" value="ja"{% if LANG == "ja" %} class="active" aria-current="true"{% endif %}>日本語</button>
   <button type="submit" name="language" value="en"{% if LANG == "en" %} class="active" aria-current="true"{% endif %}>English</button>
+  {% if compact %}<button type="submit" name="language" value="{% if LANG == 'ja' %}en{% else %}ja{% endif %}" class="nav-item lang-compact">{% if LANG == "ja" %}EN{% else %}日本語{% endif %}</button>{% endif %}
 </form>

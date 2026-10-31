@@ -569,26 +569,128 @@ class ResponsiveLayoutTests(TestCase):
         self.assertIn('.table-cards [data-label]::before { content: attr(data-label)', theme)
         self.assertNotIn('table-cards', self.css('base.css'))
 
-    def test_menu_button_is_labelled_controls_the_nav_and_keeps_role_limited_links(self):
+    def test_drawer_button_is_labelled_controls_the_sidebar_and_keeps_role_limited_links(self):
         self.client.force_login(make_user('op', 'Operator'))
         html = self.client.get('/orders/').content.decode()
-        self.assertIn('class="nav-toggle" aria-controls="site-nav" aria-expanded="false" aria-label="Menu"', html)
-        self.assertIn('<nav class="site-nav" id="site-nav">', html)
-        self.assertIn('js/nav.js', html)
+        self.assertIn('class="hamburger" aria-controls="sidebar" aria-expanded="false" aria-label="Menu"', html)
+        self.assertIn('<aside id="sidebar"', html)
+        self.assertIn('js/sidebar.js', html)
+        self.assertNotIn('nav.js', html)
         self.assertIn('href="/orders/"', html)
         self.assertNotIn('href="/customers/"', html)  # an Operator still only sees the links the role can use
         self.client.force_login(make_user('pl', 'Planner'))
         self.assertIn('href="/customers/"', self.client.get('/orders/').content.decode())
 
-    def test_menu_collapses_only_below_768px_and_only_when_javascript_runs(self):
+    def test_sidebar_modes_and_drawer_are_defined_only_in_theme_css(self):
         theme, base = self.css('theme.css'), self.css('base.css')
         block = re.search(r'@media \(max-width: 768px\) \{.*?\n\}', theme, re.S).group(0)
-        for rule in ('.site-header .nav-toggle { display: inline-block; }', '.js .site-nav { display: none; }', '.js .site-nav.is-open {'):
+        for rule in ('html .site-header.mobile-bar { display: flex;', '.js #sidebar { visibility: hidden;', '.js.drawer-open .sidebar-backdrop'):
             self.assertIn(rule, block)
-        self.assertNotIn('.site-nav { display: none', base)  # without JavaScript the links stay visible
-        js = (settings.BASE_DIR / 'static' / 'js' / 'nav.js').read_text(encoding='utf-8')
-        for part in ('aria-expanded', "e.key === 'Escape'", 'button.focus()'):
+        self.assertIn('@media (min-width: 48.0625em)', theme)
+        self.assertNotIn('visibility: hidden', base)  # without JavaScript the links stay visible
+        for gone in ('.site-nav', '.nav-toggle'):
+            self.assertNotIn(gone, base + theme)
+        js = (settings.BASE_DIR / 'static' / 'js' / 'sidebar.js').read_text(encoding='utf-8')
+        for part in ('aria-expanded', "e.key === 'Escape'", 'burger.focus()', "localStorage.setItem('sidebar'", 'aria-pressed'):
             self.assertIn(part, js)
+        self.assertFalse((settings.BASE_DIR / 'static' / 'js' / 'nav.js').exists())
+
+
+class SidebarNavTests(TestCase):
+    def labels(self, user, url='/'):
+        self.client.force_login(user)
+        groups = self.client.get(url).context['nav']
+        return [(str(g['label']), [str(i['label']) for i in g['items']]) for g in groups]
+
+    def flat(self, user):
+        return [name for _, names in self.labels(user) for name in names]
+
+    def test_items_per_role_and_no_empty_group_labels(self):
+        self.assertEqual(self.flat(make_user('op', 'Operator')), ['Home', 'Orders', 'Priorities', 'Analysis'])
+        self.assertEqual(self.flat(make_user('pl', 'Planner')), ['Home', 'Orders', 'Priorities', 'Analysis', 'Shipping', 'Dashboard',
+                                                                  'Customers', 'Tags', 'Users', 'Settings'])
+        admin = self.labels(make_user('ad', 'Admin'))
+        self.assertEqual([g for g, _ in admin], ['Work', 'Review', 'Manage', 'Developer'])
+        self.assertEqual(admin[-1][1], ['Simulate scan'])
+        for user in (make_user('op2', 'Operator'), make_user('pl2', 'Planner')):
+            self.assertTrue(all(items for _, items in self.labels(user)))
+        self.assertNotIn('Developer', [g for g, _ in self.labels(make_user('pl3', 'Planner'))])
+
+    def active(self, url):
+        groups = self.client.get(url).context['nav']
+        return [str(i['label']) for g in groups for i in g['items'] if i['active']]
+
+    def test_child_pages_mark_their_parent_and_exactly_one_item_is_current(self):
+        self.client.force_login(make_user('ad', 'Admin'))
+        order = Order.objects.create(customer=Customer.objects.create(name='C'), due_date=timezone.localdate())
+        item = OrderItem.objects.create(order=order, part_name='P', quantity=1)
+        pages = {
+            '/': 'Home', '/boxes/': 'Home', '/orders/': 'Orders', f'/orders/{order.job_number}/': 'Orders', f'/orders/{order.job_number}/edit/': 'Orders',
+            '/orders/?tab=new': 'Orders', '/priorities/': 'Priorities', '/analysis/': 'Analysis',
+            '/shipping/': 'Shipping', '/dashboard/': 'Dashboard', '/customers/': 'Customers',
+            f'/customers/{order.customer_id}/': 'Customers', '/tags/': 'Tags', '/tags/history/': 'Tags', '/tags/devices/': 'Tags',
+            '/users/': 'Users', '/users/add/': 'Users', '/settings/': 'Settings', '/simulate/': 'Simulate scan',
+        }
+        for url, label in pages.items():
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 200, url)
+            self.assertEqual(self.active(url), [label], url)
+            html = response.content.decode()
+            sidebar = html[html.index('id="site-nav"'):html.index('</nav>')]
+            self.assertEqual(sidebar.count('aria-current="page"'), 1, url)
+
+    def test_child_url_names_exist_and_belong_to_one_item(self):
+        from django.urls import reverse
+        from core.context_processors import NAV
+        seen = {}
+        for _, entries in NAV:
+            for text, name, _icon, _role, names in entries:
+                for url_name in names:
+                    self.assertNotIn(url_name, seen)  # a page belongs to one item only
+                    seen[url_name] = str(text)
+        for url_name, label in {'order_sheet': 'Orders', 'record_result': 'Analysis', 'result_detail': 'Analysis', 'tag_history': 'Tags'}.items():
+            self.assertEqual(seen[url_name], label)
+        args = {'order_sheet': ['x'], 'record_result': [1], 'result_detail': [1]}
+        for url_name in seen:
+            try:
+                reverse(url_name, args=args.get(url_name, []))
+            except Exception:  # needs arguments we do not care about
+                reverse(url_name, args=[1])
+
+    def test_brand_link_goes_home_on_every_page_and_login_has_no_sidebar(self):
+        brand = '<a class="brand" href="/" aria-label="Home" title="Home">'
+        html = self.client.get('/login/').content.decode()
+        self.assertEqual(html.count(brand), 1)
+        self.assertNotIn('<aside', html)
+        self.assertIn('class="lang-switch"', html)
+        self.client.force_login(make_user('op', 'Operator'))
+        for url in ('/', '/orders/', '/priorities/'):
+            html = self.client.get(url).content.decode()
+            self.assertEqual(html.count(brand), 2, url)  # slim bar and sidebar
+            self.assertIn('<aside id="sidebar"', html)
+
+    def test_head_script_sets_the_sidebar_mode_before_the_stylesheet(self):
+        html = self.client.get('/login/').content.decode()
+        self.assertLess(html.index('dataset.sidebar'), html.index('rel="stylesheet"'))
+        self.assertIn("localStorage.getItem('theme')", html)
+        self.assertIn('innerWidth >= 1280', html)
+
+    def test_sidebar_markup_has_labels_titles_the_toggle_and_the_language_form(self):
+        self.client.force_login(make_user('pl', 'Planner'))
+        html = self.client.get('/').content.decode()
+        self.assertIn('class="nav-item" href="/orders/" title="Orders" aria-label="Orders"', html)
+        self.assertIn('aria-pressed="true"', html)
+        self.assertIn('class="nav-item lang-compact"', html)
+        self.assertRegex(html, r'lang-compact">日本語</button>')  # the rail button names the other language
+
+    def test_every_main_page_returns_200_for_each_role(self):
+        pages = {'Operator': ['/', '/orders/', '/priorities/', '/analysis/'],
+                 'Planner': ['/', '/orders/', '/priorities/', '/analysis/', '/shipping/', '/dashboard/', '/customers/', '/tags/', '/users/', '/settings/'],
+                 'Admin': ['/simulate/']}
+        for role, urls in pages.items():
+            self.client.force_login(make_user(role.lower() + 'x', role))
+            for url in urls:
+                self.assertEqual(self.client.get(url).status_code, 200, (role, url))
 
 
 def _luminance(hex_colour):
