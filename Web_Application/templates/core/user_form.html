@@ -7,7 +7,8 @@
   <p><a href="{% url 'user_list' %}">&larr; {% trans "Users" %}</a></p>
   <h1>{% if target %}{{ target.username }}{% else %}{% trans "Add user" %}{% endif %}</h1>
 
-  <form method="post" class="card">
+  {% if target %}{% blocktrans with name=target.username asvar confirm %}Deactivate user "{{ name }}"? They will not be able to log in.{% endblocktrans %}{% endif %}
+  <form method="post" class="card"{% if target %} data-confirm="{{ confirm|force_escape }}" data-confirm-if-unchecked="is_active" data-confirm-danger data-confirm-button="{% trans 'Deactivate' %}"{% endif %}>
     {% csrf_token %}
     {{ form }}
     {% if not target %}<p>{% trans "A temporary password is shown once after you save." %}</p>{% endif %}

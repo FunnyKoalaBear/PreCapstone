@@ -99,7 +99,8 @@
           {% if can.planner %}<a class="button-secondary" href="{% url 'correct_event' entry.status.ship_event.pk %}?next={{ request.get_full_path|urlencode }}">{% trans "Undo shipment" %}</a>{% endif %}
         </p>
       {% elif can.planner and entry.status.code == "COMPLETE" %}
-        <form method="post" action="{% url 'item_action' entry.item.pk %}">
+        {% blocktrans with item=entry.item.item_code asvar confirm_ship %}Mark item {{ item }} as shipped?{% endblocktrans %}
+        <form method="post" action="{% url 'item_action' entry.item.pk %}" data-confirm="{{ confirm_ship|force_escape }}" data-confirm-button="{% trans 'Mark as shipped' %}">
           {% csrf_token %}
           <input type="hidden" name="action" value="ship">
           <button type="submit" class="button">{% trans "Mark as shipped" %}</button>
@@ -114,7 +115,8 @@
       {% elif can.planner and entry.status.code != "COMPLETE" and entry.status.code != "SHIPPED" %}
         <details class="result-details">
           <summary>{% trans "Cancel item" %}</summary>
-          <form method="post" action="{% url 'item_action' entry.item.pk %}" class="cancel-form">
+          {% blocktrans with item=entry.item.item_code asvar confirm_cancel %}Cancel item {{ item }}?{% endblocktrans %}
+          <form method="post" action="{% url 'item_action' entry.item.pk %}" class="cancel-form" data-confirm="{{ confirm_cancel|force_escape }}" data-confirm-danger data-confirm-button="{% trans 'Cancel item' %}">
             {% csrf_token %}
             <input type="hidden" name="action" value="cancel">
             <label for="reason-{{ entry.item.pk }}">{% trans "Reason" %}</label>

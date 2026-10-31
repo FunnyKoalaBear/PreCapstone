@@ -6,7 +6,8 @@
 {% block content %}
   <p><a href="{% url 'user_edit' target.pk %}">&larr; {{ target.username }}</a></p>
   <h1>{% trans "Reset password" %}</h1>
-  <form method="post" class="card">
+  {% blocktrans with name=target.username asvar confirm %}Reset the password of "{{ name }}"? The old password stops working.{% endblocktrans %}
+  <form method="post" class="card" data-confirm="{{ confirm|force_escape }}" data-confirm-danger data-confirm-button="{% trans 'Reset password' %}">
     {% csrf_token %}
     <p>{% blocktrans with name=target.username %}Make a new temporary password for {{ name }}? The old password stops working.{% endblocktrans %}</p>
     <button type="submit" class="button">{% trans "Reset password" %}</button>

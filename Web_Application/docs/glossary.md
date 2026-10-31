@@ -394,3 +394,12 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | Main menu | メインメニュー |
 | Theme | テーマ |
 | Auto / Light / Dark | 自動 / ライト / ダーク |
+
+## Terms added for toasts and confirmations
+
+| English | Japanese |
+|---|---|
+| Undo (toast button) | 元に戻す |
+| Notifications | 通知 |
+| Close | 閉じる |
+| Confirm | 確認 |

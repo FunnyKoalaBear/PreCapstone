@@ -79,7 +79,7 @@ def create_user(actor, username, name, role):
 
 
 @transaction.atomic
-def update_user(actor, target, name, role, active):
+def update_user(actor, target, name, role, active, undo=False):
     check_change(actor, target, role, active)
     changes = []
     if role != current_role(target):
@@ -92,7 +92,7 @@ def update_user(actor, target, name, role, active):
     target.first_name, target.is_active = name, active
     target.save()
     if changes:
-        audit.log(actor, target, CHANGE, 'Changed: ' + ', '.join(changes) + '.')
+        audit.log(actor, target, CHANGE, ('Undo: ' if undo else '') + 'Changed: ' + ', '.join(changes) + '.')
 
 
 @transaction.atomic

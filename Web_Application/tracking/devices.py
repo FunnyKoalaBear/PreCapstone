@@ -3,11 +3,12 @@ from django.contrib import messages
 from django.contrib.admin.models import ADDITION, CHANGE, DELETION
 from django.db.models import Count
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import gettext as _
 from django.views.decorators.cache import never_cache
 
-from core import audit
+from core import audit, feedback
 from core.permissions import PLANNER, role_required
 from core.rules import silent_after
 
@@ -31,16 +32,23 @@ def _key_page(request, device, key_is_new):
     return render(request, 'tracking/device_key.html', {'device': device, 'api_key': device.api_key, 'new': key_is_new})
 
 
+def set_active(actor, device, active, undo=False):
+    device.active = active
+    device.save(update_fields=['active'])
+    audit.log(actor, device, CHANGE, ('Undo: ' if undo else '') + ('Reactivated.' if active else 'Deactivated.'))
+    return (_('Reactivated "%(name)s".') if active else _('Deactivated "%(name)s".')) % {'name': device.name}
+
+
+feedback.register('device', PLANNER, lambda actor, pk: ScannerDevice.objects.filter(pk=pk).first(), set_active)
+
+
 @role_required(PLANNER)
 def device_list(request):
     if request.method == 'POST':
         device = get_object_or_404(ScannerDevice.objects.annotate(events=Count('event')), pk=request.POST.get('device', 0))
         action = request.POST.get('action')
         if action == 'toggle':
-            device.active = not device.active
-            device.save(update_fields=['active'])
-            audit.log(request.user, device, CHANGE, 'Reactivated.' if device.active else 'Deactivated.')
-            messages.success(request, (_('Reactivated "%(name)s".') if device.active else _('Deactivated "%(name)s".')) % {'name': device.name})
+            feedback.toggled(request, 'device', device, reverse('device_list'), set_active(request.user, device, not device.active))
         elif action == 'delete':
             if device.events or device.last_seen:
                 messages.error(request, _('"%(name)s" has been used and cannot be deleted. Deactivate it instead.') % {'name': device.name})

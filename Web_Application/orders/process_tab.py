@@ -6,7 +6,8 @@ from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.utils.translation import gettext as _
 
-from core import audit
+from core import audit, feedback
+from core.permissions import PLANNER
 from tracking.models import Event
 
 from .models import Process, Vendor
@@ -36,6 +37,16 @@ def is_locked(process):
     return process.routestep_set.exists() or Event.objects.filter(process=process).exists()
 
 
+def set_active(actor, process, active, undo=False):
+    process.active = active
+    process.save(update_fields=['active'])
+    audit.log(actor, process, CHANGE, ('Undo: ' if undo else '') + ('Reactivated.' if active else 'Deactivated.'))
+    return (_('Reactivated "%(name)s".') if active else _('Deactivated "%(name)s".')) % {'name': process.name}
+
+
+feedback.register('process', PLANNER, lambda actor, pk: Process.objects.filter(pk=pk).first(), set_active)
+
+
 def _tab_processes(request):
     q, back = request.GET.get('q', '').strip(), reverse('order_list') + '?tab=processes'
     target = None
@@ -43,10 +54,7 @@ def _tab_processes(request):
         pk, action = request.POST.get('process', ''), request.POST.get('action')
         target = get_object_or_404(Process, pk=pk) if pk.isdigit() else None
         if target and action in ('deactivate', 'reactivate'):
-            target.active = action == 'reactivate'
-            target.save(update_fields=['active'])
-            audit.log(request.user, target, CHANGE, 'Reactivated.' if target.active else 'Deactivated.')
-            messages.success(request, (_('Reactivated "%(name)s".') if target.active else _('Deactivated "%(name)s".')) % {'name': target.name})
+            feedback.toggled(request, 'process', target, back, set_active(request.user, target, action == 'reactivate'))
             return redirect(back)
         if target and action == 'delete':
             if is_locked(target):

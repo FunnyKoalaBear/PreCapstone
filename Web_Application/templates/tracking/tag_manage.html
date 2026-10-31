@@ -45,7 +45,8 @@
               <td data-label="{% trans 'Item' %}"><span><a href="{% url 'order_detail' a.item.order.job_number %}">{{ a.item.item_code }}</a> {{ a.item.part_name }}</span></td>
               <td data-label="{% trans 'Since (JST)' %}">{{ a.start_at|date:"Y-m-d H:i" }}</td>
               <td>
-                <form method="post">
+                {% blocktrans with tag=a.tag item=a.item.item_code asvar confirm_release %}Release tag {{ tag }} from item {{ item }}?{% endblocktrans %}
+                <form method="post" data-confirm="{{ confirm_release|force_escape }}" data-confirm-danger data-confirm-button="{% trans 'Release' %}">
                   {% csrf_token %}
                   <input type="hidden" name="action" value="release">
                   <input type="hidden" name="assignment" value="{{ a.pk }}">
@@ -54,7 +55,8 @@
                 </form>
                 <details class="replace-tag">
                   <summary>{% trans "Replace tag" %}</summary>
-                  <form method="post">
+                  {% blocktrans with tag=a.tag item=a.item.item_code asvar confirm_replace %}Replace tag {{ tag }} on item {{ item }}?{% endblocktrans %}
+                  <form method="post" data-confirm="{{ confirm_replace|force_escape }}" data-confirm-button="{% trans 'Replace' %}">
                     {% csrf_token %}
                     <input type="hidden" name="action" value="replace">
                     <input type="hidden" name="assignment" value="{{ a.pk }}">

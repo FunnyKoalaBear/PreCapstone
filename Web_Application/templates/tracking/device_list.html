@@ -31,7 +31,7 @@
                 <input type="hidden" name="device" value="{{ d.pk }}">
                 <a href="{% url 'device_edit' d.pk %}">{% trans "Edit" %}</a>
                 <button type="submit" name="action" value="toggle" class="link-button">{% if d.active %}{% trans "Deactivate" %}{% else %}{% trans "Reactivate" %}{% endif %}</button>
-                {% if d.deletable %}<button type="submit" name="action" value="delete" class="link-button">{% trans "Delete" %}</button>{% endif %}
+                {% if d.deletable %}{% blocktrans with name=d.name asvar confirm %}Delete device "{{ name }}"? This can't be undone.{% endblocktrans %}<button type="submit" name="action" value="delete" class="link-button" data-confirm="{{ confirm|force_escape }}" data-confirm-danger data-confirm-button="{% trans 'Delete' %}">{% trans "Delete" %}</button>{% endif %}
               </form>
             </td>
           </tr>

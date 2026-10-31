@@ -88,7 +88,8 @@
                 {% if not r.used %}
                   <form method="post" action="{{ back }}" class="inline-actions">
                     {% csrf_token %}<input type="hidden" name="pk" value="{{ r.pk }}">
-                    <button type="submit" name="action" value="delete" class="link-button">{% trans "Delete" %}</button>
+                    {% blocktrans with kind=noun name=r.name asvar confirm %}Delete {{ kind }} "{{ name }}"? This can't be undone.{% endblocktrans %}
+                    <button type="submit" name="action" value="delete" class="link-button" data-confirm="{{ confirm|force_escape }}" data-confirm-danger data-confirm-button="{% trans 'Delete' %}">{% trans "Delete" %}</button>
                   </form>
                 {% endif %}
               </div>

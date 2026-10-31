@@ -42,7 +42,7 @@
               <a href="{{ back }}&amp;edit={{ p.pk }}#process-form">{% trans "Edit" %}</a>
               {% if p.active %}<button type="submit" name="action" value="deactivate" class="link-button">{% trans "Deactivate" %}</button>
               {% else %}<button type="submit" name="action" value="reactivate" class="link-button">{% trans "Reactivate" %}</button>{% endif %}
-              {% if not p.routes and not p.events %}<button type="submit" name="action" value="delete" class="link-button">{% trans "Delete" %}</button>{% endif %}
+              {% if not p.routes and not p.events %}{% blocktrans with name=p.name asvar confirm %}Delete process "{{ name }}"? This can't be undone.{% endblocktrans %}<button type="submit" name="action" value="delete" class="link-button" data-confirm="{{ confirm|force_escape }}" data-confirm-danger data-confirm-button="{% trans 'Delete' %}">{% trans "Delete" %}</button>{% endif %}
             </form>
           </td>
         </tr>

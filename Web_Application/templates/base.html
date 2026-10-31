@@ -1,4 +1,4 @@
-{% load static i18n %}{% get_current_language as LANGUAGE_CODE %}<!DOCTYPE html>
+{% load static i18n feedback %}{% get_current_language as LANGUAGE_CODE %}<!DOCTYPE html>
 <html lang="{{ LANGUAGE_CODE }}">
 <head>
   <meta charset="utf-8">
@@ -58,19 +58,38 @@
     <div class="sidebar-backdrop"></div>
     {% endif %}
     <div class="app-main">
+      <div class="toasts" id="toasts" aria-live="polite" aria-label="{% trans 'Notifications' %}" data-close="{% trans 'Close' %}">
+        <ul class="messages">
+          {% for message in messages %}
+          <li class="message toast toast-{{ message.level_tag }}" data-level="{{ message.level_tag }}">
+            <span class="toast-icon">{% if message.level_tag == 'success' %}{% include "includes/icon.html" with name="check" %}{% elif message.level_tag == 'warning' %}{% include "includes/icon.html" with name="warning" %}{% elif message.level_tag == 'error' %}{% include "includes/icon.html" with name="error" %}{% else %}{% include "includes/icon.html" with name="info" %}{% endif %}</span>
+            <span class="toast-text">{{ message }}</span>
+            {% with token=message|undo_token %}{% if token %}
+            <form method="post" action="{% url 'undo' token %}" class="toast-undo">{% csrf_token %}<button type="submit" class="link-button">{% trans "Undo" %}</button></form>
+            {% endif %}{% endwith %}
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
       <main class="site-main">
-        {% if messages %}
-          <ul class="messages">
-            {% for message in messages %}<li class="message {{ message.tags }}">{{ message }}</li>{% endfor %}
-          </ul>
-        {% endif %}
         {% block content %}{% endblock %}
       </main>
       <footer class="site-footer">{% trans "Factory Tracker" %}</footer>
     </div>
   </div>
+  <dialog id="confirm-dialog" class="confirm-dialog" aria-labelledby="confirm-message" data-confirm="{% trans 'Confirm' %}">
+    <form method="dialog">
+      <p id="confirm-message"></p>
+      <div class="form-actions">
+        <button type="submit" value="cancel" class="button-secondary" autofocus>{% trans "Cancel" %}</button>
+        <button type="submit" value="ok" class="button" id="confirm-ok">{% trans "Confirm" %}</button>
+      </div>
+    </form>
+  </dialog>
   <script src="{% static 'js/theme.js' %}"></script>
   <script src="{% static 'js/sidebar.js' %}"></script>
   <script src="{% static 'js/account.js' %}"></script>
+  <script src="{% static 'js/toast.js' %}"></script>
+  <script src="{% static 'js/confirm.js' %}"></script>
 </body>
 </html>

@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Factory Tracker\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-01 02:36+0900\n"
+"POT-Creation-Date: 2026-11-01 02:50+0900\n"
 "PO-Revision-Date: 2026-10-11 17:00+0900\n"
 "Last-Translator: Claude\n"
 "Language-Team: Japanese\n"
@@ -107,6 +107,10 @@ msgstr "開発者"
 msgid "Simulate scan"
 msgstr "スキャンのシミュレーション"
 
+#: .\core\feedback.py:43
+msgid "This change can't be undone any more."
+msgstr "この変更は、もう元に戻せません。"
+
 # CHECK: Operator role; same word as Worker
 #: .\core\forms.py:9
 msgid "Operator"
@@ -124,7 +128,7 @@ msgstr "管理者"
 #: .\templates\tracking\device_list.html:16
 #: .\templates\tracking\device_list.html:23
 #: .\templates\tracking\settings.html:33 .\templates\tracking\settings.html:67
-#: .\templates\tracking\settings.html:74 .\tracking\settings_page.py:30
+#: .\templates\tracking\settings.html:74 .\tracking\settings_page.py:31
 msgid "Name"
 msgstr "氏名"
 
@@ -206,12 +210,12 @@ msgstr "%(m)d分"
 msgid "<1m"
 msgstr "1分未満"
 
-#: .\core\user_views.py:52
+#: .\core\user_views.py:27 .\core\user_views.py:61
 #, python-format
 msgid "User %(name)s updated."
 msgstr "ユーザー %(name)s を更新しました。"
 
-#: .\core\user_views.py:67
+#: .\core\user_views.py:80
 msgid "Your password was changed."
 msgstr "パスワードを変更しました。"
 
@@ -452,7 +456,7 @@ msgstr "コードは5桁の数字で入力してください。"
 #: .\templates\orders\tabs\processes.html:31
 #: .\templates\tracking\settings.html:37 .\templates\tracking\settings.html:67
 #: .\templates\tracking\settings.html:75 .\tracking\models.py:77
-#: .\tracking\settings_page.py:31
+#: .\tracking\settings_page.py:32
 msgid "Japanese name"
 msgstr "日本語名"
 
@@ -804,48 +808,48 @@ msgstr "作業指示書"
 msgid "The drawing could not be read."
 msgstr "図面を読み込めませんでした。"
 
-#: .\orders\process_tab.py:26
+#: .\orders\process_tab.py:27
 msgid ""
 "The kind cannot be changed because this process is used in a route or an "
 "event."
 msgstr "この工程は工程順または履歴で使われているため、種別は変更できません。"
 
-#: .\orders\process_tab.py:31 .\tracking\devices.py:25
-#: .\tracking\settings_page.py:40
+#: .\orders\process_tab.py:32 .\tracking\devices.py:26
+#: .\tracking\settings_page.py:41
 #, python-format
 msgid "The name \"%(name)s\" already exists."
 msgstr "「%(name)s」は既に登録されています。"
 
-#: .\orders\process_tab.py:49 .\tracking\devices.py:43
-#: .\tracking\settings_page.py:77
+#: .\orders\process_tab.py:44 .\tracking\devices.py:39
+#: .\tracking\settings_page.py:78
 #, python-format
 msgid "Reactivated \"%(name)s\"."
 msgstr "「%(name)s」を有効に戻しました。"
 
-#: .\orders\process_tab.py:49 .\tracking\devices.py:43
-#: .\tracking\settings_page.py:77
+#: .\orders\process_tab.py:44 .\tracking\devices.py:39
+#: .\tracking\settings_page.py:78
 #, python-format
 msgid "Deactivated \"%(name)s\"."
 msgstr "「%(name)s」を無効にしました。"
 
-#: .\orders\process_tab.py:53
+#: .\orders\process_tab.py:61
 #, python-format
 msgid "\"%(name)s\" is used in a route or an event and cannot be deleted."
 msgstr "「%(name)s」は工程順または履歴で使われているため、削除できません。"
 
-#: .\orders\process_tab.py:57 .\tracking\devices.py:50
-#: .\tracking\settings_page.py:87
+#: .\orders\process_tab.py:65 .\tracking\devices.py:58
+#: .\tracking\settings_page.py:96
 #, python-format
 msgid "Deleted \"%(name)s\"."
 msgstr "「%(name)s」を削除しました。"
 
-#: .\orders\process_tab.py:63 .\tracking\devices.py:78
-#: .\tracking\settings_page.py:70
+#: .\orders\process_tab.py:71 .\tracking\devices.py:86
+#: .\tracking\settings_page.py:71
 #, python-format
 msgid "Saved \"%(name)s\"."
 msgstr "「%(name)s」を保存しました。"
 
-#: .\orders\process_tab.py:63 .\tracking\settings_page.py:59
+#: .\orders\process_tab.py:71 .\tracking\settings_page.py:60
 #, python-format
 msgid "Added \"%(name)s\"."
 msgstr "「%(name)s」を追加しました。"
@@ -961,7 +965,7 @@ msgstr "アクセスできません"
 
 # CHECK: glossary marks 工程進捗管理 as unsure (product name)
 #: .\templates\403.html:4 .\templates\base.html:6 .\templates\base.html:26
-#: .\templates\base.html:30 .\templates\base.html:40 .\templates\base.html:69
+#: .\templates\base.html:30 .\templates\base.html:40 .\templates\base.html:77
 #: .\templates\core\dashboard.html:4 .\templates\core\home.html:4
 #: .\templates\core\user_form.html:4 .\templates\core\user_list.html:4
 #: .\templates\core\user_password.html:4 .\templates\core\user_reset.html:4
@@ -1016,6 +1020,30 @@ msgstr "サイドバーを固定"
 #: .\templates\base.html:43
 msgid "Main menu"
 msgstr "メインメニュー"
+
+#: .\templates\base.html:61
+msgid "Notifications"
+msgstr "通知"
+
+#: .\templates\base.html:61
+msgid "Close"
+msgstr "閉じる"
+
+# CHECK: toast button; 取消 is kept for voiding events
+#: .\templates\base.html:68
+msgid "Undo"
+msgstr "元に戻す"
+
+#: .\templates\base.html:80 .\templates\base.html:85
+#: .\templates\tracking\simulate.html:39
+msgid "Confirm"
+msgstr "確定"
+
+#: .\templates\base.html:84 .\templates\orders\tabs\codes.html:66
+#: .\templates\orders\tabs\processes.html:63
+#: .\templates\tracking\correct_event.html:18
+msgid "Cancel"
+msgstr "キャンセル"
 
 #: .\templates\core\dashboard.html:10
 msgid "Users per role"
@@ -1139,16 +1167,28 @@ msgid "Show more"
 msgstr "さらに表示"
 
 # CHECK: 得意先 is marked unsure in the glossary (alternative: 顧客)
-#: .\templates\core\user_form.html:8 .\templates\core\user_form.html:14
+#: .\templates\core\user_form.html:8 .\templates\core\user_form.html:15
 #: .\templates\core\user_list.html:7
 msgid "Add user"
 msgstr "ユーザーを追加"
 
-#: .\templates\core\user_form.html:13
+#: .\templates\core\user_form.html:10
+#, python-format
+msgid "Deactivate user \"%(name)s\"? They will not be able to log in."
+msgstr "ユーザー「%(name)s」を無効にしますか？ログインできなくなります。"
+
+#: .\templates\core\user_form.html:11 .\templates\orders\tabs\codes.html:46
+#: .\templates\orders\tabs\processes.html:43
+#: .\templates\tracking\device_list.html:33
+#: .\templates\tracking\settings.html:86
+msgid "Deactivate"
+msgstr "無効にする"
+
+#: .\templates\core\user_form.html:14
 msgid "A temporary password is shown once after you save."
 msgstr "一時パスワードは、保存後に一度だけ表示されます。"
 
-#: .\templates\core\user_form.html:14 .\templates\orders\_order_form.html:18
+#: .\templates\core\user_form.html:15 .\templates\orders\_order_form.html:18
 #: .\templates\orders\customer_edit.html:13
 #: .\templates\orders\tabs\codes.html:65
 #: .\templates\orders\tabs\processes.html:62
@@ -1157,8 +1197,9 @@ msgstr "一時パスワードは、保存後に一度だけ表示されます。
 msgid "Save changes"
 msgstr "変更を保存"
 
-#: .\templates\core\user_form.html:15 .\templates\core\user_reset.html:4
-#: .\templates\core\user_reset.html:8 .\templates\core\user_reset.html:12
+#: .\templates\core\user_form.html:16 .\templates\core\user_reset.html:4
+#: .\templates\core\user_reset.html:8 .\templates\core\user_reset.html:10
+#: .\templates\core\user_reset.html:13
 msgid "Reset password"
 msgstr "パスワードをリセット"
 
@@ -1221,7 +1262,14 @@ msgstr "印刷"
 msgid "Back to Users"
 msgstr "ユーザー一覧に戻る"
 
-#: .\templates\core\user_reset.html:11
+#: .\templates\core\user_reset.html:9
+#, python-format
+msgid "Reset the password of \"%(name)s\"? The old password stops working."
+msgstr "「%(name)s」のパスワードをリセットしますか？古いパスワードは使えなくなります。"
+"%(name)s の新しい一時パスワードを作成しますか？古いパスワードは使えなくなりま"
+"す。"
+
+#: .\templates\core\user_reset.html:12
 #, python-format
 msgid ""
 "Make a new temporary password for %(name)s? The old password stops working."
@@ -1382,7 +1430,7 @@ msgid "Event history"
 msgstr "履歴"
 
 #: .\templates\orders\_box_detail.html:83
-#: .\templates\orders\order_detail.html:168
+#: .\templates\orders\order_detail.html:170
 #: .\templates\tracking\result_detail.html:26
 #: .\templates\tracking\simulate.html:51
 msgid "Time (JST)"
@@ -1591,7 +1639,7 @@ msgid "Time per step"
 msgstr "工程ごとの所要時間"
 
 #: .\templates\orders\order_detail.html:78
-#: .\templates\orders\order_detail.html:150
+#: .\templates\orders\order_detail.html:152
 #, python-format
 msgid "Tag %(tag)s"
 msgstr "タグ %(tag)s"
@@ -1626,72 +1674,84 @@ msgstr "%(d)s に %(u)s が出荷しました"
 msgid "Undo shipment"
 msgstr "出荷を取り消す"
 
-#: .\templates\orders\order_detail.html:105
+#: .\templates\orders\order_detail.html:102
+#, python-format
+msgid "Mark item %(item)s as shipped?"
+msgstr "品目 %(item)s を出荷済みにしますか？"
+
+#: .\templates\orders\order_detail.html:103
+#: .\templates\orders\order_detail.html:106
 msgid "Mark as shipped"
 msgstr "出荷済みにする"
 
-#: .\templates\orders\order_detail.html:111
+#: .\templates\orders\order_detail.html:112
 #, python-format
 msgid "Cancelled on %(d)s by %(u)s: %(r)s"
 msgstr "%(d)s に %(u)s がキャンセルしました: %(r)s"
 
-#: .\templates\orders\order_detail.html:112
+#: .\templates\orders\order_detail.html:113
 msgid "Undo cancellation"
 msgstr "キャンセルを取り消す"
 
-#: .\templates\orders\order_detail.html:116
-#: .\templates\orders\order_detail.html:122
+#: .\templates\orders\order_detail.html:117
+#: .\templates\orders\order_detail.html:119
+#: .\templates\orders\order_detail.html:124
 msgid "Cancel item"
 msgstr "品目をキャンセル"
 
-#: .\templates\orders\order_detail.html:120 .\tracking\forms.py:72
+#: .\templates\orders\order_detail.html:118
+#, python-format
+msgid "Cancel item %(item)s?"
+msgstr "品目 %(item)s をキャンセルしますか？"
+
+#: .\templates\orders\order_detail.html:122 .\tracking\forms.py:72
 msgid "Reason"
 msgstr "理由"
 
-#: .\templates\orders\order_detail.html:128
-#: .\templates\orders\order_detail.html:133
+#: .\templates\orders\order_detail.html:130
+#: .\templates\orders\order_detail.html:135
 msgid "Record result"
 msgstr "実績を記録"
 
-#: .\templates\orders\order_detail.html:136
+#: .\templates\orders\order_detail.html:138
 msgid "Link a tag to a box of this item first."
 msgstr "先にこの品目の箱にタグを紐付けてください。"
 
-#: .\templates\orders\order_detail.html:150
+#: .\templates\orders\order_detail.html:152
 msgid "(released)"
 msgstr "（解除済み）"
 
-#: .\templates\orders\order_detail.html:154
+#: .\templates\orders\order_detail.html:156
 msgid "Box not linked yet"
 msgstr "未紐付けの箱"
 
-#: .\templates\orders\order_detail.html:155 .\templates\tracking\boxes.html:43
+#: .\templates\orders\order_detail.html:157 .\templates\tracking\boxes.html:43
 #: .\templates\tracking\simulate.html:24
 msgid "Link a tag"
 msgstr "タグを紐付ける"
 
-#: .\templates\orders\order_detail.html:163
+#: .\templates\orders\order_detail.html:165
 msgid "Change history"
 msgstr "変更履歴"
 
-#: .\templates\orders\order_detail.html:169
+#: .\templates\orders\order_detail.html:171
 msgid "Changed by"
 msgstr "変更者"
 
 # CHECK: column header for the changed field; 変更内容 is my choice
-#: .\templates\orders\order_detail.html:170
+#: .\templates\orders\order_detail.html:172
 msgid "What"
 msgstr "変更内容"
 
-#: .\templates\orders\order_detail.html:171
+#: .\templates\orders\order_detail.html:173
 msgid "Before"
 msgstr "変更前"
 
-#: .\templates\orders\order_detail.html:172
+#: .\templates\orders\order_detail.html:174
 msgid "After"
 msgstr "変更後"
 
-#: .\templates\orders\order_detail.html:185
+#: .\templates\orders\order_detail.html:187
 msgid "No changes yet."
 msgstr "変更履歴はまだありません。"
 
@@ -1719,13 +1779,6 @@ msgstr "操作"
 #: .\templates\tracking\settings.html:76
 msgid "Inactive"
 msgstr "無効"
-
-#: .\templates\orders\tabs\codes.html:46
-#: .\templates\orders\tabs\processes.html:43
-#: .\templates\tracking\device_list.html:33
-#: .\templates\tracking\settings.html:86
-msgid "Deactivate"
-msgstr "無効にする"
 
 #: .\templates\orders\tabs\codes.html:47
 #: .\templates\orders\tabs\processes.html:44
@@ -1758,12 +1811,6 @@ msgstr ""
 #: .\templates\orders\tabs\codes.html:65
 msgid "Add code"
 msgstr "コードを登録"
-
-#: .\templates\orders\tabs\codes.html:66
-#: .\templates\orders\tabs\processes.html:63
-#: .\templates\tracking\correct_event.html:18
-msgid "Cancel"
-msgstr "キャンセル"
 
 #: .\templates\orders\tabs\import.html:2
 msgid ""
@@ -1874,13 +1921,18 @@ msgid "Used in routes"
 msgstr "工程順での使用数"
 
 #: .\templates\orders\tabs\processes.html:45
+#, python-format
+msgid "Delete process \"%(name)s\"? This can't be undone."
+msgstr "工程「%(name)s」を削除しますか？この操作は元に戻せません。"
+
+#: .\templates\orders\tabs\processes.html:45
 #: .\templates\tracking\device_list.html:34
-#: .\templates\tracking\settings.html:91
+#: .\templates\tracking\settings.html:92
 msgid "Delete"
 msgstr "削除"
 
 #: .\templates\orders\tabs\processes.html:50
-#: .\templates\tracking\settings.html:98
+#: .\templates\tracking\settings.html:99
 msgid "No entries match."
 msgstr "該当する項目はありません。"
 
@@ -2371,7 +2423,8 @@ msgstr "APIキーは、保存後に一度だけ表示されます。"
 #: .\templates\tracking\device_form.html:15
 #: .\templates\tracking\device_regenerate.html:4
 #: .\templates\tracking\device_regenerate.html:8
-#: .\templates\tracking\device_regenerate.html:12
+#: .\templates\tracking\device_regenerate.html:10
+#: .\templates\tracking\device_regenerate.html:13
 msgid "Regenerate key"
 msgstr "キーを再発行"
 
@@ -2417,11 +2470,23 @@ msgstr "未受信"
 msgid "Silent"
 msgstr "通信なし"
 
+#: .\templates\tracking\device_list.html:34
+#, python-format
+msgid "Delete device \"%(name)s\"? This can't be undone."
+msgstr "端末「%(name)s」を削除しますか？この操作は元に戻せません。"
+
 #: .\templates\tracking\device_list.html:39
 msgid "No devices yet."
 msgstr "端末はまだありません。"
 
-#: .\templates\tracking\device_regenerate.html:11
+#: .\templates\tracking\device_regenerate.html:9
+#, python-format
+msgid "Regenerate the key of \"%(name)s\"? The old key stops working at once."
+msgstr "「%(name)s」のキーを再発行しますか？古いキーはすぐに使えなくなります。"
+"%(name)s の新しい一時パスワードを作成しますか？古いパスワードは使えなくなりま"
+"す。"
+
+#: .\templates\tracking\device_regenerate.html:12
 #, python-format
 msgid ""
 "Make a new API key for %(name)s? The old key stops working at once, so the "
@@ -2505,6 +2570,11 @@ msgstr "使用件数"
 msgid "Save"
 msgstr "保存"
 
+#: .\templates\tracking\settings.html:91
+#, python-format
+msgid "Delete %(kind)s \"%(name)s\"? This can't be undone."
+msgstr "%(kind)s「%(name)s」を削除しますか？この操作は元に戻せません。"
+
 #: .\templates\tracking\shipping.html:9 .\templates\tracking\shipping.html:24
 msgid "Ready to ship"
 msgstr "出荷待ち"
@@ -2574,10 +2644,6 @@ msgstr "この箱は全工程を完了しています。スキャンする操作
 msgid "What happened"
 msgstr "実施した操作"
 
-#: .\templates\tracking\simulate.html:39
-msgid "Confirm"
-msgstr "確定"
-
 #: .\templates\tracking\simulate.html:46
 msgid "Last 10 events"
 msgstr "直近10件のイベント"
@@ -2631,29 +2697,41 @@ msgstr[0] "使用中のタグ: %(n)s 件"
 msgid "Since (JST)"
 msgstr "開始（JST）"
 
+#: .\templates\tracking\tag_manage.html:48
+#, python-format
+msgid "Release tag %(tag)s from item %(item)s?"
+msgstr "タグ %(tag)s を品目 %(item)s から解除しますか？"
+
 # CHECK: button label; glossary says タグを解除
-#: .\templates\tracking\tag_manage.html:53
+#: .\templates\tracking\tag_manage.html:49
+#: .\templates\tracking\tag_manage.html:54
 msgid "Release"
 msgstr "タグを解除"
 
-#: .\templates\tracking\tag_manage.html:56
+#: .\templates\tracking\tag_manage.html:57
 msgid "Replace tag"
 msgstr "タグを交換"
 
-#: .\templates\tracking\tag_manage.html:62
+#: .\templates\tracking\tag_manage.html:58
+#, python-format
+msgid "Replace tag %(tag)s on item %(item)s?"
+msgstr "品目 %(item)s のタグ %(tag)s を交換しますか？"
+
+#: .\templates\tracking\tag_manage.html:59
+#: .\templates\tracking\tag_manage.html:66
+msgid "Replace"
+msgstr "交換"
+
+#: .\templates\tracking\tag_manage.html:64
 msgid "New tag UID"
 msgstr "新しいタグUID"
 
 # CHECK: 紛失扱い; check wording
-#: .\templates\tracking\tag_manage.html:63
+#: .\templates\tracking\tag_manage.html:65
 msgid "Mark the old tag as lost"
 msgstr "旧タグを紛失扱いにする"
 
-#: .\templates\tracking\tag_manage.html:64
-msgid "Replace"
-msgstr "交換"
-
-#: .\templates\tracking\tag_manage.html:74
+#: .\templates\tracking\tag_manage.html:76
 msgid "No tags in use match this search."
 msgstr "該当する使用中のタグはありません。"
 
@@ -2686,7 +2764,7 @@ msgid ""
 msgstr ""
 "%(what)s %(value)s は、その工程の中央値 %(median)s の%(n)s倍を超えています"
 
-#: .\tracking\devices.py:46
+#: .\tracking\devices.py:54
 #, python-format
 msgid ""
 "\"%(name)s\" has been used and cannot be deleted. Deactivate it instead."
@@ -2792,6 +2870,7 @@ msgid "tag assignments"
 msgstr "タグ紐付け"
 
 #: .\tracking\models.py:90 .\tracking\models.py:171
+#: .\tracking\settings_page.py:27
 msgid "worker"
 msgstr "作業者"
 
@@ -2800,6 +2879,7 @@ msgid "workers"
 msgstr "作業者"
 
 #: .\tracking\models.py:96 .\tracking\models.py:172
+#: .\tracking\settings_page.py:27
 msgid "machine"
 msgstr "機械"
 
@@ -2807,7 +2887,7 @@ msgstr "機械"
 msgid "machines"
 msgstr "機械"
 
-#: .\tracking\models.py:102
+#: .\tracking\models.py:102 .\tracking\settings_page.py:27
 msgid "defect cause"
 msgstr "不良原因"
 
@@ -3102,23 +3182,23 @@ msgstr "不良原因"
 msgid "Rules"
 msgstr "基準値"
 
-#: .\tracking\settings_page.py:83
+#: .\tracking\settings_page.py:92
 #, python-format
 msgid "\"%(name)s\" is used in %(n)d record(s) and cannot be deleted."
 msgstr "「%(name)s」は%(n)d件の実績で使われているため、削除できません。"
 
-#: .\tracking\settings_page.py:106
+#: .\tracking\settings_page.py:115
 #, python-format
 msgid "Added %(added)d, skipped %(skipped)d (already listed or too long)."
 msgstr ""
 "%(added)d件を追加しました。%(skipped)d件は、既に登録済みか長すぎるためスキッ"
 "プしました。"
 
-#: .\tracking\settings_page.py:139
+#: .\tracking\settings_page.py:148
 msgid "Rules reset to the defaults."
 msgstr "基準値を標準に戻しました。"
 
-#: .\tracking\settings_page.py:139
+#: .\tracking\settings_page.py:148
 msgid "Rules saved."
 msgstr "基準値を保存しました。"
 

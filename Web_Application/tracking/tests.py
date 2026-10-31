@@ -1917,6 +1917,11 @@ class ShippedTests(TestCase):
         ship_item(self.planner, item)
         self.assertEqual(self.code(item), 'SHIPPED')
 
+    def test_ship_form_asks_for_confirmation(self):
+        done, _a = self.make()
+        html = self.client.get(f'/orders/{done.order.job_number}/').content.decode()
+        self.assertIn(f'data-confirm="Mark item {done.item_code} as shipped?"', html)
+
     def test_button_only_on_complete_items_and_undo_link_on_shipped(self):
         done, _a = self.make()
         busy, _b = self.make(done=False)

@@ -10,7 +10,7 @@ from django.urls import reverse
 from django.utils.translation import gettext as _
 from django.utils.translation import gettext_lazy
 
-from core import audit
+from core import audit, feedback
 from core.models import SiteSetting
 from core.permissions import PLANNER, role_required
 
@@ -24,6 +24,7 @@ TABS = [
     ('rules', gettext_lazy('Rules'), None),  # the thresholds form, not a name list
 ]
 NAME_MAX = 100
+NOUNS = {'workers': gettext_lazy('worker'), 'machines': gettext_lazy('machine'), 'causes': gettext_lazy('defect cause')}  # for the delete confirmation
 
 
 class ResourceForm(forms.Form):
@@ -70,11 +71,19 @@ def _rename(request, model, obj):
     messages.success(request, _('Saved "%(name)s".') % {'name': obj.name})
 
 
-def _toggle(request, obj):
-    obj.active = not obj.active
+def set_active(actor, obj, active, undo=False):
+    obj.active = active
     obj.save()
-    audit.log(request.user, obj, CHANGE, 'Reactivated.' if obj.active else 'Deactivated.')
-    messages.success(request, (_('Reactivated "%(name)s".') if obj.active else _('Deactivated "%(name)s".')) % {'name': obj.name})
+    audit.log(actor, obj, CHANGE, ('Undo: ' if undo else '') + ('Reactivated.' if active else 'Deactivated.'))
+    return (_('Reactivated "%(name)s".') if active else _('Deactivated "%(name)s".')) % {'name': obj.name}
+
+
+def _toggle(request, key, obj, back):
+    feedback.toggled(request, key, obj, back, set_active(request.user, obj, not obj.active))
+
+
+for _key, _label, _model in TABS[:3]:
+    feedback.register(_key, PLANNER, lambda actor, pk, m=_model: m.objects.filter(pk=pk).first(), set_active)
 
 
 def _delete(request, model, obj):
@@ -164,7 +173,7 @@ def settings_page(request):
             elif obj and action == 'rename':
                 _rename(request, model, obj)
             elif obj and action == 'toggle':
-                _toggle(request, obj)
+                _toggle(request, key, obj, back)
             elif obj and action == 'delete':
                 _delete(request, model, obj)
         return redirect(back)
@@ -172,4 +181,4 @@ def settings_page(request):
     rows = model.objects.annotate(used=Count('event')).order_by('name')
     if q:
         rows = rows.filter(Q(name__icontains=q) | Q(name_ja__icontains=q))
-    return render(request, 'tracking/settings.html', {'tab': key, 'tabs': tabs, 'label': label, 'rows': rows, 'q': q, 'back': back})
+    return render(request, 'tracking/settings.html', {'tab': key, 'tabs': tabs, 'label': label, 'rows': rows, 'q': q, 'back': back, 'noun': NOUNS[key]})

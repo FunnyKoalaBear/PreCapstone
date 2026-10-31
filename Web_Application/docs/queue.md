@@ -12,15 +12,6 @@ Order matters. [ ] todo, [!] blocked. Finished entries are deleted; git history 
 - Every new string gets Japanese per docs/glossary.md. Update docs/manual_ja.md where a page or control changes.
 - Demo data: nothing new is needed; use the existing demo data to check every page.
 
-### [ ] U4 Feedback for actions: toasts, undo, confirm
-Why: planners can now change a lot. They need clear feedback, a safety net for reversible toggles, and a confirm step for risky actions.
-What:
-1. Toasts replace the inline messages list. Bottom-right of the content area (full width at 480px and below), in an aria-live="polite" region. Success and info dismiss after 6s, warning after 10s, error stays until closed. Hover or focus pauses; a close button on each; at most 3 visible. Level shown by icon and color (success = --status-complete, warning = --status-waiting, error = --color-danger, info = primary), never color alone. No-JS fallback: the same markup renders as a plain list at the top of the page.
-2. Undo on Active toggles only: workers, machines and defect causes (Settings), users (Users page), and processes and devices if those pages exist (grep). The toast shows "Undo". Add a helper in core/feedback.py so each view adds one line. Requirements: undo reuses the existing toggle endpoint and its permission checks; only the same user can undo; it expires after 60s and is ignored if the state has changed again; the undo is itself written to LogEntry; never offered for create, rename, delete, password reset or role change.
-3. Confirm dialog: forms carrying `data-confirm="..."` open a themed native `<dialog>` (message names the item, Cancel and a confirm button, danger style when `data-confirm-danger`; focus starts on Cancel; Escape cancels). Without JS the form submits normally. Apply to every destructive or hard-to-reverse form: delete of unused records, reset password, deactivate user, regenerate key (if it exists), release tag, replace tag, cancel and ship actions. Grep templates for these forms and list what was changed in the commit message. Reversible toggles use Undo, not confirm.
-Decisions made: wording names the item, for example `Delete worker "Sato"? This can't be undone.` Form validation errors are unchanged.
-Tests: messages render with the right level classes and aria; undo reverses a worker deactivation and writes a LogEntry; undo by another user, after expiry, or after a state change is rejected; Operator still gets 403 on the toggle endpoints; data-confirm is present on each listed form (render each page with demo data); exactly one toast container in base.html.
-
 ### [ ] U5 Typography polish
 Why: consistent type scale, aligned numbers, better Japanese text, and readable sizes on a budget monitor.
 What:

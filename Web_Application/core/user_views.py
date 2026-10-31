@@ -3,11 +3,11 @@ from django.contrib.auth.views import PasswordChangeView
 from django.contrib.messages.views import SuccessMessageMixin
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse_lazy
+from django.urls import reverse, reverse_lazy
 from django.utils.translation import gettext as _
 from django.utils.translation import gettext_lazy
 
-from . import accounts
+from . import accounts, feedback
 from .forms import ROLE_LABELS, AddUserForm, EditUserForm
 from .models import Profile
 from .permissions import PLANNER, role_required
@@ -20,6 +20,14 @@ def _target(request, pk):
 
 def _password_page(request, user, password):
     return render(request, 'core/user_password.html', {'target': user, 'password': password})
+
+
+def _set_active(actor, target, active, undo=False):
+    accounts.update_user(actor, target, target.first_name, accounts.current_role(target), active, undo)
+    return _('User %(name)s updated.') % {'name': target.username}
+
+
+feedback.register('user', PLANNER, lambda actor, pk: accounts.visible_users(actor).filter(pk=pk).first(), _set_active)
 
 
 @role_required(PLANNER)
@@ -48,8 +56,13 @@ def user_edit(request, pk):
     form = EditUserForm(request.user, target, request.POST or None)
     if request.method == 'POST' and form.is_valid():
         d = form.cleaned_data
+        only_active = d['name'] == target.first_name and d['role'] == accounts.current_role(target) and d['is_active'] != target.is_active
         accounts.update_user(request.user, target, d['name'], d['role'], d['is_active'])
-        messages.success(request, _('User %(name)s updated.') % {'name': target.username})
+        text = _('User %(name)s updated.') % {'name': target.username}
+        if only_active:  # a plain Active toggle gets an Undo; role or name edits do not
+            feedback.toggled(request, 'user', target, reverse('user_list'), text)
+        else:
+            messages.success(request, text)
         return redirect('user_list')
     return render(request, 'core/user_form.html', {'form': form, 'target': target})
 
