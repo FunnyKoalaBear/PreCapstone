@@ -53,9 +53,10 @@ Fresh install: `sudo bash server_setup/install-tailscale.sh`, then `sudo bash se
 ```bash
 tailscale status                              # which of your devices are online / connected right now
 tailscale status --json | grep -E '"HostName"|"RxBytes"|"TxBytes"'   # bytes per device
-ip -s -h link show tailscale0                 # total bytes in/out over Tailscale since boot
+ip -s -h link show tailscale0                 # bytes between your own tailnet devices since boot
 sudo apt install nload && nload tailscale0    # live bandwidth graph (q to quit)
 ```
+- `tailscale0` does NOT count Funnel (public) visits: tailscaled receives those over the normal network and hands them to Caddy on 127.0.0.1:8081 directly.
 - Funnel visitors show up only as `funnel-ingress-node` peers (Tailscale's relays), not as individual people.
 - Per-visitor logs (who opened which page, from which IP) come from Caddy's access log, not from Tailscale. It is off by default; enabling it means adding a `log` block to the `:8081` site in `/etc/caddy/Caddyfile`.
 - Admin console > Machines shows each device's last seen time. Tailscale's network flow logs are a paid-plan feature.
