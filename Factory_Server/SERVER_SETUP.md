@@ -126,6 +126,7 @@ sudo bash server_setup/setup-funnel.sh
 - Tailscale alone = private access for developers (SSH, VS Code Remote-SSH) from anywhere. Free plan.
 - Funnel = public HTTPS URL `https://factory-server.<tailnet>.ts.net/`. The script adds a localhost-only Caddy entrance (`http://:8081` bound to 127.0.0.1) that sends `X-Forwarded-Proto: https`, so gunicorn reports HTTPS to Django and CSRF checks on login pass. It also appends the `.ts.net` name to `ALLOWED_HOSTS`.
 - Off / on: `tailscale funnel --https=443 off` / `tailscale funnel --bg http://127.0.0.1:8081`.
+- Day-to-day commands and troubleshooting: `TAILSCALE.md`.
 
 ## 9. Check
 ```bash
