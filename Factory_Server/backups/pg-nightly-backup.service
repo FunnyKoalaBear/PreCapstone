@@ -1,0 +1,8 @@
+[Unit]
+Description=Nightly pg_dump of all databases
+After=postgresql.service
+
+[Service]
+Type=oneshot
+User=postgres
+ExecStart=/usr/local/bin/pg-nightly-backup.sh
