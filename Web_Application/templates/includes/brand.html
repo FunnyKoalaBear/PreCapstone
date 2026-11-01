@@ -1,0 +1,1 @@
+{% load i18n %}<a class="brand" href="{% url 'home' %}" aria-label="{% trans 'Home' %}" title="{% trans 'Home' %}">{% include "includes/icon.html" with name="logo" %}<span{% if label_class %} class="{{ label_class }}"{% endif %}>{% trans "Factory Tracker" %}</span></a>

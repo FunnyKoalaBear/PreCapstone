@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Factory Tracker\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-01 03:22+0900\n"
+"POT-Creation-Date: 2026-11-01 21:25+0900\n"
 "PO-Revision-Date: 2026-10-11 17:00+0900\n"
 "Last-Translator: Claude\n"
 "Language-Team: Japanese\n"
@@ -35,8 +35,8 @@ msgid "Work"
 msgstr "作業"
 
 #: .\core\context_processors.py:11 .\templates\403.html:9
-#: .\templates\base.html:26 .\templates\base.html:30 .\templates\base.html:40
 #: .\templates\core\home.html:4 .\templates\core\home.html:7
+#: .\templates\includes\brand.html:1
 msgid "Home"
 msgstr "ホーム"
 
@@ -964,12 +964,11 @@ msgid "Access denied"
 msgstr "アクセスできません"
 
 # CHECK: glossary marks 工程進捗管理 as unsure (product name)
-#: .\templates\403.html:4 .\templates\base.html:6 .\templates\base.html:26
-#: .\templates\base.html:30 .\templates\base.html:40 .\templates\base.html:77
+#: .\templates\403.html:4 .\templates\base.html:6 .\templates\base.html:80
 #: .\templates\core\dashboard.html:4 .\templates\core\home.html:4
 #: .\templates\core\user_form.html:4 .\templates\core\user_list.html:4
 #: .\templates\core\user_password.html:4 .\templates\core\user_reset.html:4
-#: .\templates\orders\customer_detail.html:4
+#: .\templates\includes\brand.html:1 .\templates\orders\customer_detail.html:4
 #: .\templates\orders\customer_edit.html:4
 #: .\templates\orders\customer_list.html:4 .\templates\orders\hub.html:4
 #: .\templates\orders\order_detail.html:4 .\templates\orders\order_form.html:4
@@ -1009,37 +1008,37 @@ msgstr "メニュー"
 msgid "Sidebar"
 msgstr "サイドバー"
 
-#: .\templates\base.html:41
+#: .\templates\base.html:42
 msgid "Collapse sidebar"
 msgstr "サイドバーを閉じる"
 
-#: .\templates\base.html:41
-msgid "Pin sidebar"
-msgstr "サイドバーを固定"
+#: .\templates\base.html:44
+msgid "Open sidebar"
+msgstr "サイドバーを開く"
 
-#: .\templates\base.html:43
+#: .\templates\base.html:46
 msgid "Main menu"
 msgstr "メインメニュー"
 
-#: .\templates\base.html:61
+#: .\templates\base.html:64
 msgid "Notifications"
 msgstr "通知"
 
-#: .\templates\base.html:61
+#: .\templates\base.html:64
 msgid "Close"
 msgstr "閉じる"
 
 # CHECK: toast button; 取消 is kept for voiding events
-#: .\templates\base.html:68
+#: .\templates\base.html:71
 msgid "Undo"
 msgstr "元に戻す"
 
-#: .\templates\base.html:80 .\templates\base.html:85
+#: .\templates\base.html:83 .\templates\base.html:88
 #: .\templates\tracking\simulate.html:39
 msgid "Confirm"
 msgstr "確定"
 
-#: .\templates\base.html:84 .\templates\core\user_form.html:17
+#: .\templates\base.html:87 .\templates\core\user_form.html:17
 #: .\templates\orders\_order_form.html:18
 #: .\templates\orders\customer_edit.html:15
 #: .\templates\orders\tabs\codes.html:66
@@ -1323,6 +1322,10 @@ msgstr "ログイン"
 #: .\templates\includes\field.html:6
 msgid "required"
 msgstr "必須"
+
+#: .\templates\includes\language_switch.html:7
+msgid "Language"
+msgstr "言語"
 
 #: .\templates\includes\late_by.html:1
 #, python-format

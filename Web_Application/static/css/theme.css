@@ -128,15 +128,17 @@
 
 /* Responsive layout. The breakpoints live only here: 768px (tablet) and 480px (phone). */
 
-/* Desktop (above 768px): the collapsed sidebar is a 3.5rem icon rail that opens over the content while hovered or keyboard-focused */
+/* Desktop (above 768px): the sidebar is open (13.75rem) or a collapsed 3.5rem icon rail; only the buttons switch it */
 @media (min-width: 48.0625em) { /* 769px */
-  html[data-sidebar="collapsed"] #sidebar { width: var(--sidebar-rail); transition: width 150ms ease 200ms; }
-  html[data-sidebar="collapsed"] #sidebar:is(:hover, :has(:focus-visible)) { width: var(--sidebar-open); transition-delay: 0s; box-shadow: var(--frozen-shadow); }
+  #sidebar { transition: width 150ms ease; }
+  html[data-sidebar="collapsed"] #sidebar { width: var(--sidebar-rail); cursor: e-resize; }
   html[data-sidebar="collapsed"] .app.has-sidebar .app-main { margin-left: var(--sidebar-rail); }
-  html[data-sidebar="collapsed"] #sidebar:not(:hover):not(:has(:focus-visible)) .nav-group-label { opacity: 0; }
-  html[data-sidebar="collapsed"] #sidebar:not(:hover):not(:has(:focus-visible)) .lang-switch { border: 0; background: transparent; }
-  html[data-sidebar="collapsed"] #sidebar:not(:hover):not(:has(:focus-visible)) .lang-switch button:not(.lang-compact) { display: none; }
-  html[data-sidebar="collapsed"] #sidebar:not(:hover):not(:has(:focus-visible)) .nav-item.lang-compact { display: flex; }
+  html[data-sidebar="collapsed"] .sidebar-head { display: none; }
+  html[data-sidebar="collapsed"] .nav-item.sidebar-logo { display: flex; }
+  html[data-sidebar="collapsed"] .nav-group-label { opacity: 0; }
+  html[data-sidebar="collapsed"] #sidebar .lang-switch { align-self: stretch; border: 0; background: transparent; }
+  html[data-sidebar="collapsed"] #sidebar .lang-switch button:not(.lang-globe) { display: none; }
+  html[data-sidebar="collapsed"] #sidebar .lang-switch .lang-globe { display: flex; }
 }
 
 @media (max-width: 768px) {
@@ -148,7 +150,7 @@
   .js #sidebar { visibility: hidden; transform: translateX(-100%); z-index: 30; transition: transform 150ms ease, visibility 0s linear 150ms; }
   .js.drawer-open #sidebar { visibility: visible; transform: none; box-shadow: var(--frozen-shadow); transition-delay: 0s; }
   .js.drawer-open .sidebar-backdrop { display: block; position: fixed; inset: 0; z-index: 25; background: var(--color-overlay); }
-  html.js #sidebar .sidebar-toggle { display: none; }
+  html.js #sidebar .sidebar-collapse { display: none; }
   .gantt-row { grid-template-columns: 1fr; gap: 0.15rem; }
   .gantt-axis .gantt-name { display: none; }
 

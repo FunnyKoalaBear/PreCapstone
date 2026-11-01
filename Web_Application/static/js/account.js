@@ -41,8 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // The menu closes when the rail collapses or the sidebar mode changes
-  const toggle = sidebar && sidebar.querySelector('.sidebar-toggle');
-  if (toggle) toggle.addEventListener('click', () => close(false));
+  if (sidebar) sidebar.querySelectorAll('.sidebar-collapse, .sidebar-logo').forEach((b) => b.addEventListener('click', () => close(false)));
   if (sidebar) {
     sidebar.addEventListener('transitionend', (e) => {
       if (e.propertyName === 'width' && document.documentElement.dataset.sidebar === 'collapsed' && sidebar.offsetWidth < 100) close(false);

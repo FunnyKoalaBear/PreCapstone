@@ -390,7 +390,8 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | Developer (sidebar group) | 開発者 |
 | Sidebar | サイドバー |
 | Collapse sidebar | サイドバーを閉じる |
-| Pin sidebar | サイドバーを固定 |
+| Open sidebar | サイドバーを開く |
+| Language | 言語 |
 | Main menu | メインメニュー |
 | Theme | テーマ |
 | Auto / Light / Dark | 自動 / ライト / ダーク |

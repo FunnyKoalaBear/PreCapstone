@@ -733,9 +733,18 @@ class SidebarNavTests(TestCase):
         self.client.force_login(make_user('pl', 'Planner'))
         html = self.client.get('/').content.decode()
         self.assertIn('class="nav-item" href="/orders/" title="Orders" aria-label="Orders"', html)
-        self.assertIn('aria-pressed="true"', html)
-        self.assertIn('class="nav-item lang-compact"', html)
-        self.assertRegex(html, r'lang-compact">日本語</button>')  # the rail button names the other language
+        self.assertIn('class="nav-item sidebar-logo" aria-label="Open sidebar"', html)
+        self.assertIn('class="nav-item sidebar-collapse" aria-label="Collapse sidebar"', html)
+        self.assertEqual(html.count('lang-globe'), 1)
+        self.assertIn('data-tip="日本語"', html)  # the globe names the other language
+        self.assertNotIn('Pin sidebar', html)
+        self.assertNotIn('lang-compact', html)
+
+    def test_sidebar_css_has_no_hover_expand(self):
+        css = (settings.BASE_DIR / 'static' / 'css' / 'theme.css').read_text(encoding='utf-8')
+        self.assertNotIn('#sidebar:hover', css)
+        self.assertNotIn('#sidebar:is(:hover', css)
+        self.assertNotIn(':has(:focus-visible)', css)
 
     def test_every_main_page_returns_200_for_each_role(self):
         pages = {'Operator': ['/', '/orders/', '/priorities/', '/analysis/'],

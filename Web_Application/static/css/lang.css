@@ -3,7 +3,7 @@
 .lang-switch button:hover, .lang-switch button:focus-visible { background: var(--color-hover); }
 .lang-switch button.active { background: var(--color-primary); color: var(--color-on-primary); cursor: default; font-weight: var(--weight-semibold); }
 #sidebar .lang-switch { margin: 0; align-self: flex-start; }
-.nav-item.lang-compact { display: none; }
+.lang-switch .lang-globe { display: none; flex: 1; padding: 0.35rem 0.65rem; border-radius: 6px; color: var(--color-text); }
 
 /* Japanese text: looser lines for paragraphs and notes, strict line breaking, proportional kana in headings and menus only */
 :lang(ja) { line-break: strict; }

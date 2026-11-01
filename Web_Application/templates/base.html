@@ -23,11 +23,11 @@
   {% if request.user.is_authenticated %}
   <header class="site-header mobile-bar">
     <button type="button" class="hamburger" aria-controls="sidebar" aria-expanded="false" aria-label="{% trans 'Menu' %}">{% include "includes/icon.html" with name="menu" %}</button>
-    <a class="brand" href="{% url 'home' %}" aria-label="{% trans 'Home' %}" title="{% trans 'Home' %}">{% include "includes/icon.html" with name="logo" %}<span>{% trans "Factory Tracker" %}</span></a>
+    {% include "includes/brand.html" %}
   </header>
   {% else %}
   <header class="site-header">
-    <a class="brand" href="{% url 'home' %}" aria-label="{% trans 'Home' %}" title="{% trans 'Home' %}">{% include "includes/icon.html" with name="logo" %}<span>{% trans "Factory Tracker" %}</span></a>
+    {% include "includes/brand.html" %}
     {% include "includes/account.html" %}
     {% include "includes/theme_toggle.html" %}
     {% include "includes/language_switch.html" %}
@@ -37,8 +37,11 @@
     {% if request.user.is_authenticated %}
     <aside id="sidebar" aria-label="{% trans 'Sidebar' %}">
       <div class="sidebar-top">
-        <a class="brand" href="{% url 'home' %}" aria-label="{% trans 'Home' %}" title="{% trans 'Home' %}">{% include "includes/icon.html" with name="logo" %}<span class="nav-label">{% trans "Factory Tracker" %}</span></a>
-        <button type="button" class="nav-item sidebar-toggle" aria-pressed="true" aria-label="{% trans 'Collapse sidebar' %}" title="{% trans 'Collapse sidebar' %}" data-pin="{% trans 'Pin sidebar' %}" data-collapse="{% trans 'Collapse sidebar' %}">{% include "includes/icon.html" with name="panel-toggle" %}<span class="nav-label">{% trans "Collapse sidebar" %}</span></button>
+        <div class="sidebar-head">
+          {% include "includes/brand.html" with label_class="nav-label" %}
+          <button type="button" class="nav-item sidebar-collapse" aria-label="{% trans 'Collapse sidebar' %}" title="{% trans 'Collapse sidebar' %}">{% include "includes/icon.html" with name="panel-toggle" %}</button>
+        </div>
+        <button type="button" class="nav-item sidebar-logo" aria-label="{% trans 'Open sidebar' %}"><span class="logo-mark">{% include "includes/icon.html" with name="logo" %}</span><span class="logo-open">{% include "includes/icon.html" with name="expand" %}</span></button>
       </div>
       <nav id="site-nav" aria-label="{% trans 'Main menu' %}">
         {% for group in nav %}
