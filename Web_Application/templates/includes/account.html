@@ -9,8 +9,7 @@
   <div class="account-menu" id="account-menu" role="menu" aria-labelledby="account-button" hidden>
     <div class="account-head">
       <span class="avatar" aria-hidden="true">{{ account.initials }}</span>
-      <span class="chip-text"><span class="chip-name">{{ request.user.get_username }}</span>{% if account.full_name %}<span class="chip-full">{{ account.full_name }}</span>{% endif %}</span>
-      {% if account.role %}<span class="pill role-pill">{{ account.role }}</span>{% endif %}
+      <span class="chip-text"><span class="chip-name">{{ request.user.get_username }}</span>{% if account.full_name %}<span class="chip-full">{{ account.full_name }}</span>{% endif %}{% if account.role %}<span class="chip-role">{{ account.role }}</span>{% endif %}</span>
     </div>
     <a class="menu-item" role="menuitem" href="{% url 'password_change' %}">{% include "includes/icon.html" with name="key" %}<span>{% trans "Change password" %}</span></a>
     <div class="menu-group" role="radiogroup" aria-label="{% trans 'Theme' %}">

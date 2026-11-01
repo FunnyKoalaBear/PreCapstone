@@ -591,7 +591,7 @@ class ResponsiveLayoutTests(TestCase):
         for gone in ('.site-nav', '.nav-toggle'):
             self.assertNotIn(gone, base + theme)
         js = (settings.BASE_DIR / 'static' / 'js' / 'sidebar.js').read_text(encoding='utf-8')
-        for part in ('aria-expanded', "e.key === 'Escape'", 'burger.focus()', "localStorage.setItem('sidebar'", 'aria-pressed'):
+        for part in ('aria-expanded', "e.key === 'Escape'", 'burger.focus()', "localStorage.setItem('sidebar'", 'rail-tip', "setMode('collapsed')"):
             self.assertIn(part, js)
         self.assertFalse((settings.BASE_DIR / 'static' / 'js' / 'nav.js').exists())
 
@@ -619,6 +619,14 @@ class AccountChipTests(TestCase):
         self.assertIn('<span class="chip-role">Admin</span>', self.page(User.objects.create_superuser('root', password='x')))
         self.assertIn('<span class="chip-role"></span>', self.page(make_user('nobody')))
 
+    def test_menu_shows_a_long_username_in_full_with_the_role_on_its_own_line(self):
+        menu = self.page(make_user('demo_planner', 'Planner'))
+        menu = menu[menu.index('id="account-menu"'):]
+        self.assertIn('<span class="chip-name">demo_planner</span>', menu)
+        self.assertLess(menu.index('demo_planner'), menu.index('<span class="chip-role">Planner</span>'))
+        css = (settings.BASE_DIR / 'static' / 'css' / 'base.css').read_text(encoding='utf-8')
+        self.assertNotIn('.role-pill', css)
+
     def test_menu_has_name_password_link_theme_radios_and_a_post_logout(self):
         user = make_user('pl', 'Planner')
         user.first_name = 'Hanako Sato'
@@ -627,7 +635,8 @@ class AccountChipTests(TestCase):
         menu = html[html.index('id="account-menu"'):]
         menu = menu[:menu.index('</form>')]
         self.assertIn('Hanako Sato', menu)
-        self.assertIn('class="pill role-pill">Planner', menu)
+        self.assertIn('<span class="chip-role">Planner</span>', menu)
+        self.assertNotIn('role-pill', html)
         self.assertIn('href="/account/password/"', menu)
         self.assertEqual(menu.count('role="radio"'), 3)
         self.assertEqual(menu.count('aria-checked="true"'), 1)

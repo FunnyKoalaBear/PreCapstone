@@ -21,7 +21,7 @@ from tracking.status import (
 )
 
 from . import export, importer, pdf
-from .forms import CustomerForm, OrderForm, OrderItemFormSet, VendorForm
+from .forms import CustomerForm, ImportForm, OrderForm, OrderItemFormSet, VendorForm
 from .models import Customer, Order, OrderChange, OrderItem, Vendor
 from .process_tab import _tab_processes
 from .runs import previous_runs
@@ -203,7 +203,7 @@ def _tab_import(request):
         if text is not None:
             request.session[SESSION_KEY] = {'text': text, 'create': create}
             preview = importer.parse(text, create)
-    return {'preview': preview, 'error': error}
+    return {'preview': preview, 'error': error, 'import_form': ImportForm(initial={'create_customers': request.POST.get('create_customers') == 'on'})}
 
 
 KIND_FILTERS = [('', gettext_lazy('All')), ('INTERNAL', gettext_lazy('In-house')), ('EXTERNAL', gettext_lazy('External'))]

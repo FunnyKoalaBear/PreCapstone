@@ -6,8 +6,7 @@
   <form method="post" enctype="multipart/form-data" class="card">
     {% csrf_token %}
     {% if error %}<ul class="errorlist"><li>{{ error }}</li></ul>{% endif %}
-    <div><label for="file">{% trans "CSV file" %}</label><input type="file" id="file" name="file" accept=".csv,text/csv"></div>
-    <label class="check"><input type="checkbox" name="create_customers"{% if request.POST.create_customers %} checked{% endif %}><span>{% trans "Create new customers" %}</span></label>
+    {% include "includes/form_fields.html" with form=import_form %}
     <button type="submit" class="button">{% trans "Check file" %}</button>
   </form>
 

@@ -188,6 +188,11 @@ OrderItemFormSet = inlineformset_factory(
 )
 
 
+class ImportForm(forms.Form):
+    file = forms.FileField(label=_('CSV file'), required=False, widget=forms.ClearableFileInput(attrs={'accept': '.csv,text/csv'}))  # the view reports a missing file
+    create_customers = forms.BooleanField(label=_('Create new customers'), required=False)
+
+
 class VendorForm(forms.ModelForm):
     class Meta:
         model = Vendor

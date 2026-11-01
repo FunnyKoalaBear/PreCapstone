@@ -35,6 +35,27 @@ class SettingsPageTests(TestCase):
         event.save()
         return worker, event, item
 
+    def test_add_row_uses_the_shared_fields_and_the_old_names(self):
+        html = self.client.get('/settings/?tab=workers').content.decode()
+        self.assertIn('name="action" value="add"', html)
+        self.assertIn('<div class="field">', html)
+        self.assertRegex(html, r'<input type="text" name="name" maxlength="100" required id="id_name">')
+        self.assertIn('name="name_ja"', html)
+        for tab, model, name in (('workers', Worker, 'Ito'), ('machines', Machine, 'Lathe 1'), ('causes', DefectCause, 'Burr')):
+            self.post(tab, action='add', name=name, name_ja='')
+            self.assertTrue(model.objects.filter(name=name).exists())
+            r = self.post(tab, action='add', name=name.lower(), name_ja='')
+            self.assertContains(r, 'already exists')
+            self.assertEqual(model.objects.filter(name__iexact=name).count(), 1)
+
+    def test_each_settings_tab_has_its_own_icon(self):
+        markers = {'workers': 'cx="12" cy="8" r="4"', 'machines': 'M19.4 15a1.7', 'causes': 'M12 3l10 18H2z', 'rules': 'cx="16" cy="6" r="2"'}
+        for tab, marker in markers.items():
+            html = self.client.get(f'/settings/?tab={tab}').content.decode()
+            bar = html[html.index('class="tab'):html.index('</nav>', html.index('class="tab'))] if '</nav>' in html[html.index('class="tab'):] else html
+            self.assertIn(marker, bar, tab)
+            self.assertNotIn('M20 12l-8 8-9-9V3h8z', bar, tab)  # none falls back to the tag icon
+
     def test_operator_gets_403_and_anonymous_is_redirected(self):
         self.client.force_login(make_user('op', 'Operator'))
         for tab in MODELS:

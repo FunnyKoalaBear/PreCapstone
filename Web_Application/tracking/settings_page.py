@@ -181,4 +181,4 @@ def settings_page(request):
     rows = model.objects.annotate(used=Count('event')).order_by('name')
     if q:
         rows = rows.filter(Q(name__icontains=q) | Q(name_ja__icontains=q))
-    return render(request, 'tracking/settings.html', {'tab': key, 'tabs': tabs, 'label': label, 'rows': rows, 'q': q, 'back': back, 'noun': NOUNS[key]})
+    return render(request, 'tracking/settings.html', {'tab': key, 'tabs': tabs, 'label': label, 'rows': rows, 'add_form': ResourceForm(model), 'q': q, 'back': back, 'noun': NOUNS[key]})

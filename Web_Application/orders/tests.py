@@ -955,6 +955,12 @@ class CsvImportTests(TestCase):
         self.assertEqual(Order.objects.filter(customer_order_number='').count(), 1)
         self.assertEqual(len({o.job_number for o in Order.objects.all()}), 7)
 
+    def test_create_customers_stays_ticked_after_a_check_and_unticked_otherwise(self):
+        ticked = self.upload(create=True)
+        self.assertRegex(ticked.content.decode(), r'<input type="checkbox" name="create_customers"[^>]* checked')
+        self.assertNotRegex(self.upload().content.decode(), r'name="create_customers"[^>]* checked')
+        self.assertContains(self.upload(), 'enctype="multipart/form-data"')
+
     def test_shift_jis_and_plain_utf8_give_the_same_result(self):
         self.customers()
         utf8 = self.upload()
@@ -1468,7 +1474,8 @@ class OrdersHubTests(TestCase):
         self.assertIn('列:', html)
         self.assertIn('工程順の1行は', html)
         self.assertNotIn('route step is written', html)
-        self.assertRegex(html, r'<label class="check"><input type="checkbox" name="create_customers"[^>]*><span>新規の得意先を作成する</span></label>')
+        self.assertRegex(html, r'<label class="check" for="id_create_customers"><input type="checkbox" name="create_customers"[^>]*><span>新規の得意先を作成する</span></label>')
+        self.assertIn('accept=".csv,text/csv"', html)
 
     def test_checkbox_rule_is_scoped_to_check_labels_in_cards(self):
         css = (settings.BASE_DIR / 'static' / 'css' / 'base.css').read_text(encoding='utf-8')

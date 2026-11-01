@@ -29,14 +29,7 @@
   <form method="post" action="{{ back }}" class="filters">
     {% csrf_token %}
     <input type="hidden" name="action" value="add">
-    <div>
-      <label for="new-name">{% trans "Name" %}</label>
-      <input type="text" id="new-name" name="name" maxlength="100" required>
-    </div>
-    <div>
-      <label for="new-name-ja">{% trans "Japanese name" %}</label>
-      <input type="text" id="new-name-ja" name="name_ja" maxlength="100">
-    </div>
+    {% include "includes/form_fields.html" with form=add_form %}
     <button type="submit" class="button">{% trans "Add" %}</button>
   </form>
 
