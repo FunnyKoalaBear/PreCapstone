@@ -21,11 +21,11 @@
 - [x] Make the laptop server reachable: `uvicorn --host 0.0.0.0` + Windows firewall rule for port 8000 (laptop reserved at 192.168.8.200)
 - [ ] Add `espressif/cjson` (and later `espressif/mdns`) via `idf_component.yml`
 - [x] `esp_http_client` POST works end to end (on startup and on a button press, placeholder text)
-- [ ] Move `send_scan` out of `button_task` (2 KB stack, blocks the buzzer, POSTs repeatedly while the button is held) into a queue + network task with an 8 KB stack
+- [x] Move `send_scan` out of `button_task` (2 KB stack, blocks the buzzer, POSTs repeatedly while the button is held) into a queue + network task with an 8 KB stack
 - [ ] Send real RFID UIDs instead of placeholder text
 - [ ] Rework `RFID::scan()` to return each UID; hex-format it; debounce repeat reads
 - [ ] Check app size vs the 1 MB partition after adding WiFi/HTTP
-- [ ] mDNS resolve of the Pi, cache the IP, timeout and retry
+- [ ] mDNS resolve of the factory server, cache the IP, timeout and retry
 - [ ] Make `rfid.init()` non-blocking (or run it inside `rfid_task`)
 - [ ] Make `RFID`, `BUTTON`, `BUZZER`, `DISPLAY` in `app_main` `static`
 - [ ] Rotary encoder, keyboard buttons, IR sensor
@@ -39,8 +39,8 @@
 - [ ] Schema migrations (Alembic or versioned SQL)
 
 ## Infrastructure
-- [ ] Pi: hostname, Avahi check, Postgres install, systemd unit for the API
-- [ ] Provisioning script for a new Pi / new factory site
+- [ ] Factory server (Ubuntu mini PC): hostname, Avahi check, Postgres install, systemd unit for the API
+- [ ] Provisioning script for a new server / new factory site
 - [ ] Postgres remote access over Tailscale (`pg_hba.conf` + firewall rule, Tailscale range only)
 - [ ] AWS RDS migration (`pg_dump` / `pg_restore`)
 - [ ] Docker, only if a second site appears

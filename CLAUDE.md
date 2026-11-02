@@ -32,13 +32,13 @@ The developer is learning: explain concepts briefly, show the "why".
 ## Architecture decisions
 - ESP32 never talks to Postgres. Flow: ESP32 -HTTP/JSON-> FastAPI -psycopg2-> Postgres.
 - The RFID UID is only a key; order data lives in the DB, not on the card.
-- No offline requirement. Scanners and the Pi share the factory WiFi; there is a LAN, a WAN and a local DB copy. ~10 scanners, each reporting about every 20 min, and 10 simultaneous requests must work.
+- No offline requirement. Scanners and the factory server share the factory WiFi; there is a LAN, a WAN and a local DB copy. ~10 scanners, each reporting about every 20 min, and 10 simultaneous requests must work.
 - Use plain `def` endpoints with psycopg2 (never `async def`). Currently one connection per request; later `ThreadedConnectionPool` with maxconn about 20 (it raises, it does not queue, when exhausted).
-- Pi runs FastAPI + Postgres; AWS RDS later. HTTPS is needed before traffic leaves the LAN.
+- The factory server (an Ubuntu mini PC, replacing the dead Raspberry Pi) runs FastAPI + Postgres; AWS RDS later. HTTPS is needed before traffic leaves the LAN.
 - IDF 6.1 core has NO cJSON or mDNS. Add them as managed components in a component's `idf_component.yml`: `espressif/cjson` (^1.7.19) and `espressif/mdns`. `esp_http_client`, `esp-tls`, `esp_wifi`, `lwip`, `mbedtls` are still in core.
-- ESP32 finds the Pi with mDNS (`<hostname>.local`, Avahi on the Pi, `espressif/mdns`): resolve once, cache, re-resolve on failure. DHCP reservation is the simpler alternative. Not built yet.
-- Remote dev access to the Pi's Postgres: Tailscale. Never port-forward Postgres.
-- Docker deferred (add if a second factory site appears; keep Avahi on the host). Pi auto-start via systemd plus a one-time provisioning script.
+- ESP32 finds the factory server with mDNS (`<hostname>.local`, Avahi on the server, `espressif/mdns`): resolve once, cache, re-resolve on failure. DHCP reservation is the simpler alternative. Not built yet.
+- Remote dev access to the server's Postgres: Tailscale. Never port-forward Postgres.
+- Docker deferred (add if a second factory site appears; keep Avahi on the host). Server auto-start via systemd plus a one-time provisioning script.
 - Security plan: per-device API key in an `X-API-Key` header, checked against a table with an `active` flag, return 401 otherwise. Django's `ScannerDevice` already provides this (key stored in plain text, generated with `secrets.token_urlsafe(32)`), so prefer it over building a new `scanners` table. HTTPS before the internet. Keys in ESP32 NVS (flash encryption for production). HMAC signing or mTLS later.
 
 ## Known issues and open questions
