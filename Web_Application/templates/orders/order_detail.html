@@ -6,9 +6,9 @@
 {% block content %}
   <p><a href="{% url 'order_list' %}">&larr; {% trans "Back to Orders" %}</a></p>
   <h1>{{ order.job_number }} <span class="badge badge-{{ code|lower }}">{{ label }}</span>
-    {% if can.planner %}<a class="button-secondary" href="{% url 'order_edit' order.job_number %}">{% trans "Edit" %}</a>
-    <a class="button-secondary" href="{% url 'order_sheet' order.job_number %}" target="_blank" rel="noopener">{% trans "Print sheet" %}</a>
-    <a class="button-secondary" href="{% url 'order_events_export' order.job_number %}">{% trans "Export events (CSV)" %}</a>{% endif %}</h1>
+    {% if can.planner %}<a class="button-secondary" href="{% url 'order_edit' order.job_number %}">{% trans "Edit" %}</a>{% endif %}
+    {% if can.operator %}<a class="button-secondary" href="{% url 'order_sheet' order.job_number %}" target="_blank" rel="noopener">{% trans "Print sheet" %}</a>{% endif %}
+    {% if can.planner %}<a class="button-secondary" href="{% url 'order_events_export' order.job_number %}">{% trans "Export events (CSV)" %}</a>{% endif %}</h1>
 
   <dl class="info">
     <div><dt>{% trans "Customer" %}</dt><dd>{{ order.customer }}</dd></div>
@@ -47,7 +47,7 @@
                 <tr>
                   <th>{% trans "Job number" %}</th>
                   <th>{% trans "Finished" %}</th>
-                  <th>{% trans "Total days" %}</th>
+                  <th class="num">{% trans "Total days" %}</th>
                   <th>{% trans "Time per step" %}</th>
                 </tr>
               </thead>
@@ -55,8 +55,8 @@
                 {% for run in entry.runs %}
                   <tr>
                     <td><a href="{% url 'order_detail' run.order.job_number %}">{{ run.item.item_code }}</a></td>
-                    <td>{{ run.finished|date:"Y-m-d"|default:"-" }}</td>
-                    <td>{{ run.total_days|default_if_none:"-" }}</td>
+                    <td class="tnum">{{ run.finished|date:"Y-m-d"|default:"-" }}</td>
+                    <td class="num">{{ run.total_days|default_if_none:"-" }}</td>
                     <td>
                       <ul class="run-steps">
                         {% for s in run.steps %}
@@ -75,7 +75,7 @@
       <p>
         {% if entry.single %}
           {% if entry.assignment %}
-            {% blocktrans with box=entry.assignment.box tag=entry.assignment.tag %}Box {{ box }}, tag {{ tag }}{% endblocktrans %}
+            {% blocktrans with tag=entry.assignment.tag %}Tag {{ tag }}{% endblocktrans %}
           {% else %}
             {% trans "No tag assigned." %}
           {% endif %}
@@ -99,27 +99,29 @@
           {% if can.planner %}<a class="button-secondary" href="{% url 'correct_event' entry.status.ship_event.pk %}?next={{ request.get_full_path|urlencode }}">{% trans "Undo shipment" %}</a>{% endif %}
         </p>
       {% elif can.planner and entry.status.code == "COMPLETE" %}
-        <form method="post" action="{% url 'item_action' entry.item.pk %}">
+        {% blocktrans with item=entry.item.item_code asvar confirm_ship %}Mark item {{ item }} as shipped?{% endblocktrans %}
+        <form method="post" action="{% url 'item_action' entry.item.pk %}" data-confirm="{{ confirm_ship|force_escape }}" data-confirm-button="{% trans 'Mark as shipped' %}">
           {% csrf_token %}
           <input type="hidden" name="action" value="ship">
-          <button type="submit" class="button">{% trans "Mark as shipped" %}</button>
+          <button type="submit" class="button-secondary">{% trans "Mark as shipped" %}</button>
         </form>
       {% endif %}
 
       {% if entry.cancelled %}
         <p class="cancelled-note">
           {% blocktrans with d=entry.cancelled.occurred_at|date:"Y-m-d H:i" u=entry.cancelled.created_by r=entry.cancelled.reason %}Cancelled on {{ d }} by {{ u }}: {{ r }}{% endblocktrans %}
-          {% if can.planner %}<a class="button" href="{% url 'correct_event' entry.cancelled.pk %}?next={{ request.get_full_path|urlencode }}">{% trans "Undo cancellation" %}</a>{% endif %}
+          {% if can.planner %}<a class="button-secondary" href="{% url 'correct_event' entry.cancelled.pk %}?next={{ request.get_full_path|urlencode }}">{% trans "Undo cancellation" %}</a>{% endif %}
         </p>
       {% elif can.planner and entry.status.code != "COMPLETE" and entry.status.code != "SHIPPED" %}
         <details class="result-details">
           <summary>{% trans "Cancel item" %}</summary>
-          <form method="post" action="{% url 'item_action' entry.item.pk %}" class="cancel-form">
+          {% blocktrans with item=entry.item.item_code asvar confirm_cancel %}Cancel item {{ item }}?{% endblocktrans %}
+          <form method="post" action="{% url 'item_action' entry.item.pk %}" class="cancel-form" data-confirm="{{ confirm_cancel|force_escape }}" data-confirm-danger data-confirm-button="{% trans 'Cancel item' %}">
             {% csrf_token %}
             <input type="hidden" name="action" value="cancel">
             <label for="reason-{{ entry.item.pk }}">{% trans "Reason" %}</label>
             <textarea id="reason-{{ entry.item.pk }}" name="reason" rows="2" required></textarea>
-            <button type="submit" class="button">{% trans "Cancel item" %}</button>
+            <button type="submit" class="button-danger">{% trans "Cancel item" %}</button>
           </form>
         </details>
       {% endif %}
@@ -127,9 +129,9 @@
       <details class="result-details">
         <summary>{% trans "Record result" %}</summary>
         {% if entry.result_form %}
-          <form method="post" action="{% url 'record_result' entry.item.pk %}" class="result-form">
+          <form method="post" action="{% url 'record_result' entry.item.pk %}" class="result-form" enctype="multipart/form-data">
             {% csrf_token %}
-            {{ entry.result_form }}
+            {% include "includes/form_fields.html" with form=entry.result_form %}
             <button type="submit" class="button">{% trans "Record result" %}</button>
           </form>
         {% else %}
@@ -147,7 +149,7 @@
         {% for b in entry.boxes %}
           <section class="box-section">
             {% if b.box.assignment %}
-              <h3>{% blocktrans with l=b.box.label %}Box {{ l }}{% endblocktrans %}{% if not b.open %} <small>{% trans "(released)" %}</small>{% endif %}
+              <h3>{% blocktrans with tag=b.box.assignment.tag %}Tag {{ tag }}{% endblocktrans %}{% if b.box.caption %} <small>{{ b.box.caption }}</small>{% endif %}{% if not b.open %} <small>{% trans "(released)" %}</small>{% endif %}
                 <span class="badge badge-{{ b.box.code|lower }}">{{ b.box.code_label }}</span></h3>
               {% include "orders/_box_detail.html" with b=b single=False %}
             {% else %}
@@ -175,7 +177,7 @@
       <tbody>
         {% for c in changes %}
           <tr>
-            <td>{{ c.changed_at|date:"Y-m-d H:i" }}</td>
+            <td class="tnum">{{ c.changed_at|date:"Y-m-d H:i" }}</td>
             <td>{{ c.changed_by|default:"-" }}</td>
             <td>{% if c.item_code %}{{ c.item_code }} {% endif %}{{ c.field_label }}</td>
             <td>{{ c.old_value|default:"-" }}</td>

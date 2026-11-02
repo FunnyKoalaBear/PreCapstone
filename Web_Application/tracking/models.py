@@ -2,6 +2,7 @@ import secrets
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.core.validators import MaxLengthValidator
 from django.db import models
 from django.db.models import F, Q
 from django.utils import timezone
@@ -10,19 +11,7 @@ from django.utils.translation import gettext_lazy as _
 
 from orders.models import Process
 
-
-class Box(models.Model):
-    label = models.CharField(_('label'), max_length=100, unique=True)
-    notes = models.TextField(_('notes'), blank=True)
-    active = models.BooleanField(_('active'), default=True)
-    created_at = models.DateTimeField(_('created at'), auto_now_add=True)
-
-    class Meta:
-        verbose_name = _('box')
-        verbose_name_plural = _('boxes')
-
-    def __str__(self):
-        return self.label
+from .photos import photo_upload_to
 
 
 class Tag(models.Model):
@@ -53,10 +42,11 @@ class TagAssignmentQuerySet(models.QuerySet):
 
 class TagAssignment(models.Model):
     tag = models.ForeignKey(Tag, on_delete=models.PROTECT, verbose_name=_('tag'))
-    box = models.ForeignKey(Box, on_delete=models.PROTECT, verbose_name=_('box'))
     item = models.ForeignKey('orders.OrderItem', on_delete=models.PROTECT, verbose_name=_('item'))
     start_at = models.DateTimeField(_('start'), default=timezone.now)
     end_at = models.DateTimeField(_('end'), null=True, blank=True)
+    # The assignment whose tag this one replaced (same physical box)
+    replaces = models.ForeignKey('self', on_delete=models.PROTECT, null=True, blank=True, related_name='replaced_by', verbose_name=_('replaces'))
 
     objects = TagAssignmentQuerySet.as_manager()
 
@@ -67,16 +57,13 @@ class TagAssignment(models.Model):
             models.UniqueConstraint(
                 fields=['tag'], condition=Q(end_at__isnull=True), name='one_open_assignment_per_tag',
             ),
-            models.UniqueConstraint(
-                fields=['box'], condition=Q(end_at__isnull=True), name='one_open_assignment_per_box',
-            ),
             models.CheckConstraint(
                 condition=Q(end_at__isnull=True) | Q(end_at__gt=F('start_at')), name='end_after_start',
             ),
         ]
 
     def __str__(self):
-        return f'{self.tag} / {self.box} / {self.item}'
+        return f'{self.tag} / {self.item}'
 
     def release(self):
         if self.end_at is None:
@@ -108,6 +95,12 @@ class Machine(NamedResource):
     class Meta(NamedResource.Meta):
         verbose_name = _('machine')
         verbose_name_plural = _('machines')
+
+
+class DefectCause(NamedResource):
+    class Meta(NamedResource.Meta):
+        verbose_name = _('defect cause')
+        verbose_name_plural = _('defect causes')
 
 
 def generate_api_key():
@@ -177,8 +170,11 @@ class Event(models.Model):
     # RESULT events only; defects are part of the quantity done
     worker = models.ForeignKey(Worker, on_delete=models.PROTECT, null=True, blank=True, verbose_name=_('worker'))
     machine = models.ForeignKey(Machine, on_delete=models.PROTECT, null=True, blank=True, verbose_name=_('machine'))
+    defect_cause = models.ForeignKey(DefectCause, on_delete=models.PROTECT, null=True, blank=True, verbose_name=_('main cause'))
     quantity = models.PositiveIntegerField(_('quantity done'), null=True, blank=True)
     defects = models.PositiveIntegerField(_('defects'), null=True, blank=True)
+    note = models.TextField(_('note'), blank=True, validators=[MaxLengthValidator(1000)])
+    photo = models.ImageField(_('photo'), upload_to=photo_upload_to, null=True, blank=True)
 
     class Meta:
         verbose_name = _('event')
@@ -203,8 +199,8 @@ class Event(models.Model):
             raise ValidationError({'item': _('Only a cancellation or shipment names an item.')})
         if self.event_type == self.Type.RESULT:
             self._clean_result()
-        elif self.worker_id or self.machine_id or self.quantity is not None or self.defects is not None:
-            raise ValidationError(_('Worker, machine, quantity and defects are only for results.'))
+        elif self.worker_id or self.machine_id or self.defect_cause_id or self.quantity is not None or self.defects is not None or self.note or self.photo:
+            raise ValidationError(_('Worker, machine, defect cause, quantity, defects, note and photo are only for results.'))
         if (self.event_type in (self.Type.CORRECTION, self.Type.CANCELLED) or self.is_manual) and not self.reason.strip():
             raise ValidationError({'reason': _('A reason is required.')})
         if self.event_type == self.Type.CORRECTION:
@@ -234,6 +230,8 @@ class Event(models.Model):
             self.defects = 0
         if self.defects > self.quantity:
             raise ValidationError({'defects': _('Defects cannot be more than the quantity done.')})
+        if self.defect_cause_id and not self.defects:
+            raise ValidationError({'defect_cause': _('A main cause needs at least one defect.')})
 
     def save(self, *args, **kwargs):
         if not self._state.adding:

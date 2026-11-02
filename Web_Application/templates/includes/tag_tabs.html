@@ -1,0 +1,6 @@
+{% load i18n %}
+<nav class="tabs" aria-label="{% trans 'Tag sections' %}">
+  <a class="tab{% if tab == 'tags' %} is-active{% endif %}" href="{% url 'tag_manage' %}"{% if tab == 'tags' %} aria-current="page"{% endif %}><span>{% trans "Tags" %}</span></a>
+  <a class="tab{% if tab == 'history' %} is-active{% endif %}" href="{% url 'tag_history' %}"{% if tab == 'history' %} aria-current="page"{% endif %}><span>{% trans "Tag history" %}</span></a>
+  <a class="tab{% if tab == 'devices' %} is-active{% endif %}" href="{% url 'device_list' %}"{% if tab == 'devices' %} aria-current="page"{% endif %}><span>{% trans "Devices" %}</span></a>
+</nav>

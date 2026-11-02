@@ -62,6 +62,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'core.middleware.ForcePasswordChangeMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -79,6 +80,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'core.context_processors.roles',
+                'core.context_processors.nav',
             ],
         },
     },
@@ -124,6 +126,10 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/6.1/topics/i18n/
 
+# Stay logged in for a work shift; each request extends it
+SESSION_COOKIE_AGE = int(os.environ.get('SESSION_HOURS', '12')) * 3600
+SESSION_SAVE_EVERY_REQUEST = True
+
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'home'
 LOGOUT_REDIRECT_URL = 'login'
@@ -162,9 +168,6 @@ MAILERS = {
         'BACKEND': 'django.core.mail.backends.console.EmailBackend',
     },
 }
-
-# True only while the export_demo command renders pages for the static demo (adds the data its browser-side filters need)
-DEMO_EXPORT = False
 
 # Seconds a repeat UID-only scan of the same tag is ignored (0 = off)
 SCAN_REPEAT_SECONDS = int(os.environ.get('SCAN_REPEAT_SECONDS', '5'))

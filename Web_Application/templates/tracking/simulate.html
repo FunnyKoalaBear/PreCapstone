@@ -24,7 +24,7 @@
         <p>{% blocktrans with uid=uid %}Tag {{ uid }} is not linked to any item.{% endblocktrans %} <a href="{% url 'tag_manage' %}">{% trans "Link a tag" %}</a></p>
       {% else %}
         <p>
-          {% blocktrans with uid=uid item=step.assignment.item.item_code box=step.assignment.box.label part=step.assignment.item.part_name %}Tag {{ uid }}: item {{ item }}, box {{ box }}, {{ part }}{% endblocktrans %}
+          {% blocktrans with uid=uid item=step.assignment.item.item_code part=step.assignment.item.part_name %}Tag {{ uid }}: item {{ item }}, {{ part }}{% endblocktrans %}
           <span class="badge badge-{{ step.status.code|lower }}">{{ step.status.code_label }}</span>
         </p>
         {% if step.state == "finished" %}

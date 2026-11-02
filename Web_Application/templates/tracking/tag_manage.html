@@ -5,14 +5,12 @@
 
 {% block content %}
   <h1>{% trans "Tags" %}</h1>
+  {% include "includes/tag_tabs.html" with tab="tags" %}
 
   <form method="post" class="card">
     {% csrf_token %}
     <input type="hidden" name="action" value="assign">
-    {{ form }}
-    <datalist id="box-labels">
-      {% for label in box_labels %}<option value="{{ label }}">{% endfor %}
-    </datalist>
+    {% include "includes/form_fields.html" %}
     <datalist id="tag-uids">
       {% for uid in tag_uids %}<option value="{{ uid }}">{% endfor %}
     </datalist>
@@ -23,10 +21,9 @@
   <form method="get" class="filters">
     <div>
       <label for="q">{% trans "Search" %}</label>
-      <input type="search" id="q" name="q" value="{{ q }}" placeholder="{% trans 'Item, job, part, customer, box or tag' %}">
+      <input type="search" id="q" name="q" value="{{ q }}" placeholder="{% trans 'Item, job, part, customer or tag' %}">
     </div>
-    <button type="submit" class="button">{% trans "Search" %}</button>
-    <a href="{% url 'tag_history' %}">{% trans "Tag history" %}</a>
+    <button type="submit" class="button-secondary">{% trans "Search" %}</button>
   </form>
   <p>{% blocktrans count n=in_use %}{{ n }} tag in use.{% plural %}{{ n }} tags in use.{% endblocktrans %}</p>
 
@@ -36,21 +33,20 @@
         <thead>
           <tr>
             <th>{% trans "Tag" %}</th>
-            <th>{% trans "Box" %}</th>
             <th>{% trans "Item" %}</th>
-            <th>{% trans "Since (JST)" %}</th>
+            <th class="tnum">{% trans "Since (JST)" %}</th>
             <th></th>
           </tr>
         </thead>
         <tbody>
           {% for a in open %}
             <tr>
-              <td data-label="{% trans 'Tag' %}">{{ a.tag }}</td>
-              <td data-label="{% trans 'Box' %}">{% blocktrans with l=a.box n=a.nth t=a.item.box_count %}Box {{ l }} ({{ n }} of {{ t }}){% endblocktrans %}</td>
+              <td data-label="{% trans 'Tag' %}">{{ a.tag }}{% if a.caption %} <small>{{ a.caption }}</small>{% endif %}</td>
               <td data-label="{% trans 'Item' %}"><span><a href="{% url 'order_detail' a.item.order.job_number %}">{{ a.item.item_code }}</a> {{ a.item.part_name }}</span></td>
-              <td data-label="{% trans 'Since (JST)' %}">{{ a.start_at|date:"Y-m-d H:i" }}</td>
+              <td class="tnum" data-label="{% trans 'Since (JST)' %}">{{ a.start_at|date:"Y-m-d H:i" }}</td>
               <td>
-                <form method="post">
+                {% blocktrans with tag=a.tag item=a.item.item_code asvar confirm_release %}Release tag {{ tag }} from item {{ item }}?{% endblocktrans %}
+                <form method="post" data-confirm="{{ confirm_release|force_escape }}" data-confirm-danger data-confirm-button="{% trans 'Release' %}">
                   {% csrf_token %}
                   <input type="hidden" name="action" value="release">
                   <input type="hidden" name="assignment" value="{{ a.pk }}">
@@ -59,7 +55,8 @@
                 </form>
                 <details class="replace-tag">
                   <summary>{% trans "Replace tag" %}</summary>
-                  <form method="post">
+                  {% blocktrans with tag=a.tag item=a.item.item_code asvar confirm_replace %}Replace tag {{ tag }} on item {{ item }}?{% endblocktrans %}
+                  <form method="post" data-confirm="{{ confirm_replace|force_escape }}" data-confirm-button="{% trans 'Replace' %}">
                     {% csrf_token %}
                     <input type="hidden" name="action" value="replace">
                     <input type="hidden" name="assignment" value="{{ a.pk }}">

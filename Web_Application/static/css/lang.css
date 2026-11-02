@@ -1,4 +1,11 @@
 .lang-switch { display: inline-flex; margin-left: auto; border: 1px solid var(--color-border); border-radius: 999px; overflow: hidden; background: var(--color-surface); }
 .lang-switch button { padding: 0.25rem 0.75rem; border: 0; background: transparent; color: var(--color-primary); font: inherit; cursor: pointer; }
-.lang-switch button:hover, .lang-switch button:focus-visible { background: var(--color-bg); }
-.lang-switch button.active { background: var(--color-primary); color: var(--color-surface); cursor: default; font-weight: 700; }
+.lang-switch button:hover, .lang-switch button:focus-visible { background: var(--color-hover); }
+.lang-switch button.active { background: var(--color-primary); color: var(--color-on-primary); cursor: default; font-weight: var(--weight-semibold); }
+#sidebar .lang-switch { margin: 0; align-self: flex-start; }
+.lang-switch .lang-globe { display: none; flex: 1; padding: 0.35rem 0.65rem; border-radius: 6px; color: var(--color-text); }
+
+/* Japanese text: looser lines for paragraphs and notes, strict line breaking, proportional kana in headings and menus only */
+:lang(ja) { line-break: strict; }
+:lang(ja) :is(p, .note, .helptext, .reasons, .toast-text, .event-reason, .message) { line-height: var(--leading-ja); }
+:lang(ja) :is(h1, h2, h3, .nav-label, .nav-group-label, .tab) { font-feature-settings: "palt"; }

@@ -11,8 +11,8 @@
       {% for value, label in kinds %}<option value="{{ value }}"{% if value == kind %} selected{% endif %}>{{ label }}</option>{% endfor %}
     </select>
   </div>
-  <label class="check"><input type="checkbox" name="inactive" value="1" data-f-show{% if show_inactive %} checked{% endif %}> {% trans "Show inactive" %}</label>
-  <button type="submit" class="button">{% trans "Search" %}</button>
+  <label class="check"><input type="checkbox" name="inactive" value="1"{% if show_inactive %} checked{% endif %}> {% trans "Show inactive" %}</label>
+  <button type="submit" class="button-secondary">{% trans "Search" %}</button>
 </form>
 
 {% trans "code" as l_code %}{% trans "name" as l_name %}{% trans "kind" as l_kind %}{% trans "lead days" as l_lead %}{% trans "notes" as l_notes %}
@@ -31,7 +31,7 @@
     </thead>
     <tbody>
       {% for v in vendors %}
-        <tr{% if not v.active %} class="is-inactive"{% endif %} data-f-kind="{% if v.kind == 'INTERNAL' %}INTERNAL{% else %}EXTERNAL{% endif %}" data-f-inactive="{% if not v.active %}1{% endif %}">
+        <tr{% if not v.active %} class="is-inactive"{% endif %}>
           <td data-label="{{ l_code|capfirst }}">{{ v.code }}{% if not v.active %} <span class="badge badge-cancelled">{% trans "Inactive" %}</span>{% endif %}</td>
           <td data-label="{{ l_name|capfirst }}">{{ v.name }}</td>
           <td data-label="{% trans 'Japanese name' %}">{{ v.name_ja|default:"-" }}</td>
@@ -42,9 +42,9 @@
             <form method="post" action="{{ back }}" class="inline-actions">
               {% csrf_token %}
               <input type="hidden" name="vendor" value="{{ v.pk }}">
-              <a href="{{ back }}&amp;edit={{ v.pk }}#code-form">{% trans "Edit" %}</a>
-              {% if v.active %}<button type="submit" name="action" value="deactivate" class="link-button">{% trans "Deactivate" %}</button>
-              {% else %}<button type="submit" name="action" value="reactivate" class="link-button">{% trans "Reactivate" %}</button>{% endif %}
+              <a class="button-ghost button-sm" href="{{ back }}&amp;edit={{ v.pk }}#code-form">{% trans "Edit" %}</a>
+              {% if v.active %}<button type="submit" name="action" value="deactivate" class="button-ghost button-sm">{% trans "Deactivate" %}</button>
+              {% else %}<button type="submit" name="action" value="reactivate" class="button-ghost button-sm">{% trans "Reactivate" %}</button>{% endif %}
             </form>
           </td>
         </tr>

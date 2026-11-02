@@ -49,7 +49,7 @@ Fields to use for logic: HTTP status, `ok`, `state`, `error`. Do not parse `stat
 ### 200 `recorded` - an event was saved
 
 ```json
-{"ok": true, "state": "recorded", "event_id": 12, "tag_uid": "04A1B2C3", "box": "B1",
+{"ok": true, "state": "recorded", "event_id": 12, "tag_uid": "04A1B2C3",
  "item": "2610-001-01", "status": "In progress", "event_type": "STARTED",
  "process_id": 3, "process_name": "Cutting"}
 ```
@@ -61,7 +61,7 @@ Box out at a vendor: there is no special reply. Scanning it again records `RETUR
 ### 200 `finished` - route already complete, nothing saved
 
 ```json
-{"ok": true, "state": "finished", "tag_uid": "04A1B2C3", "box": "B1",
+{"ok": true, "state": "finished", "tag_uid": "04A1B2C3",
  "item": "2610-001-01", "status": "Complete"}
 ```
 
@@ -75,7 +75,7 @@ Same keys as `finished`, with `"state": "duplicate"`. Happens in tag-only mode w
 {"ok": false, "error": "unassigned_tag"}
 ```
 
-The tag has no open assignment to a box and item. The device `last_seen` is still updated.
+The tag has no open assignment to an item. The device `last_seen` is still updated.
 
 ### 401 - bad key
 
@@ -139,10 +139,10 @@ curl -i -X POST http://PI_ADDRESS:8000/api/scan/ \
 
 | Reply | Meaning | Show | Retry? |
 |---|---|---|---|
-| 200 `recorded` | Saved | OK, with `process_name` + `event_type` and `box` | No |
-| 200 `finished` | Route already done | "Already finished", `box` | No |
+| 200 `recorded` | Saved | OK, with `process_name` + `event_type` | No |
+| 200 `finished` | Route already done | "Already finished" | No |
 | 200 `duplicate` | Scanned twice | Ignore or "Already scanned" | No |
-| 404 `unassigned_tag` | Tag not linked to a box | "Tag not assigned" | No. Fix in the web app (Tags page) |
+| 404 `unassigned_tag` | Tag not linked to an item | "Tag not assigned" | No. Fix in the web app (Tags page) |
 | 401 `bad_key` | Key wrong or device off | "Device key error" | No. Check key and active flag |
 | 400 `invalid` | Firmware bug or bad data | "Request error" | No |
 | 405 | Wrong method | "Request error" | No |

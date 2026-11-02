@@ -1,0 +1,89 @@
+{% load i18n duration panels %}
+<section id="defect-records">
+  <h2>{% blocktrans with label=drill.label name=drill.name %}Records: {{ label }} {{ name }}{% endblocktrans %} <a class="button-secondary" href="{{ drill.clear_url }}">{% trans "Clear" %}</a></h2>
+
+  <h3>{% trans "By part" %}</h3>
+  <p class="note">{% trans "A part that fails more here than elsewhere points to this machine, worker or setup." %} {% blocktrans with n=min_quantity %}A rate from fewer than {{ n }} pieces is greyed out: few data.{% endblocktrans %}</p>
+  {% scroll_panel label=_("By part") %}
+    <table class="table table-cards">
+      <thead>
+        <tr>
+          <th>{% trans "Part" %}</th>
+          <th>{% trans "Process" %}</th>
+          <th class="num">{% trans "Records" %}</th>
+          <th class="num">{% trans "Quantity done" %}</th>
+          <th class="num">{% trans "Defects" %}</th>
+          <th class="num">{% trans "Defect rate" %}</th>
+          {% if drill.baseline %}<th class="num">{% trans "Rate for everyone else on the same part and process" %}</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in drill.parts %}
+          <tr>
+            <td data-label="{% trans 'Part' %}">{{ r.part|default:"-" }}</td>
+            <td data-label="{% trans 'Process' %}">{{ r.process }}</td>
+            <td class="num" data-label="{% trans 'Records' %}">{{ r.records }}</td>
+            <td class="num" data-label="{% trans 'Quantity done' %}">{{ r.quantity }}</td>
+            <td class="num" data-label="{% trans 'Defects' %}">{{ r.defects }}</td>
+            <td class="num{% if r.few %} few-data{% endif %}" data-label="{% trans 'Defect rate' %}"{% if r.few %} title="{% trans 'Few data' %}"{% endif %}>{{ r.rate|floatformat:1 }}%</td>
+            {% if drill.baseline %}<td class="num" data-label="{% trans 'Rate for everyone else on the same part and process' %}">{% if r.base_rate is None %}-{% else %}{{ r.base_rate|floatformat:1 }}%{% endif %}</td>{% endif %}
+          </tr>
+        {% empty %}
+          <tr><td colspan="7">{% trans "No results recorded yet." %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endscroll_panel %}
+
+  <h3>{% trans "Records" context "list of results" %}</h3>
+  <form method="get" action="#defect-records">
+    {% for k, v in drill.hidden %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+    <input type="hidden" name="d_only" value="0">
+    <label><input type="checkbox" name="d_only" value="1"{% if drill.only %} checked{% endif %} onchange="this.form.submit()"> {% trans "Only results with defects" %}</label>
+    <noscript><button type="submit" class="button-secondary">{% trans "Apply" %}</button></noscript>
+  </form>
+  <p>
+    {% blocktrans with n=drill.records|length m=drill.total %}Showing {{ n }} of {{ m }}{% endblocktrans %}
+    {% if drill.more_url %}<a href="{{ drill.more_url }}">{% trans "Show more" %}</a>{% endif %}
+  </p>
+  {% scroll_panel label=_("Records") %}
+    <table class="table">
+      <thead>
+        <tr>
+          <th><a href="{{ drill.order_urls.date }}">{% trans "Date" %}</a></th>
+          <th><a href="{{ drill.order_urls.item }}">{% trans "Item" %}</a></th>
+          <th><a href="{{ drill.order_urls.part }}">{% trans "Part" %}</a></th>
+          <th>{% trans "Customer" %}</th>
+          <th><a href="{{ drill.order_urls.process }}">{% trans "Process" %}</a></th>
+          <th>{% trans "Machine" %}</th>
+          {% if drill.planner %}<th>{% trans "Worker" %}</th>{% endif %}
+          <th class="num"><a href="{{ drill.order_urls.quantity }}">{% trans "Quantity done" %}</a></th>
+          <th class="num"><a href="{{ drill.order_urls.defects }}">{% trans "Defects" %}</a></th>
+          <th class="num"><a href="{{ drill.order_urls.rate }}">{% trans "Defect rate" %}</a></th>
+          <th>{% trans "Main cause" %}</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in drill.records %}
+          <tr>
+            <td class="tnum">{{ r.event.occurred_at|date:"Y-m-d H:i" }}</td>
+            <td>{% if r.item %}<a href="{% url 'order_detail' r.job %}">{{ r.item.item_code }}</a>{% else %}-{% endif %}</td>
+            <td>{{ r.part|default:"-" }}</td>
+            <td>{{ r.customer|default:"-" }}</td>
+            <td>{{ r.process }}</td>
+            <td>{{ r.machine|default:"-" }}</td>
+            {% if drill.planner %}<td>{{ r.worker|default:"-" }}</td>{% endif %}
+            <td class="num">{{ r.event.quantity }}</td>
+            <td class="num">{{ r.event.defects }}</td>
+            <td class="num">{{ r.rate|floatformat:1 }}%</td>
+            <td>{{ r.cause|default:"-" }}</td>
+            <td>{% if r.event.note %}<span class="badge">{% trans "Note" %}</span> {% endif %}{% if r.event.photo %}<span class="badge">{% trans "Photo" %}</span> {% endif %}<a href="{% url 'result_detail' r.event.pk %}">{% trans "Details" %}</a></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="12">{% trans "No results recorded yet." %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endscroll_panel %}
+</section>

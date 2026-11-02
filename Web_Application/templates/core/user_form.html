@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Users" %} - {% trans "Factory Tracker" %}{% endblock %}
+
+{% block content %}
+  <p><a href="{% url 'user_list' %}">&larr; {% trans "Users" %}</a></p>
+  <h1>{% if target %}{{ target.username }}{% else %}{% trans "Add user" %}{% endif %}</h1>
+
+  {% if target %}{% blocktrans with name=target.username asvar confirm %}Deactivate user "{{ name }}"? They will not be able to log in.{% endblocktrans %}{% endif %}
+  <form method="post" class="card"{% if target %} data-confirm="{{ confirm|force_escape }}" data-confirm-if-unchecked="is_active" data-confirm-danger data-confirm-button="{% trans 'Deactivate' %}"{% endif %}>
+    {% csrf_token %}
+    {% include "includes/form_fields.html" %}
+    {% if not target %}<p>{% trans "A temporary password is shown once after you save." %}</p>{% endif %}
+    <div class="form-actions">
+      <button type="submit" class="button">{% if target %}{% trans "Save changes" %}{% else %}{% trans "Add user" %}{% endif %}</button>
+      <a class="button-secondary" href="{% url 'user_list' %}">{% trans "Cancel" %}</a>
+      {% if target %}<a class="button-secondary" href="{% url 'user_reset' target.pk %}">{% trans "Reset password" %}</a>{% endif %}
+    </div>
+  </form>
+{% endblock %}

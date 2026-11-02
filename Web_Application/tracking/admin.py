@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.translation import gettext_lazy as _
 
-from .models import Box, Event, Machine, ScannerDevice, Tag, TagAssignment, Worker
+from .models import DefectCause, Event, Machine, ScannerDevice, Tag, TagAssignment, Worker
 
 
 class OpenFilter(admin.SimpleListFilter):
@@ -18,13 +18,6 @@ class OpenFilter(admin.SimpleListFilter):
             return queryset.filter(end_at__isnull=False)
 
 
-@admin.register(Box)
-class BoxAdmin(admin.ModelAdmin):
-    list_display = ['label', 'active', 'created_at']
-    list_filter = ['active']
-    search_fields = ['label']
-
-
 @admin.register(Tag)
 class TagAdmin(admin.ModelAdmin):
     list_display = ['uid', 'active', 'note', 'created_at']
@@ -34,7 +27,7 @@ class TagAdmin(admin.ModelAdmin):
 
 @admin.register(TagAssignment)
 class TagAssignmentAdmin(admin.ModelAdmin):
-    list_display = ['tag', 'box', 'item', 'start_at', 'end_at']
+    list_display = ['tag', 'item', 'start_at', 'end_at']
     list_filter = [OpenFilter]
     actions = ['release_selected']
 
@@ -51,7 +44,7 @@ class ScannerDeviceAdmin(admin.ModelAdmin):
     readonly_fields = ['api_key']
 
 
-@admin.register(Worker, Machine)
+@admin.register(Worker, Machine, DefectCause)
 class NamedResourceAdmin(admin.ModelAdmin):
     list_display = ['name', 'name_ja', 'active']
     list_filter = ['active']
@@ -60,7 +53,7 @@ class NamedResourceAdmin(admin.ModelAdmin):
 
 @admin.register(Event)
 class EventAdmin(admin.ModelAdmin):
-    list_display = ['occurred_at', 'event_type', 'tag_uid', 'device', 'process', 'worker', 'machine', 'quantity', 'defects']
+    list_display = ['occurred_at', 'event_type', 'tag_uid', 'device', 'process', 'worker', 'machine', 'defect_cause', 'quantity', 'defects', 'note', 'photo']
     list_filter = ['event_type', 'device', 'process']
 
     def has_change_permission(self, request, obj=None):

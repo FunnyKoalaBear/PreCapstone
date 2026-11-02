@@ -23,7 +23,7 @@
       </select>
     </div>
     <label class="check"><input type="checkbox" name="late" value="1"{% if late %} checked{% endif %}> {% trans "Overdue only" %}</label>
-    <button type="submit" class="button">{% trans "Apply" %}</button>
+    <button type="submit" class="button-secondary">{% trans "Apply" %}</button>
     {% if can.planner %}<a href="{% url 'order_export' %}?{{ request.GET.urlencode }}">{% trans "Export CSV" %}</a>{% endif %}
   </form>
 
@@ -31,25 +31,25 @@
     <table class="table table-cards">
       <thead>
         <tr>
-          <th>{% trans "Job number" %}</th>
+          <th class="tnum">{% trans "Job number" %}</th>
           <th>{% trans "Customer" %}</th>
           <th>{% trans "Customer order number" %}</th>
-          <th>{% trans "Due date" %}</th>
-          <th>{% trans "Items" %}</th>
+          <th class="tnum">{% trans "Due date" %}</th>
+          <th class="num">{% trans "Items" %}</th>
           <th>{% trans "Status" %}</th>
         </tr>
       </thead>
       <tbody>
         {% for row in rows %}
-          <tr data-f-status="{{ row.code }}" data-f-late="{{ row.late|yesno:'1,' }}" data-f-sort-due="{{ row.order.due_date|date:'Y-m-d' }} {{ row.order.job_number }}" data-f-sort-newest="{{ row.order.job_number }}" data-f-sort-customer="{{ row.order.customer.name }} {{ row.order.due_date|date:'Y-m-d' }}" data-f-text="{{ row.order.job_number }} {{ row.order.customer.name }} {{ row.order.customer_order_number }}{% for i in row.order.items.all %} {{ i.part_name }} {{ i.material }} {{ i.part_number }} {{ i.drawing_number }}{% endfor %}">
-            <td data-label="{% trans 'Job number' %}"><a href="{% url 'order_detail' row.order.job_number %}">{{ row.order.job_number }}</a></td>
+          <tr>
+            <td class="tnum" data-label="{% trans 'Job number' %}"><a href="{% url 'order_detail' row.order.job_number %}">{{ row.order.job_number }}</a></td>
             <td data-label="{% trans 'Customer' %}">{{ row.order.customer }}</td>
             <td data-label="{% trans 'Customer order number' %}">{{ row.order.customer_order_number }}</td>
-            <td data-label="{% trans 'Due date' %}"><span>
+            <td class="tnum" data-label="{% trans 'Due date' %}"><span>
               {{ row.order.due_date|date:"Y-m-d" }}
               {% if row.late %}<span class="badge badge-overdue">{% trans "Overdue" %}</span>{% endif %}
             </span></td>
-            <td data-label="{% trans 'Items' %}"><span>{{ row.items }}{% if row.boxes %} <small>{% blocktrans with n=row.boxes %}({{ n }} boxes){% endblocktrans %}</small>{% endif %}</span></td>
+            <td class="num" data-label="{% trans 'Items' %}"><span>{{ row.items }}{% if row.boxes %} <small>{% blocktrans with n=row.boxes %}({{ n }} boxes){% endblocktrans %}</small>{% endif %}</span></td>
             <td data-label="{% trans 'Status' %}"><span class="badge badge-{{ row.code|lower }}">{{ row.label }}</span></td>
           </tr>
         {% empty %}

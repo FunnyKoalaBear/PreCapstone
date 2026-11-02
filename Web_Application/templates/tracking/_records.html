@@ -1,0 +1,64 @@
+{% load i18n duration panels %}
+<section id="records">
+  <h2>{% trans "Records" %}</h2>
+  <p>
+    {% blocktrans with n=records|length m=records_total %}Showing {{ n }} of {{ m }}{% endblocktrans %}
+    {% if more_url %}<a href="{{ more_url }}">{% trans "Show more" %}</a>{% endif %}
+  </p>
+  <div class="records-summary" data-records-summary data-unit="{{ unit }}" data-fmt-dh="{{ fmt.dh }}" data-fmt-hm="{{ fmt.hm }}" data-fmt-m="{{ fmt.m }}" data-fmt-lt1m="{{ fmt.lt1m }}">
+    <span>{% trans "Ticked" %} <strong data-out="count">0</strong></span>
+    <span>{% trans "Total" %} <strong data-out="total">-</strong></span>
+    <span>{% trans "Mean" %} <strong data-out="mean">-</strong></span>
+    <span>{% trans "Median" %} <strong data-out="median">-</strong></span>
+  </div>
+  {% scroll_panel label=_("Records") %}
+    <table class="table">
+      <thead>
+        <tr>
+          <th><input type="checkbox" data-check-all aria-label="{% trans 'Tick all' %}"></th>
+          <th><a href="{{ order_urls.item }}">{% trans "Item" %}</a></th>
+          <th>{% trans "Part" %}</th>
+          <th>{% trans "Customer" %}</th>
+          <th><a href="{{ order_urls.process }}">{% trans "Process" %}</a></th>
+          {% if tab == 'plan' %}
+            <th class="num"><a href="{{ order_urls.planned }}">{% trans "Planned days" %}</a></th>
+            <th class="num"><a href="{{ order_urls.actual }}">{% trans "Actual days" %}</a></th>
+            <th class="num"><a href="{{ order_urls.diff }}">{% trans "Difference" %}</a></th>
+            <th class="num"><a href="{{ order_urls.overrun }}">{% trans "Overrun" %}</a></th>
+          {% else %}
+            <th class="num"><a href="{{ order_urls.wait }}">{% trans "Wait before" %}</a></th>
+            <th class="num"><a href="{{ order_urls.processing }}">{% trans "Processing time" %}</a></th>
+            <th class="num"><a href="{{ order_urls.total }}">{% trans "Total" %}</a></th>
+            <th class="num"><a href="{{ order_urls.ratio }}">{% trans "x median" %}</a></th>
+            <th>{% trans "Main cause" %}</th>
+          {% endif %}
+          <th>{% trans "Flags" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in records %}
+          <tr>
+            <td><input type="checkbox" class="record-check" data-value="{{ r.value }}" aria-label="{% trans 'Tick' %}"></td>
+            <td><a href="{% url 'order_detail' r.job %}">{{ r.item.item_code }}</a>{% if r.box %} <small>{{ r.box }}</small>{% endif %}</td>
+            <td>{{ r.part }}</td>
+            <td>{{ r.customer }}</td>
+            <td>{{ r.process }}</td>
+            {% if tab == 'plan' %}
+              <td class="num">{{ r.planned }}</td>
+              <td class="num">{{ r.actual }}</td>
+              <td class="num">{% if r.diff > 0 %}<span class="badge badge-overdue">+{{ r.diff }}</span>{% else %}{{ r.diff }}{% endif %}</td>
+              <td class="num">{% if r.pct is None %}-{% elif r.severity %}<span class="badge sev-{{ r.severity }}">{{ r.pct|floatformat:0 }}%</span>{% else %}{{ r.pct|floatformat:0 }}%{% endif %}</td>
+            {% else %}
+              <td class="num">{{ r.wait|duration|default:"-" }}</td>
+              <td class="num">{{ r.processing|duration|default:"-" }}</td>
+              <td class="num">{{ r.total|duration|default:"-" }}</td>
+              <td class="num">{% if r.ratio is None %}-{% else %}{{ r.ratio|floatformat:1 }}&times;{% endif %}</td>
+              <td>{{ r.cause }}</td>
+            {% endif %}
+            <td>{% for f in r.flags %}<span class="badge badge-check" title="{{ f.title }}">{% trans "Check scan" %}</span> {% endfor %}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endscroll_panel %}
+</section>

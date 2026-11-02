@@ -21,8 +21,9 @@ from tracking.status import (
 )
 
 from . import export, importer, pdf
-from .forms import CustomerForm, OrderForm, OrderItemFormSet, VendorForm
+from .forms import CustomerForm, ImportForm, OrderForm, OrderItemFormSet, VendorForm
 from .models import Customer, Order, OrderChange, OrderItem, Vendor
+from .process_tab import _tab_processes
 from .runs import previous_runs
 
 SORTS = {
@@ -202,7 +203,7 @@ def _tab_import(request):
         if text is not None:
             request.session[SESSION_KEY] = {'text': text, 'create': create}
             preview = importer.parse(text, create)
-    return {'preview': preview, 'error': error}
+    return {'preview': preview, 'error': error, 'import_form': ImportForm(initial={'create_customers': request.POST.get('create_customers') == 'on'})}
 
 
 KIND_FILTERS = [('', gettext_lazy('All')), ('INTERNAL', gettext_lazy('In-house')), ('EXTERNAL', gettext_lazy('External'))]
@@ -245,6 +246,7 @@ def _tab_codes(request):
 TABS = [
     ('orders', gettext_lazy('Orders'), OPERATOR, _tab_orders), ('new', gettext_lazy('New order'), PLANNER, _tab_new),
     ('import', gettext_lazy('Import'), PLANNER, _tab_import), ('codes', gettext_lazy('Codes'), PLANNER, _tab_codes),
+    ('processes', gettext_lazy('Processes'), PLANNER, _tab_processes),
 ]
 
 
@@ -254,7 +256,7 @@ def _tab_url(tab, **params):
 
 
 def order_list(request):
-    """The Orders page: one URL, four tabs (?tab=orders|new|import|codes), each with its own minimum role."""
+    """The Orders page: one URL, five tabs (?tab=orders|new|import|codes|processes), each with its own minimum role."""
     if not request.user.is_authenticated:
         return redirect_to_login(request.get_full_path())
     key = request.GET.get('tab')
@@ -373,7 +375,7 @@ def order_events_export(request, job_number):
     return export.csv_response(f'events_{order.job_number}.csv', export.EVENT_COLUMNS, export.event_rows(order))
 
 
-@role_required(PLANNER)
+@role_required(OPERATOR)
 def order_sheet(request, job_number):
     order = get_object_or_404(Order, job_number=job_number)
     response = HttpResponse(pdf.order_pdf(order), content_type='application/pdf')

@@ -28,7 +28,7 @@
         <tbody>
           {% for row in rows %}
             <tr>
-              <td><a href="{% url 'order_detail' row.order.job_number %}">{{ row.order.job_number }}</a></td>
+              <td class="tnum"><a href="{% url 'order_detail' row.order.job_number %}">{{ row.order.job_number }}</a></td>
               <td>{{ row.order.customer_order_number|default:"-" }}</td>
               <td>
                 {{ row.order.due_date|date:"Y-m-d" }}

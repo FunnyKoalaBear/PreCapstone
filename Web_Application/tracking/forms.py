@@ -7,8 +7,10 @@ from django.utils.translation import gettext
 
 from orders.models import OrderItem, Process
 
-from .models import Event, Machine, ScannerDevice, TagAssignment, Worker
+from .photos import process_photo
+from .models import DefectCause, Event, Machine, ScannerDevice, TagAssignment, Worker
 from .services import resolve_tag
+from .status import box_captions
 
 
 class SimulateScanForm(forms.Form):
@@ -50,9 +52,6 @@ class PickTagForm(forms.Form):
 
 class AssignTagForm(forms.Form):
     item = forms.ModelChoiceField(label=_('Item'), queryset=OrderItem.objects.none())
-    box_label = forms.CharField(
-        label=_('Box label'), max_length=100, widget=forms.TextInput(attrs={'list': 'box-labels', 'autocomplete': 'off'}),
-    )
     tag_uid = forms.CharField(label=_('Tag UID'), max_length=100)
 
     def __init__(self, *args, **kwargs):
@@ -101,24 +100,44 @@ class CorrectEventForm(forms.Form):
 
 class ResultForm(forms.Form):
     """Quantity done and defects at one step of an item, for one of its linked boxes."""
-    box = forms.ChoiceField(label=_('Box'))
+    box = forms.ChoiceField(label=_('Tag'))
     process = forms.ModelChoiceField(label=_('Process'), queryset=Process.objects.none())
     worker = forms.ModelChoiceField(label=_('Worker'), queryset=Worker.objects.filter(active=True), required=False)
     machine = forms.ModelChoiceField(label=_('Machine'), queryset=Machine.objects.filter(active=True), required=False)
     quantity = forms.IntegerField(label=_('Quantity done'), min_value=1)
     defects = forms.IntegerField(label=_('Defects'), min_value=0, initial=0, required=False)
+    defect_cause = forms.ModelChoiceField(
+        label=_('Main cause'), queryset=DefectCause.objects.filter(active=True), required=False,
+        help_text=_('Only when there are defects. If there are several kinds of defect, choose the main one.'),
+    )
+
+    note = forms.CharField(
+        label=_('Note'), max_length=1000, required=False, widget=forms.Textarea(attrs={'rows': 3}),
+        help_text=_('It cannot be edited later; void the result and record it again if it is wrong.'),
+    )
+    photo = forms.FileField(
+        label=_('Photo'), required=False, widget=forms.FileInput(attrs={'accept': 'image/*'}),
+        help_text=_('JPEG, PNG or WEBP, up to 8 MB. It cannot be edited later; void the result and record it again if it is wrong.'),
+    )
 
     def __init__(self, item, *args, **kwargs):
         kwargs.setdefault('prefix', f'result{item.pk}')
         super().__init__(*args, **kwargs)
         self.item = item
-        self.assignments = {str(a.pk): a for a in item.tagassignment_set.filter(end_at__isnull=True).select_related('tag', 'box')}
-        self.fields['box'].choices = [(pk, a.box.label) for pk, a in self.assignments.items()]
+        self.assignments = {str(a.pk): a for a in item.tagassignment_set.filter(end_at__isnull=True).select_related('tag', 'item')}
+        captions = box_captions(list(self.assignments.values()))
+        self.fields['box'].choices = [(pk, f'{a.tag} ({captions[a.pk]})' if captions[a.pk] else str(a.tag)) for pk, a in self.assignments.items()]
         self.fields['process'].queryset = Process.objects.filter(pk__in=item.steps.values('process')).order_by('name')
         self.fields['quantity'].initial = item.quantity
+
+    def clean_photo(self):
+        upload = self.cleaned_data.get('photo')
+        return process_photo(upload) if upload else None
 
     def clean(self):
         data = super().clean()
         if data.get('box') in self.assignments:
             data['assignment'] = self.assignments[data['box']]
+        if data.get('defect_cause') and not data.get('defects'):
+            self.add_error('defect_cause', _('A main cause needs at least one defect.'))
         return data

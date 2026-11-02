@@ -29,7 +29,7 @@ def _touch(device, now):
 
 def _reply(state, assignment, event=None, process=None):
     body = {
-        'ok': True, 'state': state, 'tag_uid': assignment.tag.uid, 'box': assignment.box.label,
+        'ok': True, 'state': state, 'tag_uid': assignment.tag.uid,
         'item': assignment.item.item_code, 'status': str(item_status(assignment.item).label),
     }
     if event:

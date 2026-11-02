@@ -6,7 +6,9 @@ from io import StringIO
 from unittest import mock
 
 from django.conf import settings
+from django.contrib.admin.models import ADDITION, CHANGE, LogEntry
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import SimpleTestCase
@@ -15,11 +17,14 @@ from django.test import override_settings
 from django.utils import translation
 from django.utils import timezone
 
+from core import accounts
+from core.rules import silent_after
+from core.models import Profile
 from core.templatetags.duration import duration
 from core.management.commands.seed_demo import DEMO_UIDS, read_csv
 from core.testing import TestCase, make_user
 from orders.models import Customer, Order, OrderItem, Process, RouteStep, Vendor
-from tracking.models import Box, Event, Machine, ScannerDevice, Tag, TagAssignment, Worker
+from tracking.models import DefectCause, Event, Machine, ScannerDevice, Tag, TagAssignment, Worker
 from tracking.overview import board_groups
 from tracking.planning import process_averages
 from tracking.priority import priority
@@ -88,6 +93,20 @@ class RoleTests(TestCase):
         self.assertRedirects(self.client.post('/logout/'), '/login/')
         self.assertContains(self.client.get('/login/'), 'Log in')
 
+    def test_planner_opens_dashboard_but_not_simulate(self):
+        self.client.force_login(make_user('pl', 'Planner'))
+        self.assertEqual(self.client.get('/dashboard/').status_code, 200)
+        self.assertEqual(self.client.get('/simulate/').status_code, 403)
+
+    def test_operator_gets_403_on_dashboard(self):
+        self.client.force_login(make_user('op', 'Operator'))
+        self.assertEqual(self.client.get('/dashboard/').status_code, 403)
+
+    def test_demo_admin_cannot_open_django_admin(self):
+        user = make_user('demo_admin', 'Admin')
+        self.client.force_login(user)
+        self.assertEqual(self.client.get('/admin/').status_code, 302)  # not staff: sent to the admin login
+
     def test_login_page_is_translated(self):
         self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = 'ja'
         self.assertContains(self.client.get('/login/'), 'ログイン')
@@ -111,7 +130,7 @@ class HomeDashboardTests(TestCase):
             RouteStep.objects.create(item=item, sequence=i, process=proc)
         uid = f'T{self.n}'
         TagAssignment.objects.create(
-            tag=Tag.objects.create(uid=uid), box=Box.objects.create(label=f'B{self.n}'), item=item,
+            tag=Tag.objects.create(uid=uid), item=item,
             start_at=since or timezone.now(),
         )
         return item, uid
@@ -243,7 +262,7 @@ class HomeDashboardTests(TestCase):
         item.box_count = 3
         item.save()
         now = timezone.now()
-        TagAssignment.objects.create(tag=Tag.objects.create(uid='T2X'), box=Box.objects.create(label='BX2'), item=item,
+        TagAssignment.objects.create(tag=Tag.objects.create(uid='T2X'), item=item,
                                      start_at=now - timedelta(days=3))
         record_event(self.device, uid1, self.material, 'ARRIVED')
         record_event(self.device, uid1, self.milling, 'STARTED')
@@ -251,8 +270,8 @@ class HomeDashboardTests(TestCase):
         r = self.home()
         milling = self.card(r, 'in_house', 'Milling')
         rows = milling['waiting'] + milling['running']
-        self.assertEqual([(e['box_label'], e['code'], e['stagnant'], e['multi']) for e in rows],
-                         [('BX2', 'WAITING', True, True), ('B1', 'IN_PROGRESS', False, True)])
+        self.assertEqual([(e['tag_uid'], e['code'], e['stagnant'], e['caption']) for e in rows],
+                         [('T2X', 'WAITING', True, 'Box 1 of 3'), (uid1, 'IN_PROGRESS', False, 'Box 2 of 3')])
         c = r.context['counters']
         self.assertEqual((c['in_progress'], c['waiting'], c['not_started'], c['stagnant'], c['overdue']), (1, 1, 1, 1, 0))
 
@@ -262,12 +281,12 @@ class HomeDashboardTests(TestCase):
         item.box_count = 2
         item.save()
         now = timezone.now()
-        TagAssignment.objects.create(tag=Tag.objects.create(uid='T2Y'), box=Box.objects.create(label='BY2'), item=item,
+        TagAssignment.objects.create(tag=Tag.objects.create(uid='T2Y'), item=item,
                                      start_at=now - timedelta(days=9))
         record_event(self.device, uid1, proc, 'SENT_OUT')
         record_event(self.device, 'T2Y', proc, 'SENT_OUT', occurred_at=now - timedelta(days=6))
         rows = [c for c in self.groups('outsourced') if c['process'] == proc][0]['running']
-        self.assertEqual([(e['box_label'], e['late_days'] > 0) for e in rows], [('BY2', True), ('B1', False)])
+        self.assertEqual([(e['tag_uid'], e['late_days'] > 0) for e in rows], [('T2Y', True), (uid1, False)])
 
 
 class SeedDemoTests(TestCase):
@@ -277,6 +296,22 @@ class SeedDemoTests(TestCase):
     def status(self, part):
         item = OrderItem.objects.get(part_name=part)
         return item, item_status(item)
+
+    @override_settings(DEBUG=True)
+    def test_demo_users_log_in_with_demo_password_and_rerun(self):
+        with mock.patch.dict('os.environ', {'DEMO_PASSWORD': 'pw-1'}):
+            self.seed()
+            self.seed()
+        admin = User.objects.get(username='demo_admin')
+        self.assertTrue(admin.check_password('pw-1'))
+        self.assertFalse(admin.is_staff or admin.is_superuser)
+        self.assertTrue(User.objects.get(username='demo_op_sato').check_password('pw-1'))
+        self.assertTrue(User.objects.get(username='demo_op_sato').profile)
+        self.assertEqual(list(admin.groups.values_list('name', flat=True)), ['Admin'])
+        with mock.patch.dict('os.environ', clear=False) as env:
+            env.pop('DEMO_PASSWORD', None)
+            self.seed()
+        self.assertFalse(User.objects.get(username='demo_planner').has_usable_password())
 
     def test_refuses_without_debug(self):
         with override_settings(DEBUG=False), self.assertRaises(CommandError):
@@ -335,8 +370,17 @@ class SeedDemoTests(TestCase):
         for e in events:
             self.assertEqual(e.process.kind, Event.REQUIRED_KIND[e.event_type], e)
         self.assertTrue(Event.objects.filter(event_type='CORRECTION').exists())
-        names = {r['name'] for r in read_csv('processes.csv')}
+        names = {r['name'] for r in read_csv('processes.csv')} | {'DEMO Unused process', 'DEMO Retired process'}
         self.assertEqual(set(Process.objects.values_list('name', flat=True)), names)
+
+    @override_settings(DEBUG=True)
+    def test_seed_has_an_inactive_and_an_unused_process_and_demo_devices(self):
+        self.seed()
+        self.assertFalse(Process.objects.get(name='DEMO Retired process').active)
+        self.assertFalse(Process.objects.get(name='DEMO Unused process').routestep_set.exists())
+        self.assertEqual(ScannerDevice.objects.filter(active=False).count(), 1)
+        silent = ScannerDevice.objects.filter(active=True, last_seen__isnull=True)
+        self.assertEqual([d.name for d in silent], ['DEMO Scanner 3'])
 
     @override_settings(DEBUG=True)
     def test_seed_uses_csv_codes_and_new_fields(self):
@@ -361,6 +405,14 @@ class SeedDemoTests(TestCase):
         self.assertGreater(results.exclude(worker=None).values('worker').distinct().count(), 2)
         self.assertEqual(set(Worker.objects.values_list('name', flat=True)), {r['name'] for r in read_csv('workers_machines.csv') if r['kind'] == 'WORKER'})
         self.assertEqual(Machine.objects.count(), len([r for r in read_csv('workers_machines.csv') if r['kind'] == 'MACHINE']))
+
+    @override_settings(DEBUG=True)
+    def test_seed_fills_all_three_settings_lists_with_one_inactive_entry_each(self):
+        self.seed()
+        for model in (Worker, Machine, DefectCause):
+            self.assertGreater(model.objects.filter(active=True).count(), 5)
+            self.assertEqual(model.objects.filter(active=False).count(), 1, model)
+            self.assertFalse(model.objects.get(active=False).event_set.exists())  # no demo result uses it
 
     @override_settings(DEBUG=True)
     def test_seed_has_paused_partial_and_cancelled_examples(self):
@@ -499,13 +551,13 @@ class ResponsiveLayoutTests(TestCase):
         for name in ('base.css', 'theme.css', 'lang.css'):
             self.assertEqual(re.findall(r'(?<![-\w])(?:width|min-width)\s*:\s*\d{3,}px', self.css(name)), [], name)
 
-    def test_five_tables_turn_into_cards_and_the_two_wide_ones_stay_tables(self):
+    def test_listed_tables_turn_into_cards_and_the_two_wide_ones_stay_tables(self):
         self.client.force_login(make_user('pl', 'Planner'))
         order = Order.objects.create(customer=Customer.objects.create(name='C'), due_date=timezone.localdate())
         item = OrderItem.objects.create(order=order, part_name='P', quantity=1)
-        TagAssignment.objects.create(tag=Tag.objects.create(uid='CARD1'), box=Box.objects.create(label='BC'), item=item)
+        TagAssignment.objects.create(tag=Tag.objects.create(uid='CARD1'), item=item)
         Vendor.objects.create(code='00001', name='V', kind=Vendor.Kind.INTERNAL)
-        pages = {'/orders/': 1, '/orders/?tab=codes': 1, '/analysis/?tab=results': 1, '/shipping/': 2, '/tags/?q=CARD1': 1}
+        pages = {'/orders/': 1, '/orders/?tab=codes': 1, '/analysis/?tab=results': 4, '/shipping/': 2, '/tags/?q=CARD1': 1}
         for url, tables in pages.items():
             html = self.client.get(url).content.decode()
             self.assertEqual(html.count('class="table table-cards"'), tables, url)
@@ -517,26 +569,200 @@ class ResponsiveLayoutTests(TestCase):
         self.assertIn('.table-cards [data-label]::before { content: attr(data-label)', theme)
         self.assertNotIn('table-cards', self.css('base.css'))
 
-    def test_menu_button_is_labelled_controls_the_nav_and_keeps_role_limited_links(self):
+    def test_drawer_button_is_labelled_controls_the_sidebar_and_keeps_role_limited_links(self):
         self.client.force_login(make_user('op', 'Operator'))
         html = self.client.get('/orders/').content.decode()
-        self.assertIn('class="nav-toggle" aria-controls="site-nav" aria-expanded="false" aria-label="Menu"', html)
-        self.assertIn('<nav class="site-nav" id="site-nav">', html)
-        self.assertIn('js/nav.js', html)
+        self.assertIn('class="hamburger" aria-controls="sidebar" aria-expanded="false" aria-label="Menu"', html)
+        self.assertIn('<aside id="sidebar"', html)
+        self.assertIn('js/sidebar.js', html)
+        self.assertNotIn('nav.js', html)
         self.assertIn('href="/orders/"', html)
         self.assertNotIn('href="/customers/"', html)  # an Operator still only sees the links the role can use
         self.client.force_login(make_user('pl', 'Planner'))
         self.assertIn('href="/customers/"', self.client.get('/orders/').content.decode())
 
-    def test_menu_collapses_only_below_768px_and_only_when_javascript_runs(self):
+    def test_sidebar_modes_and_drawer_are_defined_only_in_theme_css(self):
         theme, base = self.css('theme.css'), self.css('base.css')
         block = re.search(r'@media \(max-width: 768px\) \{.*?\n\}', theme, re.S).group(0)
-        for rule in ('.site-header .nav-toggle { display: inline-block; }', '.js .site-nav { display: none; }', '.js .site-nav.is-open {'):
+        for rule in ('html .site-header.mobile-bar { display: flex;', '.js #sidebar { visibility: hidden;', '.js.drawer-open .sidebar-backdrop'):
             self.assertIn(rule, block)
-        self.assertNotIn('.site-nav { display: none', base)  # without JavaScript the links stay visible
-        js = (settings.BASE_DIR / 'static' / 'js' / 'nav.js').read_text(encoding='utf-8')
-        for part in ('aria-expanded', "e.key === 'Escape'", 'button.focus()'):
+        self.assertIn('@media (min-width: 48.0625em)', theme)
+        self.assertNotIn('visibility: hidden', base)  # without JavaScript the links stay visible
+        for gone in ('.site-nav', '.nav-toggle'):
+            self.assertNotIn(gone, base + theme)
+        js = (settings.BASE_DIR / 'static' / 'js' / 'sidebar.js').read_text(encoding='utf-8')
+        for part in ('aria-expanded', "e.key === 'Escape'", 'burger.focus()', "localStorage.setItem('sidebar'", 'rail-tip', "setMode('collapsed')"):
             self.assertIn(part, js)
+        self.assertFalse((settings.BASE_DIR / 'static' / 'js' / 'nav.js').exists())
+
+
+class AccountChipTests(TestCase):
+    def page(self, user):
+        self.client.force_login(user)
+        return self.client.get('/').content.decode()
+
+    def test_initials_helper(self):
+        from core.accounts import initials
+        make = lambda **kw: User(**kw)
+        self.assertEqual(initials(make(username='sato01', first_name='Taro Sato')), 'TS')
+        self.assertEqual(initials(make(username='sato01', first_name='Taro', last_name='Yamada')), 'TY')
+        self.assertEqual(initials(make(username='sato01', first_name='Taro Ichiro Sato')), 'TS')
+        self.assertEqual(initials(make(username='sato01')), 'SA')
+        self.assertEqual(initials(make(username='x', first_name='Single')), 'X')
+
+    def test_chip_shows_avatar_username_and_role_label_per_role(self):
+        for name, role, label in (('op', 'Operator', 'Operator'), ('pl', 'Planner', 'Planner'), ('ad', 'Admin', 'Admin')):
+            html = self.page(make_user(name, role))
+            self.assertIn('aria-haspopup="menu" aria-expanded="false"', html)
+            self.assertIn(f'<span class="chip-role">{label}</span>', html)
+            self.assertIn(f'<span class="avatar" aria-hidden="true">{name.upper()}</span>', html)
+        self.assertIn('<span class="chip-role">Admin</span>', self.page(User.objects.create_superuser('root', password='x')))
+        self.assertIn('<span class="chip-role"></span>', self.page(make_user('nobody')))
+
+    def test_menu_shows_a_long_username_in_full_with_the_role_on_its_own_line(self):
+        menu = self.page(make_user('demo_planner', 'Planner'))
+        menu = menu[menu.index('id="account-menu"'):]
+        self.assertIn('<span class="chip-name">demo_planner</span>', menu)
+        self.assertLess(menu.index('demo_planner'), menu.index('<span class="chip-role">Planner</span>'))
+        css = (settings.BASE_DIR / 'static' / 'css' / 'base.css').read_text(encoding='utf-8')
+        self.assertNotIn('.role-pill', css)
+
+    def test_menu_has_name_password_link_theme_radios_and_a_post_logout(self):
+        user = make_user('pl', 'Planner')
+        user.first_name = 'Hanako Sato'
+        user.save()
+        html = self.page(user)
+        menu = html[html.index('id="account-menu"'):]
+        menu = menu[:menu.index('</form>')]
+        self.assertIn('Hanako Sato', menu)
+        self.assertIn('<span class="chip-role">Planner</span>', menu)
+        self.assertNotIn('role-pill', html)
+        self.assertIn('href="/account/password/"', menu)
+        self.assertEqual(menu.count('role="radio"'), 3)
+        self.assertEqual(menu.count('aria-checked="true"'), 1)
+        self.assertIn('data-theme-radio="auto"', menu)
+        self.assertRegex(menu, r'<form action="/logout/" method="post">\s*<input type="hidden" name="csrfmiddlewaretoken"')
+        self.assertIn('role="menuitem">', menu)
+        self.assertNotIn('data-theme-toggle', html)  # the temporary header button is gone from the sidebar
+        for gone in ('account-name', 'class="account"\n'):
+            self.assertNotIn(gone, html)
+
+    def test_anonymous_sees_a_log_in_link_and_no_chip(self):
+        html = self.client.get('/login/').content.decode()
+        self.assertIn('<a class="account" href="/login/">Log in</a>', html)
+        self.assertNotIn('account-chip', html)
+
+    def test_account_script_handles_escape_arrows_and_outside_clicks(self):
+        js = (settings.BASE_DIR / 'static' / 'js' / 'account.js').read_text(encoding='utf-8')
+        for part in ("e.key === 'Escape'", 'ArrowDown', 'ArrowUp', "document.addEventListener('click'", 'aria-expanded', 'transitionend', 'button.focus()'):
+            self.assertIn(part, js)
+        self.assertIn('js/account.js', self.client.get('/login/').content.decode())
+
+
+class SidebarNavTests(TestCase):
+    def labels(self, user, url='/'):
+        self.client.force_login(user)
+        groups = self.client.get(url).context['nav']
+        return [(str(g['label']), [str(i['label']) for i in g['items']]) for g in groups]
+
+    def flat(self, user):
+        return [name for _, names in self.labels(user) for name in names]
+
+    def test_items_per_role_and_no_empty_group_labels(self):
+        self.assertEqual(self.flat(make_user('op', 'Operator')), ['Home', 'Orders', 'Priorities', 'Analysis'])
+        self.assertEqual(self.flat(make_user('pl', 'Planner')), ['Home', 'Orders', 'Priorities', 'Analysis', 'Shipping', 'Dashboard',
+                                                                  'Customers', 'Tags', 'Users', 'Settings'])
+        admin = self.labels(make_user('ad', 'Admin'))
+        self.assertEqual([g for g, _ in admin], ['Work', 'Review', 'Manage', 'Developer'])
+        self.assertEqual(admin[-1][1], ['Simulate scan', 'Style guide'])
+        for user in (make_user('op2', 'Operator'), make_user('pl2', 'Planner')):
+            self.assertTrue(all(items for _, items in self.labels(user)))
+        self.assertNotIn('Developer', [g for g, _ in self.labels(make_user('pl3', 'Planner'))])
+
+    def active(self, url):
+        groups = self.client.get(url).context['nav']
+        return [str(i['label']) for g in groups for i in g['items'] if i['active']]
+
+    def test_child_pages_mark_their_parent_and_exactly_one_item_is_current(self):
+        self.client.force_login(make_user('ad', 'Admin'))
+        order = Order.objects.create(customer=Customer.objects.create(name='C'), due_date=timezone.localdate())
+        item = OrderItem.objects.create(order=order, part_name='P', quantity=1)
+        pages = {
+            '/': 'Home', '/boxes/': 'Home', '/orders/': 'Orders', f'/orders/{order.job_number}/': 'Orders', f'/orders/{order.job_number}/edit/': 'Orders',
+            '/orders/?tab=new': 'Orders', '/priorities/': 'Priorities', '/analysis/': 'Analysis',
+            '/shipping/': 'Shipping', '/dashboard/': 'Dashboard', '/customers/': 'Customers',
+            f'/customers/{order.customer_id}/': 'Customers', '/tags/': 'Tags', '/tags/history/': 'Tags', '/tags/devices/': 'Tags',
+            '/users/': 'Users', '/users/add/': 'Users', '/settings/': 'Settings', '/simulate/': 'Simulate scan',
+        }
+        for url, label in pages.items():
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 200, url)
+            self.assertEqual(self.active(url), [label], url)
+            html = response.content.decode()
+            sidebar = html[html.index('id="site-nav"'):html.index('</nav>')]
+            self.assertEqual(sidebar.count('aria-current="page"'), 1, url)
+
+    def test_child_url_names_exist_and_belong_to_one_item(self):
+        from django.urls import reverse
+        from core.context_processors import NAV
+        seen = {}
+        for _, entries in NAV:
+            for text, name, _icon, _role, names in entries:
+                for url_name in names:
+                    self.assertNotIn(url_name, seen)  # a page belongs to one item only
+                    seen[url_name] = str(text)
+        for url_name, label in {'order_sheet': 'Orders', 'record_result': 'Analysis', 'result_detail': 'Analysis', 'tag_history': 'Tags'}.items():
+            self.assertEqual(seen[url_name], label)
+        args = {'order_sheet': ['x'], 'record_result': [1], 'result_detail': [1]}
+        for url_name in seen:
+            try:
+                reverse(url_name, args=args.get(url_name, []))
+            except Exception:  # needs arguments we do not care about
+                reverse(url_name, args=[1])
+
+    def test_brand_link_goes_home_on_every_page_and_login_has_no_sidebar(self):
+        brand = '<a class="brand" href="/" aria-label="Home" title="Home">'
+        html = self.client.get('/login/').content.decode()
+        self.assertEqual(html.count(brand), 1)
+        self.assertNotIn('<aside', html)
+        self.assertIn('class="lang-switch"', html)
+        self.client.force_login(make_user('op', 'Operator'))
+        for url in ('/', '/orders/', '/priorities/'):
+            html = self.client.get(url).content.decode()
+            self.assertEqual(html.count(brand), 2, url)  # slim bar and sidebar
+            self.assertIn('<aside id="sidebar"', html)
+
+    def test_head_script_sets_the_sidebar_mode_before_the_stylesheet(self):
+        html = self.client.get('/login/').content.decode()
+        self.assertLess(html.index('dataset.sidebar'), html.index('rel="stylesheet"'))
+        self.assertIn("localStorage.getItem('theme')", html)
+        self.assertIn('innerWidth >= 1280', html)
+
+    def test_sidebar_markup_has_labels_titles_the_toggle_and_the_language_form(self):
+        self.client.force_login(make_user('pl', 'Planner'))
+        html = self.client.get('/').content.decode()
+        self.assertIn('class="nav-item" href="/orders/" title="Orders" aria-label="Orders"', html)
+        self.assertIn('class="nav-item sidebar-logo" aria-label="Open sidebar"', html)
+        self.assertIn('class="nav-item sidebar-collapse" aria-label="Collapse sidebar"', html)
+        self.assertEqual(html.count('lang-globe'), 1)
+        self.assertIn('data-tip="日本語"', html)  # the globe names the other language
+        self.assertNotIn('Pin sidebar', html)
+        self.assertNotIn('lang-compact', html)
+
+    def test_sidebar_css_has_no_hover_expand(self):
+        css = (settings.BASE_DIR / 'static' / 'css' / 'theme.css').read_text(encoding='utf-8')
+        self.assertNotIn('#sidebar:hover', css)
+        self.assertNotIn('#sidebar:is(:hover', css)
+        self.assertNotIn(':has(:focus-visible)', css)
+
+    def test_every_main_page_returns_200_for_each_role(self):
+        pages = {'Operator': ['/', '/orders/', '/priorities/', '/analysis/'],
+                 'Planner': ['/', '/orders/', '/priorities/', '/analysis/', '/shipping/', '/dashboard/', '/customers/', '/tags/', '/users/', '/settings/'],
+                 'Admin': ['/simulate/']}
+        for role, urls in pages.items():
+            self.client.force_login(make_user(role.lower() + 'x', role))
+            for url in urls:
+                self.assertEqual(self.client.get(url).status_code, 200, (role, url))
 
 
 def _luminance(hex_colour):
@@ -556,7 +782,7 @@ def _mix(colour, background, percent):
     return '#%02x%02x%02x' % tuple(mixed)
 
 
-class StatusColourTests(SimpleTestCase):
+class StatusColourTests(TestCase):
     STATES = ('not-started', 'waiting', 'in-progress', 'at-vendor', 'complete', 'shipped', 'paused', 'cancelled', 'overdue')
     CSS = settings.BASE_DIR / 'static' / 'css'
     TEMPLATES = settings.BASE_DIR / 'templates'
@@ -564,11 +790,17 @@ class StatusColourTests(SimpleTestCase):
     def theme(self):
         return (self.CSS / 'theme.css').read_text(encoding='utf-8')
 
-    def variables(self):
-        return dict(re.findall(r'--([a-z-]+):\s*(#[0-9a-fA-F]{6})\b', self.theme()))
+    def block(self, mode):
+        start = {'light': ':root, :root[data-theme="light"] {', 'dark': ':root[data-theme="dark"] {'}[mode]
+        text = self.theme()
+        i = text.index(start)
+        return text[i:text.index('\n}', i)]
+
+    def variables(self, mode='light'):
+        return dict(re.findall(r'--([a-z0-9-]+):\s*(#[0-9a-fA-F]{6})\b', self.block(mode)))
 
     def test_no_hex_or_functional_colours_outside_theme_css(self):
-        files = [p for p in self.CSS.glob('*.css') if p.name != 'theme.css'] + list(self.TEMPLATES.rglob('*.html'))
+        files = [p for p in self.CSS.glob('*.css') if p.name != 'theme.css'] + list(self.TEMPLATES.rglob('*.html')) + list(self.CSS.parent.glob('js/*.js'))
         pattern = re.compile(r'(?<![&\w-])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})\b|\b(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch)\(')
         for path in files:
             self.assertEqual(pattern.findall(path.read_text(encoding='utf-8')), [], path.name)
@@ -608,6 +840,49 @@ class StatusColourTests(SimpleTestCase):
         self.assertIn('.matrix-pending { background: transparent;', base)
         self.assertNotIn('--matrix-', self.theme())
 
+    def test_every_light_colour_token_has_a_dark_value_and_new_tokens_exist(self):
+        names = lambda mode: set(re.findall(r'(--[a-z0-9-]+):', self.block(mode)))
+        self.assertEqual(names('light') - names('dark'), set())
+        for token in ('surface-2', 'hover', 'focus', 'nav-active-bg', 'on-primary', 'primary-hover', 'overlay'):
+            self.assertIn(f'--color-{token}', names('dark'), token)
+        self.assertIn('color-scheme: light;', self.block('light'))
+        self.assertIn('color-scheme: dark;', self.block('dark'))
+
+    def test_contrast_is_at_least_4_5_in_both_themes(self):
+        for mode in ('light', 'dark'):
+            v = self.variables(mode)
+            bg, surface, text, muted = v['color-bg'], v['color-surface'], v['color-text'], v['color-muted']
+            pairs = {'text/bg': (text, bg), 'text/surface': (text, surface), 'muted/surface': (muted, surface), 'muted/bg': (muted, bg),
+                     'primary/surface': (v['color-primary'], surface), 'on-primary/primary': (v['color-on-primary'], v['color-primary']),
+                     'danger/surface': (v['status-overdue'], surface)}
+            for state in self.STATES + ('partial',):
+                pairs[f'{state} as text'] = (v[f'status-{state}'], surface)
+                pairs[f'{state} fill'] = (v['color-on-status'], v[f'status-{state}'])
+            for name, (a, b) in pairs.items():
+                self.assertGreaterEqual(_contrast(a, b), 4.5, f'{mode}: {name}')
+            percent = int(re.search(r'--status-tint:\s*(\d+)%', self.block(mode)).group(1))
+            for state in ('not-started', 'in-progress', 'at-vendor', 'complete', 'paused'):
+                tint = _mix(v[f'status-{state}'], surface, percent)
+                self.assertGreaterEqual(_contrast(text, tint), 4.5, f'{mode}: text on {state} tint')
+                self.assertGreaterEqual(_contrast(muted, tint), 4.5, f'{mode}: muted on {state} tint')
+            for name in ('overdue', 'critical', 'watch', 'on-track'):
+                self.assertGreaterEqual(_contrast(v[f'risk-{name}'], surface), 4.5, f'{mode}: risk-{name}')
+            self.assertGreaterEqual(_contrast(v['stagnant-color'], surface), 4.5, mode)
+
+    def test_dark_states_still_differ_in_lightness(self):
+        v = self.variables('dark')
+        levels = sorted(_luminance(v[f'status-{s}']) for s in self.STATES)
+        self.assertGreaterEqual(min(b - a for a, b in zip(levels, levels[1:])), 0.01)
+
+    def test_theme_script_runs_before_the_first_stylesheet_and_the_toggle_exists(self):
+        html = self.client.get('/login/').content.decode()
+        self.assertLess(html.index('dataset.theme'), html.index('rel="stylesheet"'))
+        self.assertIn('js/theme.js', html)
+        self.assertIn('data-theme-toggle', html)
+        js = (settings.BASE_DIR / 'static' / 'js' / 'theme.js').read_text(encoding='utf-8')
+        for part in ('window.FT.setTheme', 'window.FT.getTheme', "'themechange'", 'beforeprint', 'afterprint', 'try {'):
+            self.assertIn(part, js)
+
 
 class DashboardTests(TestCase):
     def setUp(self):
@@ -621,17 +896,18 @@ class DashboardTests(TestCase):
         for i, p in enumerate(route or [Process.objects.get_or_create(name='Mat', kind=K.MATERIAL)[0]], 1):
             RouteStep.objects.create(item=item, sequence=i, process=p)
         n = OrderItem.objects.count()
-        a = TagAssignment.objects.create(tag=Tag.objects.create(uid=f'DB{n}'), box=Box.objects.create(label=f'DBB{n}'), item=item,
+        a = TagAssignment.objects.create(tag=Tag.objects.create(uid=f'DB{n}'), item=item,
                                          start_at=self.now - timedelta(days=30))
         return item, a
 
-    def test_only_admins_see_the_page_and_the_nav_link(self):
-        self.assertEqual(self.client.get('/dashboard/').status_code, 200)
-        self.assertContains(self.client.get('/'), 'href="/dashboard/"')
-        for role in ('Planner', 'Operator'):
+    def test_only_planners_see_the_page_and_the_nav_link(self):
+        for role in ('Planner', 'Admin'):
             self.client.force_login(make_user(role.lower(), role))
-            self.assertEqual(self.client.get('/dashboard/').status_code, 403, role)
-            self.assertNotContains(self.client.get('/'), 'href="/dashboard/"')
+            self.assertEqual(self.client.get('/dashboard/').status_code, 200, role)
+            self.assertContains(self.client.get('/'), 'href="/dashboard/"')
+        self.client.force_login(make_user('operator', 'Operator'))
+        self.assertEqual(self.client.get('/dashboard/').status_code, 403)
+        self.assertNotContains(self.client.get('/'), 'href="/dashboard/"')
         self.client.force_login(User.objects.create_superuser('root', password='x'))
         self.assertEqual(self.client.get('/dashboard/').status_code, 200)
         self.client.logout()
@@ -672,6 +948,16 @@ class DashboardTests(TestCase):
         for _ in range(3):
             record_event(device, a.tag.uid, item.steps.get().process, 'ARRIVED')
         self.assertEqual(self.client.get('/dashboard/').context['events_today'], 3)
+
+    def test_silent_limit_comes_from_rules(self):
+        self.assertEqual(silent_after(), timedelta(hours=24))
+        ScannerDevice.objects.create(name='Quiet', last_seen=self.now - timedelta(hours=5))
+        with mock.patch('core.views.silent_after', return_value=timedelta(hours=1)):
+            self.assertEqual([d.name for d in self.client.get('/dashboard/').context['silent_devices']], ['Quiet'])
+
+    def test_heading_buttons_use_the_compact_rule(self):
+        css = (settings.BASE_DIR / 'static' / 'css' / 'base.css').read_text(encoding='utf-8')
+        self.assertIn('h1 .button-secondary, h2 .button-secondary, h1 .button, h2 .button {', css)
 
     def test_scanners_not_seen_in_24_hours_are_listed_by_name(self):
         ScannerDevice.objects.create(name='Fresh', last_seen=self.now - timedelta(hours=2))
@@ -798,46 +1084,16 @@ class ScrollPanelTests(SimpleTestCase):
             self.assertLessEqual(text.count('<table'), text.count('{% scroll_panel'), path.name)
 
 
-class ExportDemoTests(TestCase):
-    def command(self):
-        from core.management.commands.export_demo import Command
-        return Command()
+class AnalysisShippingPageTests(TestCase):
+    def test_pages_render_without_demo_data(self):
+        self.client.force_login(make_user('pl', 'Planner'))
+        for url in ('/analysis/', '/analysis/?tab=plan', '/analysis/?tab=results', '/shipping/'):
+            r = self.client.get(url)
+            self.assertEqual(r.status_code, 200, url)
+            self.assertNotContains(r, 'demo-facts')
 
-    def test_canon_maps_app_urls_to_demo_pages(self):
-        from core.management.commands.export_demo import canon
-        self.assertEqual(canon('/')[0], 'index')
-        self.assertEqual(canon('/?current=1')[0], 'index_current')
-        self.assertEqual(canon('/orders/?tab=codes&q=x')[0], 'orders_codes')
-        self.assertEqual(canon('/orders/?late=1')[0], 'orders')
-        self.assertEqual(canon('/orders/2610-001/')[0], 'order_2610-001')
-        self.assertEqual(canon('/priorities/?tier=OVERDUE&sort=risk')[0], 'priorities_overdue')
-        self.assertEqual(canon('/boxes/?status=at_vendor&vendor_late=1')[0], 'boxes_vendor_late')
-        for gone in ('/orders/export/', '/orders/2610-001/edit/', '/items/3/drawing/', '/login/', '/dashboard/', '/matrix/'):
-            self.assertIsNone(canon(gone), gone)
 
-    def test_rewrite_makes_links_relative_and_disables_the_rest(self):
-        body = ('<html><head></head><body><nav class="site-nav" id="site-nav"><a href="/orders/">x</a></nav>'
-                '<link href="/static/css/base.css"><a href="/orders/?late=1">a</a><a href="/orders/export/">b</a>'
-                '<form action="/i18n/setlang/" method="post"><input type="hidden" name="csrfmiddlewaretoken" value="t"></form>'
-                '<form method="post"><input type="hidden" name="csrfmiddlewaretoken" value="t"></form><a href="?tier=WATCH">w</a></body></html>')
-        out = self.command().rewrite(body, 'en', 'priorities', {'orders', 'priorities_watch'}, '/priorities/')
-        self.assertIn('href="../static/css/base.css"', out)
-        self.assertIn('href="orders.html?late=1"', out)
-        self.assertIn('href="#" data-demo-link>b', out)
-        self.assertIn('href="priorities_watch.html"', out)
-        self.assertIn('class="demo-banner"', out)
-        self.assertIn('DEMO / sample data', out)
-        self.assertIn('../ja/priorities.html', out)
-        self.assertIn('href="../ja/manual.html" lang="ja">使い方', out)
-        for gone in ('csrf', 'setlang'):
-            self.assertNotIn(gone, out)
-
-    def test_markdown_subset(self):
-        from core.management.commands.export_demo import md_to_html
-        out = md_to_html('# T\n\n> note\n\n1. one\n2. **two**\n\n| a | b |\n|---|---|\n| `c` | d |\n\ntext\nmore')
-        for part in ('<h1>T</h1>', '<blockquote>note</blockquote>', '<ol><li>one</li><li><strong>two</strong></li></ol>', '<th>a</th>', '<td><code>c</code></td>', '<p>text<br>more</p>'):
-            self.assertIn(part, out)
-
+class ManualTests(TestCase):
     def test_manual_is_japanese_and_uses_the_screen_terms(self):
         text = (settings.BASE_DIR / 'docs' / 'manual_ja.md').read_text(encoding='utf-8')
         self.assertFalse((settings.BASE_DIR / 'docs' / 'manual_en.md').exists())
@@ -851,9 +1107,166 @@ class ExportDemoTests(TestCase):
         self.assertGreaterEqual(text.count('**Q'), 5)
         self.assertLessEqual(text.count('**Q'), 8)
 
-    def test_pages_carry_the_data_the_demo_needs_only_when_exporting(self):
-        self.client.force_login(make_user('pl', 'Planner'))
-        self.assertNotContains(self.client.get('/analysis/'), 'id="demo-facts"')
-        with override_settings(DEMO_EXPORT=True):
-            self.assertContains(self.client.get('/analysis/'), 'id="demo-facts"')
-            self.assertContains(self.client.get('/shipping/'), 'id="demo-facts"')
+
+class UserPageTests(TestCase):
+    def setUp(self):
+        self.planner = make_user('pl', 'Planner')
+        self.client.force_login(self.planner)
+
+    def post_edit(self, user, **data):
+        return self.client.post(f'/users/{user.pk}/', {'name': '', 'role': 'Operator', 'is_active': 'on', **data})
+
+    def test_operator_gets_403_and_anonymous_is_redirected(self):
+        self.client.force_login(make_user('op', 'Operator'))
+        for url in ('/users/', '/users/add/'):
+            self.assertEqual(self.client.get(url).status_code, 403)
+        self.client.logout()
+        self.assertEqual(self.client.get('/users/').status_code, 302)
+
+    def test_list_hides_admins_from_planners_and_searches(self):
+        make_user('sato', 'Operator')
+        make_user('boss', 'Admin')
+        User.objects.create_superuser('root', password='x')
+        r = self.client.get('/users/')
+        self.assertContains(r, '>sato<')
+        for hidden in ('boss', 'root'):
+            self.assertNotContains(r, f'>{hidden}<')
+        self.assertNotContains(self.client.get('/users/?q=zzz'), '>sato<')
+        self.client.force_login(make_user('adm', 'Admin'))
+        self.assertContains(self.client.get('/users/'), '>boss<')
+
+    def test_admin_user_by_url_is_404_for_planners(self):
+        boss, root = make_user('boss', 'Admin'), User.objects.create_superuser('root', password='x')
+        for u in (boss, root):
+            for url in (f'/users/{u.pk}/', f'/users/{u.pk}/reset/'):
+                self.assertEqual(self.client.get(url).status_code, 404)
+                self.assertEqual(self.client.post(url, {'role': 'Operator'}).status_code, 404)
+        self.client.force_login(make_user('adm', 'Admin'))
+        self.assertEqual(self.client.get(f'/users/{boss.pk}/').status_code, 200)
+
+    def test_create_shows_temporary_password_once_and_forces_change(self):
+        r = self.client.post('/users/add/', {'username': 'new', 'name': 'N', 'role': 'Operator'})
+        password = r.context['password']
+        self.assertEqual(len(password), 12)
+        self.assertFalse(set(password) & set('IOlo01'))
+        user = User.objects.get(username='new')
+        self.assertTrue(user.check_password(password) and user.profile.must_change_password)
+        self.assertEqual(user.groups.get().name, 'Operator')
+        self.assertNotContains(self.client.get('/users/'), password)
+        self.assertEqual(LogEntry.objects.filter(object_id=str(user.pk), action_flag=ADDITION).count(), 1)
+
+    def test_duplicate_username_is_rejected(self):
+        make_user('dup', 'Operator')
+        r = self.client.post('/users/add/', {'username': 'DUP', 'name': '', 'role': 'Operator'})
+        self.assertEqual(User.objects.count(), 2)
+        self.assertContains(r, 'already')
+
+    def test_planner_cannot_create_or_promote_to_admin(self):
+        r = self.client.post('/users/add/', {'username': 'x', 'name': '', 'role': 'Admin'})
+        self.assertFalse(User.objects.filter(username='x').exists())
+        self.assertEqual(r.status_code, 200)
+        op = make_user('op', 'Operator')
+        self.post_edit(op, role='Admin')
+        self.assertEqual(list(op.groups.values_list('name', flat=True)), ['Operator'])
+        with self.assertRaises(ValidationError):
+            accounts.update_user(self.planner, op, '', 'Admin', True)
+
+    def test_admin_may_assign_admin(self):
+        self.client.force_login(make_user('adm', 'Admin'))
+        self.client.post('/users/add/', {'username': 'x', 'name': '', 'role': 'Admin'})
+        self.assertEqual(User.objects.get(username='x').groups.get().name, 'Admin')
+
+    def test_edit_changes_role_and_name_and_logs(self):
+        op = make_user('op', 'Operator')
+        self.assertRedirects(self.post_edit(op, name='Sato', role='Planner'), '/users/')
+        op.refresh_from_db()
+        self.assertEqual((op.first_name, accounts.current_role(op)), ('Sato', 'Planner'))
+        self.assertTrue(LogEntry.objects.filter(object_id=str(op.pk), action_flag=CHANGE).exists())
+
+    def test_deactivate_via_switch_and_no_delete(self):
+        op = make_user('op', 'Operator')
+        self.post_edit(op, is_active='')
+        op.refresh_from_db()
+        self.assertFalse(op.is_active)
+        self.assertIn('deactivated', LogEntry.objects.get(object_id=str(op.pk)).change_message)
+        self.assertNotContains(self.client.get(f'/users/{op.pk}/'), 'Delete')
+
+    def test_nobody_changes_own_role_or_deactivates_self(self):
+        make_user('pl2', 'Planner')
+        self.post_edit(self.planner, role='Operator', is_active='')
+        self.planner.refresh_from_db()
+        self.assertTrue(self.planner.is_active)
+        self.assertEqual(accounts.current_role(self.planner), 'Planner')
+        with self.assertRaises(ValidationError):
+            accounts.update_user(self.planner, self.planner, '', 'Operator', True)
+        with self.assertRaises(ValidationError):
+            accounts.update_user(self.planner, self.planner, '', 'Planner', False)
+
+    def test_last_active_planner_is_protected(self):
+        self.client.force_login(make_user('adm', 'Admin'))
+        self.assertContains(self.post_edit(self.planner, role='Operator'), 'last active Planner')
+        self.post_edit(self.planner, role='Planner', is_active='')
+        self.planner.refresh_from_db()
+        self.assertTrue(self.planner.is_active)
+        make_user('pl2', 'Planner')
+        self.post_edit(self.planner, role='Operator')
+        self.assertEqual(accounts.current_role(User.objects.get(pk=self.planner.pk)), 'Operator')
+
+    def test_reset_makes_new_password_and_forces_change(self):
+        op = make_user('op', 'Operator')
+        self.assertContains(self.client.get(f'/users/{op.pk}/reset/'), 'Reset password')
+        r = self.client.post(f'/users/{op.pk}/reset/')
+        op.refresh_from_db()
+        self.assertTrue(op.check_password(r.context['password']) and op.profile.must_change_password)
+        self.assertIn('reset', LogEntry.objects.get(object_id=str(op.pk)).change_message)
+
+    def test_temporary_password_alphabet(self):
+        self.assertTrue(all(len(accounts.temp_password()) == 12 for _i in range(50)))
+        self.assertFalse(set(accounts.ALPHABET) & set('IOlo01'))
+
+
+class ForcedPasswordChangeTests(TestCase):
+    def login(self, must_change=True):
+        user = make_user('op', 'Operator')
+        Profile.objects.filter(user=user).update(must_change_password=must_change)
+        self.client.force_login(user)
+        return user
+
+    def test_profile_is_created_automatically(self):
+        self.assertFalse(make_user('anyone').profile.must_change_password)
+
+    def test_every_page_redirects_to_password_change(self):
+        self.login()
+        for url in ('/', '/orders/', '/users/'):
+            self.assertRedirects(self.client.get(url), '/account/password/', fetch_redirect_response=False)
+        self.assertEqual(self.client.get('/account/password/').status_code, 200)
+
+    def test_logout_stays_reachable(self):
+        self.login()
+        self.assertRedirects(self.client.post('/logout/'), '/login/', fetch_redirect_response=False)
+
+    def test_change_clears_flag(self):
+        user = self.login()
+        r = self.client.post('/account/password/', {'old_password': 'x', 'new_password1': 'Zq7-long-pass-9', 'new_password2': 'Zq7-long-pass-9'})
+        self.assertRedirects(r, '/', fetch_redirect_response=False)
+        user.refresh_from_db()
+        self.assertFalse(user.profile.must_change_password)
+        self.assertEqual(self.client.get('/orders/').status_code, 200)
+
+    def test_weak_password_keeps_flag(self):
+        user = self.login()
+        r = self.client.post('/account/password/', {'old_password': 'x', 'new_password1': '123', 'new_password2': '123'})
+        self.assertEqual(r.status_code, 200)
+        user.refresh_from_db()
+        self.assertTrue(user.profile.must_change_password)
+
+    def test_login_sets_flag_from_profile(self):
+        self.login()
+        self.client.logout()
+        r = self.client.post('/login/', {'username': 'op', 'password': 'x'})
+        self.assertRedirects(r, '/', fetch_redirect_response=False)
+        self.assertRedirects(self.client.get('/'), '/account/password/', fetch_redirect_response=False)
+
+    def test_everyone_has_change_password_link(self):
+        self.login(False)
+        self.assertContains(self.client.get('/'), 'href="/account/password/"')

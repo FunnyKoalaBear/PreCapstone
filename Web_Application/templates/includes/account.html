@@ -1,10 +1,30 @@
 {% load i18n %}
 {% if request.user.is_authenticated %}
-<form action="{% url 'logout' %}" method="post" class="account">
-  {% csrf_token %}
-  <span>{{ request.user.get_username }}</span>
-  <button type="submit">{% trans "Log out" %}</button>
-</form>
+<div class="account">
+  <button type="button" class="account-chip" id="account-button" aria-haspopup="menu" aria-expanded="false" aria-controls="account-menu" title="{{ request.user.get_username }}">
+    <span class="avatar" aria-hidden="true">{{ account.initials }}</span>
+    <span class="chip-text nav-label"><span class="chip-name">{{ request.user.get_username }}</span><span class="chip-role">{{ account.role }}</span></span>
+    <span class="nav-label chip-chevron">{% include "includes/icon.html" with name="chevron" %}</span>
+  </button>
+  <div class="account-menu" id="account-menu" role="menu" aria-labelledby="account-button" hidden>
+    <div class="account-head">
+      <span class="avatar" aria-hidden="true">{{ account.initials }}</span>
+      <span class="chip-text"><span class="chip-name">{{ request.user.get_username }}</span>{% if account.full_name %}<span class="chip-full">{{ account.full_name }}</span>{% endif %}{% if account.role %}<span class="chip-role">{{ account.role }}</span>{% endif %}</span>
+    </div>
+    <a class="menu-item" role="menuitem" href="{% url 'password_change' %}">{% include "includes/icon.html" with name="key" %}<span>{% trans "Change password" %}</span></a>
+    <div class="menu-group" role="radiogroup" aria-label="{% trans 'Theme' %}">
+      <span class="menu-group-label">{% trans "Theme" %}</span>
+      <button type="button" class="menu-radio" role="radio" aria-checked="true" data-theme-radio="auto">{% include "includes/icon.html" with name="auto" %}<span>{% trans "Auto" %}</span></button>
+      <button type="button" class="menu-radio" role="radio" aria-checked="false" data-theme-radio="light">{% include "includes/icon.html" with name="sun" %}<span>{% trans "Light" %}</span></button>
+      <button type="button" class="menu-radio" role="radio" aria-checked="false" data-theme-radio="dark">{% include "includes/icon.html" with name="moon" %}<span>{% trans "Dark" %}</span></button>
+    </div>
+    <hr class="menu-divider">
+    <form action="{% url 'logout' %}" method="post">
+      {% csrf_token %}
+      <button type="submit" class="menu-item" role="menuitem">{% include "includes/icon.html" with name="logout" %}<span>{% trans "Log out" %}</span></button>
+    </form>
+  </div>
+</div>
 {% else %}
 <a class="account" href="{% url 'login' %}">{% trans "Log in" %}</a>
 {% endif %}

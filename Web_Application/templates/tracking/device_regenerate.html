@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Regenerate key" %} - {% trans "Factory Tracker" %}{% endblock %}
+
+{% block content %}
+  <p><a href="{% url 'device_edit' device.pk %}">&larr; {{ device.name }}</a></p>
+  <h1>{% trans "Regenerate key" %}</h1>
+  {% blocktrans with name=device.name asvar confirm %}Regenerate the key of "{{ name }}"? The old key stops working at once.{% endblocktrans %}
+  <form method="post" class="card" data-confirm="{{ confirm|force_escape }}" data-confirm-danger data-confirm-button="{% trans 'Regenerate key' %}">
+    {% csrf_token %}
+    <p>{% blocktrans with name=device.name %}Make a new API key for {{ name }}? The old key stops working at once, so the device must be given the new key before it can send scans again.{% endblocktrans %}</p>
+    <button type="submit" class="button">{% trans "Regenerate key" %}</button>
+  </form>
+{% endblock %}

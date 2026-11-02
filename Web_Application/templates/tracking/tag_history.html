@@ -4,8 +4,8 @@
 {% block title %}{% trans "Tag history" %} - {% trans "Factory Tracker" %}{% endblock %}
 
 {% block content %}
-  <p><a href="{% url 'tag_manage' %}">&larr; {% trans "Back to Tags" %}</a></p>
   <h1>{% trans "Tag history" %}</h1>
+  {% include "includes/tag_tabs.html" with tab="history" %}
 
   <form method="get" class="filters">
     <div>
@@ -26,7 +26,7 @@
       <label for="to">{% trans "To" %}</label>
       <input type="date" id="to" name="to" value="{{ d_to }}"{% if range != "custom" %} disabled{% endif %}>
     </div>
-    <button type="submit" class="button">{% trans "Apply" %}</button>
+    <button type="submit" class="button-secondary">{% trans "Apply" %}</button>
   </form>
 
   {% if rows %}
@@ -35,20 +35,18 @@
         <thead>
           <tr>
             <th>{% trans "Tag" %}</th>
-            <th>{% trans "Box" %}</th>
             <th>{% trans "Item" %}</th>
-            <th>{% trans "From (JST)" %}</th>
-            <th>{% trans "To (JST)" %}</th>
+            <th class="tnum">{% trans "From (JST)" %}</th>
+            <th class="tnum">{% trans "To (JST)" %}</th>
           </tr>
         </thead>
         <tbody>
           {% for a in rows %}
             <tr>
-              <td>{{ a.tag }}</td>
-              <td>{{ a.box }}</td>
+              <td>{{ a.tag }}{% if a.caption %} <small>{{ a.caption }}</small>{% endif %}</td>
               <td><a href="{% url 'order_detail' a.item.order.job_number %}">{{ a.item.item_code }}</a> {{ a.item.part_name }}</td>
-              <td>{{ a.start_at|date:"Y-m-d H:i" }}</td>
-              <td>{% if a.end_at %}{{ a.end_at|date:"Y-m-d H:i" }}{% else %}{% trans "In use" %}{% endif %}</td>
+              <td class="tnum">{{ a.start_at|date:"Y-m-d H:i" }}</td>
+              <td class="tnum">{% if a.end_at %}{{ a.end_at|date:"Y-m-d H:i" }}{% else %}{% trans "In use" %}{% endif %}</td>
             </tr>
           {% endfor %}
         </tbody>

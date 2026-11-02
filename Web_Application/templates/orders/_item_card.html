@@ -12,7 +12,7 @@
     {% if field.name == "DELETE" %}
       <div class="delete-field">{{ field }}</div>
     {% elif field.name != "route" %}
-      <div>{{ field.label_tag }}{{ field.errors }}{{ field }}</div>
+      {% include "includes/field.html" %}
     {% endif %}
   {% endfor %}
 

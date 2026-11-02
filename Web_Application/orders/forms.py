@@ -103,7 +103,7 @@ class OrderItemForm(forms.ModelForm):
             # Route is locked once the item has been scanned; posted route changes are ignored
             self.locked = events_for_item(item).exists()
             self.undeletable = self.locked or item.tagassignment_set.exists()
-            self.linked_boxes = item.tagassignment_set.values('box').distinct().count()
+            self.linked_boxes = item.tagassignment_set.filter(replaces__isnull=True).count()
             self.initial['route'] = list(item.steps.values_list('process_id', flat=True))
             self.fields['box_count'].widget.attrs['min'] = max(1, self.linked_boxes)
             if self.locked:
@@ -186,6 +186,11 @@ class BaseOrderItemFormSet(BaseInlineFormSet):
 OrderItemFormSet = inlineformset_factory(
     Order, OrderItem, form=OrderItemForm, formset=BaseOrderItemFormSet, extra=0, can_delete=True, min_num=1, validate_min=True,
 )
+
+
+class ImportForm(forms.Form):
+    file = forms.FileField(label=_('CSV file'), required=False, widget=forms.ClearableFileInput(attrs={'accept': '.csv,text/csv'}))  # the view reports a missing file
+    create_customers = forms.BooleanField(label=_('Create new customers'), required=False)
 
 
 class VendorForm(forms.ModelForm):

@@ -9,7 +9,10 @@
 
   <form method="post" class="card">
     {% csrf_token %}
-    {{ form }}
-    <button type="submit" class="button">{% trans "Save changes" %}</button>
+    {% include "includes/form_fields.html" %}
+    <div class="form-actions">
+      <button type="submit" class="button">{% trans "Save changes" %}</button>
+      <a class="button-secondary" href="{% url 'customer_detail' customer.pk %}">{% trans "Cancel" %}</a>
+    </div>
   </form>
 {% endblock %}

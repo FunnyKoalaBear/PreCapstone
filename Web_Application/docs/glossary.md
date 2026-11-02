@@ -23,7 +23,7 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | Drawing | 図面 |
 | Open drawing / No drawing | 図面を開く / 図面なし |
 | Box | 箱 |
-| Box number / label | 箱番号 |
+| Box k of n | n箱中k箱目 |
 | Tag | タグ |
 | Tags | タグ管理 |
 | Release tag | タグを解除 |
@@ -103,8 +103,6 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | Active boxes (unfiltered result list) | 進行中の箱 |
 | Customers (page) / Add customer / New customer | 得意先 / 得意先を追加 / 新規得意先 |
 | Number of orders | 受注数 |
-| Reset demo data | デモデータをリセット |
-| Demo banner | これはサンプルデータによるデモです。変更はこのブラウザにのみ保存されます。 |
 | Choose / Choose a process | 選択してください / 工程を選択 |
 | Order not found | 受注が見つかりません。 |
 
@@ -274,3 +272,141 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | Longest wait / Longest processing | 最長の待ち時間 / 最長の加工時間 |
 | Biggest delay | 遅れが大きい順 |
 | From month / To month | 開始月 / 終了月 |
+
+## Terms added for the Analysis records
+
+| English | Japanese |
+|---|---|
+| Median / Mean | 中央値 / 平均 |
+| Steps (n) | 工程数 (n) |
+| Median processing time / Median wait before | 加工時間の中央値 / 待ち時間（直前）の中央値 |
+| Median actual (days) | 中央値実績（日） |
+| Check scan | スキャン要確認 |
+| Records / Show records / Showing n of m | 記録 / 記録を表示 / m件中n件を表示 |
+| Ticked / Tick / Tick all / Select | 選択中 / 選択 / すべて選択 / 選択 |
+| x median | 中央値の倍率 |
+| Main cause (At vendor / Waited before the step / Processing) | 主な原因（外注中 / 工程の前に待っていた / 加工） |
+| Planned days / Actual days / Difference | 計画日数 / 実績日数 / 差 |
+| Wait before / Processing time | 直前の待ち時間 / 加工時間 |
+| Flags | 注意 |
+| By vendor | 外注先別 |
+
+## Terms added for defect analysis
+
+| English | Japanese |
+|---|---|
+| Defect cause / Main cause | 不良原因 / 主な原因 |
+| Defects by cause | 不良の原因別 |
+| Defect rate by machine / Defect rate by worker | 機械別の不良率 / 作業者別の不良率 |
+| Share / Cumulative | 構成比 / 累積 |
+| Few data | データが少ない |
+| No worker recorded / No machine recorded / No cause recorded | 作業者の記録なし / 機械の記録なし / 原因の記録なし |
+| Dimension out of tolerance | 寸法不良 |
+| Scratch | キズ |
+| Burr | バリ |
+| Missed machining | 加工忘れ |
+| Material defect | 材料不良 |
+| Surface treatment defect | 表面処理不良 |
+| Other | その他 |
+
+## Terms added for defect investigation
+
+| English | Japanese |
+|---|---|
+| Note | 備考 |
+| Photo | 写真 |
+| Result (detail page) | 実績の詳細 |
+| Recorded by | 記録者 |
+| Back to the order | 受注に戻る |
+| Voided on ... by ...: ... | ...に...が取り消しました: ... |
+| Records (link) | 実績を見る |
+| Records (list heading) | 実績の一覧 |
+| Clear | 解除 |
+| By part | 部品別 |
+| Rate for everyone else on the same part and process | 同じ部品・同じ工程での、他の機械・作業者の不良率 |
+| Only results with defects | 不良のある実績だけ |
+
+## Terms added for the Users page
+
+| English | Japanese |
+|---|---|
+| Users | ユーザー |
+| Add user | ユーザーを追加 |
+| Username | ユーザー名 |
+| Name (of a person) | 氏名 |
+| Role | 権限 |
+| Operator / Planner / Admin | 作業者 ? / 計画担当 / 管理者 |
+| Active | 有効 |
+| Last login | 最終ログイン |
+| Temporary password | 一時パスワード |
+| Reset password | パスワードをリセット |
+| Change password | パスワードを変更 |
+| Copy / Print | コピー / 印刷 |
+
+## Terms added for the Settings page
+
+| English | Japanese |
+|---|---|
+| Settings | 設定 |
+| Workers / Machines / Defect causes (tabs) | 作業者 / 機械 / 不良原因 |
+| Used in (number of results) | 使用件数 |
+| Add / Save / Delete | 追加 / 保存 / 削除 |
+| Paste a list | 一覧を貼り付け |
+| Deactivate / Reactivate | 無効にする / 有効に戻す |
+
+## Terms added for Processes and Devices
+
+| English | Japanese |
+|---|---|
+| Processes (Orders tab) | 工程 |
+| Used in routes | 工程順での使用数 |
+| Add a process | 工程を追加 |
+| Devices (scanner / tag setter) | 読取端末 |
+| Add device | 端末を追加 |
+| API key | APIキー |
+| Regenerate key | キーを再発行 |
+| Last seen (JST) | 最終受信（JST） |
+| Never (last seen) | 未受信 |
+| Silent (device) | 通信なし ? |
+
+## Terms added for the Rules tab
+
+| English | Japanese |
+|---|---|
+| Rules (Settings tab) | 基準値 ? |
+| Silent after (hours) | 通信なしと判定するまで（時間） |
+| Void window (days) | 取消の集計期間（日） |
+| Minimum pieces for a rate | 不良率を出す最小数量 |
+| Default: N | 標準: N |
+| Reset to defaults | 標準に戻す |
+
+## Terms added for the sidebar and theme
+
+| English | Japanese |
+|---|---|
+| Work (sidebar group) | 作業 ? |
+| Review (sidebar group) | 確認 ? |
+| Manage (sidebar group) | 管理 |
+| Developer (sidebar group) | 開発者 |
+| Sidebar | サイドバー |
+| Collapse sidebar | サイドバーを閉じる |
+| Open sidebar | サイドバーを開く |
+| Language | 言語 |
+| Main menu | メインメニュー |
+| Theme | テーマ |
+| Auto / Light / Dark | 自動 / ライト / ダーク |
+
+## Terms added for toasts and confirmations
+
+| English | Japanese |
+|---|---|
+| Undo (toast button) | 元に戻す |
+| Notifications | 通知 |
+| Close | 閉じる |
+| Confirm | 確認 |
+
+## Terms added for the form fields
+
+| English | Japanese |
+|---|---|
+| required (read after a label) | 必須 |

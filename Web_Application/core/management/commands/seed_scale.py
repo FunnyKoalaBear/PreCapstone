@@ -8,7 +8,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
 from orders.models import Customer, Order, OrderItem, Process, RouteStep, Vendor
-from tracking.models import Box, Event, ScannerDevice, Tag, TagAssignment
+from tracking.models import Event, ScannerDevice, Tag, TagAssignment
 from tracking.services import cancel_item, correct_event, record_event, ship_item
 
 K = Process.Kind
@@ -109,7 +109,6 @@ class Command(BaseCommand):
             if state == 'progress' and k > 1:
                 linked = rng.randint(1, k)
             for b in range(linked):
-                box = Box.objects.create(label=f'S-{item.pk}-{b}')
                 full = state in ('complete', 'shipped')
                 evs = [] if state == 'new' else self.box_events(route, len(route) if full else rng.randint(1, len(route) - 1), rng.random() < 0.5)
                 start = (evs[0][2] if evs else self.now - timedelta(days=1)) - timedelta(hours=1)
@@ -117,12 +116,12 @@ class Command(BaseCommand):
                 tag = first = Tag.objects.create(uid=self.uid())
                 if cut:
                     split = evs[cut][2] - timedelta(minutes=1)
-                    TagAssignment.objects.create(tag=tag, box=box, item=item, start_at=start, end_at=split)
+                    old = TagAssignment.objects.create(tag=tag, item=item, start_at=start, end_at=split)
                     Tag.objects.filter(pk=tag.pk).update(active=False)
                     tag = Tag.objects.create(uid=self.uid())
-                    TagAssignment.objects.create(tag=tag, box=box, item=item, start_at=split)
+                    TagAssignment.objects.create(tag=tag, item=item, start_at=split, replaces=old)
                 else:
-                    TagAssignment.objects.create(tag=tag, box=box, item=item, start_at=start)
+                    TagAssignment.objects.create(tag=tag, item=item, start_at=start)
                 for i, (p, ty, when) in enumerate(evs):
                     scans.append((first.uid if cut and i < cut else tag.uid, p, ty, when))
             self.plan.append((item, state))

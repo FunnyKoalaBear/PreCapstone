@@ -1,41 +1,98 @@
-{% load static i18n %}{% get_current_language as LANGUAGE_CODE %}<!DOCTYPE html>
+{% load static i18n feedback %}{% get_current_language as LANGUAGE_CODE %}<!DOCTYPE html>
 <html lang="{{ LANGUAGE_CODE }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{% trans "Factory Tracker" %}{% endblock %}</title>
+  <script>
+    (function () {
+      var root = document.documentElement, m = 'auto', s = null;
+      try { m = localStorage.getItem('theme') || 'auto'; s = localStorage.getItem('sidebar'); } catch (e) {}
+      if (m !== 'light' && m !== 'dark') m = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      root.dataset.theme = m;
+      if (s !== 'pinned' && s !== 'collapsed') s = window.innerWidth >= 1280 ? 'pinned' : 'collapsed';
+      root.dataset.sidebar = s;
+      root.classList.add('js');
+    })();
+  </script>
   <link rel="stylesheet" href="{% static 'css/theme.css' %}">
   <link rel="stylesheet" href="{% static 'css/base.css' %}">
   <link rel="stylesheet" href="{% static 'css/lang.css' %}">
-  <script>document.documentElement.classList.add('js')</script>
 </head>
 <body>
+  {% if request.user.is_authenticated %}
+  <header class="site-header mobile-bar">
+    <button type="button" class="hamburger" aria-controls="sidebar" aria-expanded="false" aria-label="{% trans 'Menu' %}">{% include "includes/icon.html" with name="menu" %}</button>
+    {% include "includes/brand.html" %}
+  </header>
+  {% else %}
   <header class="site-header">
-    <span class="brand">{% trans "Factory Tracker" %}</span>
-    <button type="button" class="nav-toggle" aria-controls="site-nav" aria-expanded="false" aria-label="{% trans 'Menu' %}">&#9776;</button>
-    <nav class="site-nav" id="site-nav">
-      <a href="{% url 'home' %}">{% trans "Home" %}</a>
-      {% if can.operator %}<a href="{% url 'order_list' %}">{% trans "Orders" %}</a>{% endif %}
-      {% if can.planner %}<a href="{% url 'customer_list' %}">{% trans "Customers" %}</a>{% endif %}
-      {% if can.operator %}<a href="{% url 'analysis' %}">{% trans "Analysis" %}</a>{% endif %}
-      {% if can.planner %}<a href="{% url 'shipping' %}">{% trans "Shipping" %}</a>{% endif %}
-      {% if can.operator %}<a href="{% url 'priorities' %}">{% trans "Priorities" %}</a>{% endif %}
-      {% if can.planner %}<a href="{% url 'tag_manage' %}">{% trans "Tags" %}</a>{% endif %}
-      {% if can.admin %}<a href="{% url 'dashboard' %}">{% trans "Dashboard" %}</a>{% endif %}
-      {% if can.admin %}<a href="{% url 'simulate' %}">{% trans "Simulate scan" %}</a>{% endif %}
-    </nav>
+    {% include "includes/brand.html" %}
     {% include "includes/account.html" %}
+    {% include "includes/theme_toggle.html" %}
     {% include "includes/language_switch.html" %}
   </header>
-  <main class="site-main">
-    {% if messages %}
-      <ul class="messages">
-        {% for message in messages %}<li class="message {{ message.tags }}">{{ message }}</li>{% endfor %}
-      </ul>
+  {% endif %}
+  <div class="app{% if request.user.is_authenticated %} has-sidebar{% endif %}">
+    {% if request.user.is_authenticated %}
+    <aside id="sidebar" aria-label="{% trans 'Sidebar' %}">
+      <div class="sidebar-top">
+        <div class="sidebar-head">
+          {% include "includes/brand.html" with label_class="nav-label" %}
+          <button type="button" class="nav-item sidebar-collapse" aria-label="{% trans 'Collapse sidebar' %}" title="{% trans 'Collapse sidebar' %}">{% include "includes/icon.html" with name="panel-toggle" %}</button>
+        </div>
+        <button type="button" class="nav-item sidebar-logo" aria-label="{% trans 'Open sidebar' %}"><span class="logo-mark">{% include "includes/icon.html" with name="logo" %}</span><span class="logo-open">{% include "includes/icon.html" with name="expand" %}</span></button>
+      </div>
+      <nav id="site-nav" aria-label="{% trans 'Main menu' %}">
+        {% for group in nav %}
+        <div class="nav-group">
+          <div class="nav-group-label">{{ group.label }}</div>
+          {% for item in group.items %}
+          <a class="nav-item" href="{{ item.url }}" title="{{ item.label }}" aria-label="{{ item.label }}"{% if item.active %} aria-current="page"{% endif %}>{% include "includes/icon.html" with name=item.icon %}<span class="nav-label">{{ item.label }}</span></a>
+          {% endfor %}
+        </div>
+        {% endfor %}
+      </nav>
+      <div class="sidebar-bottom">
+        {% include "includes/language_switch.html" with compact=True %}
+        {% include "includes/account.html" %}
+      </div>
+    </aside>
+    <div class="sidebar-backdrop"></div>
     {% endif %}
-    {% block content %}{% endblock %}
-  </main>
-  <footer class="site-footer">{% trans "Factory Tracker" %}</footer>
-  <script src="{% static 'js/nav.js' %}"></script>
+    <div class="app-main">
+      <div class="toasts" id="toasts" aria-live="polite" aria-label="{% trans 'Notifications' %}" data-close="{% trans 'Close' %}">
+        <ul class="messages">
+          {% for message in messages %}
+          <li class="message toast toast-{{ message.level_tag }}" data-level="{{ message.level_tag }}">
+            <span class="toast-icon">{% if message.level_tag == 'success' %}{% include "includes/icon.html" with name="check" %}{% elif message.level_tag == 'warning' %}{% include "includes/icon.html" with name="warning" %}{% elif message.level_tag == 'error' %}{% include "includes/icon.html" with name="error" %}{% else %}{% include "includes/icon.html" with name="info" %}{% endif %}</span>
+            <span class="toast-text">{{ message }}</span>
+            {% with token=message|undo_token %}{% if token %}
+            <form method="post" action="{% url 'undo' token %}" class="toast-undo">{% csrf_token %}<button type="submit" class="button-ghost button-sm">{% trans "Undo" %}</button></form>
+            {% endif %}{% endwith %}
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+      <main class="site-main">
+        {% block content %}{% endblock %}
+      </main>
+      <footer class="site-footer">{% trans "Factory Tracker" %}</footer>
+    </div>
+  </div>
+  <dialog id="confirm-dialog" class="confirm-dialog" aria-labelledby="confirm-message" data-confirm="{% trans 'Confirm' %}">
+    <form method="dialog">
+      <p id="confirm-message"></p>
+      <div class="form-actions">
+        <button type="submit" value="cancel" class="button-secondary" autofocus>{% trans "Cancel" %}</button>
+        <button type="submit" value="ok" class="button" id="confirm-ok">{% trans "Confirm" %}</button>
+      </div>
+    </form>
+  </dialog>
+  <script src="{% static 'js/theme.js' %}"></script>
+  <script src="{% static 'js/sidebar.js' %}"></script>
+  <script src="{% static 'js/account.js' %}"></script>
+  <script src="{% static 'js/toast.js' %}"></script>
+  <script src="{% static 'js/confirm.js' %}"></script>
 </body>
 </html>

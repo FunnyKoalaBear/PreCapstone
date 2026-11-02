@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% load i18n panels %}
+
+{% block title %}{% trans "Settings" %} - {% trans "Factory Tracker" %}{% endblock %}
+
+{% block content %}
+  <h1>{% trans "Settings" %}</h1>
+  {% trans "Settings sections" as tabs_label %}
+  {% include "includes/tab_bar.html" with label=tabs_label %}
+  {% if tab == 'rules' %}
+  <form method="post" action="{{ back }}" class="card">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    {% for field, default in form.rows %}
+      <div>
+        <label for="{{ field.id_for_label }}">{{ field.label|capfirst }}</label>
+        {{ field }}
+        <p class="note">{{ field.help_text }} {% blocktrans %}Default: {{ default }}{% endblocktrans %}</p>
+        {{ field.errors }}
+      </div>
+    {% endfor %}
+    <div class="form-actions">
+      <button type="submit" name="action" value="save" class="button">{% trans "Save changes" %}</button>
+      <button type="submit" name="action" value="reset" class="button-secondary" formnovalidate>{% trans "Reset to defaults" %}</button>
+    </div>
+  </form>
+  {% else %}
+
+  <form method="post" action="{{ back }}" class="filters">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="add">
+    {% include "includes/form_fields.html" with form=add_form %}
+    <button type="submit" class="button">{% trans "Add" %}</button>
+  </form>
+
+  <details class="result-details">
+    <summary>{% trans "Paste a list" %}</summary>
+    <form method="post" action="{{ back }}" class="card">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="paste">
+      <p class="note">{% trans "One name per line, or name, Japanese name. Names already listed are skipped." %}</p>
+      <textarea name="lines" rows="6" aria-label="{% trans 'Paste a list' %}"></textarea>
+      <button type="submit" class="button-secondary">{% trans "Add" %}</button>
+    </form>
+  </details>
+
+  <form method="get" class="filters">
+    <input type="hidden" name="tab" value="{{ tab }}">
+    <div>
+      <label for="q">{% trans "Search" %}</label>
+      <input type="search" id="q" name="q" value="{{ q }}">
+    </div>
+    <button type="submit" class="button-secondary">{% trans "Search" %}</button>
+  </form>
+
+  {% scroll_panel %}
+    <table class="table table-cards">
+      <thead>
+        <tr>
+          <th>{% trans "Name" %}</th><th>{% trans "Japanese name" %}</th><th>{% trans "Active" %}</th>
+          <th class="num">{% trans "Used in" %}</th><th>{% trans "Actions" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+          <tr{% if not r.active %} class="is-inactive"{% endif %}>
+            <td data-label="{% trans 'Name' %}"><input type="text" form="rename-{{ r.pk }}" name="name" value="{{ r.name }}" maxlength="100" required aria-label="{% trans 'Name' %}"></td>
+            <td data-label="{% trans 'Japanese name' %}"><input type="text" form="rename-{{ r.pk }}" name="name_ja" value="{{ r.name_ja }}" maxlength="100" aria-label="{% trans 'Japanese name' %}"></td>
+            <td data-label="{% trans 'Active' %}">{% if r.active %}{% trans "Yes" %}{% else %}<span class="badge badge-cancelled">{% trans "Inactive" %}</span>{% endif %}</td>
+            <td class="num" data-label="{% trans 'Used in' %}">{{ r.used }}</td>
+            <td data-label="{% trans 'Actions' %}">
+              <div class="inline-actions">
+                <form method="post" action="{{ back }}" id="rename-{{ r.pk }}" class="inline-actions">
+                  {% csrf_token %}<input type="hidden" name="pk" value="{{ r.pk }}">
+                  <button type="submit" name="action" value="rename" class="button-ghost button-sm">{% trans "Save" %}</button>
+                </form>
+                <form method="post" action="{{ back }}" class="inline-actions">
+                  {% csrf_token %}<input type="hidden" name="pk" value="{{ r.pk }}">
+                  <button type="submit" name="action" value="toggle" class="button-ghost button-sm">{% if r.active %}{% trans "Deactivate" %}{% else %}{% trans "Reactivate" %}{% endif %}</button>
+                </form>
+                {% if not r.used %}
+                  <form method="post" action="{{ back }}" class="inline-actions">
+                    {% csrf_token %}<input type="hidden" name="pk" value="{{ r.pk }}">
+                    {% blocktrans with kind=noun name=r.name asvar confirm %}Delete {{ kind }} "{{ name }}"? This can't be undone.{% endblocktrans %}
+                    <button type="submit" name="action" value="delete" class="button-danger button-sm" data-confirm="{{ confirm|force_escape }}" data-confirm-danger data-confirm-button="{% trans 'Delete' %}">{% trans "Delete" %}</button>
+                  </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5">{% trans "No entries match." %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endscroll_panel %}
+  {% endif %}
+{% endblock %}

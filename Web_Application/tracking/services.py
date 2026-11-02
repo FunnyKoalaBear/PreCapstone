@@ -5,23 +5,23 @@ from django.utils.translation import gettext as _
 
 from core.permissions import PLANNER, has_role
 
-from .models import Box, Event, Tag, TagAssignment
+from .models import Event, Tag, TagAssignment
 from .status import CANCELLED, COMPLETE, SHIPPED, item_status, manual_actions, next_action
 
 
 def resolve_tag(uid, moment):
-    """The assignment (tag, box, item) active for this UID at that moment, or None."""
+    """The assignment (tag, item) active for this UID at that moment, or None."""
     return (
         TagAssignment.objects.at(moment)
         .filter(tag__uid=uid.strip().upper())
-        .select_related('tag', 'box', 'item__order')
+        .select_related('tag', 'item__order')
         .first()
     )
 
 
 def next_step(assignment):
     """(box status, (event type, process) or None) for the box this assignment belongs to."""
-    box = next(b for b in item_status(assignment.item).boxes if b.assignment and b.assignment.box_id == assignment.box_id)
+    box = next(b for b in item_status(assignment.item).boxes if b.assignment and any(a.pk == assignment.pk for a in b.assignments))
     return box, next_action(box)
 
 
@@ -39,28 +39,23 @@ def record_event(device, tag_uid, process, event_type, occurred_at=None):
     return event, resolve_tag(event.tag_uid, occurred_at)
 
 
-def assign_tag(item, box_label, tag_uid):
-    """Link a tag and a box to an item from now on; never edits past assignments."""
-    label, uid = box_label.strip(), tag_uid.strip().upper()
-    if not label or not uid:
-        raise ValidationError(_('Box label and tag UID are required.'))
+def assign_tag(item, tag_uid):
+    """Link a tag to an item from now on; never edits past assignments."""
+    uid = tag_uid.strip().upper()
+    if not uid:
+        raise ValidationError(_('Tag UID is required.'))
     with transaction.atomic():
-        box = Box.objects.get_or_create(label=label)[0]
         tag = Tag.objects.get_or_create(uid=uid)[0]
         if not tag.active:
             raise ValidationError(_('Tag %(tag)s is inactive.') % {'tag': tag})
-        if not box.active:
-            raise ValidationError(_('Box %(box)s is inactive.') % {'box': box})
-        open_ = TagAssignment.objects.filter(end_at__isnull=True).select_related('item__order', 'tag', 'box')
+        open_ = TagAssignment.objects.filter(end_at__isnull=True).select_related('item__order', 'tag')
         if open_.filter(item=item).count() >= item.box_count:
             raise ValidationError(_('Item %(item)s already has all %(n)s boxes linked. Raise its box count first.') % {
                 'item': item.item_code, 'n': item.box_count,
             })
         if found := open_.filter(tag=tag).first():
             raise ValidationError(_('Tag %(tag)s is already in use for item %(item)s.') % {'tag': tag, 'item': found.item.item_code})
-        if found := open_.filter(box=box).first():
-            raise ValidationError(_('Box %(box)s is already in use for item %(item)s.') % {'box': box, 'item': found.item.item_code})
-        return TagAssignment.objects.create(tag=tag, box=box, item=item, start_at=timezone.now())
+        return TagAssignment.objects.create(tag=tag, item=item, start_at=timezone.now())
 
 
 def release_assignment(assignment):
@@ -72,11 +67,11 @@ def replace_tag(assignment, new_uid, mark_lost=True):
     """Swap a lost tag: end the open assignment now and start a new one on the same item and box."""
     uid = new_uid.strip().upper()
     with transaction.atomic():
-        old = TagAssignment.objects.select_for_update().select_related('tag', 'box', 'item__order').get(pk=assignment.pk)
+        old = TagAssignment.objects.select_for_update().select_related('tag', 'item__order').get(pk=assignment.pk)
         if old.end_at is not None:
             raise ValidationError(_('This assignment has already ended.'))
         if not uid:
-            raise ValidationError(_('Box label and tag UID are required.'))
+            raise ValidationError(_('Tag UID is required.'))
         if uid == old.tag.uid:
             raise ValidationError(_('The new tag must differ from the old tag.'))
         tag = Tag.objects.get_or_create(uid=uid)[0]
@@ -87,7 +82,7 @@ def replace_tag(assignment, new_uid, mark_lost=True):
         now = timezone.now()
         old.end_at = now
         old.save(update_fields=['end_at'])
-        new = TagAssignment.objects.create(tag=tag, box=old.box, item=old.item, start_at=now)
+        new = TagAssignment.objects.create(tag=tag, item=old.item, start_at=now, replaces=old)
         if mark_lost:
             old.tag.active = False
             old.tag.save(update_fields=['active'])
@@ -131,12 +126,14 @@ def correct_event(event, user, reason, replacement=None):
     return correction, new
 
 
-def record_result(user, assignment, process, quantity, defects=0, worker=None, machine=None):
+def record_result(user, assignment, process, quantity, defects=0, worker=None, machine=None, defect_cause=None, note='', photo=None):
     """Record how much was done at a step (and how much of it was defective) for the box of an assignment; never changes status."""
     event = Event(
         tag_uid=assignment.tag.uid, process=process, event_type=Event.Type.RESULT, quantity=quantity, defects=defects,
-        worker=worker, machine=machine, created_by=user,
+        worker=worker, machine=machine, defect_cause=defect_cause, note=note.strip(), created_by=user,
     )
+    if photo:
+        event.photo = photo
     event.full_clean()
     event.save()
     return event

@@ -1,10 +1,19 @@
-:root {
+/* Light values are the default; the dark block overrides every colour token. data-theme is set by static/js/theme.js */
+:root, :root[data-theme="light"] {
+  color-scheme: light;
   --color-bg: #f5f6f8;
   --color-surface: #ffffff;
+  --color-surface-2: #eef0f3; /* raised surfaces and popovers */
   --color-text: #1f2933;
   --color-muted: #5b6573;
   --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-on-primary: #ffffff;
   --color-border: #d9dee5;
+  --color-hover: #eef2f8; /* row hover */
+  --color-focus: #1d4ed8; /* focus ring */
+  --color-nav-active-bg: #e3ecff;
+  --color-overlay: rgba(15, 20, 26, 0.5); /* dialog backdrop */
   --color-scrollbar: #8a93a0;
   --color-on-status: #ffffff; /* text on a filled state colour */
   --frozen-shadow: 6px 0 6px -6px color-mix(in srgb, var(--color-text) 40%, transparent);
@@ -15,13 +24,13 @@
      and the lightness of each differs, so states are not told apart by hue alone. Always show the state's text label too. */
   --status-shipped: #2f2a88;
   --status-cancelled: #3f434b;
-  --status-overdue: #9d1b1b;
-  --status-in-progress: #1e51c0;
-  --status-at-vendor: #7637e1;
-  --status-paused: #b93a09;
-  --status-complete: #117d39;
-  --status-waiting: #ab5e05;
-  --status-not-started: #72777f;
+  --status-overdue: #991a1a;
+  --status-in-progress: #1d50bc;
+  --status-at-vendor: #7232e0;
+  --status-paused: #b53909;
+  --status-complete: #117a37;
+  --status-waiting: #a55b05;
+  --status-not-started: #6e727a;
   --status-partial: #0f766e;
   --color-danger: var(--status-overdue);
 
@@ -41,17 +50,109 @@
   --risk-on-track: #15803d;
 }
 
+/* Dark: no pure black or white; state colours are lighter (they sit on a dark surface) and the text on a fill is dark */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-bg: #0f141a;
+  --color-surface: #171d25;
+  --color-surface-2: #1f2630;
+  --color-text: #e6eaf0;
+  --color-muted: #aab4c2;
+  --color-primary: #7aa2ff;
+  --color-primary-hover: #9bb9ff;
+  --color-on-primary: #0b1220;
+  --color-border: #2a323d;
+  --color-hover: #1d242e;
+  --color-focus: #9bb9ff;
+  --color-nav-active-bg: #1f2c47;
+  --color-overlay: rgba(0, 0, 0, 0.65);
+  --color-scrollbar: #5d6877;
+  --color-on-status: #0b1016;
+  --frozen-shadow: 6px 0 6px -6px rgba(0, 0, 0, 0.7);
+  --gantt-track-bg: #222a35;
+  --gantt-vendor-stripe: #7a55c9;
+
+  --status-shipped: #8c84f5;
+  --status-cancelled: #868d98;
+  --status-overdue: #f47575;
+  --status-in-progress: #6ba6f7;
+  --status-at-vendor: #b379f4;
+  --status-paused: #f79760;
+  --status-complete: #7ad89a;
+  --status-waiting: #f8cb73;
+  --status-not-started: #b7bcc4;
+  --status-partial: #33cabe;
+  --color-danger: var(--status-overdue);
+
+  --status-tint: 24%;
+  --status-not-started-tint: color-mix(in srgb, var(--status-not-started) var(--status-tint), var(--color-surface));
+  --status-in-progress-tint: color-mix(in srgb, var(--status-in-progress) var(--status-tint), var(--color-surface));
+  --status-at-vendor-tint: color-mix(in srgb, var(--status-at-vendor) var(--status-tint), var(--color-surface));
+  --status-complete-tint: color-mix(in srgb, var(--status-complete) var(--status-tint), var(--color-surface));
+  --status-paused-tint: color-mix(in srgb, var(--status-paused) var(--status-tint), var(--color-surface));
+
+  --stagnant-color: #f472b6;
+
+  --risk-overdue: #f47575;
+  --risk-critical: #fb923c;
+  --risk-watch: #eab308;
+  --risk-on-track: #4ade80;
+}
+
+/* Type scale. Use only these tokens for font-size; weights are 400, 500 and 600 (the brand may use 700). */
+:root {
+  --text-sm: 0.8125rem; /* the smallest size allowed */
+  --text-base: 1rem;
+  --text-table: 0.9375rem;
+  --text-lg: 1.05rem;
+  --text-xl: 1.2rem;
+  --text-2xl: 1.5rem;
+  --leading-tight: 1.3;
+  --leading-base: 1.5;
+  --leading-ja: 1.7;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* Spacing and controls: buttons, inputs and selects share the height and radius so filter rows line up */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --control-h: 2.25rem;
+  --control-h-sm: 1.75rem;
+  --radius: 6px;
+}
+
 /* Responsive layout. The breakpoints live only here: 768px (tablet) and 480px (phone). */
+
+/* Desktop (above 768px): the sidebar is open (13.75rem) or a collapsed 3.5rem icon rail; only the buttons switch it */
+@media (min-width: 48.0625em) { /* 769px */
+  #sidebar { transition: width 150ms ease; }
+  html[data-sidebar="collapsed"] #sidebar { width: var(--sidebar-rail); cursor: e-resize; }
+  html[data-sidebar="collapsed"] .app.has-sidebar .app-main { margin-left: var(--sidebar-rail); }
+  html[data-sidebar="collapsed"] .sidebar-head { display: none; }
+  html[data-sidebar="collapsed"] .nav-item.sidebar-logo { display: flex; }
+  html[data-sidebar="collapsed"] .nav-group-label { opacity: 0; }
+  html[data-sidebar="collapsed"] #sidebar .lang-switch { align-self: stretch; border: 0; background: transparent; }
+  html[data-sidebar="collapsed"] #sidebar .lang-switch button:not(.lang-globe) { display: none; }
+  html[data-sidebar="collapsed"] #sidebar .lang-switch .lang-globe { display: flex; }
+}
+
 @media (max-width: 768px) {
-  .site-header { padding: 0.75rem 1rem; }
   .site-main { padding: 1rem; }
+
+  /* The sidebar becomes a drawer opened by the menu button; without JavaScript it stays in view */
+  html .site-header.mobile-bar { display: flex; padding: 0.5rem 1rem; }
+  html .app.has-sidebar .app-main { margin-left: 0; }
+  .js #sidebar { visibility: hidden; transform: translateX(-100%); z-index: 30; transition: transform 150ms ease, visibility 0s linear 150ms; }
+  .js.drawer-open #sidebar { visibility: visible; transform: none; box-shadow: var(--frozen-shadow); transition-delay: 0s; }
+  .js.drawer-open .sidebar-backdrop { display: block; position: fixed; inset: 0; z-index: 25; background: var(--color-overlay); }
+  html.js #sidebar .sidebar-collapse { display: none; }
   .gantt-row { grid-template-columns: 1fr; gap: 0.15rem; }
   .gantt-axis .gantt-name { display: none; }
-
-  /* The menu collapses behind a button (only when JavaScript runs, so the links stay reachable without it) */
-  .site-header .nav-toggle { display: inline-block; }
-  .js .site-nav { display: none; }
-  .js .site-nav.is-open { display: flex; flex-direction: column; flex-basis: 100%; }
 
   /* Tables marked table-cards turn into one card per row; the cell labels come from data-label */
   .table-cards thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
@@ -59,11 +160,20 @@
   .table-cards tr { margin-bottom: 0.75rem; background: var(--color-surface); border: 1px solid var(--color-border); }
   .table-cards td, .table-cards th { display: flex; justify-content: space-between; gap: 1rem; text-align: right; }
   .scroll-panel-first .table-cards tr > :first-child { position: static; }
-  .table-cards [data-label]::before { content: attr(data-label); flex: none; color: var(--color-muted); font-weight: 600; text-align: left; }
+  .table-cards [data-label]::before { content: attr(data-label); flex: none; color: var(--color-muted); font-weight: var(--weight-semibold); text-align: left; }
 }
 
 @media (max-width: 480px) {
   .site-main { padding: 0.75rem; }
   .card { padding: 0.75rem; }
   .filters > div, .filters input[type="search"], .filters select { width: 100%; }
+  .js .toasts { right: 0.5rem; left: 0.5rem; width: auto; }
+}
+
+@media (prefers-reduced-motion: reduce) { #sidebar { transition: none !important; } }
+
+/* Printing: no sidebar or bars (the temporary password page prints only the password) */
+@media print {
+  .site-header, #sidebar, .sidebar-backdrop, .site-footer, .no-print, .toasts, .confirm-dialog { display: none; }
+  html .app.has-sidebar .app-main { margin-left: 0; }
 }

@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% load i18n panels %}
+
+{% block title %}{% trans "Devices" %} - {% trans "Factory Tracker" %}{% endblock %}
+
+{% block content %}
+  <h1>{% trans "Devices" %} <a class="button" href="{% url 'device_add' %}">{% trans "Add device" %}</a></h1>
+  {% include "includes/tag_tabs.html" %}
+  <p class="note">{% trans "Scanners and tag setters are listed here. Each has its own API key." %}</p>
+
+  {% trans "location" as l_location %}
+  {% scroll_panel %}
+    <table class="table table-cards">
+      <thead>
+        <tr>
+          <th>{% trans "Name" %}</th><th>{{ l_location|capfirst }}</th><th>{% trans "Active" %}</th>
+          <th class="tnum">{% trans "Last seen (JST)" %}</th><th>{% trans "Actions" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in devices %}
+          <tr{% if not d.active %} class="is-inactive"{% endif %}>
+            <td data-label="{% trans 'Name' %}">{{ d.name }}</td>
+            <td data-label="{{ l_location|capfirst }}">{{ d.location|default:"-" }}</td>
+            <td data-label="{% trans 'Active' %}">{% if d.active %}{% trans "Yes" %}{% else %}<span class="badge badge-cancelled">{% trans "Inactive" %}</span>{% endif %}</td>
+            <td class="tnum" data-label="{% trans 'Last seen (JST)' %}">{% if d.last_seen %}{{ d.last_seen|date:"Y-m-d H:i" }}{% else %}{% trans "Never" %}{% endif %}
+              {% if d.silent %}<span class="badge badge-overdue">{% trans "Silent" %}</span>{% endif %}</td>
+            <td data-label="{% trans 'Actions' %}">
+              <form method="post" class="inline-actions">
+                {% csrf_token %}
+                <input type="hidden" name="device" value="{{ d.pk }}">
+                <a class="button-ghost button-sm" href="{% url 'device_edit' d.pk %}">{% trans "Edit" %}</a>
+                <button type="submit" name="action" value="toggle" class="button-ghost button-sm">{% if d.active %}{% trans "Deactivate" %}{% else %}{% trans "Reactivate" %}{% endif %}</button>
+                {% if d.deletable %}{% blocktrans with name=d.name asvar confirm %}Delete device "{{ name }}"? This can't be undone.{% endblocktrans %}<button type="submit" name="action" value="delete" class="button-danger button-sm" data-confirm="{{ confirm|force_escape }}" data-confirm-danger data-confirm-button="{% trans 'Delete' %}">{% trans "Delete" %}</button>{% endif %}
+              </form>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5">{% trans "No devices yet." %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endscroll_panel %}
+{% endblock %}

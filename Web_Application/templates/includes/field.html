@@ -1,0 +1,11 @@
+{% load i18n %}
+<div class="field{% if field.errors %} field-invalid{% endif %}">
+  {% if field.field.widget.input_type == "checkbox" %}
+    <label class="check" for="{{ field.id_for_label }}">{{ field }}<span>{{ field.label }}</span></label>
+  {% else %}
+    <label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %}<span class="required" aria-hidden="true"> *</span><span class="sr-only"> ({% trans "required" %})</span>{% endif %}</label>
+    {{ field }}
+  {% endif %}
+  {% if field.help_text %}<div class="helptext" id="{{ field.auto_id }}_helptext">{{ field.help_text }}</div>{% endif %}
+  {% if field.errors %}<div class="field-error" id="{{ field.auto_id }}_error">{% include "includes/icon.html" with name="error" %}<span>{{ field.errors|join:" " }}</span></div>{% endif %}
+</div>

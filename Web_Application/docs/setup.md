@@ -20,7 +20,7 @@ Edit `.env`, create an empty PostgreSQL database, then:
 
 ## Roles
 
-Migrations create the groups Operator, Planner and Admin. In /admin, add each user to one group (superusers count as Admin). Tick "Staff status" only for people who need /admin.
+Migrations create the groups Operator, Planner and Admin (superusers count as Admin). Planners manage Operator and Planner accounts on the Users page; only Admins see and assign the Admin role (in /admin or on the Users page). New and reset accounts get a temporary password shown once, and must change it at first login. Tick "Staff status" only for people who need /admin.
 
 ## Raspberry Pi setup
 
@@ -68,6 +68,8 @@ Needs 64-bit Raspberry Pi OS with **Python 3.12 or newer** (Django 6.1 requireme
    - `SECRET_KEY`, `DB_NAME`, `DB_USER` and `DB_PASSWORD` are required. The app will not start without them.
    - `ALLOWED_HOSTS` is comma separated. It must contain the Pi's IP or hostname, otherwise Django rejects the ESP32 and browsers (`400 Bad Request`).
    - `DEBUG` defaults to False when missing. Static files (CSS) and uploaded drawings are served by Django only when `DEBUG=True`; no static-file setup for production exists yet.
+   - `SESSION_HOURS` (default 12) is how long a login lasts; every request extends it.
+   - `DEMO_PASSWORD` is the password `seed_demo` gives `demo_operator`, `demo_planner` and `demo_admin`. If it is unset they cannot log in. Use a fake value, only on a laptop.
    - `SCAN_REPEAT_SECONDS` is not in `.env.example`. Default 5, 0 turns the repeat guard off.
    - Never commit `.env`.
 
@@ -148,7 +150,7 @@ Open points:
 - [ ] `migrate` ran without errors.
 - [ ] `http://PI_ADDRESS:8000/` opens from the laptop and the admin login works.
 - [ ] A scanner device exists and you have its API key.
-- [ ] A box, tag and item are linked (Tags page in the web app).
+- [ ] A tag and an item are linked (Tags page in the web app).
 - [ ] This curl from the laptop returns `"ok": true`:
 
   ```powershell

@@ -34,7 +34,7 @@ def active_boxes(now=None, today=None, items=None, statuses=None):
             row = current_row(box)
             process = row.step.process if row else None
             e = {
-                'item': item, 'order': item.order, 'box': box, 'box_label': box.label if box.assignment else None,
+                'item': item, 'order': item.order, 'box': box, 'tag_uid': box.assignment.tag.uid if box.assignment else None, 'caption': box.caption,
                 'multi': len(st.boxes) > 1, 'code': box.code, 'label': box.code_label, 'process': process,
                 'vendor': row.step.vendor_label if row else '',
                 'started_at': row.started_at if row else None, 'last_event_at': box.last_event_at,
@@ -47,7 +47,7 @@ def active_boxes(now=None, today=None, items=None, statuses=None):
                 e['due_back'] = step_due_back(row.step, e['started_at'])
                 e['late_days'] = days_late(e['due_back'], today)
             out.append(e)
-    out.sort(key=lambda e: (e['due_date'], e['order'].job_number, e['item'].item_no, e['box_label'] or ''))
+    out.sort(key=lambda e: (e['due_date'], e['order'].job_number, e['item'].item_no, e['box'].number or 0))
     return out
 
 

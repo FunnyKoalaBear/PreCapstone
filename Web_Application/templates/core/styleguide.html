@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% load panels static %}
+
+{% block title %}Style guide - Factory Tracker{% endblock %}
+
+{% block content %}
+  <h1>Style guide</h1>
+  <p class="note">Developer page, English only. Switch the theme in the account menu and check every block in both themes.</p>
+
+  <h2>Buttons</h2>
+  <div class="styleguide-row">
+    <button type="button" class="button">Primary</button>
+    <button type="button" class="button-secondary">Secondary</button>
+    <button type="button" class="button-danger">Danger</button>
+    <button type="button" class="button-ghost">Ghost</button>
+    <a class="button" href="#">Link as primary</a>
+    <a class="button-secondary" href="#">Link as secondary</a>
+  </div>
+  <div class="styleguide-row">
+    <button type="button" class="button button-sm">Primary small</button>
+    <button type="button" class="button-secondary button-sm">Secondary small</button>
+    <button type="button" class="button-danger button-sm">Danger small</button>
+    <button type="button" class="button-ghost button-sm">Ghost small</button>
+  </div>
+  <div class="styleguide-row">
+    <button type="button" class="button" disabled>Primary disabled</button>
+    <button type="button" class="button-secondary" disabled>Secondary disabled</button>
+    <button type="button" class="button-danger" disabled>Danger disabled</button>
+    <button type="button" class="button-ghost" disabled>Ghost disabled</button>
+  </div>
+  <p class="note">Hover, press and Tab to a button to check the hover, active and focus ring states.</p>
+
+  <h2>Table with pills and numbers</h2>
+  {% scroll_panel %}
+    <table class="table">
+      <thead>
+        <tr><th>Item</th><th>Part</th><th class="num">Quantity</th><th class="tnum">Due date</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        {% for item, part, qty, due, css, label in rows %}
+          <tr><td class="tnum">{{ item }}</td><td>{{ part }}</td><td class="num">{{ qty }}</td><td class="tnum">{{ due }}</td><td><span class="pill pill-{{ css }}">{{ label }}</span></td></tr>
+        {% endfor %}
+        <tr><td colspan="5">An empty row looks like this.</td></tr>
+      </tbody>
+    </table>
+  {% endscroll_panel %}
+
+  <h2>Pills</h2>
+  <div class="styleguide-row">
+    {% for css, label in pills %}<span class="pill pill-{{ css }}">{{ label }}</span>{% endfor %}
+  </div>
+
+  <h2>Form with errors</h2>
+  <form method="post" class="card" action="#" onsubmit="return false">
+    {% include "includes/form_fields.html" %}
+    <div class="form-actions">
+      <button type="submit" class="button">Save</button>
+      <a class="button-secondary" href="#">Cancel</a>
+    </div>
+  </form>
+
+  <h2>Toasts</h2>
+  <div class="styleguide-row">
+    <button type="button" class="button-secondary" data-toast="success">Success</button>
+    <button type="button" class="button-secondary" data-toast="info">Info</button>
+    <button type="button" class="button-secondary" data-toast="warning">Warning</button>
+    <button type="button" class="button-secondary" data-toast="error">Error</button>
+  </div>
+
+  <h2>Confirm dialog</h2>
+  <form method="post" data-confirm="Run the sample action? Nothing is changed." data-confirm-danger data-confirm-button="Run">
+    {% csrf_token %}
+    <button type="submit" class="button-danger">Open the dialog</button>
+  </form>
+
+  <h2>Type scale</h2>
+  {% for token, size in type_scale %}<p class="type-{{ token }}">{{ token }} ({{ size }}): The quick brown fox jumps over the lazy dog 0123456789</p>{% endfor %}
+  <script src="{% static 'js/styleguide.js' %}"></script>
+{% endblock %}

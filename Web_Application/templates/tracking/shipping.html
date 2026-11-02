@@ -19,25 +19,25 @@
     </div>
     <div><label for="due_from">{% trans "Due from" %}</label><input type="date" id="due_from" name="due_from" value="{{ r.due_from }}"></div>
     <div><label for="due_to">{% trans "Due to" %}</label><input type="date" id="due_to" name="due_to" value="{{ r.due_to }}"></div>
-    <button type="submit" class="button">{% trans "Apply" %}</button>
+    <button type="submit" class="button-secondary">{% trans "Apply" %}</button>
   </form>
   {% scroll_panel label=_("Ready to ship") %}
     <table class="table table-cards">
       <thead>
         <tr>
-          <th>{% trans "Item" %}</th>
+          <th class="tnum">{% trans "Item" %}</th>
           <th>{% trans "Part name" %}</th>
           <th>{% trans "Customer" %}</th>
-          <th>{% trans "Due date" %}</th>
+          <th class="tnum">{% trans "Due date" %}</th>
         </tr>
       </thead>
       <tbody>
         {% for row in ready %}
-          <tr data-f-customer="{{ row.order.customer_id }}" data-f-due="{{ row.order.due_date|date:'Y-m-d' }}" data-f-text="{{ row.item.item_code }} {{ row.item.part_name }} {{ row.item.part_number }} {{ row.order.customer.name }} {{ row.order.customer_order_number }}">
-            <td data-label="{% trans 'Item' %}"><a href="{% url 'order_detail' row.order.job_number %}">{{ row.item.item_code }}</a></td>
+          <tr>
+            <td class="tnum" data-label="{% trans 'Item' %}"><a href="{% url 'order_detail' row.order.job_number %}">{{ row.item.item_code }}</a></td>
             <td data-label="{% trans 'Part name' %}">{{ row.item.part_name }}</td>
             <td data-label="{% trans 'Customer' %}">{{ row.order.customer }}</td>
-            <td data-label="{% trans 'Due date' %}"><span>{{ row.order.due_date|date:"Y-m-d" }}{% if row.late %} <span class="badge badge-overdue">{% trans "Overdue" %}</span>{% endif %}</span></td>
+            <td class="tnum" data-label="{% trans 'Due date' %}"><span>{{ row.order.due_date|date:"Y-m-d" }}{% if row.late %} <span class="badge badge-overdue">{% trans "Overdue" %}</span>{% endif %}</span></td>
           </tr>
         {% empty %}
           <tr><td colspan="4">{% trans "Nothing is waiting to be shipped." %}</td></tr>
@@ -48,7 +48,7 @@
 
   <h2>{% trans "On-time delivery by month" %}</h2>
   <p class="note">{% trans "Shipped on or before the order due date, as a share of the items shipped that month." %}</p>
-  <form method="get" class="filters" data-demo-facts="months">
+  <form method="get" class="filters">
     {% for name, value in ready_hidden %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
     <div><label for="m_q">{% trans "Search" %}</label><input type="search" id="m_q" name="m_q" value="{{ m.m_q }}"></div>
     <div>
@@ -60,25 +60,25 @@
     </div>
     <div><label for="month_from">{% trans "From month" %}</label><input type="month" id="month_from" name="month_from" value="{{ m.month_from }}"></div>
     <div><label for="month_to">{% trans "To month" %}</label><input type="month" id="month_to" name="month_to" value="{{ m.month_to }}"></div>
-    <button type="submit" class="button">{% trans "Apply" %}</button>
+    <button type="submit" class="button-secondary">{% trans "Apply" %}</button>
   </form>
   {% scroll_panel label=_("On-time delivery by month") %}
     <table class="table table-cards">
       <thead>
         <tr>
-          <th>{% trans "Month" %}</th>
-          <th>{% trans "Shipped" %}</th>
-          <th>{% trans "On time" %}</th>
-          <th>{% trans "On-time rate" %}</th>
+          <th class="tnum">{% trans "Month" %}</th>
+          <th class="num">{% trans "Shipped" %}</th>
+          <th class="num">{% trans "On time" %}</th>
+          <th class="num">{% trans "On-time rate" %}</th>
         </tr>
       </thead>
       <tbody>
         {% for row in months %}
           <tr>
-            <td data-label="{% trans 'Month' %}">{{ row.month }}</td>
-            <td data-label="{% trans 'Shipped' %}">{{ row.shipped }}</td>
-            <td data-label="{% trans 'On time' %}">{{ row.on_time }}</td>
-            <td data-label="{% trans 'On-time rate' %}">{{ row.rate }}%</td>
+            <td class="tnum" data-label="{% trans 'Month' %}">{{ row.month }}</td>
+            <td class="num" data-label="{% trans 'Shipped' %}">{{ row.shipped }}</td>
+            <td class="num" data-label="{% trans 'On time' %}">{{ row.on_time }}</td>
+            <td class="num" data-label="{% trans 'On-time rate' %}">{{ row.rate }}%</td>
           </tr>
         {% empty %}
           <tr><td colspan="4">{% trans "Nothing has been shipped yet." %}</td></tr>
@@ -86,5 +86,4 @@
       </tbody>
     </table>
   {% endscroll_panel %}
-  {% if facts_json %}<script type="application/json" id="demo-facts">{{ facts_json|safe }}</script>{% endif %}
 {% endblock %}

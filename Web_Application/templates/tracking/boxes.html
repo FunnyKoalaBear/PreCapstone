@@ -17,7 +17,7 @@
         {% endfor %}
       </select>
     </div>
-    <noscript><button type="submit" class="button">{% trans "Apply" %}</button></noscript>
+    <noscript><button type="submit" class="button-secondary">{% trans "Apply" %}</button></noscript>
   </form>
 
   {% if rows %}
@@ -26,27 +26,27 @@
         <thead>
           <tr>
             <th>{% trans "Item" %}</th>
-            <th>{% trans "Box" %}</th>
+            <th>{% trans "Tag" %}</th>
             <th>{% trans "Part" %}</th>
             <th>{% trans "Customer" %}</th>
             <th>{% trans "Current process" %}</th>
             <th>{% trans "Status" %}</th>
-            <th>{% trans "Due date" %}</th>
-            <th>{% trans "Idle for" %}</th>
+            <th class="tnum">{% trans "Due date" %}</th>
+            <th class="num">{% trans "Idle for" %}</th>
             <th></th>
           </tr>
         </thead>
         <tbody>
           {% for e in rows %}
-            <tr data-f-sort-process="{{ e.process.name|default:'~' }} {{ e.due_date|date:'Y-m-d' }}" data-f-sort-due="{{ e.due_date|date:'Y-m-d' }} {{ e.order.job_number }} {{ e.item.item_no }}" data-f-sort-customer="{{ e.order.customer.name }} {{ e.due_date|date:'Y-m-d' }}" data-f-sort-waiting="{% if e.idle %}{{ e.idle.total_seconds|floatformat:'0u' }}{% else %}-1{% endif %}">
+            <tr>
               <td><a href="{% url 'order_detail' e.order.job_number %}">{{ e.item.item_code }}</a></td>
-              <td>{% if e.box_label %}{{ e.box_label }}{% else %}{% trans "Not linked yet" %}{% if can.planner %} <a href="{% url 'tag_manage' %}">{% trans "Link a tag" %}</a>{% endif %}{% endif %}</td>
+              <td>{% if e.tag_uid %}{{ e.tag_uid }}{% if e.caption %} <small>{{ e.caption }}</small>{% endif %}{% else %}{% trans "Not linked yet" %}{% if can.planner %} <a href="{% url 'tag_manage' %}">{% trans "Link a tag" %}</a>{% endif %}{% endif %}</td>
               <td>{{ e.item.part_name }}</td>
               <td>{{ e.order.customer }}</td>
               <td>{{ e.process|default:"-" }}</td>
               <td><span class="badge badge-{{ e.code|lower }}">{{ e.label }}</span></td>
-              <td>{{ e.due_date|date:"Y-m-d" }}</td>
-              <td>{% if e.idle %}{{ e.idle|duration }}{% else %}-{% endif %}</td>
+              <td class="tnum">{{ e.due_date|date:"Y-m-d" }}</td>
+              <td class="num">{% if e.idle %}{{ e.idle|duration }}{% else %}-{% endif %}</td>
               <td>
                 {% if e.late %}<span class="badge badge-overdue">{% trans "Overdue" %}</span>{% endif %}
                 {% if e.stagnant %}<span class="badge badge-stagnant">{% trans "Stagnant" %}</span>{% endif %}

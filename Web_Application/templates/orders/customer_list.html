@@ -8,7 +8,7 @@
 
   <form method="post" class="card">
     {% csrf_token %}
-    {{ form }}
+    {% include "includes/form_fields.html" %}
     <button type="submit" class="button">{% trans "Add customer" %}</button>
   </form>
 
@@ -17,7 +17,7 @@
       <label for="q">{% trans "Search" %}</label>
       <input type="search" id="q" name="q" value="{{ q }}">
     </div>
-    <button type="submit" class="button">{% trans "Search" %}</button>
+    <button type="submit" class="button-secondary">{% trans "Search" %}</button>
   </form>
 
   {% scroll_panel %}
@@ -26,7 +26,7 @@
         <tr>
           <th>{% trans "name" as label %}{{ label|capfirst }}</th>
           <th>{% trans "contact" as label %}{{ label|capfirst }}</th>
-          <th>{% trans "Number of orders" %}</th>
+          <th class="num">{% trans "Number of orders" %}</th>
         </tr>
       </thead>
       <tbody>
@@ -34,7 +34,7 @@
           <tr>
             <td><a href="{% url 'customer_detail' c.pk %}">{{ c.name }}</a></td>
             <td>{{ c.contact|default:"-" }}</td>
-            <td>{{ c.order_count }}</td>
+            <td class="num">{{ c.order_count }}</td>
           </tr>
         {% empty %}
           <tr><td colspan="3">{% trans "No customers match." %}</td></tr>

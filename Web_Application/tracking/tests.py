@@ -1,7 +1,12 @@
 import json
+import tempfile
+from collections import Counter
+from io import BytesIO, StringIO
+from pathlib import Path
 from datetime import date, datetime, timedelta
 from datetime import timezone as dt_timezone
 
+from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.exceptions import PermissionDenied, ValidationError
 from types import SimpleNamespace
@@ -9,20 +14,27 @@ from types import SimpleNamespace
 from unittest import mock
 
 from django.template.loader import render_to_string
-from django.test import override_settings
-from django.utils import timezone
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
+from PIL import Image
+from django.db.migrations.executor import MigrationExecutor
+from django.test import TransactionTestCase, override_settings
+from django.utils import timezone, translation
 
 from core.testing import TestCase, make_user
 from orders.models import Customer, Order, OrderItem, Process, RouteStep, Vendor
 
 from .forms import AssignTagForm
 from .matrix import matrix as build_matrix
-from .models import Box, Event, Machine, ScannerDevice, Tag, TagAssignment, Worker
+from .models import DefectCause, Event, Machine, ScannerDevice, Tag, TagAssignment, Worker
+from .analysis import Filters, defect_detail, result_events, vendor_rows
+from .photos import process_photo
 from .overview import active_boxes, process_board
 from .planning import step_plan
 from .priority import priority
 from .services import assign_tag, cancel_item, correct_event, record_event, record_step_state, release_assignment, replace_tag, ship_item
-from .status import manual_actions, order_summary, gantt, AT_VENDOR, COMPLETE, IN_PROGRESS, NOT_STARTED, WAITING, BoxStatus, ItemStatus, _roll_up, events_for_item, days_late, next_action, due_back, idle_for, is_stagnant, item_status, timeline
+from .status import box_caption, box_captions, manual_actions, order_summary, gantt, AT_VENDOR, COMPLETE, IN_PROGRESS, NOT_STARTED, WAITING, BoxStatus, ItemStatus, _roll_up, events_for_item, days_late, next_action, due_back, idle_for, is_stagnant, item_status, timeline
 
 E = Event.Type
 K = Process.Kind
@@ -39,7 +51,7 @@ class ItemStatusTests(TestCase):
         self.device = ScannerDevice.objects.create(name='D')
         self.start = self.now - timedelta(hours=10)
         TagAssignment.objects.create(
-            tag=Tag.objects.create(uid='AB12'), box=Box.objects.create(label='B'), item=self.item, start_at=self.start,
+            tag=Tag.objects.create(uid='AB12'), item=self.item, start_at=self.start,
         )
 
     def ev(self, kind, etype, hours=0, **kw):
@@ -107,7 +119,7 @@ class RecordEventTests(TestCase):
         self.item = OrderItem.objects.create(order=order, part_name='P', quantity=1)
 
     def assign(self, uid):
-        TagAssignment.objects.create(tag=Tag.objects.create(uid=uid), box=Box.objects.create(label='B'), item=self.item)
+        TagAssignment.objects.create(tag=Tag.objects.create(uid=uid), item=self.item)
 
     def test_saves_event_and_returns_assignment(self):
         self.assign('AB12')
@@ -141,10 +153,10 @@ class TagSearchAndHistoryTests(TestCase):
         self.now = timezone.now()
         self.client.force_login(make_user('s', 'Admin'))
 
-    def link(self, uid, box, start_days, end_days=None):
+    def link(self, uid, start_days, end_days=None):
         """An assignment that began start_days ago and ended end_days ago (open when None)."""
         return TagAssignment.objects.create(
-            tag=Tag.objects.get_or_create(uid=uid)[0], box=Box.objects.get_or_create(label=box)[0], item=self.item,
+            tag=Tag.objects.get_or_create(uid=uid)[0], item=self.item,
             start_at=self.now - timedelta(days=start_days), end_at=None if end_days is None else self.now - timedelta(days=end_days))
 
     def history(self, **params):
@@ -153,8 +165,8 @@ class TagSearchAndHistoryTests(TestCase):
         return [a.tag.uid for a in r.context['rows']], r
 
     def test_in_use_shows_count_without_rows_until_searched(self):
-        self.link('AA11', 'BX1', 5)
-        self.link('BB22', 'BX2', 6)
+        self.link('AA11', 5)
+        self.link('BB22', 6)
         r = self.client.get('/tags/')
         self.assertEqual((r.context['open'], r.context['in_use']), ([], 2))
         self.assertContains(r, '2 tags in use.')
@@ -166,22 +178,22 @@ class TagSearchAndHistoryTests(TestCase):
         self.assertContains(self.client.get('/tags/', {'q': 'zzz'}), 'No tags in use match this search.')
 
     def test_release_keeps_the_search(self):
-        a = self.link('AA11', 'BX1', 5)
+        a = self.link('AA11', 5)
         r = self.client.post('/tags/', {'action': 'release', 'assignment': a.pk, 'q': 'aa'})
         self.assertRedirects(r, '/tags/?q=aa')
-        self.assertRedirects(self.client.post('/tags/', {'action': 'release', 'assignment': self.link('CC33', 'BX3', 1).pk}), '/tags/')
+        self.assertRedirects(self.client.post('/tags/', {'action': 'release', 'assignment': self.link('CC33', 1).pk}), '/tags/')
 
     def test_history_page_is_staff_only(self):
         self.client.logout()
         self.assertEqual(self.client.get('/tags/history/').status_code, 302)
 
     def test_history_ranges_overlap_rule(self):
-        self.link('D10', 'B10', 20, 10)      # inside every range
-        self.link('D100', 'B100', 120, 100)  # 3-6 months ago
-        self.link('D200', 'B200', 250, 200)  # 6-12 months ago
-        self.link('D400', 'B400', 500, 400)  # older than a year
-        self.link('OPEN', 'BOP', 400)        # open since long ago: overlaps everything
-        self.link('NEW', 'BNW', 2)           # open, started recently
+        self.link('D10', 20, 10)      # inside every range
+        self.link('D100', 120, 100)  # 3-6 months ago
+        self.link('D200', 250, 200)  # 6-12 months ago
+        self.link('D400', 500, 400)  # older than a year
+        self.link('OPEN', 400)        # open since long ago: overlaps everything
+        self.link('NEW', 2)           # open, started recently
         expect = {'1m': {'D10', 'OPEN', 'NEW'}, '3m': {'D10', 'OPEN', 'NEW'}, '6m': {'D10', 'D100', 'OPEN', 'NEW'},
                   '1y': {'D10', 'D100', 'D200', 'OPEN', 'NEW'}}
         for key, uids in expect.items():
@@ -190,16 +202,16 @@ class TagSearchAndHistoryTests(TestCase):
         self.assertEqual(set(self.history(range='bogus')[0]), expect['3m'])
 
     def test_history_is_newest_first_and_shows_in_use(self):
-        self.link('OLD1', 'B1', 30, 20)
-        self.link('NEW1', 'B2', 3)
+        self.link('OLD1', 30, 20)
+        self.link('NEW1', 3)
         uids, r = self.history()
         self.assertEqual(uids, ['NEW1', 'OLD1'])
         self.assertContains(r, 'In use')
         self.assertContains(r, f'href="/orders/{self.item.order.job_number}/"')
 
     def test_history_custom_range_and_fallbacks(self):
-        self.link('D10', 'B10', 20, 10)
-        self.link('D100', 'B100', 120, 100)
+        self.link('D10', 20, 10)
+        self.link('D100', 120, 100)
         day = lambda n: timezone.localtime(self.now - timedelta(days=n)).date().isoformat()
         uids, r = self.history(range='custom', **{'from': day(125), 'to': day(95)})
         self.assertEqual(uids, ['D100'])
@@ -212,17 +224,16 @@ class TagSearchAndHistoryTests(TestCase):
             self.assertEqual(uids, ['D10'], params)  # 3m fallback
             self.assertEqual(r.context['range'], '3m')
 
-    def test_history_search_by_tag_and_box(self):
-        self.link('AB12', 'SHELF-1', 5, 2)
-        self.link('CD34', 'SHELF-2', 5, 2)
+    def test_history_search_by_tag(self):
+        self.link('AB12', 5, 2)
+        self.link('CD34', 5, 2)
         self.assertEqual(self.history(q='ab1')[0], ['AB12'])
-        self.assertEqual(self.history(q='shelf-2')[0], ['CD34'])
-        self.assertEqual(sorted(self.history(q='SHELF')[0]), ['AB12', 'CD34'])
+        self.assertEqual(self.history(q='cd')[0], ['CD34'])
         self.assertEqual(self.history(q='nothing')[0], [])
 
     def test_history_cap(self):
         for i in range(201):
-            self.link(f'T{i:03d}', f'X{i:03d}', 10, 5)
+            self.link(f'T{i:03d}', 10, 5)
         uids, r = self.history()
         self.assertEqual((len(uids), r.context['capped']), (200, True))
         self.assertContains(r, 'Showing only the newest 200 records.')
@@ -236,31 +247,31 @@ class TagManageTests(TestCase):
         self.item2 = OrderItem.objects.create(order=order, part_name='B', quantity=1)
         RouteStep.objects.create(item=self.item2, sequence=1, process=self.proc)
 
-    def test_assign_creates_box_tag_and_open_assignment(self):
-        a = assign_tag(self.item1, ' B1 ', 'ab12')
-        self.assertEqual((a.box.label, a.tag.uid, a.end_at), ('B1', 'AB12', None))
+    def test_assign_creates_tag_and_open_assignment_without_a_box(self):
+        a = assign_tag(self.item1, ' ab12 ')
+        self.assertEqual((a.tag.uid, a.item, a.end_at, a.replaces), ('AB12', self.item1, None, None))
 
     def test_uid_is_uppercased(self):
-        assign_tag(self.item1, 'B1', ' ab12 ')
+        assign_tag(self.item1, ' ab12 ')
         self.assertTrue(Tag.objects.filter(uid='AB12').exists())
 
     def test_tag_in_use_is_rejected(self):
-        assign_tag(self.item1, 'B1', 'AB')
+        assign_tag(self.item1, 'AB')
         with self.assertRaises(ValidationError):
-            assign_tag(self.item2, 'B2', 'ab')
-        self.assertFalse(Box.objects.filter(label='B2').exists())
+            assign_tag(self.item2, 'ab')
+        self.assertEqual(TagAssignment.objects.count(), 1)
 
     def test_item_with_assignment_is_rejected(self):
-        assign_tag(self.item1, 'B1', 'AB')
+        assign_tag(self.item1, 'AB')
         with self.assertRaises(ValidationError):
-            assign_tag(self.item1, 'B2', 'CD')
+            assign_tag(self.item1, 'CD')
 
     def test_release_then_reuse_and_events_count_for_new_item(self):
-        old = assign_tag(self.item1, 'B1', 'AB')
+        old = assign_tag(self.item1, 'AB')
         release_assignment(old)
         old.refresh_from_db()
         self.assertIsNotNone(old.end_at)
-        assign_tag(self.item2, 'B1', 'AB')
+        assign_tag(self.item2, 'AB')
         record_event(ScannerDevice.objects.create(name='D'), 'AB', self.proc, E.ARRIVED)
         self.assertEqual(item_status(self.item2).code, COMPLETE)
         self.assertEqual(item_status(self.item1).code, NOT_STARTED)
@@ -269,9 +280,10 @@ class TagManageTests(TestCase):
         self.assertEqual(self.client.get('/tags/').status_code, 302)
         self.client.force_login(make_user('s', 'Admin'))
         self.assertEqual(self.client.get('/tags/').status_code, 200)
-        r = self.client.post('/tags/', {'action': 'assign', 'item': self.item1.pk, 'box_label': 'B1', 'tag_uid': 'ab'})
+        r = self.client.post('/tags/', {'action': 'assign', 'item': self.item1.pk, 'box_label': 'STRAY', 'tag_uid': 'ab'})
         self.assertRedirects(r, '/tags/')
         a = TagAssignment.objects.get()
+        self.assertEqual(a.tag.uid, 'AB')  # the stray box_label is ignored
         self.client.post('/tags/', {'action': 'release', 'assignment': a.pk})
         a.refresh_from_db()
         self.assertIsNotNone(a.end_at)
@@ -281,8 +293,8 @@ class TagManageTests(TestCase):
     def test_assign_dropdown_only_offers_items_with_a_free_box_slot(self):
         self.item2.box_count = 2
         self.item2.save()
-        assign_tag(self.item1, 'B1', 'AB')
-        assign_tag(self.item2, 'B2', 'CD')
+        assign_tag(self.item1, 'AB')
+        assign_tag(self.item2, 'CD')
         field = AssignTagForm().fields['item']
         self.assertEqual(list(field.queryset), [self.item2])
         label = field.label_from_instance(field.queryset.get())
@@ -292,12 +304,12 @@ class TagManageTests(TestCase):
     def test_tags_page_labels_each_open_box_of_an_item(self):
         self.item1.box_count = 2
         self.item1.save()
-        assign_tag(self.item1, 'B1', 'AB')
-        assign_tag(self.item1, 'B2', 'CD')
+        assign_tag(self.item1, 'AB')
+        assign_tag(self.item1, 'CD')
         self.client.force_login(make_user('s', 'Admin'))
-        r = self.client.get('/tags/', {'q': 'b'})
-        self.assertContains(r, 'Box B1 (1 of 2)')
-        self.assertContains(r, 'Box B2 (2 of 2)')
+        r = self.client.get('/tags/', {'q': self.item1.order.job_number})
+        self.assertContains(r, 'Box 1 of 2')
+        self.assertContains(r, 'Box 2 of 2')
 
 
 class DueBackTests(TestCase):
@@ -421,7 +433,7 @@ class PriorityTests(TestCase):
         for i, k in enumerate(kinds, 1):
             RouteStep.objects.create(item=item, sequence=i, process=self.procs[k])
         tag = Tag.objects.create(uid=f'T{self.n}')
-        TagAssignment.objects.create(tag=tag, box=Box.objects.create(label=f'B{self.n}'), item=item, start_at=timezone.now() - timedelta(days=30))
+        TagAssignment.objects.create(tag=tag, item=item, start_at=timezone.now() - timedelta(days=30))
         if send_days_ago is not None:
             Event.objects.create(device=self.device, tag_uid=tag.uid, event_type=E.SENT_OUT, process=self.procs[K.OUTSOURCED],
                                  occurred_at=timezone.now() - timedelta(days=send_days_ago))
@@ -521,14 +533,14 @@ class PriorityTests(TestCase):
         item.save()
         mach = self.procs[K.MACHINING]
         a1 = item.tagassignment_set.get()
-        TagAssignment.objects.create(tag=Tag.objects.create(uid='T2B'), box=Box.objects.create(label='B2b'), item=item,
+        TagAssignment.objects.create(tag=Tag.objects.create(uid='T2B'), item=item,
                                      start_at=timezone.now() - timedelta(days=5))
         for etype in (E.STARTED, E.FINISHED):  # box 1 finishes step 1
             Event.objects.create(device=self.device, tag_uid=a1.tag.uid, event_type=etype, process=mach)
         self.client.force_login(make_user('s', 'Admin'))
         rows = self.client.get('/priorities/').context['rows']
-        self.assertEqual([(r['box_label'], r['tier'], r['multi']) for r in rows],
-                         [('B2b', 'CRITICAL', True), (a1.box.label, 'WATCH', True)])  # unlinked third box left out
+        self.assertEqual([(r['caption'], r['tier']) for r in rows],
+                         [('Box 2 of 3', 'CRITICAL'), ('Box 1 of 3', 'WATCH')])  # unlinked third box left out
 
 
 @override_settings(STAGNATION_DEFAULT_HOURS=24)
@@ -579,7 +591,7 @@ class MultiBoxTests(TestCase):
 
     def link(self, uid, item=None, start=None, end=None):
         return TagAssignment.objects.create(
-            tag=Tag.objects.get_or_create(uid=uid)[0], box=Box.objects.create(label=f'B{uid}{Box.objects.count()}'), item=item or self.item,
+            tag=Tag.objects.get_or_create(uid=uid)[0], item=item or self.item,
             start_at=start or self.start, end_at=end,
         )
 
@@ -637,7 +649,7 @@ class MultiBoxTests(TestCase):
         self.assertEqual(item_status(self.item).code, COMPLETE)
 
     def test_roll_up_codes(self):
-        box = lambda c: BoxStatus(None, '', c, c)
+        box = lambda c: BoxStatus(None, None, c, c)
         cases = [
             ([COMPLETE, COMPLETE], COMPLETE), ([NOT_STARTED, NOT_STARTED], NOT_STARTED),
             ([IN_PROGRESS, WAITING], IN_PROGRESS), ([WAITING, AT_VENDOR], WAITING),
@@ -648,13 +660,13 @@ class MultiBoxTests(TestCase):
             self.assertEqual(_roll_up([box(c) for c in codes]).code, expected, codes)
 
     def test_assign_tag_respects_box_count(self):
-        assign_tag(self.item, 'L1', 'U1')
-        assign_tag(self.item, 'L2', 'U2')
+        assign_tag(self.item, 'U1')
+        assign_tag(self.item, 'U2')
         with self.assertRaisesMessage(ValidationError, 'already has all 2 boxes linked'):
-            assign_tag(self.item, 'L3', 'U3')
+            assign_tag(self.item, 'U3')
         self.item.box_count = 3
         self.item.save()
-        assign_tag(self.item, 'L3', 'U3')
+        assign_tag(self.item, 'U3')
         self.assertEqual(self.item.tagassignment_set.count(), 3)
 
     def test_reassigned_tag_does_not_leak_events(self):
@@ -687,7 +699,7 @@ class OverviewBase(TestCase):
             RouteStep.objects.create(item=item, sequence=i, process=p)
         for uid in uids:
             TagAssignment.objects.create(
-                tag=Tag.objects.create(uid=uid), box=Box.objects.create(label=f'L{uid}'), item=item,
+                tag=Tag.objects.create(uid=uid), item=item,
                 start_at=self.now - timedelta(days=20), end_at=self.now - timedelta(days=1) if uid in ended else None,
             )
         return item
@@ -721,21 +733,21 @@ class OverviewBase(TestCase):
 class ActiveBoxesTests(OverviewBase):
     def test_each_status_placeholder_and_released_box(self):
         self.scenario()
-        rows = {(e['item'].part_name, e['box_label']): e for e in active_boxes(self.now)}
+        rows = {(e['item'].part_name, e['tag_uid']): e for e in active_boxes(self.now)}
         self.assertEqual(len(rows), 7)
-        self.assertEqual(rows['P1', 'LA']['code'], IN_PROGRESS)
-        self.assertEqual(rows['P1', 'LA']['process'], self.cut)
-        b = rows['P2', 'LB']
+        self.assertEqual(rows['P1', 'A']['code'], IN_PROGRESS)
+        self.assertEqual(rows['P1', 'A']['process'], self.cut)
+        b = rows['P2', 'B']
         self.assertEqual((b['code'], b['process'], b['stagnant'], b['late']), (WAITING, self.weld, True, True))
         self.assertEqual(b['idle'], timedelta(hours=30))
-        c = rows['P3', 'LC']
+        c = rows['P3', 'C']
         self.assertEqual((c['code'], c['late_days'], c['vendor']), (AT_VENDOR, 2, 'PV'))
         self.assertEqual(c['due_back'], due_back(c['started_at'], 3))
-        self.assertEqual(rows['P4', 'LD']['code'], NOT_STARTED)
+        self.assertEqual(rows['P4', 'D']['code'], NOT_STARTED)
         self.assertIn(('P5', None), rows)  # placeholder
         self.assertEqual(rows['P5', None]['code'], NOT_STARTED)
         self.assertIn(('P6', None), rows)
-        self.assertNotIn(('P6', 'LF'), rows)  # released finished box is done
+        self.assertNotIn(('P6', 'F'), rows)  # released finished box is done
         self.assertFalse([k for k in rows if k[0] == 'P7'])  # complete item
 
 
@@ -801,7 +813,7 @@ class BoxesPageTests(OverviewBase):
         self.assertGreater(len(known), 1)
         for bad in ('?sort=bogus', '?sort='):
             self.assertEqual(self.client.get('/boxes/' + bad).context['sort'], 'due')
-            key = lambda rows: [(r['item'].pk, r['box_label']) for r in rows]
+            key = lambda rows: [(r['item'].pk, r['tag_uid']) for r in rows]
             self.assertEqual(key(self.rows(bad)), key(self.rows('?sort=due')))
 
     def test_sort_control_keeps_filters(self):
@@ -852,13 +864,13 @@ class ProcessBoardTests(OverviewBase):
         cards = {c['process'].name: c for c in process_board(self.now)}
         self.assertEqual(sorted(cards), ['Cut', 'Paint', 'Weld'])  # material is skipped
         cut, weld, paint = cards['Cut'], cards['Weld'], cards['Paint']
-        self.assertEqual([b['box_label'] for b in cut['running']], ['LR1', 'LR2'])  # longest first
+        self.assertEqual([b['tag_uid'] for b in cut['running']], ['R1', 'R2'])  # longest first
         self.assertEqual(cut['running'][0]['running_for'], timedelta(hours=5))
         self.assertEqual((cut['waiting'], cut['queue']), ([], False))
         self.assertEqual(weld['running'], [])
-        self.assertEqual([b['box_label'] for b in weld['waiting']], ['LW1', 'LW3', 'LW2'])  # longest idle first
+        self.assertEqual([b['tag_uid'] for b in weld['waiting']], ['W1', 'W3', 'W2'])  # longest idle first
         self.assertTrue(weld['queue'])
-        self.assertEqual(([b['box_label'] for b in paint['running']], paint['outsourced']), (['LV1'], True))
+        self.assertEqual(([b['tag_uid'] for b in paint['running']], paint['outsourced']), (['V1'], True))
 
 
 class InactiveProcessBoardTests(OverviewBase):
@@ -916,10 +928,10 @@ class ReplaceTagTests(OverviewBase):
         self.assertEqual(st.boxes[0].assignment, new)
         self.assertEqual(len(st.boxes[0].assignments), 2)
 
-    def test_replacement_keeps_history_and_box(self):
+    def test_replacement_keeps_history_and_links_the_old_tag(self):
         new = replace_tag(self.old, ' new ')
         self.old.refresh_from_db()
-        self.assertEqual((new.tag.uid, new.box, new.item, new.end_at), ('NEW', self.old.box, self.item1, None))
+        self.assertEqual((new.tag.uid, new.replaces, new.item, new.end_at), ('NEW', self.old, self.item1, None))
         self.assertEqual(self.old.end_at, new.start_at)
         self.assertEqual(TagAssignment.objects.count(), 2)
 
@@ -946,7 +958,7 @@ class ReplaceTagTests(OverviewBase):
         self.old.tag.refresh_from_db()
         self.assertFalse(self.old.tag.active)
         with self.assertRaisesMessage(ValidationError, 'inactive'):
-            assign_tag(self.item([self.cut]), 'BX', 'OLD')
+            assign_tag(self.item([self.cut]), 'OLD')
         a = self.item([self.cut], uids=['KEEP']).tagassignment_set.get()
         replace_tag(a, 'n2', mark_lost=False)
         a.tag.refresh_from_db()
@@ -958,7 +970,7 @@ class ReplaceTagTests(OverviewBase):
         uids = lambda q: [a.tag.uid for a in self.client.get('/tags/', {'q': q}).context['open']]
         self.assertEqual(uids(''), [])  # no query: no rows
         self.assertEqual(uids('old'), ['OLD'])
-        self.assertEqual(uids('LOTHER'), ['OTHER'])  # box label
+        self.assertEqual(uids('other'), ['OTHER'])
         self.assertEqual(uids(self.item1.part_name), ['OLD'])
         self.assertEqual(uids(self.item1.order.job_number), ['OLD'])
         self.assertEqual(uids('nothing'), [])
@@ -1000,7 +1012,7 @@ class ReplaceTagTests(OverviewBase):
         self.assertNotContains(r, 'Other action')
         self.assertNotContains(r, 'Record event')
         self.assertNotContains(r, 'tag-uids')
-        self.assertContains(r, f'OLD - {self.item1.item_code} - box LOLD - {self.item1.part_name}')
+        self.assertContains(r, f'OLD - {self.item1.item_code} - {self.item1.part_name}')
         self.assertContains(r, 'Confirm')
         r = self.client.post('/simulate/', {'tag_uid': 'OLD', 'device': self.device.pk, 'action': r.context['step']['value']})
         self.assertRedirects(r, '/simulate/')
@@ -1043,7 +1055,7 @@ class ScanApiTests(TestCase):
         order = Order.objects.create(customer=Customer.objects.create(name='C'), due_date=timezone.now().date())
         self.item = OrderItem.objects.create(order=order, part_name='P', quantity=1)
         RouteStep.objects.create(item=self.item, sequence=1, process=self.mat)
-        TagAssignment.objects.create(tag=Tag.objects.create(uid='AB12'), box=Box.objects.create(label='B1'), item=self.item)
+        TagAssignment.objects.create(tag=Tag.objects.create(uid='AB12'), item=self.item)
 
     def post(self, body=None, key='default', **kw):
         body = {'tag_uid': 'ab12', 'process': self.mat.pk, 'event_type': 'ARRIVED'} if body is None else body
@@ -1068,7 +1080,7 @@ class ScanApiTests(TestCase):
         r = self.post()
         self.assertEqual(r.status_code, 200)
         j = r.json()
-        self.assertEqual((j['ok'], j['tag_uid'], j['box'], j['item']), (True, 'AB12', 'B1', self.item.item_code))
+        self.assertEqual((j['ok'], j['tag_uid'], j['item']), (True, 'AB12', self.item.item_code))
         self.assertEqual(j['event_id'], Event.objects.get().pk)
         self.device.refresh_from_db()
         self.assertIsNotNone(self.device.last_seen)
@@ -1154,7 +1166,7 @@ class CorrectEventTests(TestCase):
         for i, p in enumerate((self.mat, self.mach), 1):
             RouteStep.objects.create(item=self.item, sequence=i, process=p)
         self.start = self.now - timedelta(hours=10)
-        TagAssignment.objects.create(tag=Tag.objects.create(uid='AB12'), box=Box.objects.create(label='B'), item=self.item, start_at=self.start)
+        TagAssignment.objects.create(tag=Tag.objects.create(uid='AB12'), item=self.item, start_at=self.start)
         self.device = ScannerDevice.objects.create(name='D')
         self.event = Event.objects.create(device=self.device, tag_uid='AB12', event_type=E.ARRIVED, process=self.mat, occurred_at=self.start + timedelta(hours=1))
         self.user = make_user('planner', 'Planner')
@@ -1252,7 +1264,7 @@ class ProgressMatrixTests(TestCase):
         for i, proc in enumerate(route or [self.mat, self.mill, self.plate], 1):
             RouteStep.objects.create(item=item, sequence=i, process=proc, vendor=proc.default_vendor)
         uid = f'M{self.n}'
-        TagAssignment.objects.create(tag=Tag.objects.create(uid=uid), box=Box.objects.create(label=f'MB{self.n}'), item=item,
+        TagAssignment.objects.create(tag=Tag.objects.create(uid=uid), item=item,
                                      start_at=timezone.now() - timedelta(days=1))
         return item, uid
 
@@ -1377,7 +1389,7 @@ class ResultTests(TestCase):
         self.item = OrderItem.objects.create(order=order, part_name='Shaft', quantity=10, box_count=2)
         for i, p in enumerate((self.mat, self.mill), 1):
             RouteStep.objects.create(item=self.item, sequence=i, process=p)
-        self.a = TagAssignment.objects.create(tag=Tag.objects.create(uid='RA'), box=Box.objects.create(label='BA'), item=self.item,
+        self.a = TagAssignment.objects.create(tag=Tag.objects.create(uid='RA'), item=self.item,
                                               start_at=timezone.now() - timedelta(days=2))
         self.url = f'/items/{self.item.pk}/result/'
         self.detail = f'/orders/{order.job_number}/'
@@ -1442,10 +1454,10 @@ class ResultTests(TestCase):
         self.assertFalse(self.results().exists())
 
     def test_second_box_uses_its_own_tag(self):
-        b = TagAssignment.objects.create(tag=Tag.objects.create(uid='RB'), box=Box.objects.create(label='BB'), item=self.item)
+        b = TagAssignment.objects.create(tag=Tag.objects.create(uid='RB'), item=self.item)
         self.post(box=b.pk)
         self.assertEqual(self.results().get().tag_uid, 'RB')
-        self.assertContains(self.client.get(self.detail), 'BB')
+        self.assertContains(self.client.get(self.detail), 'Tag RB')
 
     def test_no_form_without_a_linked_box_and_roles(self):
         self.a.release()
@@ -1515,7 +1527,7 @@ class PlanVsActualTests(TestCase):
         for i, (p, due) in enumerate(((self.mat, None), (self.mill, day(mill_due)), (self.plate, day(plate_due))), 1):
             RouteStep.objects.create(item=item, sequence=i, process=p, due_date=due)
         uid = f'PV{self.n}'
-        TagAssignment.objects.create(tag=Tag.objects.create(uid=uid), box=Box.objects.create(label=f'PB{self.n}'), item=item,
+        TagAssignment.objects.create(tag=Tag.objects.create(uid=uid), item=item,
                                      start_at=self.now - timedelta(days=20))
         ago = lambda d: self.now - timedelta(days=d)
         record_event(self.device, uid, self.mat, 'ARRIVED', occurred_at=ago(arrived))
@@ -1589,7 +1601,7 @@ class StepStateTests(TestCase):
         item = OrderItem.objects.create(order=order, part_name=f'P{self.n}', quantity=3)
         for i, p in enumerate(route or [self.mat, self.mill, self.plate], 1):
             RouteStep.objects.create(item=item, sequence=i, process=p)
-        a = TagAssignment.objects.create(tag=Tag.objects.create(uid=f'ST{self.n}'), box=Box.objects.create(label=f'SB{self.n}'), item=item,
+        a = TagAssignment.objects.create(tag=Tag.objects.create(uid=f'ST{self.n}'), item=item,
                                          start_at=timezone.now() - timedelta(days=20))
         return item, a
 
@@ -1842,7 +1854,7 @@ class ShippedTests(TestCase):
         item = OrderItem.objects.create(order=order, part_name=f'P{self.n}', quantity=3)
         for i, p in enumerate(route or [self.mat], 1):
             RouteStep.objects.create(item=item, sequence=i, process=p)
-        a = TagAssignment.objects.create(tag=Tag.objects.create(uid=f'SH{self.n}'), box=Box.objects.create(label=f'SHB{self.n}'), item=item,
+        a = TagAssignment.objects.create(tag=Tag.objects.create(uid=f'SH{self.n}'), item=item,
                                          start_at=timezone.now() - timedelta(days=30))
         if done:
             record_event(self.device, a.tag.uid, self.mat, 'ARRIVED', occurred_at=timezone.now() - timedelta(days=2))
@@ -1904,6 +1916,11 @@ class ShippedTests(TestCase):
         self.assertEqual(self.code(item), 'COMPLETE')
         ship_item(self.planner, item)
         self.assertEqual(self.code(item), 'SHIPPED')
+
+    def test_ship_form_asks_for_confirmation(self):
+        done, _a = self.make()
+        html = self.client.get(f'/orders/{done.order.job_number}/').content.decode()
+        self.assertIn(f'data-confirm="Mark item {done.item_code} as shipped?"', html)
 
     def test_button_only_on_complete_items_and_undo_link_on_shipped(self):
         done, _a = self.make()
@@ -1967,6 +1984,353 @@ class ShippedTests(TestCase):
         self.assertContains(self.client.get('/'), 'href="/shipping/"')
 
 
+class DefectCauseTests(TestCase):
+    """Main cause on results, and the cause / machine / worker tables of the Analysis results tab."""
+
+    def setUp(self):
+        self.planner = make_user('pl', 'Planner')
+        self.client.force_login(self.planner)
+        self.mill = Process.objects.create(name='Mill', kind=K.MACHINING)
+        self.lathe = Process.objects.create(name='Lathe', kind=K.MACHINING)
+        self.w1, self.w2 = Worker.objects.create(name='W1', name_ja='作業者1'), Worker.objects.create(name='W2')
+        self.m1, self.m2 = Machine.objects.create(name='M1'), Machine.objects.create(name='M2')
+        self.scratch, self.burr = DefectCause.objects.get(name='Scratch'), DefectCause.objects.get(name='Burr')
+        self.customers = [Customer.objects.create(name='C1'), Customer.objects.create(name='C2')]
+        self.n = 0
+
+    def result(self, proc=None, qty=100, defects=0, worker=None, machine=None, cause=None, customer=0, days_ago=1):
+        """A saved RESULT event on its own item/tag, so the customer filter has an owner to find."""
+        self.n += 1
+        order = Order.objects.create(customer=self.customers[customer], due_date=timezone.localdate() + timedelta(days=5))
+        item = OrderItem.objects.create(order=order, part_name=f'P{self.n}', quantity=qty)
+        proc = proc or self.mill
+        RouteStep.objects.create(item=item, sequence=1, process=proc)
+        uid = f'DC{self.n}'
+        TagAssignment.objects.create(tag=Tag.objects.create(uid=uid), item=item, start_at=timezone.now() - timedelta(days=30))
+        e = Event(tag_uid=uid, process=proc, event_type=E.RESULT, quantity=qty, defects=defects, worker=worker, machine=machine,
+                  defect_cause=cause, created_by=self.planner, occurred_at=timezone.now() - timedelta(days=days_ago))
+        e.full_clean()
+        e.save()
+        return e
+
+    def tables(self, **params):
+        return self.client.get('/analysis/', {'tab': 'results', **params}).context
+
+    def test_causes_are_seeded_with_japanese_names(self):
+        self.assertEqual(DefectCause.objects.count(), 7)
+        with translation.override('ja'):
+            self.assertEqual(str(DefectCause.objects.get(name='Scratch')), 'キズ')
+        self.assertEqual(str(DefectCause.objects.get(name='Burr')), 'Burr')
+
+    def test_cause_is_only_for_results_with_defects(self):
+        bad = Event(tag_uid='X', event_type=E.ARRIVED, process=Process.objects.create(name='Mat', kind=K.MATERIAL),
+                    created_by=self.planner, defect_cause=self.scratch)
+        with self.assertRaises(ValidationError):
+            bad.full_clean()
+        with self.assertRaises(ValidationError):
+            self.result(defects=0, cause=self.scratch)
+        self.assertEqual(self.result(defects=2, cause=self.scratch).defect_cause, self.scratch)
+        self.assertIsNone(self.result(defects=0).defect_cause)
+
+    def test_cause_round_trips_through_the_form(self):
+        e = self.result()
+        item = OrderItem.objects.get()
+        a = item.tagassignment_set.get()
+        data = {f'result{item.pk}-box': a.pk, f'result{item.pk}-process': self.mill.pk, f'result{item.pk}-quantity': 10,
+                f'result{item.pk}-defects': 3, f'result{item.pk}-defect_cause': self.burr.pk}
+        r = self.client.post(f'/items/{item.pk}/result/', data, follow=True)
+        self.assertContains(r, 'Result recorded.')
+        saved = Event.objects.filter(event_type=E.RESULT).latest('pk')
+        self.assertEqual((saved.defects, saved.defect_cause), (3, self.burr))
+        self.assertContains(self.client.get(f'/results/{saved.pk}/'), 'Burr')
+        self.assertContains(self.client.get(f'/orders/{item.order.job_number}/'), 'Only when there are defects.')
+        data[f'result{item.pk}-defects'] = 0
+        before = Event.objects.count()
+        r = self.client.post(f'/items/{item.pk}/result/', data, follow=True)
+        self.assertContains(r, 'A main cause needs at least one defect.')
+        self.assertEqual(Event.objects.count(), before)
+        self.assertEqual(e.defect_cause_id, None)
+
+    def test_pareto_order_cumulative_ends_at_100_and_unrecorded_is_last(self):
+        self.result(defects=2, cause=self.burr)
+        self.result(defects=6, cause=self.scratch)
+        self.result(defects=2)  # defects without a cause
+        rows = self.tables()['cause_rows']
+        self.assertEqual([(r['name'], r['defects']) for r in rows], [('Scratch', 6), ('Burr', 2), ('No cause recorded', 2)])
+        self.assertEqual([round(r['share']) for r in rows], [60, 20, 20])
+        self.assertEqual([round(r['cumulative']) for r in rows], [60, 80, 100])
+        self.assertAlmostEqual(rows[-1]['cumulative'], 100)
+        self.assertContains(self.client.get('/analysis/'), 'Defects by cause')
+
+    def test_no_defects_gives_no_cause_rows(self):
+        self.result()
+        self.assertEqual(self.tables()['cause_rows'], [])
+        self.assertContains(self.client.get('/analysis/'), 'No defects recorded.')
+
+    def test_rate_tables_sort_highest_first_and_include_unrecorded(self):
+        self.result(qty=100, defects=1, worker=self.w1, machine=self.m1)
+        self.result(qty=100, defects=9, worker=self.w2, machine=self.m2)
+        self.result(qty=100, defects=4)
+        ctx = self.tables()
+        self.assertEqual([(r['name'], r['rate']) for r in ctx['machine_rows']], [('M2', 9.0), ('No machine recorded', 4.0), ('M1', 1.0)])
+        self.assertEqual([r['name'] for r in ctx['worker_rows']], ['W2', 'No worker recorded', 'W1'])
+        self.assertFalse(ctx['worker_rows'][1]['known'])
+
+    def test_few_data_below_twenty_pieces(self):
+        self.result(qty=19, defects=19, worker=self.w1)
+        self.result(qty=20, defects=1, worker=self.w2)
+        rows = {r['name']: r for r in self.tables()['worker_rows']}
+        self.assertEqual((rows['W1']['few'], rows['W2']['few']), (True, False))
+        page = self.client.get('/analysis/')
+        self.assertContains(page, 'class="num few-data"')
+        self.assertContains(page, 'few data')
+        self.assertContains(page, 'A higher rate is a reason to look, not a conclusion')
+
+    def test_tables_follow_the_filters(self):
+        self.result(self.mill, defects=5, worker=self.w1, machine=self.m1, cause=self.scratch, customer=0)
+        self.result(self.lathe, defects=7, worker=self.w2, machine=self.m2, cause=self.burr, customer=1)
+        self.result(self.mill, defects=3, worker=self.w1, machine=self.m1, cause=self.burr, customer=0, days_ago=60)
+        names = lambda ctx, key: [r['name'] for r in ctx[key]]
+        self.assertEqual(sorted(names(self.tables(), 'worker_rows')), ['W1', 'W2'])
+        self.assertEqual(names(self.tables(process=self.lathe.pk), 'worker_rows'), ['W2'])
+        self.assertEqual(names(self.tables(process=self.lathe.pk), 'machine_rows'), ['M2'])
+        self.assertEqual([r['name'] for r in self.tables(process=self.mill.pk)['cause_rows']], ['Scratch', 'Burr'])
+        recent = timezone.localdate() - timedelta(days=10)
+        ctx = self.tables(date_from=recent.isoformat())
+        self.assertEqual({r['name']: r['defects'] for r in ctx['cause_rows']}, {'Scratch': 5, 'Burr': 7})
+        self.assertEqual(names(self.tables(customer=self.customers[1].pk), 'worker_rows'), ['W2'])
+
+    def test_voided_results_are_left_out(self):
+        e = self.result(defects=4, cause=self.scratch, worker=self.w1)
+        Event(tag_uid=e.tag_uid, event_type=E.CORRECTION, corrects=e, created_by=self.planner, reason='wrong').save()
+        ctx = self.tables()
+        self.assertEqual((ctx['cause_rows'], ctx['worker_rows']), ([], []))
+
+    def test_worker_table_is_hidden_from_operators(self):
+        self.result(defects=2, worker=self.w1, machine=self.m1, cause=self.scratch)
+        self.client.force_login(make_user('op', 'Operator'))
+        ctx = self.tables()
+        self.assertFalse(ctx['show_workers'])
+        self.assertNotIn('worker_rows', ctx)
+        page = self.client.get('/analysis/')
+        self.assertContains(page, 'Defect rate by machine')
+        self.assertContains(page, 'Defects by cause')
+        self.assertNotContains(page, 'Defect rate by worker')
+        self.assertNotContains(page, 'W1')
+        self.client.force_login(self.planner)
+        self.assertContains(self.client.get('/analysis/'), 'Defect rate by worker')
+
+    def test_japanese_page_uses_cause_names_in_japanese(self):
+        self.result(defects=2, cause=self.scratch)
+        from django.conf import settings
+        self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = 'ja'
+        ctx = self.client.get('/analysis/', {'tab': 'results'}).context
+        self.assertEqual(ctx['cause_rows'][0]['name'], 'キズ')
+
+    def test_demo_data_has_causes_a_bad_worker_and_a_bad_machine(self):
+        from io import StringIO
+        from django.core.management import call_command
+        from .analysis import Filters, defect_rate_rows, result_events
+        with override_settings(DEBUG=True):
+            call_command('seed_demo', stdout=StringIO())
+        events = result_events(Filters())
+        self.assertGreaterEqual(len(events), 30)
+        self.assertGreater(len({e.worker_id for e in events}), 3)
+        self.assertGreater(len({e.machine_id for e in events}), 3)
+        self.assertGreater(len({e.defect_cause_id for e in events if e.defect_cause_id}), 3)
+        milling = Process.objects.get(name='Milling')
+        top_worker = [r for r in defect_rate_rows(result_events(Filters(process=milling.pk)), 'worker', 'none') if not r['few']][0]
+        self.assertEqual(top_worker['name'], 'Suzuki Takumi')
+        lathe = Process.objects.get(name='Lathe')
+        top_machine = [r for r in defect_rate_rows(result_events(Filters(process=lathe.pk)), 'machine', 'none') if not r['few']][0]
+        self.assertEqual(top_machine['name'], 'Lathe 2')
+
+
+class AnalysisRecordsTests(TestCase):
+    """Median, check-scan flags, the records panel (?sel=) and the vendor table of the Analysis page."""
+
+    def setUp(self):
+        self.client.force_login(make_user('op', 'Operator'))
+        self.device = ScannerDevice.objects.create(name='D')
+        self.mat = Process.objects.create(name='Mat', kind=K.MATERIAL)
+        self.mill = Process.objects.create(name='Mill', kind=K.MACHINING)
+        self.cut = Process.objects.create(name='Cut', kind=K.MACHINING)
+        self.customer = Customer.objects.create(name='C')
+        self.vendor = Vendor.objects.create(code='00131', name='Slow Co', kind=Vendor.Kind.VENDOR)
+        self.base = timezone.localtime(timezone.now() - timedelta(days=80)).replace(hour=12, minute=0, second=0, microsecond=0)
+        self.n = 0
+
+    def step(self, proc, wait_h=1, proc_h=24, planned=3, vendor=None, boxes=1):
+        """One item (material, then `proc`) with a finished step: wait_h hours of wait, proc_h hours of processing."""
+        self.n += 1
+        order = Order.objects.create(customer=self.customer, due_date=timezone.localdate() + timedelta(days=5))
+        item = OrderItem.objects.create(order=order, part_name=f'P{self.n}', quantity=1, box_count=boxes)
+        RouteStep.objects.create(item=item, sequence=1, process=self.mat)
+        RouteStep.objects.create(item=item, sequence=2, process=proc, vendor=vendor, due_date=self.base.date() + timedelta(days=planned))
+        uid = f'AR{self.n}'
+        TagAssignment.objects.create(tag=Tag.objects.create(uid=uid), item=item, start_at=self.base - timedelta(days=1))
+        hours = lambda h: self.base + timedelta(hours=h)
+        record_event(self.device, uid, self.mat, 'ARRIVED', occurred_at=self.base)
+        first, last = ('SENT_OUT', 'RETURNED') if proc.kind == K.OUTSOURCED else ('STARTED', 'FINISHED')
+        record_event(self.device, uid, proc, first, occurred_at=hours(wait_h))
+        record_event(self.device, uid, proc, last, occurred_at=hours(wait_h + proc_h))
+        return item
+
+    def get(self, tab='results', **params):
+        return self.client.get('/analysis/', {'tab': tab, **params})
+
+    def test_median_beside_the_mean_with_an_outlier(self):
+        from .analysis import _median
+        self.assertEqual((_median([1, 1, 2, 50]), sum([1, 1, 2, 50]) / 4), (1.5, 13.5))
+        self.assertEqual(_median([timedelta(hours=1), timedelta(hours=3)]), timedelta(hours=2))
+        self.assertIsNone(_median([None]))
+        for days in (1, 1, 2, 50):
+            self.step(self.mill, proc_h=24 * days)
+        row, = self.get('plan').context['rows']
+        self.assertEqual((row['n'], row['actual'], row['median_actual']), (4, 13.5, 1.5))
+        self.assertContains(self.get('plan'), 'Median actual (days)')
+
+    def test_results_show_median_and_step_count(self):
+        for h in (2, 2, 4, 40):
+            self.step(self.mill, wait_h=h, proc_h=h)
+        row, = [r for r in self.get().context['rows'] if r['process'] == 'Mill']
+        self.assertEqual((row['n'], row['processing_median'], row['wait_median']), (4, timedelta(hours=3), timedelta(hours=3)))
+        self.assertEqual(row['processing'], timedelta(hours=12))
+        page = self.get()
+        self.assertContains(page, 'Median processing time')
+        self.assertContains(page, 'nights and weekends included')
+        self.assertEqual([r['process'] for r in self.get(process=self.cut.pk).context['rows']], [])
+
+    def flags(self, **params):
+        return {r['item'].part_name: [f['key'] for f in r['flags']] for r in self.get(sel=self.mill.pk, **params).context['records']}
+
+    def test_check_scan_needs_five_steps_and_more_than_three_times_the_median(self):
+        for _i in range(3):
+            self.step(self.mill, wait_h=1, proc_h=2)
+        self.step(self.mill, wait_h=1, proc_h=20)  # only 4 finished steps: no flag
+        self.assertFalse(any(self.flags().values()))
+        self.step(self.mill, wait_h=1, proc_h=2)  # 5 steps, median 2h: 20h is flagged, 6h (3x) would not be
+        self.step(self.mill, wait_h=1, proc_h=6)
+        flagged = {k: v for k, v in self.flags().items() if v}
+        self.assertEqual(flagged, {'P4': ['processing']})
+        page = self.get(sel=self.mill.pk)
+        self.assertContains(page, 'Check scan')
+        self.assertContains(page, 'Processing time 20h 0m is more than 3 times the process median 2h 0m')
+
+    def test_sel_filters_the_records(self):
+        self.step(self.mill)
+        self.step(self.cut)
+        self.assertNotIn('records', self.get().context)
+        ctx = self.get(sel=self.cut.pk).context
+        self.assertEqual([r['process'] for r in ctx['records']], ['Cut'])
+        self.assertEqual(ctx['records_total'], 1)
+        both = self.client.get('/analysis/?tab=results&sel=%d&sel=%d' % (self.mill.pk, self.cut.pk)).context
+        self.assertEqual(sorted(r['process'] for r in both['records']), ['Cut', 'Mill'])
+        self.assertEqual(self.get(sel='x').context['sel'], [])
+
+    def test_record_columns_cause_and_box(self):
+        self.step(self.mill, wait_h=30, proc_h=5)
+        self.step(self.mill, wait_h=1, proc_h=5, boxes=2)
+        by_part = {r['item'].part_name: r for r in self.get(sel=self.mill.pk).context['records']}
+        self.assertEqual((by_part['P1']['cause'], by_part['P1']['total']), ('Waited before the step', timedelta(hours=35)))
+        self.assertEqual((by_part['P2']['cause'], by_part['P2']['box']), ('Processing', 'Box 1 of 2'))
+        self.assertEqual(by_part['P1']['box'], '')
+        page = self.get(sel=self.mill.pk)
+        self.assertContains(page, f'href="/orders/{by_part["P1"]["job"]}/"')
+        self.assertContains(page, 'Box 1 of 2')
+        self.assertNotContains(page, 'Box 1 of 1')
+
+    def test_outsourced_step_cause_is_at_vendor(self):
+        out = Process.objects.create(name='Plate', kind=K.OUTSOURCED)
+        self.step(out, wait_h=1, proc_h=48)
+        self.assertEqual(self.get(sel=out.pk).context['records'][0]['cause'], 'At vendor')
+
+    def test_default_and_whitelisted_order(self):
+        for h in (5, 50, 20):
+            self.step(self.mill, wait_h=1, proc_h=h)
+        totals = lambda **p: [r['total'] for r in self.get(sel=self.mill.pk, **p).context['records']]
+        longest_first = [timedelta(hours=51), timedelta(hours=21), timedelta(hours=6)]
+        self.assertEqual(totals(), longest_first)
+        self.assertEqual(totals(order='bogus'), longest_first)
+        self.assertEqual(totals(order='<script>'), longest_first)
+        self.assertEqual([r['item'].part_name for r in self.get(sel=self.mill.pk, order='item').context['records']], ['P1', 'P2', 'P3'])
+        ctx = self.get(sel=self.mill.pk, order='processing').context
+        self.assertEqual(ctx['order'], 'processing')
+        self.assertIn('order=wait', ctx['order_urls']['wait'])
+        self.assertIn(f'sel={self.mill.pk}', ctx['order_urls']['wait'])
+        plan = self.get('plan', sel=self.mill.pk, order='wait').context  # a results-only key falls back on the plan default
+        self.assertEqual(plan['order'], 'overrun')
+
+    def test_cap_and_show_more(self):
+        from . import views
+        self.assertEqual((views.RECORD_LIMIT, views.RECORD_CAP), (200, 2000))
+        for _i in range(8):
+            self.step(self.mill)
+        with mock.patch.object(views, 'RECORD_LIMIT', 3), mock.patch.object(views, 'RECORD_CAP', 6):
+            r = self.get(sel=self.mill.pk)
+            self.assertEqual((len(r.context['records']), r.context['records_total']), (3, 8))
+            self.assertContains(r, 'Showing 3 of 8')
+            self.assertIn('limit=6', r.context['more_url'])
+            self.assertContains(r, 'Show more')
+            r = self.get(sel=self.mill.pk, limit='6')
+            self.assertEqual(len(r.context['records']), 6)
+            self.assertEqual(r.context['more_url'], '')  # at the cap
+            self.assertEqual(len(self.get(sel=self.mill.pk, limit='999999').context['records']), 6)
+
+    def test_ticked_rows_summary_data(self):
+        self.step(self.mill, wait_h=2, proc_h=4)
+        page = self.get(sel=self.mill.pk)
+        self.assertContains(page, 'data-records-summary data-unit="seconds"')
+        self.assertContains(page, f'data-value="{6 * 3600}"')
+        self.assertContains(page, 'src="/static/js/records.js"')
+        self.assertContains(page, 'name="sel" value="%d" checked' % self.mill.pk)
+        plan = self.get('plan', sel=self.mill.pk)
+        self.assertContains(plan, 'data-unit="days"')
+        self.assertContains(plan, 'data-value="0"')  # finished the same JST day it arrived
+
+    def test_plan_records_overrun_first(self):
+        self.step(self.mill, proc_h=24, planned=3)   # actual 1, planned 3
+        self.step(self.mill, proc_h=24 * 6, planned=3)  # actual 6, planned 3: +100%
+        rows = self.get('plan', sel=self.mill.pk).context['records']
+        self.assertEqual([(r['actual'], r['planned'], r['diff'], r['pct']) for r in rows], [(6, 3, 3, 100.0), (1, 3, -2, -200 / 3)])
+        self.assertContains(self.get('plan', sel=self.mill.pk), 'Planned days')
+
+    def test_vendor_table(self):
+        fast = Vendor.objects.create(code='00132', name='Fast Co', kind=Vendor.Kind.VENDOR)
+        for days in (6, 8):
+            self.step(self.mill, proc_h=24 * days, vendor=self.vendor)
+        self.step(self.mill, proc_h=24, vendor=fast)
+        rows = self.get('plan').context['vendor_rows']
+        self.assertEqual([(r['vendor'], r['n'], r['actual'], r['median_actual'], r['planned']) for r in rows],
+                         [(self.vendor, 2, 7, 7, 3), (fast, 1, 1, 1, 3)])
+        self.assertEqual(rows[0]['pct'], (7 - 3) * 100 / 3)
+        page = self.get('plan')
+        self.assertContains(page, 'By vendor')
+        self.assertContains(page, 'Slow Co')
+        self.assertEqual(self.get('plan', vendor=fast.pk).context['vendor_rows'][0]['vendor'], fast)
+
+    def test_operator_can_open_both_tabs_but_anonymous_cannot(self):
+        self.step(self.mill)
+        for tab in ('results', 'plan'):
+            self.assertEqual(self.get(tab, sel=self.mill.pk).status_code, 200)
+        self.client.logout()
+        self.assertEqual(self.get(sel=self.mill.pk).status_code, 302)
+
+    def test_demo_data_has_enough_steps_a_forgotten_scan_and_a_slow_vendor(self):
+        from io import StringIO
+        from django.core.management import call_command
+        from .analysis import Filters, step_facts
+        with override_settings(DEBUG=True):
+            call_command('seed_demo', stdout=StringIO())
+        facts = step_facts(Filters())
+        per_process = Counter(x['process'].name for x in facts)
+        self.assertTrue(per_process and all(n >= 6 for n in per_process.values()), per_process)
+        self.assertTrue(any(x['flags'] for x in facts))
+        rows = {r['vendor'].code: r for r in vendor_rows(facts)}
+        others = [r['pct'] for code, r in rows.items() if code != '00135' and r['pct'] is not None]
+        self.assertGreater(rows['00135']['pct'], max(others))
+
+
 class AnalysisPageTests(TestCase):
     def setUp(self):
         self.client.force_login(make_user('op', 'Operator'))
@@ -2017,3 +2381,451 @@ class ShippingFilterTests(TestCase):
 
     def test_bad_month_text_is_ignored(self):
         self.assertEqual(self.client.get('/shipping/', {'month_from': 'abc'}).status_code, 200)
+
+
+class BoxCaptionTests(TestCase):
+    """'Box k of n' shows only for items with more than one box; k follows start time, then pk."""
+
+    def setUp(self):
+        order = Order.objects.create(customer=Customer.objects.create(name='C'), due_date=timezone.localdate())
+        self.single = OrderItem.objects.create(order=order, part_name='One', quantity=1)
+        self.multi = OrderItem.objects.create(order=order, part_name='Many', quantity=1, box_count=3)
+        self.client.force_login(make_user('s', 'Admin'))
+
+    def test_caption_helper(self):
+        self.assertEqual(box_caption(2, 3), 'Box 2 of 3')
+        self.assertEqual((box_caption(1, 1), box_caption(None, 3)), ('', ''))
+
+    def test_hidden_for_a_single_box_item(self):
+        a = assign_tag(self.single, 'ONE')
+        self.assertEqual(box_captions([a]), {a.pk: ''})
+        self.assertEqual(item_status(self.single).boxes[0].caption, '')
+        r = self.client.get('/tags/', {'q': 'one'})
+        self.assertContains(r, 'ONE')
+        self.assertNotContains(r, 'Box 1 of 1')
+        self.assertNotContains(r, ' of 1<')
+
+    def test_shown_for_several_boxes_in_start_order(self):
+        a, b = assign_tag(self.multi, 'M1'), assign_tag(self.multi, 'M2')
+        self.assertEqual(box_captions([b, a]), {a.pk: 'Box 1 of 3', b.pk: 'Box 2 of 3'})
+        self.assertEqual([x.caption for x in item_status(self.multi).boxes], ['Box 1 of 3', 'Box 2 of 3', ''])  # unlinked third: none
+        self.assertContains(self.client.get('/tags/', {'q': 'm2'}), 'Box 2 of 3')
+        self.assertContains(self.client.get('/tags/history/'), 'Box 1 of 3')
+        self.assertContains(self.client.get(f'/orders/{self.multi.order.job_number}/'), 'Box 2 of 3')
+
+    def test_replaced_tag_keeps_its_box_number(self):
+        a, b = assign_tag(self.multi, 'M1'), assign_tag(self.multi, 'M2')
+        new = replace_tag(a, 'M3')
+        self.assertEqual(box_captions([a, b, new]), {a.pk: 'Box 1 of 3', b.pk: 'Box 2 of 3', new.pk: 'Box 1 of 3'})
+
+    def test_second_assignment_of_the_same_tag_is_refused(self):
+        assign_tag(self.single, 'SAME')
+        with self.assertRaisesMessage(ValidationError, 'already in use'):
+            assign_tag(self.multi, 'same')
+        self.assertEqual(TagAssignment.objects.count(), 1)
+
+
+class RemoveBoxMigrationTests(TransactionTestCase):
+    """History (tag, item, start, end) survives dropping Box; same-box assignments become a replacement chain."""
+    serialized_rollback = True
+
+    def test_history_survives(self):
+        executor = MigrationExecutor(connection)
+        executor.migrate([('tracking', '0007_event_tag_time_index')])
+        old = executor.loader.project_state([('tracking', '0007_event_tag_time_index')]).apps
+        Box, OldTag, OldAssignment = (old.get_model('tracking', n) for n in ('Box', 'Tag', 'TagAssignment'))
+        order = Order.objects.create(customer=Customer.objects.create(name='C'), due_date=timezone.localdate())
+        item = OrderItem.objects.create(order=order, part_name='P', quantity=1)
+        other = OrderItem.objects.create(order=order, part_name='Q', quantity=1)
+        now = timezone.now()
+        b1, b2 = Box.objects.create(label='B1'), Box.objects.create(label='B2')
+        t = {u: OldTag.objects.create(uid=u) for u in ('A', 'B', 'C', 'D')}
+        mk = lambda tag, box, it, s, e=None: OldAssignment.objects.create(tag=t[tag], box=box, item_id=it.pk, start_at=now - timedelta(days=s), end_at=e and now - timedelta(days=e)).pk
+        a, b, c, d = mk('A', b1, item, 9, 5), mk('B', b1, item, 5), mk('C', b2, item, 8), mk('D', b1, other, 7, 3)
+        executor = MigrationExecutor(connection)
+        executor.migrate(executor.loader.graph.leaf_nodes())  # forward again, to the latest migration
+        rows = {x.pk: x for x in TagAssignment.objects.select_related('tag')}
+        self.assertEqual({k: (v.tag.uid, v.item_id, v.replaces_id) for k, v in rows.items()},
+                         {a: ('A', item.pk, None), b: ('B', item.pk, a), c: ('C', item.pk, None), d: ('D', other.pk, None)})
+        self.assertEqual((rows[a].start_at, rows[a].end_at, rows[b].end_at), (now - timedelta(days=9), now - timedelta(days=5), None))
+        self.assertEqual(len(item_status(item).boxes), 2)
+
+
+def image_file(fmt='JPEG', size=(40, 30), name='x.jpg', orientation=None, mode='RGB'):
+    """An uploaded image of that format; orientation adds a JPEG EXIF orientation (and a camera tag)."""
+    buf, kw = BytesIO(), {}
+    if orientation:
+        exif = Image.Exif()
+        exif[0x0112], exif[0x010F] = orientation, 'Camera'
+        kw['exif'] = exif
+    Image.new(mode, size, 'red').save(buf, fmt, **kw)
+    return SimpleUploadedFile(name, buf.getvalue())
+
+
+class InvestigationBase(TestCase):
+    """Results with their own item / tag, photos stored in a temporary MEDIA_ROOT."""
+
+    def setUp(self):
+        self.media = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.enterContext(override_settings(MEDIA_ROOT=self.media))
+        self.planner = make_user('pl', 'Planner')
+        self.client.force_login(self.planner)
+        self.mill = Process.objects.create(name='Mill', kind=K.MACHINING)
+        self.lathe = Process.objects.create(name='Lathe', kind=K.MACHINING)
+        self.w1, self.w2 = Worker.objects.create(name='Worker Alpha'), Worker.objects.create(name='Worker Beta')
+        self.m1, self.m2 = Machine.objects.create(name='M1'), Machine.objects.create(name='M2')
+        self.scratch, self.burr = DefectCause.objects.get(name='Scratch'), DefectCause.objects.get(name='Burr')
+        self.customers = [Customer.objects.create(name='C1'), Customer.objects.create(name='C2')]
+        self.n = 0
+
+    def result(self, part='PA', proc=None, qty=100, defects=0, worker=None, machine=None, cause=None, customer=0, days_ago=1, note='', photo=None):
+        self.n += 1
+        order = Order.objects.create(customer=self.customers[customer], due_date=timezone.localdate() + timedelta(days=5))
+        item = OrderItem.objects.create(order=order, part_name=f'Name {part}', part_number=part, quantity=qty)
+        proc = proc or self.mill
+        RouteStep.objects.create(item=item, sequence=1, process=proc)
+        uid = f'IV{self.n}'
+        TagAssignment.objects.create(tag=Tag.objects.create(uid=uid), item=item, start_at=timezone.now() - timedelta(days=30))
+        e = Event(tag_uid=uid, process=proc, event_type=E.RESULT, quantity=qty, defects=defects, worker=worker, machine=machine, defect_cause=cause,
+                  created_by=self.planner, occurred_at=timezone.now() - timedelta(days=days_ago), note=note)
+        if photo:
+            e.photo = photo
+        e.full_clean()
+        e.save()
+        return e
+
+    def page(self, **params):
+        return self.client.get('/analysis/', {'tab': 'results', **params})
+
+
+class ResultPhotoHelperTests(TestCase):
+    def setUp(self):
+        self.media = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.enterContext(override_settings(MEDIA_ROOT=self.media))
+
+    def test_accepts_jpeg_png_webp_and_returns_a_jpeg(self):
+        for fmt in ('JPEG', 'PNG', 'WEBP'):
+            out = Image.open(BytesIO(process_photo(image_file(fmt)).read()))
+            self.assertEqual((out.format, out.mode), ('JPEG', 'RGB'))
+
+    def test_transparent_png_becomes_rgb_on_white(self):
+        up = image_file('PNG', mode='RGBA')
+        out = Image.open(BytesIO(process_photo(up).read()))
+        self.assertEqual(out.mode, 'RGB')
+
+    def test_wrong_type_is_rejected(self):
+        with self.assertRaisesMessage(ValidationError, 'Upload a JPEG, PNG or WEBP image.'):
+            process_photo(image_file('GIF', name='x.jpg'))
+
+    def test_fake_extension_is_rejected_and_the_extension_is_not_trusted(self):
+        with self.assertRaises(ValidationError):
+            process_photo(SimpleUploadedFile('evil.jpg', b'<?php echo 1; ?>'))
+        process_photo(image_file('PNG', name='picture.exe'))  # a real PNG passes whatever it is called
+
+    def test_too_large_is_rejected(self):
+        with self.assertRaisesMessage(ValidationError, 'File too large (maximum 8 MB).'):
+            process_photo(SimpleUploadedFile('big.jpg', b'0' * (8 * 1024 * 1024 + 1)))
+
+    def test_exif_orientation_is_applied_exif_dropped_and_large_images_shrink(self):
+        out = Image.open(BytesIO(process_photo(image_file(size=(2000, 1000), orientation=6)).read()))
+        self.assertEqual(out.size, (800, 1600))  # rotated upright, long side 1600
+        self.assertEqual(len(out.getexif()), 0)
+        small = Image.open(BytesIO(process_photo(image_file(size=(100, 50))).read()))
+        self.assertEqual(small.size, (100, 50))  # never enlarged
+
+    def test_saved_name_is_random_under_year_and_month(self):
+        names = []
+        for _i in range(2):
+            e = Event(event_type=E.RESULT, tag_uid='N', created_by=make_user('np', 'Planner'), process=Process.objects.create(name=f'P{_i}', kind=K.MACHINING), quantity=1)
+            e.photo = process_photo(image_file(name='my holiday.jpg'))
+            e.full_clean()
+            e.save()
+            names.append(e.photo.name)
+        self.assertNotEqual(*names)
+        for name in names:
+            self.assertRegex(name, r'^defects/\d{4}/\d{2}/[0-9a-f]{32}\.jpg$')
+            self.assertNotIn('holiday', name)
+            self.assertTrue((self.media / name).exists())
+
+
+class ResultNotePhotoTests(InvestigationBase):
+    def test_note_and_photo_only_on_results(self):
+        mat = Process.objects.create(name='Mat', kind=K.MATERIAL)
+        for extra in ({'note': 'hello'}, {'photo': process_photo(image_file())}):
+            with self.assertRaises(ValidationError):
+                Event(tag_uid='X', event_type=E.ARRIVED, process=mat, created_by=self.planner, **extra).full_clean()
+        self.assertEqual(self.result(note='ok').note, 'ok')
+
+    def test_note_is_limited_to_1000_characters(self):
+        with self.assertRaises(ValidationError):
+            self.result(note='x' * 1001)
+
+    def post(self, item, **extra):
+        a = item.tagassignment_set.get()
+        data = {'box': a.pk, 'process': self.mill.pk, 'quantity': 10, 'defects': 2, **extra}
+        return self.client.post(f'/items/{item.pk}/result/', {f'result{item.pk}-{k}': v for k, v in data.items()}, follow=True)
+
+    def test_form_round_trip_with_multipart(self):
+        self.result()
+        item = OrderItem.objects.get()
+        self.assertContains(self.client.get(f'/orders/{item.order.job_number}/'), 'enctype="multipart/form-data"')
+        r = self.post(item, note='Edge chipped\nsecond line', photo=image_file(size=(2400, 1200), orientation=3))
+        self.assertContains(r, 'Result recorded.')
+        saved = Event.objects.filter(event_type=E.RESULT).latest('pk')
+        self.assertEqual(saved.note, 'Edge chipped\nsecond line')
+        self.assertTrue((self.media / saved.photo.name).exists())
+        self.assertContains(r, 'cannot be edited later')
+        self.assertContains(r, 'accept="image/*"')
+
+    def test_bad_upload_or_long_note_saves_nothing(self):
+        self.result()
+        item = OrderItem.objects.get()
+        before = Event.objects.count()
+        self.assertContains(self.post(item, photo=SimpleUploadedFile('a.jpg', b'not an image')), 'Upload a JPEG, PNG or WEBP image.')
+        self.assertContains(self.post(item, note='x' * 1001), 'at most 1000 characters')
+        self.assertEqual(Event.objects.count(), before)
+        self.assertEqual(list((self.media).rglob('*.jpg')), [])
+
+    def test_photo_view_needs_login_and_role_and_a_photo(self):
+        with_photo = self.result(photo=process_photo(image_file()))
+        without = self.result()
+        url = lambda e: f'/results/{e.pk}/photo/'
+        self.client.logout()
+        self.assertEqual(self.client.get(url(with_photo)).status_code, 302)
+        self.client.force_login(make_user('norole'))
+        self.assertEqual(self.client.get(url(with_photo)).status_code, 403)
+        self.client.force_login(make_user('op', 'Operator'))
+        r = self.client.get(url(with_photo))
+        self.assertEqual((r.status_code, r['Content-Type']), (200, 'image/jpeg'))
+        self.assertIn('private', r['Cache-Control'])
+        self.assertTrue(b''.join(r.streaming_content).startswith(b'\xff\xd8'))
+        self.assertEqual(self.client.get(url(without)).status_code, 404)
+        arrived = Event.objects.create(tag_uid='Z', event_type=E.ARRIVED, process=Process.objects.create(name='Mat', kind=K.MATERIAL), created_by=self.planner)
+        self.assertEqual(self.client.get(url(arrived)).status_code, 404)
+
+    def test_missing_file_is_a_404_not_a_crash(self):
+        e = self.result(photo=process_photo(image_file()))
+        (self.media / e.photo.name).unlink()
+        self.assertEqual(self.client.get(f'/results/{e.pk}/photo/').status_code, 404)
+
+    def test_detail_page_worker_row_is_for_planners_only(self):
+        e = self.result(defects=3, worker=self.w1, machine=self.m1, cause=self.scratch, note='Line one\n<b>two</b>', photo=process_photo(image_file()))
+        page = self.client.get(f'/results/{e.pk}/')
+        for text in ('Worker Alpha', 'M1', 'Scratch', '3.0%', 'Line one<br>&lt;b&gt;two&lt;/b&gt;', 'Name PA', 'C1', 'target="_blank"', 'alt="Photo of the defects'):
+            self.assertContains(page, text)
+        self.assertContains(page, f'href="/results/{e.pk}/photo/"')
+        self.assertNotContains(page, '/media/')
+        self.client.force_login(make_user('op', 'Operator'))
+        page = self.client.get(f'/results/{e.pk}/')
+        self.assertEqual(page.status_code, 200)
+        self.assertNotContains(page, 'Worker Alpha')
+        self.assertNotContains(page, '<dt>Worker</dt>')
+        self.assertContains(page, 'Scratch')
+
+    def test_detail_page_roles_404_and_voided_banner(self):
+        e = self.result(defects=1)
+        self.client.logout()
+        self.assertEqual(self.client.get(f'/results/{e.pk}/').status_code, 302)
+        self.client.force_login(self.planner)
+        self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = 'en'  # logout cleared the cookies
+        self.assertNotContains(self.client.get(f'/results/{e.pk}/'), 'Voided on')
+        Event(tag_uid=e.tag_uid, event_type=E.CORRECTION, corrects=e, created_by=self.planner, reason='Typed wrong quantity').save()
+        self.assertContains(self.client.get(f'/results/{e.pk}/'), 'Voided on')
+        self.assertContains(self.client.get(f'/results/{e.pk}/'), 'Typed wrong quantity')
+        arrived = Event.objects.create(tag_uid='Z', event_type=E.ARRIVED, process=Process.objects.create(name='Mat', kind=K.MATERIAL), created_by=self.planner)
+        self.assertEqual(self.client.get(f'/results/{arrived.pk}/').status_code, 404)
+
+    def test_event_history_shows_a_summary_and_details_link_only(self):
+        e = self.result(qty=5, defects=2, worker=self.w1, cause=self.scratch, note='Secret note text', photo=process_photo(image_file()))
+        item = OrderItem.objects.get()
+        page = self.client.get(f'/orders/{item.order.job_number}/')
+        self.assertContains(page, '5 done, 2 defects')
+        self.assertContains(page, f'href="/results/{e.pk}/"')
+        self.assertContains(page, '<span class="badge">Note</span>')
+        self.assertContains(page, '<span class="badge">Photo</span>')
+        for text in ('Secret note text', '/media/', e.photo.name, '&middot; Worker Alpha', 'Scratch</td>'):
+            self.assertNotContains(page, text)
+
+
+class DefectInvestigationTests(InvestigationBase):
+    def setUp(self):
+        super().setUp()
+        self.e1 = self.result('PA', defects=10, worker=self.w1, machine=self.m1, cause=self.scratch, note='n1')
+        self.e2 = self.result('PA', defects=2, worker=self.w2, machine=self.m2, cause=self.burr)
+        self.e3 = self.result('PA', defects=0, worker=self.w2)
+        self.e4 = self.result('PB', qty=50, defects=0, worker=self.w1, machine=self.m1)
+        self.e5 = self.result('PB', qty=10, defects=1, worker=self.w1, machine=self.m2)
+        self.e6 = self.result('PA', proc=self.lathe, defects=5, worker=self.w1, machine=self.m1, cause=self.scratch)
+        self.e7 = self.result('PB', defects=3, worker=self.w2, machine=self.m2)  # defects without a cause
+
+    def drill(self, **params):
+        return self.page(**params).context.get('drill')
+
+    def pks(self, drill):
+        return [r['event'].pk for r in drill['records']]
+
+    def test_each_parameter_filters_the_records_and_the_by_part_table(self):
+        d = self.drill(d_machine=self.m1.pk)
+        self.assertEqual(self.pks(d), [self.e1.pk, self.e6.pk])
+        self.assertEqual([(p['part'], p['process'], p['defects']) for p in d['parts']], [('PA', 'Mill', 10), ('PA', 'Lathe', 5), ('PB', 'Mill', 0)])
+        d = self.drill(d_worker=self.w2.pk)
+        self.assertEqual(sorted(self.pks(d)), sorted([self.e2.pk, self.e7.pk]))
+        self.assertEqual({(p['part'], p['defects']) for p in d['parts']}, {('PA', 2), ('PB', 3)})
+        d = self.drill(d_cause=self.scratch.pk)
+        self.assertEqual(sorted(self.pks(d)), sorted([self.e1.pk, self.e6.pk]))
+        self.assertFalse(d['baseline'])
+        d = self.drill(d_cause='none')
+        self.assertEqual(sorted(self.pks(d)), sorted([self.e5.pk, self.e7.pk]))  # only defects without a cause
+        d = self.drill(d_machine='none')
+        self.assertEqual(self.pks(d), [])  # the only result without a machine has no defects
+        self.assertEqual([(p['part'], p['quantity']) for p in d['parts']], [('PA', 100)])
+
+    def test_baseline_leaves_out_the_chosen_machine_or_worker(self):
+        by = {(p['part'], p['process']): p for p in self.drill(d_machine=self.m1.pk)['parts']}
+        self.assertEqual(by[('PA', 'Mill')]['rate'], 10.0)
+        self.assertEqual(by[('PA', 'Mill')]['base_rate'], 1.0)  # e2 + e3: 2 of 200
+        self.assertEqual(by[('PB', 'Mill')]['base_rate'], (1 + 3) * 100 / 110)  # e5 + e7
+        self.assertIsNone(by[('PA', 'Lathe')]['base_rate'])  # nobody else on that part and process
+        by = {(p['part'], p['process']): p for p in self.drill(d_worker=self.w1.pk)['parts']}
+        self.assertEqual(by[('PA', 'Mill')]['base_rate'], 1.0)  # e2 + e3 are worker Beta's
+        self.assertContains(self.page(d_machine=self.m1.pk), 'Rate for everyone else on the same part and process')
+        self.assertNotContains(self.page(d_cause=self.scratch.pk), 'Rate for everyone else')
+
+    def test_unrecorded_machine_baseline_is_everyone_with_a_machine(self):
+        by = {(p['part'], p['process']): p for p in self.drill(d_machine='none')['parts']}
+        self.assertEqual(by[('PA', 'Mill')]['base_rate'], 12 * 100 / 200)  # e1 + e2
+
+    def test_only_results_with_defects_is_on_by_default(self):
+        d = self.drill(d_machine=self.m1.pk)
+        self.assertTrue(d['only'])
+        d = self.drill(d_machine=self.m1.pk, d_only='0')
+        self.assertFalse(d['only'])
+        self.assertIn(self.e4.pk, self.pks(d))
+        self.assertTrue(self.drill(d_machine=self.m1.pk, d_only=['0', '1'])['only'])  # the checkbox sends the last value
+        self.assertContains(self.page(d_machine=self.m1.pk), 'Only results with defects')
+
+    def test_few_data_rows_are_greyed(self):
+        self.result('PE', qty=10, defects=5, machine=self.m2)
+        page = self.page(d_machine=self.m2.pk)
+        by = {(p['part'], p['process']): p for p in page.context['drill']['parts']}
+        self.assertEqual((by[('PE', 'Mill')]['few'], by[('PA', 'Mill')]['few']), (True, False))
+        self.assertContains(page, 'class="num few-data"')
+        self.assertContains(page, 'A rate from fewer than 20 pieces')
+
+    def test_filters_apply_and_the_d_parameters_are_not_filters(self):
+        self.assertEqual(self.pks(self.drill(d_machine=self.m1.pk, process=self.lathe.pk)), [self.e6.pk])
+        self.assertEqual(self.pks(self.drill(d_machine=self.m1.pk, date_from=(timezone.localdate() + timedelta(days=1)).isoformat())), [])
+        self.result('PA', defects=4, machine=self.m1, customer=1)
+        self.assertEqual(len(self.pks(self.drill(d_machine=self.m1.pk, customer=self.customers[1].pk))), 1)
+        ctx = self.page(d_machine=self.m1.pk, process=self.mill.pk).context
+        self.assertEqual(ctx['values']['process'], str(self.mill.pk))
+        self.assertTrue(all('d_machine' not in t['url'] for t in ctx['tabs']))
+        self.assertFalse(hasattr(Filters, 'd_machine'))
+
+    def test_records_links_keep_the_other_filters(self):
+        ctx = self.page(process=self.mill.pk).context
+        row = next(r for r in ctx['machine_rows'] if r['id'] == self.m1.pk)
+        self.assertIn(f'd_machine={self.m1.pk}', row['url'])
+        self.assertIn(f'process={self.mill.pk}', row['url'])
+        self.assertTrue(row['url'].endswith('#defect-records'))
+        self.assertTrue(any(r['id'] == 'none' for r in self.page().context['cause_rows']))
+        page = self.page(d_machine=self.m1.pk)
+        self.assertContains(page, 'id="defect-records"')
+        self.assertContains(page, f'href="/results/{self.e1.pk}/"')
+        self.assertContains(page, 'Clear')
+        self.assertNotContains(self.page(), 'id="defect-records"')
+
+    def test_worker_names_and_d_worker_are_for_planners_only(self):
+        self.assertContains(self.page(d_worker=self.w1.pk), 'Worker Alpha')
+        self.client.force_login(make_user('op', 'Operator'))
+        page = self.page(d_worker=self.w1.pk)
+        self.assertIsNone(page.context.get('drill'))
+        self.assertNotContains(page, 'Worker Alpha')
+        page = self.page(d_machine=self.m1.pk)
+        self.assertIsNotNone(page.context['drill'])
+        self.assertNotContains(page, 'Worker Alpha')
+        self.assertNotContains(page, '<th>Worker</th>')
+        self.assertFalse(page.context['drill']['planner'])
+        self.assertTrue(all('worker' not in r for r in page.context['drill']['records']))
+        both = self.page(d_worker=self.w1.pk, d_machine=self.m1.pk)
+        self.assertEqual(self.pks(both.context['drill']), [self.e1.pk, self.e6.pk])  # d_worker ignored, d_machine used
+
+    def test_sorting_uses_a_whitelist(self):
+        d = self.drill(d_machine=self.m2.pk, d_only='0')
+        self.assertEqual(d['order'], 'defects')
+        self.assertEqual([r['event'].defects for r in d['records']], [3, 2, 1])
+        self.assertEqual(self.drill(d_machine=self.m2.pk, d_only='0', dorder='rate')['order'], 'rate')
+        self.assertEqual(self.drill(d_machine=self.m2.pk, dorder='nonsense')['order'], 'defects')
+        old = self.result('PA', defects=1, machine=self.m2, days_ago=20)
+        d = self.drill(d_machine=self.m2.pk, dorder='date')
+        self.assertEqual(self.pks(d)[-1], old.pk)
+
+    def test_records_are_capped_at_200_with_show_more(self):
+        e = self.e1
+        a = TagAssignment.objects.get(tag__uid=e.tag_uid)
+        Event.objects.bulk_create([
+            Event(tag_uid=e.tag_uid, process=self.mill, event_type=E.RESULT, quantity=10, defects=1, machine=self.m1, created_by=self.planner,
+                  occurred_at=timezone.now() - timedelta(minutes=i + 1)) for i in range(204)])
+        page = self.page(d_machine=self.m1.pk)
+        d = page.context['drill']
+        self.assertEqual((len(d['records']), d['total']), (200, 206))
+        self.assertContains(page, 'Showing 200 of 206')
+        self.assertIn('dlimit=400', d['more_url'])
+        d = self.drill(d_machine=self.m1.pk, dlimit=400)
+        self.assertEqual((len(d['records']), d['more_url']), (206, ''))
+        self.assertEqual(len(self.drill(d_machine=self.m1.pk, dlimit=5)['records']), 200)  # never below 200
+        self.assertEqual(a.tag.uid, e.tag_uid)
+
+    def test_query_count_does_not_grow_with_the_rows(self):
+        def count():
+            with CaptureQueriesContext(connection) as q:
+                defect_detail(result_events(Filters()), 'machine', self.m1.pk, True, 'defects', True)
+            return len(q)
+        before = count()
+        for i in range(15):
+            self.result('PC', defects=1, worker=self.w1, machine=self.m1)
+        self.assertEqual(count(), before)
+        with CaptureQueriesContext(connection) as small:
+            self.page(d_machine=self.m1.pk)
+        for i in range(15):
+            self.result('PD', defects=1, worker=self.w1, machine=self.m1)
+        with CaptureQueriesContext(connection) as big:
+            self.page(d_machine=self.m1.pk)
+        self.assertEqual(len(big), len(small))
+
+
+class DefectDemoDataTests(TestCase):
+    def setUp(self):
+        self.media = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.enterContext(override_settings(MEDIA_ROOT=self.media, DEBUG=True))
+
+    def test_demo_has_notes_photos_and_the_two_patterns(self):
+        from django.core.management import call_command
+        call_command('seed_demo', stdout=StringIO())
+        events = result_events(Filters())
+        photos = [e for e in events if e.photo]
+        self.assertTrue(6 <= len(photos) <= 8, len(photos))
+        for e in photos:
+            self.assertTrue((self.media / e.photo.name).exists())
+            self.assertRegex(e.photo.name, r'^defects/demo/demo-\d\d\.jpg$')
+        self.assertGreaterEqual(len([e for e in events if e.note]), 6)
+        self.assertGreaterEqual(len({e.worker_id for e in events}), 5)
+        machine = Machine.objects.get(name='Machining centre 2')
+        parts, _records = defect_detail(events, 'machine', machine.pk, True, 'defects', True)
+        top = next(p for p in parts if not p['few'])
+        self.assertEqual(top['part'], 'SPC-220')
+        self.assertGreater(top['rate'], 2 * top['base_rate'])
+        worker = Worker.objects.get(name='Nakamura Mio')
+        parts, _records = defect_detail(events, 'worker', worker.pk, True, 'defects', True)
+        top = next(p for p in parts if not p['few'])
+        self.assertEqual(top['part'], 'ARM-510')
+        self.assertGreater(top['rate'], 2 * top['base_rate'])
+
+    def test_reset_removes_and_recreates_the_demo_photos(self):
+        from django.core.management import call_command
+        call_command('seed_demo', stdout=StringIO())
+        folder = self.media / 'defects' / 'demo'
+        names = sorted(p.name for p in folder.iterdir())
+        (folder / 'stale.jpg').write_bytes(b'x')
+        call_command('seed_demo', reset=True, stdout=StringIO())
+        self.assertEqual(sorted(p.name for p in folder.iterdir()), names)  # deterministic names, stale file gone

@@ -20,7 +20,7 @@ from django.utils import timezone, translation
 
 from core.management.commands.seed_demo import read_csv
 from core.testing import TestCase, make_user
-from tracking.models import Box, ScannerDevice, Tag, TagAssignment
+from tracking.models import ScannerDevice, Tag, TagAssignment
 from tracking.services import cancel_item, correct_event, record_event
 from tracking.status import item_status, step_due_back, timeline
 
@@ -148,7 +148,7 @@ class OrderListTests(TestCase):
         proc = Process.objects.create(name='Mat', kind=Process.Kind.MATERIAL)
         item = self.a.items.get()
         RouteStep.objects.create(item=item, sequence=1, process=proc)
-        TagAssignment.objects.create(tag=Tag.objects.create(uid='AB'), box=Box.objects.create(label='B'), item=item)
+        TagAssignment.objects.create(tag=Tag.objects.create(uid='AB'), item=item)
         record_event(ScannerDevice.objects.create(name='D'), 'AB', proc, 'ARRIVED')
         self.assertEqual(self.jobs(status='COMPLETE'), [self.a.job_number])
         self.assertEqual(len(self.jobs(status='NOT_STARTED')), 2)
@@ -165,7 +165,7 @@ class OrderDetailTests(TestCase):
         self.item = OrderItem.objects.create(order=self.order, part_name='Shaft', quantity=3)
         self.proc = Process.objects.create(name='Mat', kind=K.MATERIAL)
         RouteStep.objects.create(item=self.item, sequence=1, process=self.proc)
-        TagAssignment.objects.create(tag=Tag.objects.create(uid='AB'), box=Box.objects.create(label='B1'), item=self.item)
+        TagAssignment.objects.create(tag=Tag.objects.create(uid='AB'), item=self.item)
         self.url = f'/orders/{self.order.job_number}/'
 
     def test_staff_only(self):
@@ -176,7 +176,7 @@ class OrderDetailTests(TestCase):
         r = self.client.get(self.url)
         self.assertContains(r, self.order.job_number)
         self.assertContains(r, 'Shaft')
-        self.assertContains(r, 'Box B1, tag AB')
+        self.assertContains(r, 'Tag AB')
 
     def test_unknown_job_number_is_404(self):
         self.assertEqual(self.client.get('/orders/0000-999/').status_code, 404)
@@ -215,7 +215,7 @@ class BoxViewTests(TestCase):
         RouteStep.objects.create(item=item, sequence=1, process=self.proc)
         for i in range(linked):
             TagAssignment.objects.create(
-                tag=Tag.objects.create(uid=f'U{item.pk}{i}'), box=Box.objects.create(label=f'L{item.pk}{i}'), item=item)
+                tag=Tag.objects.create(uid=f'U{item.pk}{i}'), item=item)
         return item
 
     def test_list_shows_box_total_only_for_split_items(self):
@@ -234,8 +234,10 @@ class BoxViewTests(TestCase):
         item = self.item(3, 2)
         r = self.client.get(f'/orders/{self.order.job_number}/')
         self.assertContains(r, 'Boxes: 2 of 3 linked')
-        self.assertContains(r, f'Box L{item.pk}0')
-        self.assertContains(r, f'Box L{item.pk}1')
+        self.assertContains(r, f'Tag U{item.pk}0')
+        self.assertContains(r, f'Tag U{item.pk}1')
+        self.assertContains(r, 'Box 1 of 3')
+        self.assertContains(r, 'Box 2 of 3')
         self.assertContains(r, 'Box not linked yet')
         self.assertContains(r, 'href="/tags/"')
         self.assertEqual(len(r.context['items'][0]['boxes']), 3)
@@ -259,9 +261,9 @@ class OrderEditTests(TestCase):
             RouteStep.objects.create(item=item, sequence=i, process=p)
         return item
 
-    def link(self, item, uid, box, end=False):
+    def link(self, item, uid, end=False):
         return TagAssignment.objects.create(
-            tag=Tag.objects.create(uid=uid), box=Box.objects.create(label=box), item=item,
+            tag=Tag.objects.create(uid=uid), item=item,
             start_at=timezone.now() - timedelta(days=2), end_at=timezone.now() - timedelta(days=1) if end else None)
 
     def post(self, items=None, **order_fields):
@@ -315,7 +317,7 @@ class OrderEditTests(TestCase):
         self.assertFalse(OrderChange.objects.exists())
 
     def test_due_date_change_moves_priority_tier(self):
-        self.link(self.item, 'T1', 'B1')
+        self.link(self.item, 'T1')
         tier = lambda: self.client.get('/priorities/').context['rows'][0]['tier']
         self.assertEqual(tier(), 'ON_TRACK')
         self.post(due_date=timezone.localdate())
@@ -325,8 +327,8 @@ class OrderEditTests(TestCase):
 
     def test_box_count_cannot_drop_below_linked_boxes(self):
         item = self.new_item('Frame', [self.mill], boxes=3)
-        self.link(item, 'A', 'BA', end=True)
-        self.link(item, 'B', 'BB')
+        self.link(item, 'A', end=True)
+        self.link(item, 'B')
         r = self.post([{}, {'box_count': 1}])
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, 'Box count cannot be lower than the 2 boxes already linked.')
@@ -344,7 +346,7 @@ class OrderEditTests(TestCase):
         self.assertNotContains(self.client.get(f'/orders/{self.order.job_number}/edit/'), 'Route is locked')
 
     def test_route_locked_after_a_scan_and_posted_changes_ignored(self):
-        self.link(self.item, 'T1', 'B1')
+        self.link(self.item, 'T1')
         record_event(self.device, 'T1', self.mat, 'ARRIVED')
         r = self.post([{'route': [self.mill.pk], 'part_name': 'Renamed'}])
         self.assertEqual(r.status_code, 302)
@@ -367,7 +369,7 @@ class OrderEditTests(TestCase):
         self.assertEqual(r.status_code, 302)
         self.assertFalse(OrderItem.objects.filter(pk=spare.pk).exists())
         self.assertEqual(self.changes()[f'{self.order.job_number}-02', 'item_deleted'][0], f'{self.order.job_number}-02 Spare')
-        self.link(self.item, 'T1', 'B1')
+        self.link(self.item, 'T1')
         r = self.post([{'DELETE': 'on'}, {}])
         self.assertContains(r, 'cannot be deleted because it has tags or scans')
         self.assertTrue(OrderItem.objects.filter(pk=self.item.pk).exists())
@@ -779,7 +781,7 @@ class CsvExportTests(TestCase):
 
     def test_event_export_lists_scans_cancellations_and_voids(self):
         item = self.make()
-        a = TagAssignment.objects.create(tag=Tag.objects.create(uid='ex1'), box=Box.objects.create(label='B1'), item=item,
+        a = TagAssignment.objects.create(tag=Tag.objects.create(uid='ex1'), item=item,
                                          start_at=timezone.now() - timedelta(days=3))
         wrong = record_event(self.device, 'EX1', self.mill, 'STARTED', occurred_at=timezone.now() - timedelta(days=2))[0]
         record_event(self.device, 'EX1', self.mill, 'FINISHED', occurred_at=timezone.now() - timedelta(days=1))
@@ -798,7 +800,7 @@ class CsvExportTests(TestCase):
 
     def test_event_export_shows_the_process_code(self):
         item = self.make()
-        TagAssignment.objects.create(tag=Tag.objects.create(uid='EX2'), box=Box.objects.create(label='B2'), item=item,
+        TagAssignment.objects.create(tag=Tag.objects.create(uid='EX2'), item=item,
                                      start_at=timezone.now() - timedelta(days=3))
         record_event(self.device, 'EX2', self.plate, 'SENT_OUT', occurred_at=timezone.now() - timedelta(days=1))
         rows = self.csv_rows(self.client.get(f'/orders/{item.order.job_number}/events.csv'))
@@ -837,7 +839,7 @@ class PreviousRunsTests(TestCase):
         item = OrderItem.objects.create(order=order, part_name=f'P{self.n}', quantity=3, part_number=part_number)
         RouteStep.objects.create(item=item, sequence=1, process=self.mill)
         RouteStep.objects.create(item=item, sequence=2, process=self.plate)
-        a = TagAssignment.objects.create(tag=Tag.objects.create(uid=f'PR{self.n}'), box=Box.objects.create(label=f'PB{self.n}'), item=item,
+        a = TagAssignment.objects.create(tag=Tag.objects.create(uid=f'PR{self.n}'), item=item,
                                          start_at=timezone.now() - timedelta(days=400))
         if finished:
             t = base or timezone.now() - timedelta(days=20)
@@ -952,6 +954,12 @@ class CsvImportTests(TestCase):
         self.assertEqual(Order.objects.get(customer_order_number='SR-2210').notes, '急ぎ / Rush job')
         self.assertEqual(Order.objects.filter(customer_order_number='').count(), 1)
         self.assertEqual(len({o.job_number for o in Order.objects.all()}), 7)
+
+    def test_create_customers_stays_ticked_after_a_check_and_unticked_otherwise(self):
+        ticked = self.upload(create=True)
+        self.assertRegex(ticked.content.decode(), r'<input type="checkbox" name="create_customers"[^>]* checked')
+        self.assertNotRegex(self.upload().content.decode(), r'name="create_customers"[^>]* checked')
+        self.assertContains(self.upload(), 'enctype="multipart/form-data"')
 
     def test_shift_jis_and_plain_utf8_give_the_same_result(self):
         self.customers()
@@ -1116,6 +1124,16 @@ def make_png():
 
 
 @override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class OrderSheetAccessTests(TestCase):
+    def test_operator_opens_sheet_and_anonymous_is_sent_to_login(self):
+        order = Order.objects.create(customer=Customer.objects.create(name='C'), due_date=date(2031, 5, 6))
+        url = f'/orders/{order.job_number}/sheet/'
+        self.assertRedirects(self.client.get(url), f'/login/?next={url}', fetch_redirect_response=False)
+        self.client.force_login(make_user('op', 'Operator'))
+        self.assertEqual(self.client.get(url).status_code, 200)
+        self.assertContains(self.client.get(f'/orders/{order.job_number}/'), 'Print sheet')
+
+
 class OrderSheetTests(TestCase):
     def setUp(self):
         self.client.force_login(make_user('pl', 'Planner'))
@@ -1142,16 +1160,16 @@ class OrderSheetTests(TestCase):
         self.assertEqual((r.status_code, r['Content-Type']), (200, 'application/pdf'))
         return PdfReader(io.BytesIO(r.content))
 
-    def test_planner_only(self):
+    def test_operator_can_print_but_anonymous_cannot(self):
         self.client.force_login(make_user('op', 'Operator'))
-        self.assertEqual(self.client.get(self.url).status_code, 403)
+        self.assertEqual(self.client.get(self.url).status_code, 200)
         self.client.logout()
         self.assertEqual(self.client.get(self.url).status_code, 302)
 
-    def test_button_on_detail_page_for_planners_only(self):
-        self.assertContains(self.client.get(f'/orders/{self.order.job_number}/'), self.url)
-        self.client.force_login(make_user('op', 'Operator'))
-        self.assertNotContains(self.client.get(f'/orders/{self.order.job_number}/'), self.url)
+    def test_button_on_detail_page_for_operators_and_up(self):
+        for role in ('Planner', 'Operator'):
+            self.client.force_login(make_user(role.lower(), role))
+            self.assertContains(self.client.get(f'/orders/{self.order.job_number}/'), self.url)
 
     def test_one_page_per_item_without_drawings_with_details_and_embedded_font(self):
         reader = self.pdf()
@@ -1405,7 +1423,7 @@ class CustomerDetailEditTests(TestCase):
     def test_heading_button_style_is_compact(self):
         from django.conf import settings
         css = (settings.BASE_DIR / 'static' / 'css' / 'base.css').read_text(encoding='utf-8')
-        self.assertIn('font-size: 0.85rem; font-weight: 400', css)
+        self.assertIn('font-size: var(--text-sm); font-weight: 400', css)
 
 
 class OrdersHubTests(TestCase):
@@ -1456,7 +1474,8 @@ class OrdersHubTests(TestCase):
         self.assertIn('列:', html)
         self.assertIn('工程順の1行は', html)
         self.assertNotIn('route step is written', html)
-        self.assertRegex(html, r'<label class="check"><input type="checkbox" name="create_customers"[^>]*><span>新規の得意先を作成する</span></label>')
+        self.assertRegex(html, r'<label class="check" for="id_create_customers"><input type="checkbox" name="create_customers"[^>]*><span>新規の得意先を作成する</span></label>')
+        self.assertIn('accept=".csv,text/csv"', html)
 
     def test_checkbox_rule_is_scoped_to_check_labels_in_cards(self):
         css = (settings.BASE_DIR / 'static' / 'css' / 'base.css').read_text(encoding='utf-8')

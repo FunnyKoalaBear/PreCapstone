@@ -8,7 +8,8 @@ from django.shortcuts import render
 from django.utils.dateparse import parse_date
 from django.utils import timezone
 
-from core.permissions import ADMIN, OPERATOR, ROLES, role_level, role_required
+from core.rules import silent_after, void_window
+from core.permissions import OPERATOR, PLANNER, ROLES, role_level, role_required
 from orders.models import Customer, OrderItem
 from tracking.matrix import matrix
 from tracking.models import Event, ScannerDevice
@@ -50,21 +51,19 @@ def home(request):
 
 
 DASHBOARD_STATUSES = [NOT_STARTED, WAITING, IN_PROGRESS, AT_VENDOR, PAUSED, COMPLETE, SHIPPED, CANCELLED]
-SILENT_AFTER = timedelta(hours=24)  # a scanner that has not reported for this long is listed
-VOID_WINDOW = timedelta(days=7)
 
 
-@role_required(ADMIN)
+@role_required(PLANNER)
 def dashboard(request):
     now = timezone.now()
     today_start = timezone.make_aware(datetime.combine(timezone.localdate(now), datetime.min.time()))
     roles = Counter(ROLES[level] if level >= 0 else None for level in (role_level(u) for u in User.objects.filter(is_active=True)))
     statuses = Counter(st.code for st in item_statuses(OrderItem.objects.all()).values())
-    silent = ScannerDevice.objects.filter(active=True).filter(Q(last_seen__isnull=True) | Q(last_seen__lt=now - SILENT_AFTER)).order_by('name')
+    silent = ScannerDevice.objects.filter(active=True).filter(Q(last_seen__isnull=True) | Q(last_seen__lt=now - silent_after())).order_by('name')
     return render(request, 'core/dashboard.html', {
         'roles': [(r, roles[r]) for r in ROLES] + [(None, roles[None])],
         'statuses': [(c, LABELS[c], statuses[c]) for c in DASHBOARD_STATUSES],
         'events_today': Event.objects.filter(received_at__gte=today_start).count(),
         'silent_devices': silent,
-        'voided': Event.objects.filter(event_type=Event.Type.CORRECTION, occurred_at__gte=now - VOID_WINDOW).count(),
+        'voided': Event.objects.filter(event_type=Event.Type.CORRECTION, occurred_at__gte=now - void_window()).count(),
     })

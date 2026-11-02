@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load i18n duration panels %}
+{% load i18n duration panels static %}
 
 {% block title %}{% trans "Analysis" %} - {% trans "Factory Tracker" %}{% endblock %}
 
@@ -9,7 +9,7 @@
   {% include "includes/tab_bar.html" with label=tabs_label %}
 
   <form method="get" class="filters">
-    <input type="hidden" name="tab" value="{{ tab }}">
+    <input type="hidden" name="tab" value="{{ tab }}">{% for v in sel %}<input type="hidden" name="sel" value="{{ v }}">{% endfor %}
     <div><label for="date_from">{% trans "From" %}</label><input type="date" id="date_from" name="date_from" value="{{ values.date_from }}"></div>
     <div><label for="date_to">{% trans "To" %}</label><input type="date" id="date_to" name="date_to" value="{{ values.date_to }}"></div>
     <div>
@@ -41,12 +41,12 @@
         </select>
       </div>
     {% endif %}
-    <button type="submit" class="button">{% trans "Apply" %}</button>
+    <button type="submit" class="button-secondary">{% trans "Apply" %}</button>
     {% if filtered %}<a href="?tab={{ tab }}">{% trans "Clear filters" %}</a>{% endif %}
   </form>
 
   <div id="analysis" data-tab="{{ tab }}">
   {% if tab == 'plan' %}{% include "tracking/analysis_plan.html" %}{% else %}{% include "tracking/analysis_results.html" %}{% endif %}
   </div>
-  {% if facts_json %}<script type="application/json" id="demo-facts">{{ facts_json|safe }}</script>{% endif %}
+  {% if sel %}<script src="{% static 'js/records.js' %}" defer></script>{% endif %}
 {% endblock %}

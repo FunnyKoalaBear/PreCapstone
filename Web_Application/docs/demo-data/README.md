@@ -9,7 +9,7 @@ Our own names and codes. None of the company's real codes, names or customers ar
 | `orders_demo.csv` | F42: 10 items in 7 orders. Should import with no errors |
 | `orders_demo_sjis.csv` | F42: same content in Shift-JIS (cp932). The importer must read it |
 | `orders_demo_errors.csv` | F42: one row per error type (table below) |
-| `workers_machines.csv` | F65 / F78: demo workers and machines |
+| `workers_machines.csv` | F65 / F78: demo workers, machines and defect causes (`kind` = WORKER, MACHINE or CAUSE; `active` = yes or no, one inactive entry of each) |
 
 ## Order CSV format
 Header row required, comma separated. One row = one item. Rows with the same customer and customer_order_number become one order. An empty customer_order_number makes its own order.
@@ -45,3 +45,4 @@ Record results for about 15 finished steps. Quantity done equals the item quanti
 
 ## seed_demo (history data)
 `python manage.py seed_demo --reset` (DEBUG only) builds the 12 scenario orders, then about 100 more from `_demo_bulk.py`: 75 shipped orders spread over 12 months (on-time rate improves with a dip), 3 cancelled, and open orders in every state (not started, waiting, in progress, at vendor, paused, ready to ship), with due dates from 6 days overdue to 40 days ahead. Routes have 3 to 8 steps. Plating, Grinding, Inspection and Heat treatment run slower than planned, so Plan vs actual shows bottlenecks. Results carry defects per process. A fixed random seed makes it repeatable; all times are relative to now.
+Defect investigation: part SPC-220 fails far more on Machining centre 2, and the newer worker Nakamura Mio fails far more on part ARM-510 (Assembly). Some defective results carry a note, and 8 carry a small generated photo in `MEDIA_ROOT/defects/demo/` (`media/` is git-ignored; `seed_demo --reset` removes that folder and writes it again).
