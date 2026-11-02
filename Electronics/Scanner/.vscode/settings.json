@@ -32,6 +32,6 @@
     "--query-driver=**",
     "--compile-commands-dir=c:\\Users\\sbmit\\OneDrive\\Codine\\PreCapstone\\Electronics\\Scanner\\build"
   ],
-  "idf.flashType": "JTAG",
+  "idf.flashType": "UART",
   "idf.port": "COM5"
 }

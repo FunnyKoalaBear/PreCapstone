@@ -10,7 +10,7 @@
 #include "rfid.hpp"
 #include "button.hpp"
 #include "buzzer.hpp"
-#include "display.hpp"
+#include "scanner_display.hpp"
 #include "wifi.hpp"
 #include "server_client.hpp"
 
@@ -107,12 +107,12 @@ extern "C" void app_main()
     RFID rfid;
     BUTTON button;
     BUZZER buzzer;
-    DISPLAY display;
+    SCANNER_DISPLAY display;
     SERVER_CLIENT server;
 
     //display first: rfid.init() retries forever if the PN532 isn't connected
     if (display.init()) {
-        display.draw_text_centered("hello", 4, DISPLAY::BLACK, DISPLAY::WHITE);
+        display.draw_text_centered("hello", 4, SCANNER_DISPLAY::BLACK, SCANNER_DISPLAY::WHITE);
     }
 
     //initializing classes
@@ -135,11 +135,8 @@ extern "C" void app_main()
     xTaskCreate(rfid_task, "RFID Scan", 4096 , &rfid, 5, nullptr); 
 
 
-    static const char *const menu_items[] = {
-        "Item 01", "Item 02", "Item 03", "Item 04", "Item 05",
-        "Item 06", "Item 07", "Item 08", "Item 09", "Item 10",
-        "Item 11", "Item 12", "Item 13", "Item 14", "Item 15",
-        "Item 16", "Item 17", "Item 18", "Item 19", "Item 20",
-    };
-    display.run_scrollable_list(menu_items, sizeof(menu_items) / sizeof(menu_items[0]), 2);
+    // keep app_main alive: the tasks above hold pointers to its local objects
+    while (true) {
+        vTaskDelay(portMAX_DELAY);
+    }
 }

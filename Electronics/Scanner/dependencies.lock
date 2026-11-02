@@ -1,18 +1,4 @@
 dependencies:
-  atanisoft/esp_lcd_touch_xpt2046:
-    component_hash: 7e6381b67b6e487379118368b8e91624dc87036ef5734818de1db9eb35697998
-    dependencies:
-    - name: espressif/esp_lcd_touch
-      registry_url: https://components.espressif.com
-      require: private
-      version: '>=1.0.4'
-    - name: idf
-      require: private
-      version: '>=4.4'
-    source:
-      registry_url: https://components.espressif.com/
-      type: service
-    version: 1.0.6
   espressif/cmake_utilities:
     component_hash: 351350613ceafba240b761b4ea991e0f231ac7a9f59a9ee901f751bddc0bb18f
     dependencies:
@@ -43,16 +29,6 @@ dependencies:
     - esp32p4
     - esp32c3
     version: 1.4.0
-  espressif/esp_lcd_touch:
-    component_hash: 3f85a7d95af876f1a6ecca8eb90a81614890d0f03a038390804e5a77e2caf862
-    dependencies:
-    - name: idf
-      require: private
-      version: '>=4.4.2'
-    source:
-      registry_url: https://components.espressif.com/
-      type: service
-    version: 1.2.1
   espressif/led_strip:
     component_hash: 28621486f77229aaf81c71f5e15d6fbf36c2949cf11094e07090593e659e7639
     dependencies:
@@ -78,12 +54,10 @@ dependencies:
       type: idf
     version: 6.1.0
 direct_dependencies:
-- atanisoft/esp_lcd_touch_xpt2046
 - espressif/esp_lcd_st7796
-- espressif/esp_lcd_touch
 - espressif/led_strip
 - garag/esp-idf-pn532
 - idf
-manifest_hash: d6084845a8e5890b477f7a70da67281d2d37c07985c85d265ef74f98edf6d7ae
+manifest_hash: 8156243758bc0167aceeac9d830c42919708e64ba4e9177924561b10ca2181fe
 target: esp32s3
 version: 3.0.0

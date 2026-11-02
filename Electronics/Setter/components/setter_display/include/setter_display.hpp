@@ -8,7 +8,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 
-class DISPLAY
+class SETTER_DISPLAY
 {
     
 public:

@@ -1,0 +1,15 @@
+menu "Factory Server"
+
+    config FACTORY_SERVER_URL
+        string "Factory base URL (no trailing slash)"
+        default "http://192.168.8.200:8000"
+
+    config FACTORY_SERVER_SCAN_PATH
+        string "Path that receives scans"
+        default "/record_scan"
+
+    config FACTORY_SERVER_TIMEOUT_MS
+        int "HTTP timeout (ms)"
+        default 5000
+
+endmenu

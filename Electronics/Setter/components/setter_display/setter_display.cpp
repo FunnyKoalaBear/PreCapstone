@@ -14,13 +14,13 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-#include "display.hpp"
+#include "setter_display.hpp"
 #include "configuration.hpp"
 #include "font8x8.hpp"
 
 
 namespace {
-    static const char *TAG = "display";
+    static const char *TAG = "setter_display";
 
     constexpr spi_host_device_t TFT_SPI_HOST = SPI2_HOST;
     constexpr int SPI_CLOCK_HZ = 40 * 1000 * 1000;   // was 20MHz; try this first, drop back down if the screen glitches/tears
@@ -84,7 +84,7 @@ namespace {
 }
 
 
-bool DISPLAY::init()
+bool SETTER_DISPLAY::init()
 {
     ESP_LOGI(TAG, "init TFT display");
 
@@ -143,7 +143,7 @@ bool DISPLAY::init()
     return true;
 }
 
-bool DISPLAY::init_touch()
+bool SETTER_DISPLAY::init_touch()
 {
     // Built by hand rather than with ESP_LCD_TOUCH_IO_SPI_XPT2046_CONFIG: that macro
     // doesn't set every field, which this project's -Werror=missing-field-initializers rejects.
@@ -165,7 +165,7 @@ bool DISPLAY::init_touch()
     tp_cfg.y_max = WIDTH;
     tp_cfg.rst_gpio_num = GPIO_NUM_NC;
     tp_cfg.int_gpio_num = GPIO_NUM_NC;   // polled, not interrupt-driven
-    tp_cfg.flags.swap_xy = 1;            // matches DISPLAY's SWAP_XY
+    tp_cfg.flags.swap_xy = 1;            // matches SETTER_DISPLAY's SWAP_XY
     // If a drag moves the wrong way once this is on hardware, flip mirror_x / mirror_y below.
     tp_cfg.flags.mirror_x = 0;
     tp_cfg.flags.mirror_y = 0;
@@ -175,7 +175,7 @@ bool DISPLAY::init_touch()
 }
 
 
-bool DISPLAY::fill_screen(uint16_t color)
+bool SETTER_DISPLAY::fill_screen(uint16_t color)
 {
     std::fill_n(band_, WIDTH * BAND_LINES, swap_bytes(color));
 
@@ -187,7 +187,7 @@ bool DISPLAY::fill_screen(uint16_t color)
     return true;
 }
 
-bool DISPLAY::draw_text_centered(const char *text, int scale, uint16_t fg, uint16_t bg)
+bool SETTER_DISPLAY::draw_text_centered(const char *text, int scale, uint16_t fg, uint16_t bg)
 {
     const int len = static_cast<int>(strlen(text));
     if (len == 0) {
@@ -200,7 +200,7 @@ bool DISPLAY::draw_text_centered(const char *text, int scale, uint16_t fg, uint1
     return draw_text_at(text, (WIDTH - w) / 2, (HEIGHT - h) / 2, scale, fg, bg);
 }
 
-bool DISPLAY::draw_text_at(const char *text, int x, int y, int scale, uint16_t fg, uint16_t bg)
+bool SETTER_DISPLAY::draw_text_at(const char *text, int x, int y, int scale, uint16_t fg, uint16_t bg)
 {
     const int len = static_cast<int>(strlen(text));
     if (len == 0) {
@@ -245,7 +245,7 @@ bool DISPLAY::draw_text_at(const char *text, int x, int y, int scale, uint16_t f
     return true;
 }
 
-bool DISPLAY::poll_touch(int &x, int &y)
+bool SETTER_DISPLAY::poll_touch(int &x, int &y)
 {
     if (!touch_ || esp_lcd_touch_read_data(touch_) != ESP_OK) {
         return false;
@@ -262,7 +262,7 @@ bool DISPLAY::poll_touch(int &x, int &y)
     return true;
 }
 
-bool DISPLAY::run_scrollable_list(const char *const *items, int item_count, int scale)
+bool SETTER_DISPLAY::run_scrollable_list(const char *const *items, int item_count, int scale)
 {
     ESP_RETURN_ON_FALSE(item_count > 0, false, TAG, "item list is empty");
 
@@ -321,7 +321,7 @@ bool DISPLAY::run_scrollable_list(const char *const *items, int item_count, int 
     }
 }
 
-bool DISPLAY::blit(int x, int y, int w, int h)
+bool SETTER_DISPLAY::blit(int x, int y, int w, int h)
 {
     TRY(esp_lcd_panel_draw_bitmap(panel_, x, y, x + w, y + h, band_));
     ESP_RETURN_ON_FALSE(xSemaphoreTake(color_done_, pdMS_TO_TICKS(1000)) == pdTRUE,

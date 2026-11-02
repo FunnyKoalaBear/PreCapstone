@@ -6,7 +6,7 @@ idf_component_register(SRCS "main.cpp"
                     rfid
                     button
                     buzzer
-                    display
+                    scanner_display
                     wifi
                     server_client
                     )
