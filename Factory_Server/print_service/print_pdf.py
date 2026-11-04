@@ -34,10 +34,10 @@ def print_pdf(filename, printer=PRINTER_NAME):
 
 
     #no need to check if printer is busy to queue print manually, but check for status report
-    cmd1 = ["lpstat", "-p", "-d"]
+    cmd1 = ["lpstat", "-p", printer]  # only this printer's line, so other queues can't trip the checks
     result = subprocess.run(cmd1, capture_output=True, text=True)
 
-    if result.returncode != 0 or f"printer {PRINTER_NAME} " not in result.stdout:
+    if result.returncode != 0 or f"printer {printer} " not in result.stdout:
         raise RuntimeError(f"Printer not found: {result.stderr.strip()}")
     
     elif "disabled" in result.stdout:
@@ -51,7 +51,7 @@ def print_pdf(filename, printer=PRINTER_NAME):
 
 
     #building and executing print command
-    cmd2 = ["lp", "-d", PRINTER_NAME, path]
+    cmd2 = ["lp", "-d", printer, path]
     result = subprocess.run(cmd2, capture_output=True, text=True)
 
     if result.returncode != 0 or "request id is" not in result.stdout:
