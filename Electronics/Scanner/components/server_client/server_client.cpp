@@ -24,7 +24,7 @@ bool SERVER_CLIENT::send_scan(const char *uid)
     }
 
     char body[64];
-    snprintf(body, sizeof(body), "{\"uid\":\"%s\"}", uid);
+    snprintf(body, sizeof(body), "{\"tag_uid\":\"%s\"}", uid);
 
     return post_json(CONFIG_FACTORY_SERVER_SCAN_PATH, body);
 
@@ -54,7 +54,7 @@ bool SERVER_CLIENT::post_json(const char *path, const char *body)
     }
 
     //setting header for POST request 
-    esp_http_client_set_header(client, "Content-Type", "application/json");
+    esp_http_client_set_header(client, "X-API-Key", CONFIG_FACTORY_API_KEY);
 
     //setting body for POST request 
     esp_http_client_set_post_field(client, body, strlen(body));
