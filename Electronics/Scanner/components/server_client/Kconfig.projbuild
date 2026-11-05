@@ -2,7 +2,7 @@ menu "Factory Server"
 
     config FACTORY_SERVER_URL
         string "Factory base URL (no trailing slash)"
-        default "http://192.168.8.200:8000"
+        default "http://192.168.8.155:8000"
 
     config FACTORY_SERVER_SCAN_PATH
         string "Path that receives scans"

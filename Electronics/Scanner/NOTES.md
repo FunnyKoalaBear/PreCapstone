@@ -22,15 +22,20 @@ Running log of what's built, how it's wired, and why. Updated as each feature la
 | Touch (XPT2046) CS   | GPIO_NUM_15    | Same SPI bus as TFT, own CS     |
 | Touch (XPT2046) IRQ  | GPIO_NUM_16    | Reserved, not used yet (polled instead) |
 
-Board flash: 16MB physical chip; `sdkconfig` currently declares 2MB (`CONFIG_ESPTOOLPY_FLASHSIZE`) with the default `partitions_singleapp.csv` table (no OTA). Fine for now — revisit when WiFi/UI work needs OTA or asset storage.
+Board flash: 16MB physical chip, `CONFIG_ESPTOOLPY_FLASHSIZE` = 16MB. Partition table is the custom `partitions.csv` (two 3 MB OTA slots, see Features).
 
 ## Features
+
+### OTA-ready partition table + scanner on the mini PC
+`partitions.csv` replaces the single 1 MB app slot (WiFi + HTTP had filled it to 93%): `nvs`, `otadata`, `phy_init`, `ota_0` (3 MB), `ota_1` (3 MB), leaving about 10 MB of flash free. Only the slots exist so far; the OTA download/switch code is not written. The first flash after a layout change must be over USB. The factory server is now the mini PC at `http://192.168.8.155:8000` (**Factory Server** in menuconfig; reserve that address in the Mango's DHCP settings). Confirmed: boot log lists the five partitions, one beep per press, and each POST returns 200 and shows up on the server.
+- Windows gives the board different COM numbers per USB connector (native USB vs CH343 UART socket); pass `-p` explicitly. Setter and Scanner are separate projects, so check `Project name` in the boot log before testing.
+- A lost `sdkconfig` value (empty WiFi SSID) blocks WiFi and makes no beep if `rfid.init()` is stuck. A loose PN532 I2C wire blocks `buzzer.init()` and the button task because `rfid.init()` retries forever.
 
 ### Button to queue to network task
 `button_task` beeps while the steel button is held and queues a `scan_msg_t` on a FreeRTOS queue when it is pressed (`xQueueSend`, no wait). `send_scan_task` blocks on the queue and does the HTTP POST, so a slow request no longer keeps the buzzer on. The network task has an 8 KB stack; `uxTaskGetStackHighWaterMark` showed about 6 KB free in testing. Confirmed: one beep per press and the POST returns 200.
 
 ### Server client (HTTP POST to the factory server)
-`components/server_client` — `send_scan(uid)` POSTs `{"uid": "..."}` to the FastAPI factory server with `esp_http_client`, over the WiFi link. Server URL, path and timeout are set under **Factory Server** in menuconfig (server address `192.168.8.200` is a reserved lease on the GL.iNet Mango). Confirmed end to end: a POST on startup and on a button press arrives as a new row in Postgres. Still sends placeholder text, not real RFID UIDs, and the call now runs in its own network task (see above).
+`components/server_client` — `send_scan(uid)` POSTs `{"uid": "..."}` to the FastAPI factory server with `esp_http_client`, over the WiFi link. Server URL, path and timeout are set under **Factory Server** in menuconfig (was the laptop at `192.168.8.200`; now the mini PC, see above). Confirmed end to end: a POST on startup and on a button press arrives as a new row in Postgres. Still sends placeholder text, not real RFID UIDs, and the call now runs in its own network task (see above).
 
 ### WiFi (station mode)
 `components/wifi` — joins a 2.4 GHz network, reconnects on its own, and exposes `connected()` / `wait_connected()` for the HTTP code to come. SSID and password are set under **Scanner WiFi** in `idf.py menuconfig` and live in the gitignored `sdkconfig`, not in source. Confirmed working: the board shows up in the GL.iNet Mango router's DHCP leases. Not sending any data yet.
