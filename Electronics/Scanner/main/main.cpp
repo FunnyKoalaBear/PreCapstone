@@ -120,7 +120,7 @@ extern "C" void app_main()
     button.init();
     rfid.init();
     buzzer.init();
-    // server.send_scan("hi FROM ESP"); 
+    // server.send_scan("hsi FROM ESP"); 
 
 
     //creating queue
