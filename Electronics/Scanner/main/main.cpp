@@ -22,6 +22,8 @@ struct scan_msg_t {
 struct button_task_args_t {
     BUTTON *button;
     BUZZER *buzzer;
+    RFID *rfid;
+    TaskHandle_t rfid_task;
     QueueHandle_t scan_queue;
 
 };
@@ -29,6 +31,12 @@ struct button_task_args_t {
 struct send_scan_task_args_t {
     SERVER_CLIENT *server; 
 };
+
+struct rfid_task_args_t {
+    BUZZER *buzzer;
+    RFID *rfid;  
+};
+
 
 
 //test push
@@ -42,7 +50,10 @@ static void button_task(void *argument)
         bool pressed = args->button->clicked(); 
 
         if (pressed && !was_pressed) {
-            
+    
+            //notify rfid task 
+            xTaskNotifyGive(args->rfid_task);
+
             args->buzzer->on();
             vTaskDelay(pdMS_TO_TICKS(100));
             args->buzzer->off();
@@ -89,11 +100,35 @@ static void send_scan_task(void *argument) {
 
 static void rfid_task(void *argument)
 {
+    static const char *TAG = "main";
     auto *rfid = static_cast<RFID *>(argument);
+	uint8_t uid[10];
+    uint8_t uid_length = 0; 
+
     while (true) {
-        rfid->scan();
-        vTaskDelay(pdMS_TO_TICKS(100));
+    
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);     // sleeps here until the button gives a notification
+    
+        if (rfid->read_uid(uid, &uid_length)) {
+            
+            ESP_LOGW(TAG, "RFID Task recieved UID");
+            
+            //buzz twice now
+            // args->buzzer->on();
+            // vTaskDelay(pdMS_TO_TICKS(100));
+            // args->buzzer->off();
+            // vTaskDelay(pdMS_TO_TICKS(50));
+            // args->buzzer->on();
+            // vTaskDelay(pdMS_TO_TICKS(100));
+            // args->buzzer->off();
+
+        } else {
+            // no card
+            ESP_LOGE(TAG, "Card not found");
+            return;
+        }
     }
+
     vTaskDelete(NULL);
 }
 
@@ -126,17 +161,21 @@ extern "C" void app_main()
     //creating queue
     static QueueHandle_t scan_queue = xQueueCreate(8, sizeof(scan_msg_t));
 
-    static button_task_args_t button_args{ &button, &buzzer, scan_queue };
-    xTaskCreate(button_task, "Button Click", 2048 , &button_args, 5, nullptr); 
-
 
     //creating task      
-    xTaskCreate(send_scan_task, "POST request", 8192, scan_queue, 4, nullptr);
-    xTaskCreate(rfid_task, "RFID Scan", 4096 , &rfid, 5, nullptr); 
+    static TaskHandle_t rfid_handle = nullptr;
+    static rfid_task_args_t rfid_args{&buzzer, &rfid};
+    xTaskCreate(rfid_task, "RFID Scan", 4096 , &rfid_args, 5, &rfid_handle); 
 
+    
+    static button_task_args_t button_args{&button, &buzzer, &rfid, rfid_handle, scan_queue };
+    xTaskCreate(button_task, "Button Click", 2048 , &button_args, 5, nullptr); 
+
+    xTaskCreate(send_scan_task, "POST request", 8192, scan_queue, 4, nullptr);
 
     // keep app_main alive: the tasks above hold pointers to its local objects
     while (true) {
+        //sleep until the button notifies 
         vTaskDelay(portMAX_DELAY);
     }
 }

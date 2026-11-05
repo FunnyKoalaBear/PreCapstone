@@ -1,5 +1,8 @@
 #include <esp_log.h>
 #include "driver/gpio.h"
+#include <string.h> 
+#include <stdint.h>
+
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -157,3 +160,43 @@ bool RFID::scan()
 
 // 	//Update info to database 
 // }
+
+
+//scan with a time out of 5 seconds 
+bool RFID::read_uid(uint8_t *uid_out, uint8_t *uid_length_out)
+{
+	ESP_LOGI(TAG, "Waiting up to 5 seconds for an ISO14443A Card ...");
+
+	const TickType_t start_time = xTaskGetTickCount();
+	const TickType_t timeout_ticks = pdMS_TO_TICKS(5000);
+
+	while ((xTaskGetTickCount() - start_time) < timeout_ticks) {
+		
+		uint8_t uid[] = {0, 0, 0, 0, 0, 0, 0};
+		uint8_t zero_uid[] = {0, 0, 0, 0, 0, 0, 0};
+
+		uint8_t uid_length = 0;
+		
+		esp_err_t err = pn532_read_passive_target_id(&pn532_io, PN532_BRTY_ISO14443A_106KBPS, uid, &uid_length, 100);
+
+		if (err != ESP_OK) {
+			vTaskDelay(50 / portTICK_PERIOD_MS);
+			continue;
+		}
+
+		//card found 
+		ESP_LOGI(TAG, "Found an ISO14443A card");
+		ESP_LOGI(TAG, "UID Value:");
+		ESP_LOG_BUFFER_HEX_LEVEL(TAG, uid, uid_length, ESP_LOG_INFO);
+		
+		//save uid and return 
+		memcpy(uid_out, uid, uid_length);
+		*uid_length_out = uid_length;
+		return true;
+
+	}
+
+	ESP_LOGW(TAG, "Timed out waiting for RFID card after 5 seconds");
+	return false;
+}
+
