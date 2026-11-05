@@ -36,6 +36,10 @@ DEBUG = os.environ.get('DEBUG', 'False').lower() in ('1', 'true', 'yes')
 
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '127.0.0.1,localhost').split(',')
 
+# Trust Caddy's HTTPS header so forms posted via Tailscale pass the CSRF origin check
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+CSRF_TRUSTED_ORIGINS = [o for o in os.environ.get('CSRF_TRUSTED_ORIGINS', '').split(',') if o]
+
 # Hours a box may sit idle before it is flagged stagnant
 STAGNATION_DEFAULT_HOURS = int(os.environ.get('STAGNATION_DEFAULT_HOURS', '24'))
 
