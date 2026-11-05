@@ -30,6 +30,7 @@
 - [ ] Set `PRINTER_NAME=Brother_HL_L2460DW_direct` in `Factory_Server/.env`
 - [ ] Commit the `print_pdf.py` fix (status check reads only its own printer, uses the `printer` argument)
 - [ ] Later: fetch the PDF from S3, then print
+- [ ] Move printing into Django: a view imports `print_pdf()` and calls it (agree with the friend first, `Web_Application` is theirs)
 - [x] Direct IPP queue `Brother_HL_L2460DW_direct` on the factory server (the cups-browsed auto queue is unreliable)
 - [x] `print_pdf.py` prints from the factory server
 
