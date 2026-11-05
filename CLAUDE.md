@@ -13,6 +13,7 @@ The developer is learning: explain concepts briefly, show the "why".
 ## Working rules
 - Explain fixes and ask before editing the developer's existing code. Creating files they explicitly ask for is fine.
 - Never commit or push unless asked. Never read, print or commit `.env`.
+- Work directly in `~/PreCapstone` on `main`: no side branches or worktrees. After each change, list the files touched and say whether they are committed and pushed.
 - When a Scanner feature is finished and confirmed working, add a short entry to `Electronics/Scanner/NOTES.md`. Keep docs light.
 - Keep code comments to one short line.
 
