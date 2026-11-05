@@ -33,5 +33,6 @@
     "--compile-commands-dir=c:\\Users\\sbmit\\OneDrive\\Codine\\PreCapstone\\Electronics\\Scanner\\build"
   ],
   "idf.flashType": "UART",
-  "idf.port": "COM5"
+  "idf.port": "COM5",
+  "idf.monitorPort": "COM8"
 }
