@@ -7,6 +7,14 @@ Running log of what's built, how it's wired, and why. Updated as each feature la
 | Signal              | GPIO           | Notes                          |
 |---------------------|----------------|---------------------------------|
 | Steel button         | GPIO_NUM_4     | Active-low, internal pull-up   |
+| Panel button 1       | GPIO_NUM_1     | Scanner + Setter, active-low, internal pull-up |
+| Panel button 2       | GPIO_NUM_2     | Scanner + Setter                |
+| Panel button 3       | GPIO_NUM_42    | Scanner + Setter                |
+| Panel button 4       | GPIO_NUM_41    | Setter only                     |
+| Panel button 5       | GPIO_NUM_40    | Setter only                     |
+| Panel button 6       | GPIO_NUM_39    | Setter only                     |
+| Panel button 7       | GPIO_NUM_47    | Setter only                     |
+| Panel button 8       | GPIO_NUM_21    | Setter only                     |
 | RFID (PN532) SCL     | GPIO_NUM_10    | I2C                             |
 | RFID (PN532) SDA     | GPIO_NUM_11    | I2C                             |
 | RFID (PN532) RESET   | GPIO_NUM_NC    | Not connected                   |
@@ -25,6 +33,9 @@ Running log of what's built, how it's wired, and why. Updated as each feature la
 Board flash: 16MB physical chip; `sdkconfig` currently declares 2MB (`CONFIG_ESPTOOLPY_FLASHSIZE`) with the default `partitions_singleapp.csv` table (no OTA). Fine for now — revisit when WiFi/UI work needs OTA or asset storage.
 
 ## Features
+
+### Button panel (3 buttons on Scanner, 8 on Setter)
+`components/button_panel` — reads the pins in `config::PANEL_BUTTON_PINS` (Scanner: 1, 2, 42; Setter: 1, 2, 42, 41, 40, 39, 47, 21; see the pin table). Each button (MX-style keyboard switch, no polarity) is wired GPIO -> switch -> shared GND rail, with the internal pull-up, so pressed reads 0. `pressed()` is polled every 50 ms and returns each new press once; a button reading pressed at boot logs a wiring warning. The pins sit together on the DevKitC-1's right header and avoid strapping pins (0, 3, 45, 46), native USB (19, 20), UART console (43, 44) and the RGB LED (38/48). `main.cpp` prints `Button N pressed` as a test. Confirmed on Setter firmware: buttons 1–4 print correctly; 5–8 not wired yet.
 
 ### Button to queue to network task
 `button_task` beeps while the steel button is held and queues a `scan_msg_t` on a FreeRTOS queue when it is pressed (`xQueueSend`, no wait). `send_scan_task` blocks on the queue and does the HTTP POST, so a slow request no longer keeps the buzzer on. The network task has an 8 KB stack; `uxTaskGetStackHighWaterMark` showed about 6 KB free in testing. Confirmed: one beep per press and the POST returns 200.

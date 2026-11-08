@@ -9,4 +9,5 @@ idf_component_register(SRCS "main.cpp"
                     scanner_display
                     wifi
                     server_client
+                    button_panel
                     )

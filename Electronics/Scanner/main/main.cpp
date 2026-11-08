@@ -13,6 +13,7 @@
 #include "scanner_display.hpp"
 #include "wifi.hpp"
 #include "server_client.hpp"
+#include "button_panel.hpp"
 
 
 struct scan_msg_t {
@@ -133,6 +134,23 @@ static void rfid_task(void *argument)
 }
 
 
+// test: prints the number of each panel button when it is pressed
+static void panel_task(void *argument)
+{
+    auto *panel = static_cast<BUTTON_PANEL *>(argument);
+
+    while (true) {
+        int number = panel->pressed();
+        if (number != 0) {
+            ESP_LOGI("main", "Button %d pressed", number);
+        }
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+
+    vTaskDelete(NULL);
+}
+
+
 extern "C" void app_main()
 {
 
@@ -148,6 +166,12 @@ extern "C" void app_main()
     //display first: rfid.init() retries forever if the PN532 isn't connected
     if (display.init()) {
         display.draw_text_centered("hello", 4, SCANNER_DISPLAY::BLACK, SCANNER_DISPLAY::WHITE);
+    }
+
+    // static so the task's pointer stays valid
+    static BUTTON_PANEL panel;
+    if (panel.init()) {
+        xTaskCreate(panel_task, "Button Panel", 3072, &panel, 5, nullptr);
     }
 
     //initializing classes

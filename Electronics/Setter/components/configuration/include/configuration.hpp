@@ -17,6 +17,13 @@ namespace config {
     // Buzzer
     constexpr gpio_num_t BUZZER_PIN = GPIO_NUM_5;
 
+    // Button panel: 8 buttons, each GPIO -> button -> GND (internal pull-up, active-low)
+    constexpr gpio_num_t PANEL_BUTTON_PINS[] = {
+        GPIO_NUM_1, GPIO_NUM_2, GPIO_NUM_42, GPIO_NUM_41,
+        GPIO_NUM_40, GPIO_NUM_39, GPIO_NUM_47, GPIO_NUM_21,
+    };
+    constexpr int PANEL_BUTTON_COUNT = sizeof(PANEL_BUTTON_PINS) / sizeof(PANEL_BUTTON_PINS[0]);
+
     // TFT display (ST7796S over SPI). The touch controller's T_CLK / T_DIN / T_DO
     // share the SCK / MOSI / MISO wires below.
     constexpr gpio_num_t TFT_CS_PIN        = GPIO_NUM_6;
