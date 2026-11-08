@@ -101,7 +101,7 @@ static void send_scan_task(void *argument) {
 static void rfid_task(void *argument)
 {
     static const char *TAG = "main";
-    auto *rfid = static_cast<RFID *>(argument);
+    auto *args = static_cast<rfid_task_args_t *>(argument);
 	uint8_t uid[10];
     uint8_t uid_length = 0; 
 
@@ -109,18 +109,18 @@ static void rfid_task(void *argument)
     
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);     // sleeps here until the button gives a notification
     
-        if (rfid->read_uid(uid, &uid_length)) {
+        if (args->rfid->read_uid(uid, &uid_length)) {
             
             ESP_LOGW(TAG, "RFID Task recieved UID");
             
             //buzz twice now
-            // args->buzzer->on();
-            // vTaskDelay(pdMS_TO_TICKS(100));
-            // args->buzzer->off();
-            // vTaskDelay(pdMS_TO_TICKS(50));
-            // args->buzzer->on();
-            // vTaskDelay(pdMS_TO_TICKS(100));
-            // args->buzzer->off();
+            args->buzzer->on();
+            vTaskDelay(pdMS_TO_TICKS(100));
+            args->buzzer->off();
+            vTaskDelay(pdMS_TO_TICKS(100));
+            args->buzzer->on();
+            vTaskDelay(pdMS_TO_TICKS(100));
+            args->buzzer->off();
 
         } else {
             // no card
