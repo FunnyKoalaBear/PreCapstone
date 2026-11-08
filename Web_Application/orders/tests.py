@@ -1134,7 +1134,7 @@ class OrderSheetAccessTests(TestCase):
         self.assertRedirects(self.client.get(url), f'/login/?next={url}', fetch_redirect_response=False)
         self.client.force_login(make_user('op', 'Operator'))
         self.assertEqual(self.client.get(url).status_code, 200)
-        self.assertContains(self.client.get(f'/orders/{order.job_number}/'), 'Print sheet')
+        self.assertContains(self.client.get(f'/orders/{order.job_number}/'), 'Preview all sheets')
 
 
 class SheetBase(TestCase):
@@ -1289,6 +1289,65 @@ class PrintItemTests(SheetBase):
             printing.print_pdf(str(f))
         with override_settings(PRINT_DRY_RUN=True):
             self.assertEqual(printing.print_pdf(str(f)), 'dry-run')
+
+
+class ItemPrintViewTests(SheetBase):
+    def setUp(self):
+        super().setUp()
+        self.item_ = self.items[0]
+        self.url = f'/items/{self.item_.pk}/print/'
+        self.page = f'/orders/{self.order.job_number}/'
+        self.client.force_login(make_user('op', 'Operator'))
+
+    def post(self, **kw):
+        with mock.patch('orders.views.print_item', **kw) as m:
+            return self.client.post(self.url, follow=True), m
+
+    def test_print_redirects_to_the_item_card_with_a_success_message(self):
+        r, m = self.post(return_value='job-9')
+        m.assert_called_once_with(self.item_)
+        self.assertRedirects(r, f'{self.page}#item-{self.item_.pk}', fetch_redirect_response=False)
+        self.assertContains(r, 'sent to the printer')
+        self.assertContains(r, 'job-9')
+
+    def test_get_is_405_and_prints_nothing(self):
+        with mock.patch('orders.views.print_item') as m:
+            self.assertEqual(self.client.get(self.url).status_code, 405)
+        m.assert_not_called()
+
+    def test_anonymous_and_non_operator(self):
+        self.client.logout()
+        self.assertEqual(self.client.post(self.url).status_code, 302)
+        self.client.force_login(make_user('nobody'))
+        with mock.patch('orders.views.print_item') as m:
+            self.assertEqual(self.client.post(self.url).status_code, 403)
+        m.assert_not_called()
+
+    def test_printer_errors_become_messages_not_500s(self):
+        for exc in (RuntimeError('Printer is paused'), FileNotFoundError('gone')):
+            with self.assertLogs('orders.views', 'ERROR'):
+                r, _m = self.post(side_effect=exc)
+            self.assertEqual(r.status_code, 200)
+            self.assertContains(r, str(exc))
+            self.assertContains(r, self.item_.item_code)
+
+    def test_unknown_item_is_404(self):
+        self.assertEqual(self.client.post('/items/9999/print/').status_code, 404)
+        self.assertEqual(self.client.get('/items/9999/sheet/').status_code, 404)
+
+    def test_item_sheet_is_an_inline_pdf(self):
+        r = self.client.get(f'/items/{self.item_.pk}/sheet/')
+        self.assertEqual((r.status_code, r['Content-Type']), (200, 'application/pdf'))
+        self.assertTrue(r.content.startswith(b'%PDF'))
+        self.client.logout()
+        self.assertEqual(self.client.get(f'/items/{self.item_.pk}/sheet/').status_code, 302)
+
+    def test_order_page_has_one_print_form_per_item_and_the_preview_link(self):
+        html = self.client.get(self.page).content.decode()
+        self.assertEqual(html.count('action="/items/'), 2)
+        self.assertIn('Preview all sheets', html)
+        self.client.force_login(make_user('nobody'))  # no role: the page itself is closed
+        self.assertEqual(self.client.get(self.page).status_code, 403)
 
 
 class CustomerTests(TestCase):

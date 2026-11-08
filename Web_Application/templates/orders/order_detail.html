@@ -7,7 +7,7 @@
   <p><a href="{% url 'order_list' %}">&larr; {% trans "Back to Orders" %}</a></p>
   <h1>{{ order.job_number }} <span class="badge badge-{{ code|lower }}">{{ label }}</span>
     {% if can.planner %}<a class="button-secondary" href="{% url 'order_edit' order.job_number %}">{% trans "Edit" %}</a>{% endif %}
-    {% if can.operator %}<a class="button-secondary" href="{% url 'order_sheet' order.job_number %}" target="_blank" rel="noopener">{% trans "Print sheet" %}</a>{% endif %}
+    {% if can.operator %}<a class="button-secondary" href="{% url 'order_sheet' order.job_number %}" target="_blank" rel="noopener">{% trans "Preview all sheets" %}</a>{% endif %}
     {% if can.planner %}<a class="button-secondary" href="{% url 'order_events_export' order.job_number %}">{% trans "Export events (CSV)" %}</a>{% endif %}</h1>
 
   <dl class="info">
@@ -24,10 +24,14 @@
   </dl>
 
   {% for entry in items %}
-    <div class="card card-wide">
+    <div class="card card-wide" id="item-{{ entry.item.pk }}">
       <h2>
         {{ entry.item.item_code }} - {{ entry.item.part_name }} &times; {{ entry.item.quantity }}{% if entry.item.material %} <small>{{ entry.item.material }}</small>{% endif %}
         <span class="badge badge-{{ entry.status.code|lower }}">{{ entry.status.label }}</span>
+        {% if can.operator %}
+          <form method="post" action="{% url 'item_print' entry.item.pk %}" style="display:inline">{% csrf_token %}<button type="submit" class="button-secondary">{% trans "Print sheet" %}</button></form>
+          <a class="button-secondary" href="{% url 'item_sheet' entry.item.pk %}" target="_blank" rel="noopener">{% trans "Open sheet (PDF)" %}</a>
+        {% endif %}
       </h2>
 
       {% if entry.item.part_number or entry.item.drawing_number or entry.item.revision %}

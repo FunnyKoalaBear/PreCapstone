@@ -1635,6 +1635,24 @@ msgstr "受注一覧に戻る"
 msgid "Print sheet"
 msgstr "指示書を印刷"
 
+#: .\templates\orders\order_detail.html:10
+msgid "Preview all sheets"
+msgstr "全指示書をプレビュー"
+
+#: .\templates\orders\order_detail.html:33
+msgid "Open sheet (PDF)"
+msgstr "指示書を開く（PDF）"
+
+#: .\orders\views.py
+#, python-format
+msgid "Sheet of %(code)s sent to the printer (job %(job)s)."
+msgstr "%(code)s の指示書をプリンターに送信しました（ジョブ %(job)s）。"
+
+#: .\orders\views.py
+#, python-format
+msgid "Could not print the sheet of %(code)s: %(error)s"
+msgstr "%(code)s の指示書を印刷できませんでした: %(error)s"
+
 #: .\templates\orders\order_detail.html:11
 msgid "Export events (CSV)"
 msgstr "履歴をCSV出力"

@@ -1,3 +1,5 @@
+import logging
+
 from django.contrib import messages
 from django.contrib.auth.views import redirect_to_login
 from django.core.exceptions import PermissionDenied
@@ -10,6 +12,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import gettext as _
 from django.utils.translation import gettext_lazy
+from django.views.decorators.http import require_POST
 from urllib.parse import urlencode
 
 from core.permissions import OPERATOR, PLANNER, has_role, role_required
@@ -21,10 +24,13 @@ from tracking.status import (
 )
 
 from . import export, importer, pdf
+from .printing import print_item
 from .forms import CustomerForm, ImportForm, OrderForm, OrderItemFormSet, VendorForm
 from .models import Customer, Order, OrderChange, OrderItem, Vendor
 from .process_tab import _tab_processes
 from .runs import previous_runs
+
+logger = logging.getLogger(__name__)
 
 SORTS = {
     'due': ('due_date', 'job_number'),
@@ -381,3 +387,24 @@ def order_sheet(request, job_number):
     response = HttpResponse(pdf.order_pdf(order), content_type='application/pdf')
     response['Content-Disposition'] = f'inline; filename="{order.job_number}.pdf"'
     return response
+
+
+@role_required(OPERATOR)
+def item_sheet(request, pk):
+    item = get_object_or_404(OrderItem, pk=pk)
+    response = HttpResponse(pdf.item_pdf(item), content_type='application/pdf')
+    response['Content-Disposition'] = f'inline; filename="{item.item_code}.pdf"'
+    return response
+
+
+@role_required(OPERATOR)
+@require_POST
+def item_print(request, pk):
+    item = get_object_or_404(OrderItem.objects.select_related('order'), pk=pk)
+    try:
+        job = print_item(item)
+        messages.success(request, _('Sheet of %(code)s sent to the printer (job %(job)s).') % {'code': item.item_code, 'job': job})
+    except (RuntimeError, FileNotFoundError) as e:
+        logger.exception('Printing %s failed', item.item_code)
+        messages.error(request, _('Could not print the sheet of %(code)s: %(error)s') % {'code': item.item_code, 'error': e})
+    return redirect(reverse('order_detail', args=[item.order.job_number]) + f'#item-{item.pk}')
