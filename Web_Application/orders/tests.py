@@ -2,6 +2,7 @@ import csv
 import importlib
 import io
 import tempfile
+from pathlib import Path
 from datetime import date, datetime, timedelta
 
 from django.apps import apps
@@ -12,6 +13,7 @@ from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
+from unittest import mock
 from pypdf import PdfReader
 from PIL import Image
 from reportlab.pdfgen import canvas
@@ -24,7 +26,8 @@ from tracking.models import ScannerDevice, Tag, TagAssignment
 from tracking.services import cancel_item, correct_event, record_event
 from tracking.status import item_status, step_due_back, timeline
 
-from . import export, importer
+from . import export, importer, printing
+from .pdf import item_pdf, order_pdf
 from .forms import OrderItemForm, OrderItemFormSet
 from .models import Customer, Order, OrderChange, OrderItem, Process, RouteStep, Vendor
 
@@ -1131,10 +1134,10 @@ class OrderSheetAccessTests(TestCase):
         self.assertRedirects(self.client.get(url), f'/login/?next={url}', fetch_redirect_response=False)
         self.client.force_login(make_user('op', 'Operator'))
         self.assertEqual(self.client.get(url).status_code, 200)
-        self.assertContains(self.client.get(f'/orders/{order.job_number}/'), 'Print sheet')
+        self.assertContains(self.client.get(f'/orders/{order.job_number}/'), 'Preview all sheets')
 
 
-class OrderSheetTests(TestCase):
+class SheetBase(TestCase):
     def setUp(self):
         self.client.force_login(make_user('pl', 'Planner'))
         self.vendor = Vendor.objects.create(code='00131', name='Demo Plating', name_ja='デモメッキ', kind=Vendor.Kind.VENDOR)
@@ -1160,6 +1163,8 @@ class OrderSheetTests(TestCase):
         self.assertEqual((r.status_code, r['Content-Type']), (200, 'application/pdf'))
         return PdfReader(io.BytesIO(r.content))
 
+
+class OrderSheetTests(SheetBase):
     def test_operator_can_print_but_anonymous_cannot(self):
         self.client.force_login(make_user('op', 'Operator'))
         self.assertEqual(self.client.get(self.url).status_code, 200)
@@ -1204,6 +1209,145 @@ class OrderSheetTests(TestCase):
         reader = self.pdf()
         self.assertEqual(len(reader.pages), 2 + 1)
         self.assertIn('The drawing could not be read.', reader.pages[1].extract_text())
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class ItemPdfTests(SheetBase):
+    def reader(self, item):
+        return PdfReader(io.BytesIO(item_pdf(item)))
+
+    def test_item_without_drawing_is_its_sheet_only(self):
+        r = self.reader(self.items[0])
+        self.assertEqual(len(r.pages), 1)
+        self.assertIn(self.items[0].item_code, r.pages[0].extract_text())
+
+    def test_pdf_drawing_lands_on_the_back(self):
+        self.attach(self.items[0], 'a.pdf', make_pdf(1))
+        r = self.reader(self.items[0])
+        self.assertEqual(len(r.pages), 2)
+        self.assertIn('DRAWING-PAGE-0', r.pages[1].extract_text())
+
+    def test_two_page_sheet_gets_a_blank_before_the_drawing(self):
+        self.attach(self.items[0], 'a.pdf', make_pdf(1))
+        with mock.patch('orders.pdf._sheet', return_value=make_pdf(2)):
+            r = self.reader(self.items[0])
+        self.assertEqual(len(r.pages), 4)
+        self.assertEqual(r.pages[2].extract_text().strip(), '')
+        self.assertIn('DRAWING-PAGE-0', r.pages[3].extract_text())
+
+    def test_page_count_is_even_with_a_drawing(self):
+        self.attach(self.items[0], 'a.pdf', make_pdf(2))
+        self.assertEqual(len(self.reader(self.items[0]).pages), 4)
+
+    def test_png_and_unreadable_drawings(self):
+        self.attach(self.items[0], 'b.png', make_png())
+        self.assertEqual(len(self.reader(self.items[0]).pages), 2)
+        self.attach(self.items[1], 'bad.pdf', b'not a pdf')
+        self.assertIn('The drawing could not be read.', self.reader(self.items[1]).pages[1].extract_text())
+
+    def test_order_pdf_is_the_sum_of_its_items(self):
+        self.attach(self.items[0], 'a.pdf', make_pdf(2))
+        total = len(self.reader(self.items[0]).pages) + len(self.reader(self.items[1]).pages)
+        self.assertEqual(len(PdfReader(io.BytesIO(order_pdf(self.order))).pages), total)
+
+
+class PrintItemTests(SheetBase):
+    def setUp(self):
+        super().setUp()
+        self.dir = Path(tempfile.mkdtemp()) / 'print'  # does not exist yet
+        self.item_ = self.items[0]
+
+    def run_print(self, **kw):
+        with override_settings(PRINT_DIR=self.dir), mock.patch('orders.printing.print_pdf', **kw) as m:
+            return printing.print_item(self.item_), m
+
+    def test_saves_the_sheet_prints_it_and_returns_the_job_id(self):
+        job, m = self.run_print(return_value='job-7')
+        path = self.dir / f'{self.item_.item_code}.pdf'
+        self.assertEqual(job, 'job-7')
+        m.assert_called_once_with(str(path))
+        self.assertTrue(path.read_bytes().startswith(b'%PDF'))
+
+    def test_second_call_overwrites_and_leaves_no_temp_file(self):
+        self.run_print(return_value='a')
+        path = self.dir / f'{self.item_.item_code}.pdf'
+        path.write_bytes(b'old')
+        self.run_print(return_value='b')
+        self.assertTrue(path.read_bytes().startswith(b'%PDF'))
+        self.assertEqual(len(list(self.dir.iterdir())), 1)
+
+    def test_printer_error_propagates(self):
+        with self.assertRaisesMessage(RuntimeError, 'paused'):
+            self.run_print(side_effect=RuntimeError('paused'))
+
+    def test_placeholder(self):
+        f = self.dir.parent / 'x.pdf'
+        with self.assertRaises(FileNotFoundError):
+            printing.print_pdf(str(f))
+        f.write_bytes(b'%PDF')
+        with override_settings(PRINT_DRY_RUN=False), self.assertRaises(RuntimeError):
+            printing.print_pdf(str(f))
+        with override_settings(PRINT_DRY_RUN=True):
+            self.assertEqual(printing.print_pdf(str(f)), 'dry-run')
+
+
+class ItemPrintViewTests(SheetBase):
+    def setUp(self):
+        super().setUp()
+        self.item_ = self.items[0]
+        self.url = f'/items/{self.item_.pk}/print/'
+        self.page = f'/orders/{self.order.job_number}/'
+        self.client.force_login(make_user('op', 'Operator'))
+
+    def post(self, **kw):
+        with mock.patch('orders.views.print_item', **kw) as m:
+            return self.client.post(self.url, follow=True), m
+
+    def test_print_redirects_to_the_item_card_with_a_success_message(self):
+        r, m = self.post(return_value='job-9')
+        m.assert_called_once_with(self.item_)
+        self.assertRedirects(r, f'{self.page}#item-{self.item_.pk}', fetch_redirect_response=False)
+        self.assertContains(r, 'sent to the printer')
+        self.assertContains(r, 'job-9')
+
+    def test_get_is_405_and_prints_nothing(self):
+        with mock.patch('orders.views.print_item') as m:
+            self.assertEqual(self.client.get(self.url).status_code, 405)
+        m.assert_not_called()
+
+    def test_anonymous_and_non_operator(self):
+        self.client.logout()
+        self.assertEqual(self.client.post(self.url).status_code, 302)
+        self.client.force_login(make_user('nobody'))
+        with mock.patch('orders.views.print_item') as m:
+            self.assertEqual(self.client.post(self.url).status_code, 403)
+        m.assert_not_called()
+
+    def test_printer_errors_become_messages_not_500s(self):
+        for exc in (RuntimeError('Printer is paused'), FileNotFoundError('gone')):
+            with self.assertLogs('orders.views', 'ERROR'):
+                r, _m = self.post(side_effect=exc)
+            self.assertEqual(r.status_code, 200)
+            self.assertContains(r, str(exc))
+            self.assertContains(r, self.item_.item_code)
+
+    def test_unknown_item_is_404(self):
+        self.assertEqual(self.client.post('/items/9999/print/').status_code, 404)
+        self.assertEqual(self.client.get('/items/9999/sheet/').status_code, 404)
+
+    def test_item_sheet_is_an_inline_pdf(self):
+        r = self.client.get(f'/items/{self.item_.pk}/sheet/')
+        self.assertEqual((r.status_code, r['Content-Type']), (200, 'application/pdf'))
+        self.assertTrue(r.content.startswith(b'%PDF'))
+        self.client.logout()
+        self.assertEqual(self.client.get(f'/items/{self.item_.pk}/sheet/').status_code, 302)
+
+    def test_order_page_has_one_print_form_per_item_and_the_preview_link(self):
+        html = self.client.get(self.page).content.decode()
+        self.assertEqual(html.count('action="/items/'), 2)
+        self.assertIn('Preview all sheets', html)
+        self.client.force_login(make_user('nobody'))  # no role: the page itself is closed
+        self.assertEqual(self.client.get(self.page).status_code, 403)
 
 
 class CustomerTests(TestCase):

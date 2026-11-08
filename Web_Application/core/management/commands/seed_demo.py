@@ -17,7 +17,7 @@ from tracking.services import record_event
 from tracking.status import DONE, item_statuses
 
 from ._demo_bulk import seed_bulk
-from ._demo_photos import DEMO_DIR
+from ._demo_photos import DEMO_DIR, demo_drawing
 
 DATA_DIR = settings.BASE_DIR / 'docs' / 'demo-data'
 # default vendor code per process name, and lead days per vendor code (the CSV files carry neither)
@@ -165,7 +165,9 @@ class Command(BaseCommand):
 
         full = ['Milling', 'Lathe', 'Assembly', 'Inspection']
         # 1 Healthy: material arrived, two steps done with a 4h wait, third running
-        make('Healthy', c1, 'ブラケット', ['Material'] + full, 10, '0781DD5E', 'TY-2610-014', ids=('BRK-100', 'DWG-1001', 'A'))
+        healthy = make('Healthy', c1, 'ブラケット', ['Material'] + full, 10, '0781DD5E', 'TY-2610-014', ids=('BRK-100', 'DWG-1001', 'A'))
+        healthy.drawing_file.name = demo_drawing('1001')  # the other demo items have no drawing
+        healthy.save(update_fields=['drawing_file'])
         scan('0781DD5E', 'Material', 'ARRIVED', ago(hours=34))
         for name, s, f in (('Milling', 30, 26), ('Lathe', 22, 18)):
             scan('0781DD5E', name, 'STARTED', ago(hours=s))

@@ -15,6 +15,8 @@ urlpatterns = [
     path('orders/<str:job_number>/events.csv', views.order_events_export, name='order_events_export'),
     path('orders/<str:job_number>/edit/', views.order_edit, name='order_edit'),
     path('items/<int:pk>/drawing/', views.item_drawing, name='item_drawing'),
+    path('items/<int:pk>/print/', views.item_print, name='item_print'),
+    path('items/<int:pk>/sheet/', views.item_sheet, name='item_sheet'),
     path('orders/<str:job_number>/sheet/', views.order_sheet, name='order_sheet'),
     path('orders/<str:job_number>/', views.order_detail, name='order_detail'),
 ]

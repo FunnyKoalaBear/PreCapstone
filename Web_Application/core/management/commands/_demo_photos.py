@@ -22,3 +22,17 @@ def demo_photo(n, label):
     name = f'{DEMO_DIR}/demo-{n:02d}.jpg'
     img.save(settings.MEDIA_ROOT / name, 'JPEG', quality=85)
     return name
+
+
+def demo_drawing(label):
+    """Write a one-page demo drawing PDF and return its name under MEDIA_ROOT."""
+    from reportlab.pdfgen import canvas
+    folder = settings.MEDIA_ROOT / DEMO_DIR
+    folder.mkdir(parents=True, exist_ok=True)
+    name = f'{DEMO_DIR}/drawing-{label}.pdf'
+    c = canvas.Canvas(str(settings.MEDIA_ROOT / name), invariant=True)
+    c.rect(100, 300, 300, 200)
+    c.circle(250, 400, 40)
+    c.drawString(100, 520, f'DEMO DRAWING {label}')
+    c.save()
+    return name

@@ -10,3 +10,4 @@ body.json
 .env.db
 .env.db.pi
 .env.db.local
+print/
