@@ -174,4 +174,6 @@ MAILERS = {
 }
 
 # Seconds a repeat UID-only scan of the same tag is ignored (0 = off)
+PRINT_DIR = Path(os.environ.get('PRINT_DIR', BASE_DIR / 'print'))
+PRINT_DRY_RUN = os.environ.get('PRINT_DRY_RUN', 'False').lower() in ('1', 'true', 'yes')
 SCAN_REPEAT_SECONDS = int(os.environ.get('SCAN_REPEAT_SECONDS', '5'))

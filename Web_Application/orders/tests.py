@@ -2,6 +2,7 @@ import csv
 import importlib
 import io
 import tempfile
+from pathlib import Path
 from datetime import date, datetime, timedelta
 
 from django.apps import apps
@@ -12,6 +13,7 @@ from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
+from unittest import mock
 from pypdf import PdfReader
 from PIL import Image
 from reportlab.pdfgen import canvas
@@ -24,7 +26,8 @@ from tracking.models import ScannerDevice, Tag, TagAssignment
 from tracking.services import cancel_item, correct_event, record_event
 from tracking.status import item_status, step_due_back, timeline
 
-from . import export, importer
+from . import export, importer, printing
+from .pdf import item_pdf, order_pdf
 from .forms import OrderItemForm, OrderItemFormSet
 from .models import Customer, Order, OrderChange, OrderItem, Process, RouteStep, Vendor
 
@@ -1134,7 +1137,7 @@ class OrderSheetAccessTests(TestCase):
         self.assertContains(self.client.get(f'/orders/{order.job_number}/'), 'Print sheet')
 
 
-class OrderSheetTests(TestCase):
+class SheetBase(TestCase):
     def setUp(self):
         self.client.force_login(make_user('pl', 'Planner'))
         self.vendor = Vendor.objects.create(code='00131', name='Demo Plating', name_ja='デモメッキ', kind=Vendor.Kind.VENDOR)
@@ -1160,6 +1163,8 @@ class OrderSheetTests(TestCase):
         self.assertEqual((r.status_code, r['Content-Type']), (200, 'application/pdf'))
         return PdfReader(io.BytesIO(r.content))
 
+
+class OrderSheetTests(SheetBase):
     def test_operator_can_print_but_anonymous_cannot(self):
         self.client.force_login(make_user('op', 'Operator'))
         self.assertEqual(self.client.get(self.url).status_code, 200)
@@ -1204,6 +1209,86 @@ class OrderSheetTests(TestCase):
         reader = self.pdf()
         self.assertEqual(len(reader.pages), 2 + 1)
         self.assertIn('The drawing could not be read.', reader.pages[1].extract_text())
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class ItemPdfTests(SheetBase):
+    def reader(self, item):
+        return PdfReader(io.BytesIO(item_pdf(item)))
+
+    def test_item_without_drawing_is_its_sheet_only(self):
+        r = self.reader(self.items[0])
+        self.assertEqual(len(r.pages), 1)
+        self.assertIn(self.items[0].item_code, r.pages[0].extract_text())
+
+    def test_pdf_drawing_lands_on_the_back(self):
+        self.attach(self.items[0], 'a.pdf', make_pdf(1))
+        r = self.reader(self.items[0])
+        self.assertEqual(len(r.pages), 2)
+        self.assertIn('DRAWING-PAGE-0', r.pages[1].extract_text())
+
+    def test_two_page_sheet_gets_a_blank_before_the_drawing(self):
+        self.attach(self.items[0], 'a.pdf', make_pdf(1))
+        with mock.patch('orders.pdf._sheet', return_value=make_pdf(2)):
+            r = self.reader(self.items[0])
+        self.assertEqual(len(r.pages), 4)
+        self.assertEqual(r.pages[2].extract_text().strip(), '')
+        self.assertIn('DRAWING-PAGE-0', r.pages[3].extract_text())
+
+    def test_page_count_is_even_with_a_drawing(self):
+        self.attach(self.items[0], 'a.pdf', make_pdf(2))
+        self.assertEqual(len(self.reader(self.items[0]).pages), 4)
+
+    def test_png_and_unreadable_drawings(self):
+        self.attach(self.items[0], 'b.png', make_png())
+        self.assertEqual(len(self.reader(self.items[0]).pages), 2)
+        self.attach(self.items[1], 'bad.pdf', b'not a pdf')
+        self.assertIn('The drawing could not be read.', self.reader(self.items[1]).pages[1].extract_text())
+
+    def test_order_pdf_is_the_sum_of_its_items(self):
+        self.attach(self.items[0], 'a.pdf', make_pdf(2))
+        total = len(self.reader(self.items[0]).pages) + len(self.reader(self.items[1]).pages)
+        self.assertEqual(len(PdfReader(io.BytesIO(order_pdf(self.order))).pages), total)
+
+
+class PrintItemTests(SheetBase):
+    def setUp(self):
+        super().setUp()
+        self.dir = Path(tempfile.mkdtemp()) / 'print'  # does not exist yet
+        self.item_ = self.items[0]
+
+    def run_print(self, **kw):
+        with override_settings(PRINT_DIR=self.dir), mock.patch('orders.printing.print_pdf', **kw) as m:
+            return printing.print_item(self.item_), m
+
+    def test_saves_the_sheet_prints_it_and_returns_the_job_id(self):
+        job, m = self.run_print(return_value='job-7')
+        path = self.dir / f'{self.item_.item_code}.pdf'
+        self.assertEqual(job, 'job-7')
+        m.assert_called_once_with(str(path))
+        self.assertTrue(path.read_bytes().startswith(b'%PDF'))
+
+    def test_second_call_overwrites_and_leaves_no_temp_file(self):
+        self.run_print(return_value='a')
+        path = self.dir / f'{self.item_.item_code}.pdf'
+        path.write_bytes(b'old')
+        self.run_print(return_value='b')
+        self.assertTrue(path.read_bytes().startswith(b'%PDF'))
+        self.assertEqual(len(list(self.dir.iterdir())), 1)
+
+    def test_printer_error_propagates(self):
+        with self.assertRaisesMessage(RuntimeError, 'paused'):
+            self.run_print(side_effect=RuntimeError('paused'))
+
+    def test_placeholder(self):
+        f = self.dir.parent / 'x.pdf'
+        with self.assertRaises(FileNotFoundError):
+            printing.print_pdf(str(f))
+        f.write_bytes(b'%PDF')
+        with override_settings(PRINT_DRY_RUN=False), self.assertRaises(RuntimeError):
+            printing.print_pdf(str(f))
+        with override_settings(PRINT_DRY_RUN=True):
+            self.assertEqual(printing.print_pdf(str(f)), 'dry-run')
 
 
 class CustomerTests(TestCase):

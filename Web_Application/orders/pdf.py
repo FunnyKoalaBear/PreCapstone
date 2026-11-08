@@ -129,21 +129,34 @@ def _drawing_pages(item):
         return list(_message_page(_('The drawing could not be read.')))
 
 
-def order_pdf(order):
-    """Work instruction sheets for every item of the order; each drawing follows its sheet so duplex printing puts it on the back."""
-    _register_font()
+def _item_pages(item):
+    """Pages of one item: its sheet, then (if it has a drawing) the drawing on the back, padded to an even count."""
+    pages = list(PdfReader(io.BytesIO(_sheet(item))).pages)
+    if item.drawing_file:
+        if len(pages) % 2 == 0:
+            pages += _blank()
+        pages += _drawing_pages(item)
+        if len(pages) % 2:
+            pages += _blank()
+    return pages
+
+
+def _write(pages):
     writer = PdfWriter()
-    for item in order.items.select_related('order__customer'):
-        sheet = list(PdfReader(io.BytesIO(_sheet(item))).pages)
-        pages = list(sheet)
-        if item.drawing_file:
-            if len(pages) % 2 == 0:
-                pages += _blank()
-            pages += _drawing_pages(item)
-            if len(pages) % 2:
-                pages += _blank()
-        for p in pages:
-            writer.add_page(p)
+    for p in pages:
+        writer.add_page(p)
     out = io.BytesIO()
     writer.write(out)
     return out.getvalue()
+
+
+def order_pdf(order):
+    """Work instruction sheets for every item of the order; each drawing follows its sheet so duplex printing puts it on the back."""
+    _register_font()
+    return _write([p for item in order.items.select_related('order__customer') for p in _item_pages(item)])
+
+
+def item_pdf(item):
+    """The work instruction sheet of one item (with its drawing on the back) as PDF bytes."""
+    _register_font()
+    return _write(_item_pages(item))
