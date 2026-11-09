@@ -138,11 +138,51 @@ systemd-analyze                                       # boot should not wait 2 m
 Reboot once and check again that everything comes back on its own.
 
 ## Everyday
+
+### After every `git pull`
+gunicorn and uvicorn load the Python code once at start, but Django reads templates from disk. Without a restart, new templates meet old code and pages fail with error 500 (e.g. `NoReverseMatch` for a new URL name).
 ```bash
-sudo systemctl restart dashboard        # after git pull (gunicorn does not auto-reload)
-sudo systemctl restart factory-api
-journalctl -u dashboard -f              # logs (also caddy, factory-api, pg-nightly-backup)
+cd ~/PreCapstone && git pull
+cd Web_Application
+.venv/bin/pip install -r requirements.txt                  # only if requirements.txt changed
+.venv/bin/python manage.py migrate                         # applies new migrations, harmless if none
+sudo systemctl restart dashboard factory-api
+systemctl is-active dashboard factory-api                  # both should print "active"
 ```
+Static files need no extra step: Caddy serves `Web_Application/static/` straight from disk.
+
+### Services
+`dashboard` is short for `dashboard.service`, the unit file `/etc/systemd/system/dashboard.service` written by `setup-services.sh`.
+```bash
+systemctl status dashboard              # running? since when? last log lines
+systemctl cat dashboard                 # show the unit file
+sudo systemctl restart dashboard        # stop + start (loads new code)
+sudo journalctl -u dashboard -f         # live logs (also caddy, factory-api, pg-nightly-backup); without sudo it may show nothing
+```
+
+### Raw start commands (what systemd runs)
+For debugging: run one piece by hand in its own terminal to see errors directly. Stop its service first, or the port is already taken. Order matters: Postgres before the apps.
+```bash
+sudo systemctl stop dashboard factory-api caddy
+
+# 1. Postgres (usually left running)
+sudo pg_ctlcluster 18 main start
+
+# 2. Django dashboard (gunicorn) on 127.0.0.1:8001
+cd ~/PreCapstone/Web_Application
+.venv/bin/gunicorn config.wsgi:application --bind 127.0.0.1:8001 --workers 3 --timeout 60
+
+# 3. FastAPI on 0.0.0.0:8000 (add --reload while editing)
+cd ~/PreCapstone/Factory_Server
+~/venvs/factory_server/bin/uvicorn main:app --host 0.0.0.0 --port 8000
+
+# 4. Caddy: :8080 (LAN) and 127.0.0.1:8081 (Funnel) -> gunicorn
+sudo -u caddy caddy run --environ --config /etc/caddy/Caddyfile
+
+# 5. Public HTTPS URL (Funnel setting persists, normally already on)
+sudo tailscale funnel --bg http://127.0.0.1:8081
+```
+Ctrl+C stops a hand-run piece. When done, go back to the services: `sudo systemctl start caddy dashboard factory-api`.
 
 ## At the factory
 - DHCP reservation for the server on the GL.iNet router (fixed IP for `ALLOWED_HOSTS` and firmware).
