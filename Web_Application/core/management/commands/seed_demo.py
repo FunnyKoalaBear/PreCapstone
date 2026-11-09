@@ -11,7 +11,7 @@ from django.db.models import Case, ProtectedError, Q, Value, When
 from django.utils import timezone
 
 from core.models import SiteSetting
-from orders.models import Customer, Order, OrderItem, Process, RouteStep, Vendor
+from orders.models import Customer, Order, OrderChange, OrderItem, Process, RouteStep, Vendor
 from tracking.models import DefectCause, Event, Machine, ScannerDevice, Tag, TagAssignment, Worker
 from tracking.services import record_event
 from tracking.status import DONE, item_statuses
@@ -94,6 +94,7 @@ class Command(BaseCommand):
         ev.filter(corrects__isnull=False).delete()
         ev.delete()
         TagAssignment.objects.filter(Q(tag__uid__in=uids) | Q(item__order__in=orders)).delete()
+        OrderChange.objects.filter(order__in=orders).delete()  # edit history of demo orders would block the delete
         orders.delete()
         Tag.objects.filter(uid__in=uids).delete()
         User.objects.filter(username__startswith='demo_').delete()

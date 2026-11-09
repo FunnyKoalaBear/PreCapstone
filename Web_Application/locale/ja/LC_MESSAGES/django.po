@@ -3373,5 +3373,45 @@ msgstr "品目 %(item)s をキャンセルしました。"
 msgid "Item %(item)s marked as shipped."
 msgstr "品目 %(item)s を出荷済みにしました。"
 
+#: .\core\views.py:23
+msgid "Today"
+msgstr "今日"
+
+#: .\core\views.py:23
+msgid "This week"
+msgstr "今週"
+
+#: .\core\views.py:23
+msgid "This month"
+msgstr "今月"
+
+# CHECK: also the title of the Completed page and its column; 完了日 is the date, 完了 alone is the status
+#: .\templates\tracking\completed.html:4 .\templates\tracking\completed.html:7
+#: .\templates\tracking\completed.html:29 .\templates\tracking\shipping.html:30
+msgid "Completed"
+msgstr "完了日"
+
+#: .\templates\tracking\completed.html:20 .\templates\tracking\shipping.html:22
+msgid "Completed from"
+msgstr "完了日（から）"
+
+#: .\templates\tracking\completed.html:21 .\templates\tracking\shipping.html:23
+msgid "Completed to"
+msgstr "完了日（まで）"
+
+# CHECK: same word as Overdue; here it compares the completion date with the due date
+#: .\templates\tracking\completed.html:41
+msgid "Late"
+msgstr "納期遅れ"
+
+#: .\templates\tracking\shipping.html:31
+msgctxt "days since completion"
+msgid "Waiting"
+msgstr "経過日数"
+
+#: .\templates\tracking\completed.html:52
+msgid "No completed items match."
+msgstr "該当する完了済みの品目はありません。"
+
 #~ msgid "Back to Tags"
 #~ msgstr "タグ管理に戻る"

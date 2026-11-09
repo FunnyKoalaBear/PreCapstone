@@ -410,3 +410,14 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | English | Japanese |
 |---|---|
 | required (read after a label) | 必須 |
+
+## Terms added for the Completed page
+
+| English | Japanese |
+|---|---|
+| Today / This week / This month | 今日 / 今週 / 今月 |
+| Completed (the date; page title) | 完了日 ? |
+| Completed from / Completed to | 完了日（から） / 完了日（まで） |
+| Waiting (days since completion, Shipping column) | 経過日数 |
+| Late (completed after the due date) | 納期遅れ ? |
+| On time | 納期内 |

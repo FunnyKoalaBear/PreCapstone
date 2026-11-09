@@ -7,6 +7,15 @@
   <h1>{% trans "Home" %}</h1>
 
   <div class="counters counters-compact">
+    <div class="card counter counter-complete">
+      <a href="{% url 'completed' %}?period={{ done_period }}"><strong>{{ counters.complete }}</strong> {% trans "Complete" %}</a>
+      <form method="get">
+        {% for name, value in keep_params %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+        <select name="done" aria-label="{% trans 'Complete' %}" onchange="this.form.submit()">
+          {% for value, label in done_choices %}<option value="{{ value }}"{% if value == done_period %} selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+      </form>
+    </div>
     <a class="card counter counter-in_progress" href="{% url 'boxes' %}?status=in_progress"><strong>{{ counters.in_progress }}</strong> {% trans "In progress" %}</a>
     <a class="card counter counter-waiting" href="{% url 'boxes' %}?status=waiting"><strong>{{ counters.waiting }}</strong> {% trans "Waiting" %}</a>
     <a class="card counter counter-at_vendor" href="{% url 'boxes' %}?status=at_vendor"><strong>{{ counters.at_vendor }}</strong> {% trans "At vendor" %}</a>

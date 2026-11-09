@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% load i18n panels %}
+
+{% block title %}{% trans "Completed" %} - {% trans "Factory Tracker" %}{% endblock %}
+
+{% block content %}
+  <h1>{% trans "Completed" %}</h1>
+  <form method="get" class="filters">
+    <div><label for="q">{% trans "Search" %}</label><input type="search" id="q" name="q" value="{{ q }}"></div>
+    <div>
+      <label for="customer">{% trans "Customer" %}</label>
+      <select id="customer" name="customer">
+        <option value="">{% trans "All" %}</option>
+        {% for c in customers %}<option value="{{ c.pk }}"{% if c.pk == customer %} selected{% endif %}>{{ c.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div><label for="done_from">{% trans "Completed from" %}</label><input type="date" id="done_from" name="done_from" value="{{ done_from|date:'Y-m-d' }}"></div>
+    <div><label for="done_to">{% trans "Completed to" %}</label><input type="date" id="done_to" name="done_to" value="{{ done_to|date:'Y-m-d' }}"></div>
+    <button type="submit" class="button-secondary">{% trans "Apply" %}</button>
+  </form>
+  {% scroll_panel label=_("Completed") %}
+    <table class="table table-cards">
+      <thead>
+        <tr>
+          <th class="tnum">{% trans "Item" %}</th>
+          <th>{% trans "Part name" %}</th>
+          <th>{% trans "Customer" %}</th>
+          <th class="tnum">{% trans "Completed" %}</th>
+          <th class="tnum">{% trans "Due date" %}</th>
+          <th>{% trans "Status" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+          <tr>
+            <td class="tnum" data-label="{% trans 'Item' %}"><a href="{% url 'order_detail' row.order.job_number %}">{{ row.item.item_code }}</a></td>
+            <td data-label="{% trans 'Part name' %}">{{ row.item.part_name }}</td>
+            <td data-label="{% trans 'Customer' %}">{{ row.order.customer }}</td>
+            <td class="tnum" data-label="{% trans 'Completed' %}">{{ row.completed|date:"Y-m-d" }}</td>
+            <td class="tnum" data-label="{% trans 'Due date' %}">{{ row.order.due_date|date:"Y-m-d" }}</td>
+            <td data-label="{% trans 'Status' %}">
+              {% if row.late %}<span class="badge badge-overdue">{% trans "Late" %}</span>{% else %}<span class="badge badge-complete">{% trans "On time" %}</span>{% endif %}
+              {% if row.shipped %}<span class="badge badge-shipped">{% trans "Shipped" %}</span>{% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6">{% trans "No completed items match." %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endscroll_panel %}
+{% endblock %}

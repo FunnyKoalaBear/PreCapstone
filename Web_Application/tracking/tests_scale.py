@@ -345,7 +345,7 @@ class HomeCounterTests(TestCase):
         build_random(w, random.Random(7), 40)
         self.client.force_login(make_user('op', OPERATOR))
         with mock.patch('django.utils.timezone.now', return_value=w.now):
-            counters = self.client.get('/').context['counters']
+            counters = {k: v for k, v in self.client.get('/').context['counters'].items() if k != 'complete'}  # the Complete box has its own tests
             items = list(OrderItem.objects.select_related('order'))
             want = expected_counters([(i, reference_item_status(i)) for i in items], w.now, timezone.localdate(w.now))
         self.assertEqual(counters, want)
@@ -399,7 +399,7 @@ class ScaleTests(TestCase):
             for n in (50, 500):
                 resp = self.client.get(f'/?n={n}')
                 self.assertEqual([r['item'].pk for r in resp.context['matrix']['rows']], open_ids[:n])
-                self.assertEqual(resp.context['counters'], expected_counters(ref, now, timezone.localdate(now)))
+                self.assertEqual({k: v for k, v in resp.context['counters'].items() if k != 'complete'}, expected_counters(ref, now, timezone.localdate(now)))
         print(f'\n1000 items: home {big[50][0]} queries / {big[50][1]:.0f} ms, n=500 {big[500][0]} queries / {big[500][1]:.0f} ms '
               f'(20 items: {small[50][0]} queries)')
         for n in (50, 500):

@@ -23,7 +23,8 @@ from core.models import Profile
 from core.templatetags.duration import duration
 from core.management.commands.seed_demo import DEMO_UIDS, read_csv
 from core.testing import TestCase, make_user
-from orders.models import Customer, Order, OrderItem, Process, RouteStep, Vendor
+from orders.models import Customer, Order, OrderChange, OrderItem, Process, RouteStep, Vendor
+from tracking.completed import completed_rows, period_range
 from tracking.models import DefectCause, Event, Machine, ScannerDevice, Tag, TagAssignment, Worker
 from tracking.overview import board_groups
 from tracking.planning import process_averages
@@ -494,6 +495,29 @@ class SeedDemoTests(TestCase):
         self.assertEqual(len(shipping_overview(month_from=months[3]['month'], month_to=months[1]['month'])[1]), 3)
 
     @override_settings(DEBUG=True)
+    def test_completed_unshipped_demo_items_cover_every_period_and_both_outcomes(self):
+        self.seed()
+        today = timezone.localdate()
+        demo_rows = lambda: [r for r in completed_rows() if r['order'].customer_order_number.split('-')[1].startswith('C') and not r['shipped']]
+        demo = demo_rows()
+        self.assertEqual(len(demo), 7)
+        days = {r['completed'] for r in demo}
+        self.assertIn(today, days)
+        self.assertIn(today - timedelta(days=1), days)
+        self.assertTrue(any(d < today.replace(day=1) for d in days))  # last month
+        self.assertTrue(any(r['late'] for r in demo) and any(not r['late'] for r in demo))
+        multi = [r for r in demo if r['item'].box_count == 2]
+        self.assertEqual(len(multi), 1)
+        self.assertEqual(multi[0]['item'].tagassignment_set.count(), 2)
+        waiting = {r['item'].pk: r['waiting'] for r in shipping_overview()[0]}
+        self.assertTrue(all(r['item'].pk in waiting for r in demo))
+        for period in ('today', 'week', 'month'):
+            self.assertTrue(completed_rows(*period_range(period)), period)
+        first = [(r['item'].part_name, r['completed']) for r in demo]
+        self.seed('--reset')
+        self.assertEqual(first, [(r['item'].part_name, r['completed']) for r in demo_rows()])
+
+    @override_settings(DEBUG=True)
     def test_reset_removes_demo_data_and_keeps_real_data(self):
         real_proc = Process.objects.create(name='Cutting', kind=K.MATERIAL)
         real_cust = Customer.objects.create(name='Real Co')
@@ -509,6 +533,15 @@ class SeedDemoTests(TestCase):
         self.assertTrue(Order.objects.filter(pk=real_order.pk).exists())
         self.assertTrue(Tag.objects.filter(uid='REAL1').exists())
         self.assertTrue(Process.objects.filter(pk=real_proc.pk, kind=K.MATERIAL).exists())
+
+    @override_settings(DEBUG=True)
+    def test_reset_also_removes_the_edit_history_of_demo_orders(self):
+        real = Order.objects.create(customer=Customer.objects.create(name='Real Co'), due_date=timezone.localdate())
+        OrderChange.objects.create(order=real, field='due_date', old_value='a', new_value='b')
+        self.seed()
+        OrderChange.objects.create(order=Order.objects.filter(customer__name__startswith='DEMO ').first(), field='due_date', old_value='a', new_value='b')
+        self.seed('--reset')
+        self.assertEqual(list(OrderChange.objects.values_list('order', flat=True)), [real.pk])
 
     @override_settings(DEBUG=True)
     def test_failed_seed_leaves_nothing_behind(self):

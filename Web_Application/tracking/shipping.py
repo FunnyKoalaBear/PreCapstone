@@ -14,10 +14,10 @@ def _matches(item, customer, q):
 
 
 def shipping_overview(today=None, ready_customer=None, ready_q='', due_from=None, due_to=None,
-                      month_customer=None, month_q='', month_from='', month_to=''):
+                      month_customer=None, month_q='', month_from='', month_to='', done_from=None, done_to=None):
     """(ready, months): complete items not yet shipped by due date, and per JST month the shipped count and on-time rate (newest first).
 
-    Ready can be limited by customer, search text and due-date range; months by customer, search text and a YYYY-MM range.
+    Ready can be limited by customer, search text, due-date range and completion-date range (JST dates); months by customer, search text and a YYYY-MM range.
     """
     today = today or timezone.localdate()
     ready, months = [], {}
@@ -26,9 +26,10 @@ def shipping_overview(today=None, ready_customer=None, ready_q='', due_from=None
     for item in items:
         st = statuses[item.pk]
         if st.code == COMPLETE:
-            due = item.order.due_date
-            if _matches(item, ready_customer, ready_q) and not (due_from and due < due_from) and not (due_to and due > due_to):
-                ready.append({'item': item, 'order': item.order, 'late': due < today})
+            due, done = item.order.due_date, timezone.localdate(st.completed_at) if st.completed_at else None
+            if (_matches(item, ready_customer, ready_q) and not (due_from and due < due_from) and not (due_to and due > due_to)
+                    and not (done_from and (done is None or done < done_from)) and not (done_to and (done is None or done > done_to))):
+                ready.append({'item': item, 'order': item.order, 'late': due < today, 'completed': done, 'waiting': (today - done).days if done else None})
         elif st.code == SHIPPED and _matches(item, month_customer, month_q):
             shipped_on = timezone.localtime(st.ship_event.occurred_at).date()
             key = shipped_on.strftime('%Y-%m')

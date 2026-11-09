@@ -1,5 +1,5 @@
 import random
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 from math import sin
 
 from django.db.models import F, Max
@@ -192,6 +192,39 @@ def fill_events(rng, s, now, procs):
     return s
 
 
+def seed_completed(procs, devices, now):
+    """Complete but unshipped items finished today, yesterday, earlier this week / month and last month (some late), one with two boxes.
+
+    Deterministic and relative to today's JST date; on a Monday or the 1st the 'earlier' days fall on today.
+    """
+    today = timezone.localdate(now)
+    week, month = today - timedelta(days=today.weekday()), today.replace(day=1)
+    at = lambda day, hour: min(timezone.make_aware(datetime.combine(day, time(hour))), now - timedelta(minutes=5))
+    # (part, finish day, hours the last step finished, due offset from that day: negative = late, extra box finish day)
+    cases = (
+        ('ベアリング座', today, 11, 2, None), ('スリーブ', today, 14, -1, None), ('ピストン', today - DAY, 16, 3, None),
+        ('ソケット', week, 10, -2, None), ('ノズル', month, 15, 4, None), ('ダクト', month - 15 * DAY, 13, -3, None),
+        ('ベースフレーム', today - DAY, 9, 2, week),
+    )
+    customers = [Customer.objects.get_or_create(name=f'DEMO {n}')[0] for n, _p in CUSTOMERS]
+    for i, (part, day, hour, due, first_day) in enumerate(cases):
+        done = at(day, hour)
+        order = Order.objects.create(customer=customers[i % len(customers)], customer_order_number=f'{CUSTOMERS[i % len(CUSTOMERS)][1]}-C{i + 1:04d}',
+                                     due_date=timezone.localdate(done) + timedelta(days=due))
+        item = OrderItem.objects.create(order=order, part_name=part, part_number=PARTS[i][1], drawing_number=PARTS[i][2], quantity=20,
+                                        box_count=2 if first_day else 1, material=MATERIALS[i % len(MATERIALS)])
+        for n, name in enumerate(('Milling', 'Lathe'), 1):
+            RouteStep.objects.create(item=item, sequence=n, process=procs[name], vendor=procs[name].default_vendor, due_date=order.due_date)
+        for box in range(2 if first_day else 1):
+            end = at(first_day, 9) if first_day and box == 0 else done  # the last box decides the completion date
+            uid = f'{0xE0000000 + i * 16 + box:08X}'
+            TagAssignment.objects.create(tag=Tag.objects.get_or_create(uid=uid, defaults={'note': 'DEMO'})[0], item=item, start_at=end - 3 * DAY)
+            for etype, name, when in (('STARTED', 'Milling', end - timedelta(hours=6)), ('FINISHED', 'Milling', end - timedelta(hours=4)),
+                                      ('STARTED', 'Lathe', end - timedelta(hours=3)), ('FINISHED', 'Lathe', end)):
+                record_event(devices[0], uid, procs[name], etype, occurred_at=when)
+    return len(cases)
+
+
 def seed_bulk(procs, vendors, devices, stdout=None):
     """Create 100+ orders: a year of shipped ones plus every open state, all events through record_event."""
     rng, now = random.Random(SEED), timezone.now()
@@ -277,6 +310,7 @@ def seed_bulk(procs, vendors, devices, stdout=None):
         for event in extra:
             event.full_clean()
             event.save()
+    seed_completed(procs, devices, now)
     # events were "received" when they happened, so the dashboard's events-today count is realistic
     Event.objects.filter(device__in=devices, received_at__gt=F('occurred_at')).update(received_at=F('occurred_at'))
     return len(specs)
