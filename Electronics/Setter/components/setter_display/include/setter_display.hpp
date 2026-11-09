@@ -31,6 +31,13 @@ public:
     // true if a finger is on the screen right now; x/y are in screen pixels (0..WIDTH-1, 0..HEIGHT-1)
     bool poll_touch(int &x, int &y);
 
+    // sends a block of pixels: RGB565 already byte-swapped, DMA-capable memory, at most MAX_PIXEL_ROWS full rows
+    static constexpr int MAX_PIXEL_ROWS = 16;
+    bool draw_pixels(int x, int y, int w, int h, const uint16_t *pixels);
+
+    // 8x8 bitmap of an ASCII character (one byte per row, bit 0 = leftmost pixel); unknown characters give '?'
+    static const uint8_t *glyph(char c);
+
     // draws `items` as a vertical list and lets a finger drag scroll it. Runs forever
     // (or until an item list is empty), so this owns the screen for the rest of the program.
     bool run_scrollable_list(const char *const *items, int item_count, int scale = 2);

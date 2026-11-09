@@ -321,6 +321,20 @@ bool SETTER_DISPLAY::run_scrollable_list(const char *const *items, int item_coun
     }
 }
 
+bool SETTER_DISPLAY::draw_pixels(int x, int y, int w, int h, const uint16_t *pixels)
+{
+    ESP_RETURN_ON_FALSE(w * h <= WIDTH * MAX_PIXEL_ROWS, false, TAG, "pixel block too big");
+    TRY(esp_lcd_panel_draw_bitmap(panel_, x, y, x + w, y + h, pixels));
+    ESP_RETURN_ON_FALSE(xSemaphoreTake(color_done_, pdMS_TO_TICKS(1000)) == pdTRUE,
+                        false, TAG, "timed out waiting for SPI transfer");
+    return true;
+}
+
+const uint8_t *SETTER_DISPLAY::glyph(char c)
+{
+    return glyph_for(c);
+}
+
 bool SETTER_DISPLAY::blit(int x, int y, int w, int h)
 {
     TRY(esp_lcd_panel_draw_bitmap(panel_, x, y, x + w, y + h, band_));

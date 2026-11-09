@@ -2,14 +2,19 @@
 
 #include <stddef.h>
 
-// One row of GET /api/assignable-items/ (only the ASCII-safe fields the screen needs)
+// One row of GET /api/assignable-items/
 struct setter_item_t {
     int id;              // send this back in assign()
     char code[24];       // item code, e.g. "2611-001-01"
     char part[48];       // part name (may contain Japanese UTF-8)
+    char customer[48];   // customer name (may contain Japanese UTF-8)
+    char order_number[32];   // customer order number, may be empty
     char due[12];        // "YYYY-MM-DD"
+    char ordered[12];    // date the order was registered, "YYYY-MM-DD" (empty on an older server)
     int linked;          // boxes already tagged
     int boxes;           // boxes expected
+    int quantity;        // pieces
+    int steps;           // route steps (processes)
 };
 
 // What happened to POST /api/assign/

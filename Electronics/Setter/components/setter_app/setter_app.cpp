@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <strings.h>
+#include <algorithm>
 
 #include <esp_log.h>
 #include "freertos/FreeRTOS.h"
@@ -16,12 +17,17 @@
 namespace {
     static const char *TAG = "setter_app";
 
-    constexpr int PAGE_SIZE = 8;              // rows per screen (also fits 8 panel buttons)
+    constexpr int MAX_ITEMS = 100;            // items kept on the device (about 20 KB)
+    constexpr int FETCH_PAGE = 20;            // items per HTTP request
+    constexpr int JUMP = 8;                   // n / p move this many items
     constexpr int CARD_TIMEOUT_MS = 15000;    // how long to wait for a card after a pick
     constexpr int RESULT_SHOW_MS = 3000;      // how long the result stays before the list comes back
     constexpr int ERROR_SHOW_MS = 1500;
+    constexpr int TICK_MS = 1000;             // ui->tick() while idle (clock)
 
-    enum class cmd_type_t { RELOAD, NEXT, PREV, PICK, PICK_CODE, CANCEL };
+    enum class cmd_type_t {
+        RELOAD, UP, DOWN, PAGE_UP, PAGE_DOWN, LINK, BACK, DETAILS, DRAWING, VIEW, SORT, PICK, PICK_CODE,
+    };
 
     struct cmd_t {
         cmd_type_t type;
@@ -36,6 +42,17 @@ namespace {
     RFID *rfid = nullptr;
     BUZZER *buzzer = nullptr;
 
+    // list state; only the setter task touches it
+    setter_item_t items[MAX_ITEMS];
+    int count = 0;
+    int total = 0;
+    int selected = 0;
+    int version = 0;
+    setter_view_t view = setter_view_t::SQUARES;
+    setter_sort_t sort_by = setter_sort_t::NUMBER;
+    setter_modal_t modal = setter_modal_t::NONE;
+    char banner[48] = "";
+
 
     void send(cmd_type_t type, int row = 0, const char *code = nullptr)
     {
@@ -48,7 +65,7 @@ namespace {
         if (code) {
             strlcpy(cmd.code, code, sizeof(cmd.code));
         }
-        xQueueSend(queue, &cmd, 0);   // never block the caller (UI callback, keyboard task)
+        xQueueSend(queue, &cmd, 0);   // never block the caller (button task, keyboard task)
     }
 
 
@@ -63,6 +80,84 @@ namespace {
     }
 
 
+    void show_list()
+    {
+        setter_list_t list = {};
+        list.items = items;
+        list.count = count;
+        list.total = total;
+        list.selected = selected;
+        list.version = version;
+        list.view = view;
+        list.sort = sort_by;
+        list.modal = modal;
+        list.banner = banner[0] ? banner : nullptr;
+        ui->show_list(list);
+        banner[0] = '\0';   // a banner is shown once
+    }
+
+
+    // Sorts by the current filter and keeps the same item selected
+    void sort_items()
+    {
+        const int keep_id = (count > 0) ? items[selected].id : -1;
+
+        std::sort(items, items + count, [](const setter_item_t &a, const setter_item_t &b) {
+            int c = 0;
+            switch (sort_by) {
+                case setter_sort_t::START: c = strcmp(a.ordered, b.ordered); break;
+                case setter_sort_t::DUE:   c = strcmp(a.due, b.due); break;
+                case setter_sort_t::PART:  c = strcmp(a.part, b.part); break;
+                default: break;
+            }
+            return c != 0 ? c < 0 : strcmp(a.code, b.code) < 0;
+        });
+
+        for (int i = 0; i < count; i++) {
+            if (items[i].id == keep_id) {
+                selected = i;
+            }
+        }
+        version++;
+    }
+
+
+    // Loads every item that needs a tag, FETCH_PAGE at a time (up to MAX_ITEMS)
+    bool load_all(SERVER_CLIENT &server)
+    {
+        const int keep_id = (count > 0) ? items[selected].id : -1;
+        const int keep_index = selected;
+        int loaded = 0;
+        int server_total = 0;
+
+        while (loaded < MAX_ITEMS) {
+            int got = 0;
+            int limit = std::min(FETCH_PAGE, MAX_ITEMS - loaded);
+            if (!server.fetch_items(loaded, limit, items + loaded, limit, &got, &server_total)) {
+                return false;
+            }
+            loaded += got;
+            if (got == 0 || loaded >= server_total) {
+                break;
+            }
+        }
+
+        count = loaded;
+        total = server_total;
+        selected = std::min(keep_index, std::max(count - 1, 0));   // same place if the item is gone
+        for (int i = 0; i < count; i++) {
+            if (items[i].id == keep_id) {
+                selected = i;
+            }
+        }
+        sort_items();
+        if (modal != setter_modal_t::NONE && count == 0) {
+            modal = setter_modal_t::NONE;
+        }
+        return true;
+    }
+
+
     // Waits for a card while still listening for cancel; writes the UID as hex, e.g. "0D11696B"
     card_t wait_for_card(char *uid_hex, size_t size)
     {
@@ -71,7 +166,7 @@ namespace {
         while ((xTaskGetTickCount() - start) < pdMS_TO_TICKS(CARD_TIMEOUT_MS)) {
             cmd_t cmd;
             if (xQueueReceive(queue, &cmd, 0) == pdTRUE &&
-                (cmd.type == cmd_type_t::CANCEL || cmd.type == cmd_type_t::RELOAD)) {
+                (cmd.type == cmd_type_t::BACK || cmd.type == cmd_type_t::RELOAD)) {
                 return card_t::CANCELLED;
             }
 
@@ -113,6 +208,7 @@ namespace {
 
         if (result.state == assign_state_t::ASSIGNED) {
             beep(2, 100);
+            snprintf(banner, sizeof(banner), "%s LINKED", item.code);
         } else {
             beep(1, 600);
         }
@@ -121,92 +217,132 @@ namespace {
     }
 
 
-    // Looks through every page for an item code typed on the keyboard
-    bool find_item(SERVER_CLIENT &server, const char *code, setter_item_t &found)
+    int find_code(const char *code)
     {
-        setter_item_t page[PAGE_SIZE];
-        int count = 0;
-        int total = 0;
-
-        for (int offset = 0; ; offset += PAGE_SIZE) {
-            if (!server.fetch_items(offset, PAGE_SIZE, page, PAGE_SIZE, &count, &total)) {
-                return false;
-            }
-            for (int i = 0; i < count; i++) {
-                if (strcasecmp(page[i].code, code) == 0) {
-                    found = page[i];
-                    return true;
-                }
-            }
-            if (count == 0 || offset + count >= total) {
-                return false;
+        for (int i = 0; i < count; i++) {
+            if (strcasecmp(items[i].code, code) == 0) {
+                return i;
             }
         }
+        return -1;
     }
 
 
     void setter_task(void *argument)
     {
         SERVER_CLIENT server;
-        setter_item_t items[PAGE_SIZE];
-        int count = 0;
-        int total = 0;
-        int offset = 0;
         bool need_load = true;
 
         while (true) {
             if (need_load) {
                 ui->show_message("Loading items...");
-                if (!server.fetch_items(offset, PAGE_SIZE, items, PAGE_SIZE, &count, &total)) {
-                    count = 0;
-                    ui->show_error("Server error. Press r to retry");
-                } else if (count == 0 && offset > 0) {
-                    offset = 0;   // the list got shorter: go back to page 1
-                    continue;
+                if (load_all(server)) {
+                    show_list();
                 } else {
-                    ui->show_list(items, count, offset, total);
+                    count = 0;
+                    ui->show_error("Server error. Press back to retry");
                 }
                 need_load = false;
             }
 
             cmd_t cmd;
-            xQueueReceive(queue, &cmd, portMAX_DELAY);
+            if (xQueueReceive(queue, &cmd, pdMS_TO_TICKS(TICK_MS)) != pdTRUE) {
+                ui->tick();
+                continue;
+            }
+
+            const bool browsing = count > 0 && modal == setter_modal_t::NONE;
 
             switch (cmd.type) {
                 case cmd_type_t::RELOAD:
-                case cmd_type_t::CANCEL:
                     need_load = true;
                     break;
 
-                case cmd_type_t::NEXT:
-                    if (offset + count < total) {
-                        offset += PAGE_SIZE;
+                case cmd_type_t::BACK:
+                    if (modal != setter_modal_t::NONE) {
+                        modal = setter_modal_t::NONE;
+                        show_list();
+                    } else {
                         need_load = true;
                     }
                     break;
 
-                case cmd_type_t::PREV:
-                    if (offset > 0) {
-                        offset = offset > PAGE_SIZE ? offset - PAGE_SIZE : 0;
-                        need_load = true;
+                case cmd_type_t::UP:
+                case cmd_type_t::DOWN:
+                    if (browsing) {
+                        int step = (cmd.type == cmd_type_t::UP) ? -1 : 1;
+                        selected = (selected + step + count) % count;
+                        show_list();
+                    }
+                    break;
+
+                case cmd_type_t::PAGE_UP:
+                case cmd_type_t::PAGE_DOWN:
+                    if (browsing) {
+                        selected = (cmd.type == cmd_type_t::PAGE_UP) ? std::max(selected - JUMP, 0)
+                                                                     : std::min(selected + JUMP, count - 1);
+                        show_list();
+                    }
+                    break;
+
+                case cmd_type_t::DETAILS:
+                    if (count > 0) {
+                        modal = (modal == setter_modal_t::NONE) ? setter_modal_t::DETAILS : setter_modal_t::NONE;
+                        show_list();
+                    }
+                    break;
+
+                case cmd_type_t::DRAWING:
+                    if (count > 0) {
+                        modal = (modal == setter_modal_t::DRAWING) ? setter_modal_t::DETAILS : setter_modal_t::DRAWING;
+                        show_list();
+                    }
+                    break;
+
+                case cmd_type_t::VIEW:
+                    view = static_cast<setter_view_t>((static_cast<int>(view) + 1) % 3);
+                    if (count > 0) {
+                        show_list();
+                    }
+                    break;
+
+                case cmd_type_t::SORT:
+                    sort_by = static_cast<setter_sort_t>((static_cast<int>(sort_by) + 1) % 4);
+                    sort_items();
+                    if (count > 0) {
+                        show_list();
+                    }
+                    break;
+
+                case cmd_type_t::LINK:
+                    if (count > 0) {
+                        modal = setter_modal_t::NONE;
+                        link_item(server, items[selected]);
+                        need_load = true;   // the item may be full now
                     }
                     break;
 
                 case cmd_type_t::PICK:
                     if (cmd.row >= 0 && cmd.row < count) {
+                        selected = cmd.row;
+                        modal = setter_modal_t::NONE;
                         link_item(server, items[cmd.row]);
                     } else {
                         ui->show_error("No such row");
                         vTaskDelay(pdMS_TO_TICKS(ERROR_SHOW_MS));
                     }
-                    need_load = true;   // the item may be full now, reload
+                    need_load = true;
                     break;
 
                 case cmd_type_t::PICK_CODE: {
-                    setter_item_t item;
-                    ui->show_message("Searching...");
-                    if (find_item(server, cmd.code, item)) {
-                        link_item(server, item);
+                    int i = find_code(cmd.code);
+                    if (i < 0 && load_all(server)) {
+                        i = find_code(cmd.code);   // maybe new since the last load
+                    }
+                    if (i >= 0) {
+                        selected = i;
+                        modal = setter_modal_t::NONE;
+                        link_item(server, items[i]);
                     } else {
                         ui->show_error("Item not found or already tagged");
                         vTaskDelay(pdMS_TO_TICKS(ERROR_SHOW_MS));
@@ -232,14 +368,21 @@ bool setter_app_start(SETTER_UI *setter_ui, RFID *setter_rfid, BUZZER *setter_bu
         return false;
     }
 
-    // 10 KB: HTTP client + cJSON + two pages of items
+    // 10 KB: HTTP client + cJSON (the item list itself is a static array)
     return xTaskCreate(setter_task, "Setter", 10240, nullptr, 5, nullptr) == pdPASS;
 }
 
 
-void setter_reload()                    { send(cmd_type_t::RELOAD); }
-void setter_next_page()                 { send(cmd_type_t::NEXT); }
-void setter_prev_page()                 { send(cmd_type_t::PREV); }
+void setter_up()                        { send(cmd_type_t::UP); }
+void setter_down()                      { send(cmd_type_t::DOWN); }
+void setter_prev_page()                 { send(cmd_type_t::PAGE_UP); }
+void setter_next_page()                 { send(cmd_type_t::PAGE_DOWN); }
+void setter_link_selected()             { send(cmd_type_t::LINK); }
+void setter_back()                      { send(cmd_type_t::BACK); }
+void setter_toggle_details()            { send(cmd_type_t::DETAILS); }
+void setter_toggle_drawing()            { send(cmd_type_t::DRAWING); }
+void setter_next_view()                 { send(cmd_type_t::VIEW); }
+void setter_next_sort()                 { send(cmd_type_t::SORT); }
 void setter_pick(int row)               { send(cmd_type_t::PICK, row); }
 void setter_pick_code(const char *code) { send(cmd_type_t::PICK_CODE, 0, code); }
-void setter_cancel()                    { send(cmd_type_t::CANCEL); }
+void setter_reload()                    { send(cmd_type_t::RELOAD); }

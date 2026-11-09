@@ -13,8 +13,8 @@
 namespace {
     static const char *TAG = "server_client";
 
-    // a 20-item page is about 3 KB; on the heap so it never overflows a task stack
-    constexpr size_t LIST_REPLY_SIZE = 4096;
+    // a 20-item page is about 5 KB; on the heap so it never overflows a task stack
+    constexpr size_t LIST_REPLY_SIZE = 8192;
 
     int json_int(const cJSON *obj, const char *key)
     {
@@ -76,9 +76,14 @@ bool SERVER_CLIENT::fetch_items(int offset, int limit, setter_item_t *items, int
                 item.id = json_int(row, "id");
                 json_str(row, "item", item.code, sizeof(item.code));
                 json_str(row, "part", item.part, sizeof(item.part));
+                json_str(row, "customer", item.customer, sizeof(item.customer));
+                json_str(row, "order_number", item.order_number, sizeof(item.order_number));
                 json_str(row, "due", item.due, sizeof(item.due));
+                json_str(row, "ordered", item.ordered, sizeof(item.ordered));
                 item.linked = json_int(row, "linked");
                 item.boxes = json_int(row, "boxes");
+                item.quantity = json_int(row, "quantity");
+                item.steps = json_int(row, "steps");
                 (*count)++;
             }
             ok = true;

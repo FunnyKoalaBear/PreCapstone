@@ -10,7 +10,6 @@ idf_component_register(
         server_client
         rfid
         buzzer
-        setter_display
         freertos
         log
 )

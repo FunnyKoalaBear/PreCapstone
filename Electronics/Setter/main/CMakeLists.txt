@@ -12,4 +12,6 @@ idf_component_register(SRCS "main.cpp"
                     button_panel
                     keyboard
                     setter_app
+                    setter_gui
+                    esp_netif
                     )

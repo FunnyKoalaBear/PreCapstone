@@ -2,8 +2,29 @@
 
 #include "server_client.hpp"
 
-// Everything the setter shows on screen. The UI implements this class (TEXT_UI is the simple built-in one).
-// The setter task calls these methods, so they must draw and return quickly (no waiting, no HTTP).
+// How the item list is laid out (cycled by the "view" button)
+enum class setter_view_t { SQUARES, SIDEWAYS, TABLE };
+
+// Sort order of the list (cycled by the "filter" button)
+enum class setter_sort_t { NUMBER, START, DUE, PART };
+
+// Screen shown on top of the list
+enum class setter_modal_t { NONE, DETAILS, DRAWING };
+
+// Everything needed to draw the list screen
+struct setter_list_t {
+    const setter_item_t *items;   // all loaded items, already sorted
+    int count;                    // items loaded
+    int total;                    // items needing a tag on the server (may be more than count)
+    int selected;                 // highlighted item, 0..count-1
+    int version;                  // changes whenever the items or their order change
+    setter_view_t view;
+    setter_sort_t sort;
+    setter_modal_t modal;
+    const char *banner;           // short notice to show briefly, or nullptr
+};
+
+// Everything the setter shows. The setter task calls these, so they must draw and return quickly.
 class SETTER_UI
 {
 public:
@@ -12,8 +33,8 @@ public:
     // short status text, e.g. "Loading items..."
     virtual void show_message(const char *text) = 0;
 
-    // one page of items; rows are numbered 1..count, `offset` is the index of row 1 in the whole list
-    virtual void show_list(const setter_item_t *items, int count, int offset, int total) = 0;
+    // the item list (or its details / drawing screen)
+    virtual void show_list(const setter_list_t &list) = 0;
 
     // the operator picked `item`; ask them to tap a card within `seconds`
     virtual void show_waiting_for_card(const setter_item_t &item, int seconds) = 0;
@@ -23,4 +44,7 @@ public:
 
     // something went wrong (network, bad row number, no card)
     virtual void show_error(const char *text) = 0;
+
+    // called about once a second while idle (clock, hiding the banner)
+    virtual void tick() {}
 };
