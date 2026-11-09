@@ -23,6 +23,7 @@
             <th>{% trans "Customer order number" %}</th>
             <th>{% trans "Due date" %}</th>
             <th>{% trans "Status" %}</th>
+            <th>{% trans "Completed" %}</th>
           </tr>
         </thead>
         <tbody>
@@ -35,6 +36,7 @@
                 {% if row.late %}<span class="badge badge-overdue">{% trans "Overdue" %}</span>{% endif %}
               </td>
               <td><span class="badge badge-{{ row.code|lower }}">{{ row.label }}</span></td>
+              <td class="tnum">{{ row.completed|date:"Y-m-d" }}</td>
             </tr>
           {% endfor %}
         </tbody>

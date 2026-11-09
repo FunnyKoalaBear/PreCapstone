@@ -20,7 +20,7 @@ def previous_runs(item, limit=LIMIT):
         steps = [{'process': r.step.process, 'vendor': r.step.vendor_label, 'duration': t['duration']} for r, t in zip(st.rows, timeline(st.rows))]
         starts = [r.started_at for r in st.rows if r.started_at]
         finished = st.completed_at
-        first, last = (min(starts) if starts else None), st.last_event_at
+        first, last = (min(starts) if starts else None), st.completed_at or st.last_event_at  # a completed run ends when it completed
         runs.append({
             'item': run, 'order': run.order, 'steps': steps, 'finished': timezone.localdate(finished) if finished else None,
             'total_days': (timezone.localdate(last) - timezone.localdate(first)).days if first and last else None,

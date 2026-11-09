@@ -3413,5 +3413,9 @@ msgstr "経過日数"
 msgid "No completed items match."
 msgstr "該当する完了済みの品目はありません。"
 
+#: .\orders\views.py:40
+msgid "Recently completed"
+msgstr "完了日（新しい順）"
+
 #~ msgid "Back to Tags"
 #~ msgstr "タグ管理に戻る"

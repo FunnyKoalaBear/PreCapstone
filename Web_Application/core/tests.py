@@ -518,6 +518,26 @@ class SeedDemoTests(TestCase):
         self.assertEqual(first, [(r['item'].part_name, r['completed']) for r in demo_rows()])
 
     @override_settings(DEBUG=True)
+    def test_demo_orders_show_both_filled_and_blank_completed_dates(self):
+        self.seed()
+        self.client.force_login(make_user('pl', 'Planner'))
+        rows = {r['order'].customer_order_number: r for r in self.client.get('/orders/', {'sort': 'completed', 'q': 'DEMO'}).context['rows']}
+        for number in ('AO-M0001', 'YT-M0002'):
+            self.assertIn(number, rows)
+        self.assertIsNone(rows['AO-M0001']['completed'])  # one item finished, one still on the lathe
+        self.assertIsNotNone(rows['YT-M0002']['completed'])  # complete; its cancelled item does not count
+        self.assertEqual(rows['AO-M0001']['label'].split(' (')[0], 'In progress')
+        page = self.client.get(f"/orders/{rows['AO-M0001']['order'].job_number}/")
+        self.assertEqual([e['completed'] is not None for e in page.context['items']], [True, False])
+        self.assertEqual(self.client.get(f"/orders/{rows['YT-M0002']['order'].job_number}/").context['completed'], rows['YT-M0002']['completed'])
+        everything = self.client.get('/orders/', {'sort': 'completed'}).context['rows']
+        dated = [r for r in everything if r['completed']]
+        self.assertTrue(dated and len(dated) < len(everything))
+        self.assertEqual(everything[:len(dated)], dated)  # blanks come last
+        self.assertTrue(any(r['code'] == 'SHIPPED' and r['completed'] for r in everything))
+        self.assertTrue(any(r['code'] == 'CANCELLED' and not r['completed'] for r in everything))
+
+    @override_settings(DEBUG=True)
     def test_reset_removes_demo_data_and_keeps_real_data(self):
         real_proc = Process.objects.create(name='Cutting', kind=K.MATERIAL)
         real_cust = Customer.objects.create(name='Real Co')

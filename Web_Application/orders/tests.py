@@ -749,7 +749,7 @@ class CsvExportTests(TestCase):
         self.assertRegex(r['Content-Disposition'], r'^attachment; filename="orders_\d{8}\.csv"$')
         rows = self.csv_rows(r)
         self.assertEqual(rows[0], ['customer', 'customer_order_number', 'due_date', 'part_name', 'quantity', 'material', 'notes', 'route',
-                                   'part_number', 'drawing_number', 'revision', 'job_number', 'item_code', 'status'])
+                                   'part_number', 'drawing_number', 'revision', 'job_number', 'item_code', 'status', 'completed_date'])
         self.assertEqual(len(rows), 3)
         shaft = dict(zip(rows[0], rows[1]))
         self.assertEqual((shaft['customer'], shaft['part_name'], shaft['quantity'], shaft['notes']), ('Acme', 'Shaft', '4', 'Rush'))

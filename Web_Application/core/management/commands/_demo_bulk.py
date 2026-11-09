@@ -222,7 +222,37 @@ def seed_completed(procs, devices, now):
             for etype, name, when in (('STARTED', 'Milling', end - timedelta(hours=6)), ('FINISHED', 'Milling', end - timedelta(hours=4)),
                                       ('STARTED', 'Lathe', end - timedelta(hours=3)), ('FINISHED', 'Lathe', end)):
                 record_event(devices[0], uid, procs[name], etype, occurred_at=when)
+    mixed_orders(procs, devices, customers, at, today)
     return len(cases)
+
+
+def mixed_orders(procs, devices, customers, at, today):
+    """Two orders with several items: one partly complete (its date is blank, its finished item has one), one complete with a cancelled item (dated)."""
+    def item_of(order, part, i, uid, when):
+        item = OrderItem.objects.create(order=order, part_name=part, part_number=PARTS[i][1], drawing_number=PARTS[i][2], quantity=20, material=MATERIALS[i % len(MATERIALS)])
+        for n, name in enumerate(('Milling', 'Lathe'), 1):
+            RouteStep.objects.create(item=item, sequence=n, process=procs[name], vendor=procs[name].default_vendor, due_date=order.due_date)
+        TagAssignment.objects.create(tag=Tag.objects.get_or_create(uid=uid, defaults={'note': 'DEMO'})[0], item=item, start_at=when - 3 * DAY)
+        return item
+
+    def run(uid, end, finish_lathe=True):
+        events = [('STARTED', 'Milling', end - timedelta(hours=6)), ('FINISHED', 'Milling', end - timedelta(hours=4)), ('STARTED', 'Lathe', end - timedelta(hours=3))]
+        for etype, name, when in events + ([('FINISHED', 'Lathe', end)] if finish_lathe else []):
+            record_event(devices[0], uid, procs[name], etype, occurred_at=when)
+
+    done = at(today, 10)
+    partly = Order.objects.create(customer=customers[0], customer_order_number='AO-M0001', due_date=today + 5 * DAY)
+    item_of(partly, 'ホルダー', 7, 'E0000100', done)
+    run('E0000100', at(today - DAY, 14))
+    item_of(partly, 'ガイドピン', 8, 'E0000101', done)
+    run('E0000101', done, finish_lathe=False)  # still on the lathe
+    closed = Order.objects.create(customer=customers[1], customer_order_number='YT-M0002', due_date=today + 3 * DAY)
+    item_of(closed, 'シール', 9, 'E0000102', done)
+    run('E0000102', done)
+    gone = item_of(closed, 'キャップ', 10, 'E0000103', done)
+    event = Event(device=devices[1], event_type=Event.Type.CANCELLED, occurred_at=done, reason='Design changed', item=gone)
+    event.full_clean()
+    event.save()
 
 
 def seed_bulk(procs, vendors, devices, stdout=None):
