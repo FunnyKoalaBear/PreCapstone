@@ -3,7 +3,7 @@
 ## Setter + printing prototype (branch `prototype`, demo 2026-11-11)
 Every box of an item gets a copy of the same item sheet (one print per tag link).
 
-Code (written on `prototype`, compile-checked / unit-tested, not yet tried on hardware)
+Code (Setter on `prototype`, web app on `main`; confirmed end to end on hardware 2026-11-10)
 - [x] Setter `server_client`: GET + reply body, cJSON, `fetch_items()`, `assign()`, English `detail`
 - [x] Setter `setter_app`: command queue + task (list -> pick -> card -> assign -> result), `SETTER_UI` interface, `TEXT_UI` stand-in
 - [x] Setter `keyboard`: typed lines over the USB cable (row number, item code, n/p/r/c)
@@ -11,18 +11,19 @@ Code (written on `prototype`, compile-checked / unit-tested, not yet tried on ha
 - [x] `setup-print-worker.sh` systemd service
 
 To do before the demo
-- [ ] Create a "Setter" device in Django (Tags -> Devices), put its key in the Setter's menuconfig
-- [ ] Flash the Setter, test: list, pick by number, pick by code, cancel, assigned, refused (tag in use), server off
-- [ ] Factory server: pull `prototype`, `migrate`, set `PRINTER_NAME`, run `setup-print-worker.sh`, restart `dashboard`
-- [ ] Print one sheet from the website button, then one from the setter
+- [ ] Optional: own "Setter" device in Django (Tags -> Devices); it works now with the key already in its menuconfig
+- [x] Flash the Setter (COM8), test: list, paging, pick by number, cancel, assigned, refused (tag in use)
+- [ ] Still untested: pick by item code, server off
+- [x] Factory server: pull `main`, `migrate`, set `PRINTER_NAME`, `setup-print-worker.sh`, restart `dashboard`
+- [x] Print one sheet from the website button, then one from the setter
 - [ ] Wire the UI team's screens: implement `SETTER_UI`, buttons call `setter_*()` (see `setter_app.hpp`)
 - [ ] Rehearsal: release test tag links (Tags page) before the demo; phone video backup
 
 After the demo
 - [ ] Upload printed PDFs to S3 from `print_worker` (after printing; retry when offline)
 - [ ] Map the panel buttons; touchscreen picking
+- [ ] Reload the Setter list more often (it can be stale until an action; press `r` before picking)
 - [ ] Print status + reprint on the item page
-- [ ] `NOTES.md` entry for the Setter once confirmed working
 
 ## Scanner firmware (next up)
 - [ ] Point `send_scan` at Django `POST /api/scan/` on the factory server (`tag_uid` + `X-API-Key` header, see `Web_Application/docs/scanner-api.md`)
