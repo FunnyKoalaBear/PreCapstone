@@ -147,3 +147,49 @@ curl -i -X POST http://PI_ADDRESS:8000/api/scan/ \
 | 400 `invalid` | Firmware bug or bad data | "Request error" | No |
 | 405 | Wrong method | "Request error" | No |
 | 5xx, timeout, no network | Server or network down | "Server error" | Yes, after a pause. A retry of a tag-only scan inside 5 s is ignored as `duplicate`; later it may save a second step |
+
+# Tag setter API (link a tag to an item)
+
+Checked against `tracking/api.py` (`assignable_items_list`, `assign`). Same `X-API-Key` header and same `401 bad_key` as the scan API. A setter is an ordinary scanner device (Tags -> Devices); any active key works on all three endpoints.
+
+Flow: the setter lists the items that still need a tag, the operator picks one, taps a card, and the setter posts the UID with the item id. The server checks everything again (the list may be out of date).
+
+## 1. `GET /api/assignable-items/?offset=0&limit=20`
+
+Items that still have a free box slot, oldest job number first (the same list as the Tags page form). Paged so the ESP32 never parses a big reply: `limit` 1-50 (default 20), `offset` >= 0 (default 0). Anything else gives `400 invalid`.
+
+```json
+{"ok": true, "total": 80, "offset": 0,
+ "items": [{"id": 914, "item": "2611-001-01", "part": "Mit", "customer": "Mithun",
+            "due": "2026-12-01", "linked": 0, "boxes": 1}]}
+```
+
+- `id` is what you send back in step 2. `item` (job number + "-NN") is what you show.
+- `linked` of `boxes` are already tagged. Show "box `linked+1` of `boxes`" only when `boxes` > 1.
+- Next page: `offset` + number of items received, while that is below `total`.
+
+## 2. `POST /api/assign/`
+
+```json
+{"tag_uid": "04A1B2C3", "item": 914}
+```
+
+`item` must be a JSON integer. The UID is trimmed and upper-cased like the scan API.
+
+| Reply | Meaning | Show | Retry? |
+|---|---|---|---|
+| 200 `{"ok": true, "state": "assigned", "tag_uid": "04A1B2C3", "item": "2611-001-01", "linked": 1, "boxes": 1}` | Linked from now on | OK; if `linked` < `boxes`, offer the next box | No |
+| 409 `refused` | Tag already in use, tag inactive, or all boxes of the item already linked. `detail` says which (display text, do not parse) | `detail`, then reload the list | No |
+| 400 `invalid` | Bad JSON, missing or empty `tag_uid`, `item` not an integer or unknown | "Request error" | No |
+| 401 `bad_key` | Key wrong or device off | "Device key error" | No |
+| 5xx, timeout | Server or network down | "Server error" | Yes. A retry after a success gives `409` (tag in use): check `detail` or the Tags page |
+
+`last_seen` is updated on 200 and 409 (and on step 1), not on 400 or 401. Fixing a wrong link (release, replace a lost tag) stays on the Tags page.
+
+Linux example:
+
+```bash
+curl -s "http://PI_ADDRESS:8080/api/assignable-items/?limit=5" -H "X-API-Key: YOUR_KEY"
+curl -i -X POST http://PI_ADDRESS:8080/api/assign/ -H "X-API-Key: YOUR_KEY" \
+  -H "Content-Type: application/json" -d '{"tag_uid": "04A1B2C3", "item": 914}'
+```

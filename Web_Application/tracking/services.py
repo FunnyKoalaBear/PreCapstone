@@ -1,9 +1,11 @@
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
+from django.db.models import Count, F, Q
 from django.utils import timezone
 from django.utils.translation import gettext as _
 
 from core.permissions import PLANNER, has_role
+from orders.models import OrderItem
 
 from .models import Event, Tag, TagAssignment
 from .status import CANCELLED, COMPLETE, SHIPPED, item_status, manual_actions, next_action
@@ -37,6 +39,14 @@ def record_event(device, tag_uid, process, event_type, occurred_at=None):
         device.last_seen = timezone.now()
         device.save(update_fields=['last_seen'])
     return event, resolve_tag(event.tag_uid, occurred_at)
+
+
+def assignable_items():
+    """Items that still have a free box slot (Tags page form and setter API)."""
+    return (
+        OrderItem.objects.annotate(linked=Count('tagassignment', filter=Q(tagassignment__end_at__isnull=True)))
+        .filter(linked__lt=F('box_count')).select_related('order__customer').order_by('order__job_number', 'item_no')
+    )
 
 
 def assign_tag(item, tag_uid):

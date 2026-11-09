@@ -1156,6 +1156,82 @@ class ScanApiTests(TestCase):
         self.assertEqual(self.auto(key='nope').status_code, 401)
 
 
+class SetterApiTests(TestCase):
+    def setUp(self):
+        self.device = ScannerDevice.objects.create(name='Setter')
+        order = Order.objects.create(customer=Customer.objects.create(name='C'), due_date=date(2026, 12, 1))
+        self.one = OrderItem.objects.create(order=order, part_name='One', quantity=1)
+        self.two = OrderItem.objects.create(order=order, part_name='Two', quantity=1, box_count=2)
+        self.key = {'HTTP_X_API_KEY': self.device.api_key}
+
+    def items(self, query='', **headers):
+        return self.client.get('/api/assignable-items/' + query, **(headers or self.key))
+
+    def assign(self, body, **headers):
+        data = body if isinstance(body, str) else json.dumps(body)
+        return self.client.post('/api/assign/', data, content_type='application/json', **(headers or self.key))
+
+    def test_list_needs_key(self):
+        self.assertEqual(self.items(HTTP_X_API_KEY='nope').status_code, 401)
+        self.device.active = False
+        self.device.save()
+        self.assertEqual(self.items().status_code, 401)
+
+    def test_list_shows_items_with_free_slots(self):
+        assign_tag(self.one, 'A1')
+        assign_tag(self.two, 'B1')
+        j = self.items().json()
+        self.assertEqual((j['ok'], j['total'], j['offset']), (True, 1, 0))
+        self.assertEqual(j['items'], [{
+            'id': self.two.pk, 'item': self.two.item_code, 'part': 'Two', 'customer': 'C',
+            'due': '2026-12-01', 'linked': 1, 'boxes': 2,
+        }])
+        self.device.refresh_from_db()
+        self.assertIsNotNone(self.device.last_seen)
+
+    def test_list_pages(self):
+        j = self.items('?offset=1&limit=1').json()
+        self.assertEqual((j['total'], [i['id'] for i in j['items']]), (2, [self.two.pk]))
+        for q in ('?limit=0', '?limit=51', '?offset=-1', '?limit=x'):
+            self.assertEqual((self.items(q).status_code, self.items(q).json()['error']), (400, 'invalid'), q)
+
+    def test_assign_links_tag(self):
+        r = self.assign({'tag_uid': ' ab12 ', 'item': self.two.pk})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json(), {'ok': True, 'state': 'assigned', 'tag_uid': 'AB12', 'item': self.two.item_code, 'linked': 1, 'boxes': 2})
+        self.assertEqual(TagAssignment.objects.get(end_at__isnull=True).item, self.two)
+        self.device.refresh_from_db()
+        self.assertIsNotNone(self.device.last_seen)
+
+    def test_assign_needs_key(self):
+        self.assertEqual(self.assign({'tag_uid': 'AB', 'item': self.one.pk}, HTTP_X_API_KEY='nope').status_code, 401)
+        self.assertFalse(TagAssignment.objects.exists())
+
+    def test_assign_refused_cases(self):
+        assign_tag(self.one, 'USED')
+        Tag.objects.create(uid='OFF', active=False)
+        for body in ({'tag_uid': 'USED', 'item': self.two.pk}, {'tag_uid': 'OFF', 'item': self.two.pk}, {'tag_uid': 'NEW', 'item': self.one.pk}):
+            r = self.assign(body)
+            self.assertEqual((r.status_code, r.json()['error']), (409, 'refused'), body)
+        self.assertEqual(TagAssignment.objects.count(), 1)
+
+    def test_assign_bad_requests(self):
+        for body in ('{bad', {'item': self.one.pk}, {'tag_uid': ' ', 'item': self.one.pk}, {'tag_uid': 'AB'},
+                     {'tag_uid': 'AB', 'item': '1'}, {'tag_uid': 'AB', 'item': True}, {'tag_uid': 'AB', 'item': 999999}):
+            r = self.assign(body)
+            self.assertEqual((r.status_code, r.json()['error']), (400, 'invalid'), body)
+        self.assertFalse(TagAssignment.objects.exists())
+
+    def test_wrong_methods(self):
+        self.assertEqual(self.client.get('/api/assign/', **self.key).status_code, 405)
+        self.assertEqual(self.client.post('/api/assignable-items/', **self.key).status_code, 405)
+
+    def test_assigned_tag_then_scans(self):
+        self.assign({'tag_uid': 'AB12', 'item': self.one.pk})
+        r = self.client.post('/api/scan/', json.dumps({'tag_uid': 'AB12'}), content_type='application/json', **self.key)
+        self.assertNotEqual(r.status_code, 404)
+
+
 class CorrectEventTests(TestCase):
     def setUp(self):
         self.now = timezone.now()

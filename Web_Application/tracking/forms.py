@@ -2,14 +2,14 @@ from django import forms
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
-from django.db.models import Count, F, Q
+from django.db.models import Q
 from django.utils.translation import gettext
 
 from orders.models import OrderItem, Process
 
 from .photos import process_photo
 from .models import DefectCause, Event, Machine, ScannerDevice, TagAssignment, Worker
-from .services import resolve_tag
+from .services import assignable_items, resolve_tag
 from .status import box_captions
 
 
@@ -58,10 +58,7 @@ class AssignTagForm(forms.Form):
         super().__init__(*args, **kwargs)
         # Only items that still have a free box slot
         field = self.fields['item']
-        field.queryset = (
-            OrderItem.objects.annotate(linked=Count('tagassignment', filter=Q(tagassignment__end_at__isnull=True)))
-            .filter(linked__lt=F('box_count')).select_related('order').order_by('order__job_number', 'item_no')
-        )
+        field.queryset = assignable_items()
         field.label_from_instance = lambda i: gettext('%(code)s - %(part)s (%(n)s of %(total)s boxes linked)') % {
             'code': i.item_code, 'part': i.part_name, 'n': i.linked, 'total': i.box_count,
         }

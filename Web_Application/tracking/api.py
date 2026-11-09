@@ -6,13 +6,15 @@ from django.core.exceptions import ValidationError
 from django.http import JsonResponse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
-from orders.models import Process
+from orders.models import OrderItem, Process
 
-from .models import Event, ScannerDevice
-from .services import next_step, record_event, resolve_tag
+from .models import Event, ScannerDevice, TagAssignment
+from .services import assign_tag, assignable_items, next_step, record_event, resolve_tag
 from .status import item_status
+
+ASSIGN_LIST_MAX = 50
 
 
 def _error(status, code, detail=None):
@@ -37,11 +39,62 @@ def _reply(state, assignment, event=None, process=None):
     return JsonResponse(body)
 
 
+def _device(request):
+    return ScannerDevice.objects.filter(api_key=request.headers.get('X-API-Key', ''), active=True).first()
+
+
+@require_GET
+def assignable_items_list(request):
+    device = _device(request)
+    if device is None:
+        return _error(401, 'bad_key')
+    try:
+        offset, limit = int(request.GET.get('offset', 0)), int(request.GET.get('limit', 20))
+        if offset < 0 or not 1 <= limit <= ASSIGN_LIST_MAX:
+            raise ValueError(f'offset >= 0 and 1 <= limit <= {ASSIGN_LIST_MAX}')
+    except ValueError as e:
+        return _error(400, 'invalid', f'{type(e).__name__}: {e}')
+    qs = assignable_items()
+    items = [{
+        'id': i.pk, 'item': i.item_code, 'part': i.part_name, 'customer': i.order.customer.name,
+        'due': i.order.due_date.isoformat(), 'linked': i.linked, 'boxes': i.box_count,
+    } for i in qs[offset:offset + limit]]
+    _touch(device, timezone.now())
+    return JsonResponse({'ok': True, 'total': qs.count(), 'offset': offset, 'items': items})
+
+
+@csrf_exempt
+@require_POST
+def assign(request):
+    device = _device(request)
+    if device is None:
+        return _error(401, 'bad_key')
+    try:
+        data = json.loads(request.body)
+        uid, pk = str(data['tag_uid']).strip(), data['item']
+        if not uid:
+            raise ValueError('tag_uid is empty')
+        if not isinstance(pk, int) or isinstance(pk, bool):
+            raise TypeError('item must be an integer id')
+        item = OrderItem.objects.select_related('order').get(pk=pk)
+    except (ValueError, KeyError, TypeError, AttributeError, OrderItem.DoesNotExist) as e:
+        return _error(400, 'invalid', f'{type(e).__name__}: {e}')
+    try:
+        a = assign_tag(item, uid)
+    except ValidationError as e:
+        # Tag in use or inactive, or all boxes already linked: nothing saved
+        _touch(device, timezone.now())
+        return _error(409, 'refused', ' '.join(e.messages))
+    _touch(device, timezone.now())
+    linked = TagAssignment.objects.filter(item=item, end_at__isnull=True).count()
+    return JsonResponse({'ok': True, 'state': 'assigned', 'tag_uid': a.tag.uid, 'item': item.item_code, 'linked': linked, 'boxes': item.box_count})
+
+
 @csrf_exempt
 @require_POST
 def scan(request):
     # Key check first: no data is read from a caller we do not know
-    device = ScannerDevice.objects.filter(api_key=request.headers.get('X-API-Key', ''), active=True).first()
+    device = _device(request)
     if device is None:
         return _error(401, 'bad_key')
     try:
