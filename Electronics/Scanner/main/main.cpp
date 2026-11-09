@@ -17,7 +17,7 @@
 
 
 struct scan_msg_t {
-    char uid[16]; 
+    char uid[24];   // up to 10 UID bytes as hex + NUL
 };
 
 struct button_task_args_t {
@@ -36,6 +36,7 @@ struct send_scan_task_args_t {
 struct rfid_task_args_t {
     BUZZER *buzzer;
     RFID *rfid;  
+    QueueHandle_t scan_queue;
 };
 
 
@@ -58,17 +59,14 @@ static void button_task(void *argument)
             args->buzzer->on();
             vTaskDelay(pdMS_TO_TICKS(100));
             args->buzzer->off();
-
-        } else if (!pressed) {
-            args->buzzer->off();
         }
 
-        if (pressed && !was_pressed) {
-            scan_msg_t msg = {};
+        // if (pressed && !was_pressed) {
+            // scan_msg_t msg = {};
 
-            strlcpy(msg.uid, "Hi from task", sizeof(msg.uid));
-            xQueueSend(args->scan_queue, &msg, 0);
-        }
+            // strlcpy(msg.uid, "Hi from task", sizeof(msg.uid));
+            // xQueueSend(args->scan_queue, &msg, 0);
+        // }
         
         was_pressed = pressed;
         vTaskDelay(pdMS_TO_TICKS(50));
@@ -105,6 +103,7 @@ static void rfid_task(void *argument)
     auto *args = static_cast<rfid_task_args_t *>(argument);
 	uint8_t uid[10];
     uint8_t uid_length = 0; 
+    scan_msg_t msg = {};
 
     while (true) {
     
@@ -113,6 +112,13 @@ static void rfid_task(void *argument)
         if (args->rfid->read_uid(uid, &uid_length)) {
             
             ESP_LOGW(TAG, "RFID Task recieved UID");
+            
+            //POST
+            for (uint8_t i = 0; i < uid_length; i++) {
+                    snprintf(msg.uid + 2 * i, sizeof(msg.uid) - 2 * i, "%02X", uid[i]);   // 0d 11 69 6b -> "0D11696B"
+                    ESP_LOGW(TAG, "UID Sent: %s ", msg.uid);
+            }
+            xQueueSend(args->scan_queue, &msg, 0);
             
             //buzz twice now
             args->buzzer->on();
@@ -126,12 +132,13 @@ static void rfid_task(void *argument)
         } else {
             // no card
             ESP_LOGE(TAG, "Card not found");
-            return;
+            continue;
         }
     }
 
     vTaskDelete(NULL);
 }
+
 
 
 // test: prints the number of each panel button when it is pressed
@@ -188,7 +195,7 @@ extern "C" void app_main()
 
     //creating task      
     static TaskHandle_t rfid_handle = nullptr;
-    static rfid_task_args_t rfid_args{&buzzer, &rfid};
+    static rfid_task_args_t rfid_args{&buzzer, &rfid, scan_queue};
     xTaskCreate(rfid_task, "RFID Scan", 4096 , &rfid_args, 5, &rfid_handle); 
 
     

@@ -172,19 +172,17 @@ bool RFID::read_uid(uint8_t *uid_out, uint8_t *uid_length_out)
 
 	while ((xTaskGetTickCount() - start_time) < timeout_ticks) {
 		
-		uint8_t uid[] = {0, 0, 0, 0, 0, 0, 0};
-		uint8_t zero_uid[] = {0, 0, 0, 0, 0, 0, 0};
-
+		uint8_t uid[10] = {};
 		uint8_t uid_length = 0;
 		
 		esp_err_t err = pn532_read_passive_target_id(&pn532_io, PN532_BRTY_ISO14443A_106KBPS, uid, &uid_length, 100);
 
-		if (err != ESP_OK) {
+		if (err != ESP_OK || uid_length == 0 || uid_length > sizeof(uid)) {
 			vTaskDelay(50 / portTICK_PERIOD_MS);
 			continue;
 		}
 
-		//card found 
+		//card found
 		ESP_LOGI(TAG, "Found an ISO14443A card");
 		ESP_LOGI(TAG, "UID Value:");
 		ESP_LOG_BUFFER_HEX_LEVEL(TAG, uid, uid_length, ESP_LOG_INFO);
