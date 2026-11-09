@@ -1184,10 +1184,21 @@ class SetterApiTests(TestCase):
         self.assertEqual((j['ok'], j['total'], j['offset']), (True, 1, 0))
         self.assertEqual(j['items'], [{
             'id': self.two.pk, 'item': self.two.item_code, 'part': 'Two', 'customer': 'C',
-            'due': '2026-12-01', 'linked': 1, 'boxes': 2,
+            'due': '2026-12-01', 'linked': 1, 'boxes': 2, 'quantity': 1, 'order_number': '',
+            'ordered': timezone.localdate(self.two.order.created_at).isoformat(), 'steps': 0,
         }])
         self.device.refresh_from_db()
         self.assertIsNotNone(self.device.last_seen)
+
+    def test_list_counts_route_steps_and_shows_the_order_number(self):
+        order = self.one.order
+        order.customer_order_number = 'PO-7'
+        order.save()
+        for n, name in enumerate(('Mill', 'Lathe'), 1):
+            RouteStep.objects.create(item=self.one, sequence=n, process=Process.objects.create(name=name, kind=K.MACHINING))
+        one = self.items().json()['items'][0]
+        self.assertEqual((one['id'], one['steps'], one['order_number']), (self.one.pk, 2, 'PO-7'))
+        self.assertEqual(self.items().json()['items'][1]['steps'], 0)
 
     def test_list_pages(self):
         j = self.items('?offset=1&limit=1').json()

@@ -4,12 +4,13 @@ from datetime import timedelta
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Count
 from django.http import JsonResponse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
-from orders.models import OrderItem, PrintJob, Process
+from orders.models import OrderItem, PrintJob, Process, RouteStep
 from orders.printing import queue_print
 
 from .models import Event, ScannerDevice, TagAssignment
@@ -57,10 +58,15 @@ def assignable_items_list(request):
     except ValueError as e:
         return _error(400, 'invalid', f'{type(e).__name__}: {e}')
     qs = assignable_items()
+    page = list(qs[offset:offset + limit])
+    # Route step count per item in one query (the setter shows it on its details screen)
+    steps = dict(RouteStep.objects.filter(item__in=page).values_list('item').annotate(n=Count('pk')))
     items = [{
         'id': i.pk, 'item': i.item_code, 'part': i.part_name, 'customer': i.order.customer.name,
         'due': i.order.due_date.isoformat(), 'linked': i.linked, 'boxes': i.box_count,
-    } for i in qs[offset:offset + limit]]
+        'quantity': i.quantity, 'order_number': i.order.customer_order_number,
+        'ordered': timezone.localdate(i.order.created_at).isoformat(), 'steps': steps.get(i.pk, 0),
+    } for i in page]
     _touch(device, timezone.now())
     return JsonResponse({'ok': True, 'total': qs.count(), 'offset': offset, 'items': items})
 

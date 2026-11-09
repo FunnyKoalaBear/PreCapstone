@@ -161,8 +161,11 @@ Items that still have a free box slot, oldest job number first (the same list as
 ```json
 {"ok": true, "total": 80, "offset": 0,
  "items": [{"id": 914, "item": "2611-001-01", "part": "Mit", "customer": "Mithun",
-            "due": "2026-12-01", "linked": 0, "boxes": 1}]}
+            "due": "2026-12-01", "linked": 0, "boxes": 1, "quantity": 10,
+            "order_number": "HD-B0031", "ordered": "2026-11-02", "steps": 5}]}
 ```
+
+- `quantity`, `order_number` (customer order number, may be empty), `ordered` (date the order was registered, JST) and `steps` (route steps) are for the setter's details screen.
 
 - `id` is what you send back in step 2. `item` (job number + "-NN") is what you show.
 - `linked` of `boxes` are already tagged. Show "box `linked+1` of `boxes`" only when `boxes` > 1.
