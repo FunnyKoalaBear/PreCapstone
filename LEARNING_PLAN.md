@@ -22,6 +22,125 @@ The working version stays on branch `prototype` as the answer key. Do one step a
 - Django tests on Postgres need the role to create a test database, once, as the `postgres` superuser: `ALTER ROLE factory CREATEDB;`
   Then `.venv\Scripts\python manage.py test tracking orders`.
 
+## Function map: what you will write and how it connects
+
+Read this before Phase 1, and come back to it whenever you are lost. Step numbers refer to the phases below.
+
+### The big picture (firmware)
+
+Three input tasks only *queue* commands. One task, `setter_task`, owns the item list and does all the slow work
+(HTTP, waiting for a card, drawing). That is why a button press never freezes anything and there are no data races.
+
+```
+ INPUT TASKS (main.cpp)                       COMMAND QUEUE              THE ONE WORKER (setter_app.cpp)
+ panel_task    -> PANEL_ACTIONS[n]()  --+
+ button_task   -> setter_back()       --+-> setter_*() -> send(cmd) -> [ queue, 8 cmd_t ] -> setter_task
+ keyboard_task -> read_line() + parse --+                                                     |
+                                                                                              |
+     +----------------------------------------------------------------------------------------+
+     |
+     +- load_all() ------> SERVER_CLIENT::fetch_items() -> request(GET)  -> Django assignable_items_list
+     +- sort_items()
+     +- show_list() -----> ui->show_list(setter_list_t)          (SETTER_GUI draws, TEXT_UI prints)
+     +- link_item()
+          +- ui->show_waiting_for_card()
+          +- wait_for_card() -> RFID::poll_uid()        (also reads the queue: BACK cancels)
+          +- SERVER_CLIENT::assign() -> request(POST)   -> Django assign -> assign_tag + queue_print
+          +- ui->show_result()
+```
+
+### Data types (write these first, everything else passes them around)
+
+| Type | File | Holds | Made by -> used by |
+|---|---|---|---|
+| `setter_item_t` | `server_client.hpp` | one item: id, code, part, customer, order_number, due, ordered, linked, boxes, quantity, steps | `fetch_items()` -> `items[]` in setter_app -> UI |
+| `assign_state_t` + `assign_result_t` | `server_client.hpp` | ASSIGNED / REFUSED / BAD_KEY / INVALID / SERVER_ERROR, message, linked, boxes | `assign()` -> `link_item()` -> `ui->show_result()` |
+| `cmd_type_t` + `cmd_t` | `setter_app.cpp` | one queued command (+ row number or item code) | `send()` -> queue -> `setter_task` |
+| `card_t` | `setter_app.cpp` | READ / TIMEOUT / CANCELLED | `wait_for_card()` -> `link_item()` |
+| `setter_list_t` (+ view / sort / modal enums) | `setter_ui.hpp` | what the list screen shows: items, count, selected, view, sort, modal, banner | `show_list()` -> `ui->show_list()` |
+| `SETTER_UI` | `setter_ui.hpp` | abstract class: `show_message`, `show_list`, `show_waiting_for_card`, `show_result`, `show_error`, `tick` | implemented by `TEXT_UI` and `SETTER_GUI` |
+
+### Firmware functions
+
+**`components/server_client`** (steps 2-6)
+
+| Function | Does | Called by | Calls |
+|---|---|---|---|
+| `int request(bool post, path, body, reply, reply_size)` | one HTTP request with the 3 headers; fills `reply` with the body; returns the status or -1 | `fetch_items`, `assign`, `send_scan` | `WIFI::connected`, `esp_http_client_open / write / fetch_headers / read_response / close / cleanup` |
+| `bool fetch_items(offset, limit, items, max_items, &count, &total)` | GET one page, parse with cJSON into `setter_item_t[]` | `load_all` | `request`, `cJSON_Parse`, `cJSON_ArrayForEach`, helpers `json_int`, `json_str`, `cJSON_Delete` |
+| `assign_result_t assign(uid, item_id)` | POST `{"tag_uid", "item"}`, turn the status into `assign_state_t`, copy `detail` on 409 | `link_item` | `request`, `cJSON_Parse`, `json_int`, `json_str` |
+| `bool send_scan(uid)` | the scanner's POST, kept for later | nothing on the Setter | `request` |
+
+**`components/rfid`** (step 7)
+
+| Function | Does | Called by | Calls |
+|---|---|---|---|
+| `bool RFID::init()` | start the PN532 over I2C (already exists) | `app_main` | PN532 driver |
+| `bool RFID::poll_uid(uid_out, &len)` | one ~100 ms look for a card | `wait_for_card` | `pn532_read_passive_target_id` |
+
+**`components/keyboard`** (step 8)
+
+| Function | Does | Called by | Calls |
+|---|---|---|---|
+| `bool KEYBOARD::init()` | install the UART driver, route `printf` through it | `app_main` | `uart_driver_install`, `uart_vfs_dev_use_driver` |
+| `int KEYBOARD::read_line(line, size)` | wait for Enter, echo keys, handle backspace | `keyboard_task` | `uart_read_bytes`, `uart_write_bytes` |
+
+**`components/setter_app/setter_app.cpp`** (steps 9-11): public functions first, then the private ones in the `namespace {}`
+
+| Function | Does | Called by | Calls |
+|---|---|---|---|
+| `bool setter_app_start(ui, rfid, buzzer)` | save the pointers, create the queue and `setter_task` (10 KB stack) | `app_main` | `xQueueCreate`, `xTaskCreate` |
+| `setter_up / down / prev_page / next_page / link_selected / back / toggle_details / toggle_drawing / next_view / next_sort / pick(row) / pick_code(code) / reload` | one line each: queue a command | input tasks | `send` |
+| `send(type, row, code)` | build a `cmd_t`, `xQueueSend` with 0 wait (never blocks the caller) | the 13 functions above | `xQueueSend` |
+| `setter_task(arg)` | forever: reload if needed, wait 1 s for a command (else `ui->tick()`), `switch` on the command | FreeRTOS | `load_all`, `show_list`, `link_item`, `find_code`, `sort_items`, `ui->...` |
+| `bool load_all(server)` | page through the API 20 at a time into `items[100]`, keep the selection by id | `setter_task` | `fetch_items`, `sort_items` |
+| `sort_items()` | `std::sort` by number / start / due / part (tie-break on code), keep the selection | `load_all`, `setter_task` (SORT) | `std::sort`, `strcmp` |
+| `show_list()` | pack the state into a `setter_list_t`, hand it to the UI, clear the banner | `setter_task` | `ui->show_list` |
+| `link_item(server, item)` | the whole link flow: ask for card, wait, assign, show result, beeps, banner, `xQueueReset` | `setter_task` (LINK, PICK, PICK_CODE) | `ui->show_waiting_for_card`, `wait_for_card`, `assign`, `ui->show_result`, `beep` |
+| `card_t wait_for_card(uid_hex, size)` | loop until 15 s: BACK in the queue -> CANCELLED; card -> hex UID, READ | `link_item` | `xQueueReceive`, `RFID::poll_uid`, `snprintf("%02X")` |
+| `int find_code(code)` | index of an item code in `items[]`, or -1 | `setter_task` (PICK_CODE) | `strcasecmp` |
+| `beep(times, on_ms)` | buzzer pattern | `link_item` | `BUZZER::on / off` |
+
+**`components/setter_app/text_ui.cpp`** (step 12): `TEXT_UI` implements every `SETTER_UI` method with `printf`. `SETTER_GUI` owns one and calls it first, so the serial monitor always shows the same thing as the screen.
+
+**`main/main.cpp`** (step 13)
+
+| Function | Does | Calls |
+|---|---|---|
+| `app_main()` | create every object `static`, init display -> pick `SETTER_GUI` or `TEXT_UI`, init keyboard / buzzer / button / panel, WiFi, `start_clock`, RFID, `setter_app_start`, start the input tasks | everything's `init()`, `setter_app_start`, `xTaskCreate` |
+| `panel_task(panel)` | every 50 ms: `BUTTON_PANEL::pressed()`, run `PANEL_ACTIONS[n - 1]()` | `setter_up`, `setter_down`, ... (via the table) |
+| `button_task(button)` | steel button pressed -> `setter_back()` | `BUTTON::clicked`, `setter_back` |
+| `keyboard_task(keyboard)` | `read_line`, then: one letter -> its command; contains `-` -> `setter_pick_code`; number -> `setter_pick(n - 1)` | `read_line`, `strtol`, `setter_*` |
+| `start_clock()` | `TZ=JST-9` + SNTP from `pool.ntp.org` | `setenv`, `tzset`, `esp_netif_sntp_init` |
+
+**Provided UI, copy only** (step 14): `SETTER_GUI` (`setter_gui.cpp`) implements `SETTER_UI` and draws through `CANVAS::render()`. It needs only two display functions from you: `SETTER_DISPLAY::draw_pixels(x, y, w, h, pixels)` and `SETTER_DISPLAY::glyph(c)`.
+
+### Call chains to trace on paper
+
+1. **Boot:** `app_main` -> `display.init` -> `gui.init` -> `keyboard.init` ... `wifi.init` -> `start_clock` -> `rfid.init` -> `setter_app_start` -> `setter_task` -> `load_all` -> `fetch_items` x4 -> `request` -> `show_list` -> `SETTER_GUI::show_list` -> `TEXT_UI::show_list` + `redraw`.
+2. **Button 2 (down):** `panel_task` -> `PANEL_ACTIONS[1]` = `setter_down` -> `send(DOWN)` -> queue -> `setter_task` `case DOWN` -> `selected++` -> `show_list`.
+3. **Button 3 (link) + card:** `setter_link_selected` -> `send(LINK)` -> `setter_task` `case LINK` -> `link_item` -> `show_waiting_for_card` -> `wait_for_card` -> `poll_uid` (repeat) -> `assign` -> `request(POST)` -> **Django** -> `show_result` -> back in `setter_task`: `need_load = true` -> `load_all`.
+4. **Button 4 during the card wait:** `setter_back` -> `send(BACK)` -> it is `wait_for_card` (not `setter_task`'s `switch`) that reads it from the queue -> returns `CANCELLED`.
+5. **Typed `2511-004-01` + Enter:** `keyboard_task` -> `setter_pick_code` -> `send(PICK_CODE)` -> `find_code` (if not found: `load_all`, try again) -> `link_item`.
+
+### Django functions (Phase 2)
+
+| Function | File | Does | Called by | Calls |
+|---|---|---|---|---|
+| `print_pdf(path, printer=None)` | `orders/printing.py` | check the queue with `lpstat -p`, send with `lp -d`, return the CUPS job id; `'dry-run'` if `PRINT_DRY_RUN` | `print_item` | `_run` |
+| `_run(cmd)` | `orders/printing.py` | `subprocess.run` with `LC_ALL=C`; "lp not found" -> `RuntimeError` | `print_pdf` | `subprocess.run` |
+| `print_item(item, name=None)` | `orders/printing.py` | write the sheet to `PRINT_DIR/name` (temp file + `os.replace`), print it | `run_next_job` | `item_pdf` (existing, `pdf.py`), `print_pdf` |
+| `queue_print(item, source, assignment=None)` | `orders/printing.py` | create a `PrintJob` (status PENDING) | `assign` (API), `item_print` (button) | `PrintJob.objects.create` |
+| `run_next_job()` | `orders/printing.py` | lock the oldest PENDING job (`select_for_update(skip_locked=True)`), print it, mark SENT, or count the attempt (FAILED after 5) | `print_worker` | `print_item` |
+| `Command.handle(once, interval, retry_wait)` | `orders/management/commands/print_worker.py` | loop: `close_old_connections`, `run_next_job`, sleep | systemd (`print-worker.service`) | `run_next_job` |
+| `assign(request)` | `tracking/api.py` | key check, parse JSON, `transaction.atomic()`: `assign_tag` + `queue_print`; 409 on `ValidationError` | the Setter's POST | `_device`, `assign_tag` (existing, `services.py`), `queue_print`, `_touch`, `_error` |
+| `assignable_items_list(request)` | `tracking/api.py` | one page of items + quantity, order_number, ordered, steps | the Setter's GET | `assignable_items` (existing), one grouped `RouteStep` count |
+| `item_print(request, pk)` | `orders/views.py` | Print sheet button -> `queue_print(item, BUTTON)` + message | the order page form | `queue_print` |
+| `PrintJobAdmin.retry` | `orders/admin.py` | selected jobs back to PENDING, attempts 0 | Django admin action | `queryset.update` |
+| `PrintJob` | `orders/models.py` | the queue table (item, assignment, source, status, attempts, printer_job, pdf_name, error, created_at, sent_at) | all of the above | |
+
+**Django call chain, end to end:** Setter POST -> `assign` -> `assign_tag` + `queue_print` (one transaction) -> 200 reply (fast). Separately, every 2 s: `print_worker` -> `run_next_job` -> `print_item` -> `item_pdf` -> `print_pdf` -> `lpstat` + `lp` -> printer -> job SENT.
+
 ## Phase 0: understand the contract (1 hour)
 
 - [ ] Read `Web_Application/docs/scanner-api.md`, section "Tag setter API". The ESP32 and Django only agree on this JSON.
