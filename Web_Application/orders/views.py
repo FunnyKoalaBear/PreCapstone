@@ -24,9 +24,9 @@ from tracking.status import (
 )
 
 from . import export, importer, pdf
-from .printing import print_item
+from .printing import queue_print
 from .forms import CustomerForm, ImportForm, OrderForm, OrderItemFormSet, VendorForm
-from .models import Customer, Order, OrderChange, OrderItem, Vendor
+from .models import Customer, Order, OrderChange, OrderItem, PrintJob, Vendor
 from .process_tab import _tab_processes
 from .runs import previous_runs
 
@@ -415,10 +415,6 @@ def item_sheet(request, pk):
 @require_POST
 def item_print(request, pk):
     item = get_object_or_404(OrderItem.objects.select_related('order'), pk=pk)
-    try:
-        job = print_item(item)
-        messages.success(request, _('Sheet of %(code)s sent to the printer (job %(job)s).') % {'code': item.item_code, 'job': job})
-    except (RuntimeError, FileNotFoundError) as e:
-        logger.exception('Printing %s failed', item.item_code)
-        messages.error(request, _('Could not print the sheet of %(code)s: %(error)s') % {'code': item.item_code, 'error': e})
+    queue_print(item, PrintJob.Source.BUTTON)
+    messages.success(request, _('Sheet of %(code)s queued for printing.') % {'code': item.item_code})
     return redirect(reverse('order_detail', args=[item.order.job_number]) + f'#item-{item.pk}')

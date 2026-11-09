@@ -160,6 +160,9 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | Worker | 作業者 |
 | Actual qty / Defects | 実績数 / 不良数 |
 | Print sheet | 指示書を印刷 |
+| Print job | 印刷ジョブ |
+| Queued for printing | 印刷待ち |
+| Sent to printer | プリンターに送信済み |
 
 ## Terms added for results
 

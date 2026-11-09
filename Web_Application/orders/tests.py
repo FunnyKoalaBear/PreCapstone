@@ -12,6 +12,7 @@ from django.contrib.admin import site
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.management import call_command
 from django.test import override_settings
 from unittest import mock
 from pypdf import PdfReader
@@ -29,7 +30,7 @@ from tracking.status import item_status, step_due_back, timeline
 from . import export, importer, printing
 from .pdf import item_pdf, order_pdf
 from .forms import OrderItemForm, OrderItemFormSet
-from .models import Customer, Order, OrderChange, OrderItem, Process, RouteStep, Vendor
+from .models import Customer, Order, OrderChange, OrderItem, PrintJob, Process, RouteStep, Vendor
 
 K = Process.Kind
 
@@ -1280,15 +1281,101 @@ class PrintItemTests(SheetBase):
         with self.assertRaisesMessage(RuntimeError, 'paused'):
             self.run_print(side_effect=RuntimeError('paused'))
 
-    def test_placeholder(self):
-        f = self.dir.parent / 'x.pdf'
+    def test_custom_name(self):
+        with override_settings(PRINT_DIR=self.dir), mock.patch('orders.printing.print_pdf') as m:
+            printing.print_item(self.item_, 'x_7.pdf')
+        m.assert_called_once_with(str(self.dir / 'x_7.pdf'))
+
+
+def cups(stdout='', returncode=0, stderr=''):
+    return mock.Mock(stdout=stdout, returncode=returncode, stderr=stderr)
+
+
+@override_settings(PRINT_DRY_RUN=False, PRINTER_NAME='Q')
+class PrintPdfTests(TestCase):
+    def setUp(self):
+        self.f = Path(tempfile.mkdtemp()) / 'x.pdf'
+        self.f.write_bytes(b'%PDF')
+
+    def run_cups(self, *results):
+        with mock.patch('orders.printing.subprocess.run', side_effect=list(results)) as m:
+            return printing.print_pdf(str(self.f)), m
+
+    def test_missing_file_and_dry_run(self):
         with self.assertRaises(FileNotFoundError):
-            printing.print_pdf(str(f))
-        f.write_bytes(b'%PDF')
-        with override_settings(PRINT_DRY_RUN=False), self.assertRaises(RuntimeError):
-            printing.print_pdf(str(f))
-        with override_settings(PRINT_DRY_RUN=True):
-            self.assertEqual(printing.print_pdf(str(f)), 'dry-run')
+            printing.print_pdf(str(self.f.with_name('none.pdf')))
+        with override_settings(PRINT_DRY_RUN=True), mock.patch('orders.printing.subprocess.run') as m:
+            self.assertEqual(printing.print_pdf(str(self.f)), 'dry-run')
+        m.assert_not_called()
+
+    def test_prints_and_returns_the_cups_job_id(self):
+        job, m = self.run_cups(cups('printer Q is idle.  enabled since today\n'), cups('request id is Q-12 (1 file(s))\n'))
+        self.assertEqual(job, 'Q-12')
+        self.assertEqual(m.call_args_list[1].args[0], ['lp', '-d', 'Q', str(self.f)])
+        self.assertEqual(m.call_args.kwargs['env']['LC_ALL'], 'C')
+
+    def test_printer_problems_raise(self):
+        cases = [
+            ([cups(returncode=1, stderr='unknown')], 'Printer not found'),
+            ([cups('printer Q disabled since today -\n')], 'paused'),
+            ([cups('printer Q is idle.\n'), cups(returncode=1, stderr='no paper')], 'no paper'),
+            ([FileNotFoundError()], 'CUPS is not installed'),
+        ]
+        for results, msg in cases:
+            with self.assertRaisesMessage(RuntimeError, msg):
+                self.run_cups(*results)
+        with override_settings(PRINTER_NAME=''), self.assertRaisesMessage(RuntimeError, 'PRINTER_NAME'):
+            printing.print_pdf(str(self.f))
+
+
+class PrintQueueTests(SheetBase):
+    def setUp(self):
+        super().setUp()
+        self.item_ = self.items[0]
+        self.dir = Path(tempfile.mkdtemp())
+
+    def run_job(self, **kw):
+        with override_settings(PRINT_DIR=self.dir), mock.patch('orders.printing.print_pdf', **kw) as m:
+            return printing.run_next_job(), m
+
+    def test_empty_queue(self):
+        self.assertIsNone(self.run_job()[0])
+
+    def test_oldest_pending_job_is_printed_and_kept_as_a_file(self):
+        first = printing.queue_print(self.item_, PrintJob.Source.BUTTON)
+        printing.queue_print(self.items[1], PrintJob.Source.BUTTON)
+        job, m = self.run_job(return_value='Q-3')
+        name = f'{self.item_.item_code}_{first.pk}.pdf'
+        self.assertEqual((job.pk, job.status, job.printer_job, job.pdf_name, job.attempts), (first.pk, 'SENT', 'Q-3', name, 1))
+        self.assertIsNotNone(job.sent_at)
+        m.assert_called_once_with(str(self.dir / name))
+        self.assertTrue((self.dir / name).read_bytes().startswith(b'%PDF'))
+        self.assertEqual(PrintJob.objects.filter(status='PENDING').count(), 1)
+
+    def test_failures_retry_then_give_up(self):
+        printing.queue_print(self.item_, PrintJob.Source.BUTTON)
+        with self.assertLogs('orders.printing', 'ERROR'):
+            for n in range(1, printing.MAX_ATTEMPTS + 1):
+                job, _m = self.run_job(side_effect=RuntimeError('Printer is paused (disabled)'))
+                self.assertEqual((job.attempts, job.status), (n, 'FAILED' if n == printing.MAX_ATTEMPTS else 'PENDING'))
+        self.assertIn('paused', job.error)
+        self.assertIsNone(self.run_job()[0])
+
+    def test_worker_once_empties_the_queue(self):
+        for item in self.items:
+            printing.queue_print(item, PrintJob.Source.BUTTON)
+        out = io.StringIO()
+        with override_settings(PRINT_DIR=self.dir, PRINT_DRY_RUN=True):
+            call_command('print_worker', '--once', stdout=out)
+        self.assertEqual(set(PrintJob.objects.values_list('status', flat=True)), {'SENT'})
+        self.assertIn('dry-run', out.getvalue())
+
+    def test_admin_retry_action(self):
+        job = PrintJob.objects.create(item=self.item_, source='BUTTON', status='FAILED', attempts=5, error='x')
+        self.client.force_login(User.objects.create_superuser('root', password='x'))
+        self.client.post('/admin/orders/printjob/', {'action': 'retry', '_selected_action': [job.pk]})
+        job.refresh_from_db()
+        self.assertEqual((job.status, job.attempts, job.error), ('PENDING', 0, ''))
 
 
 class ItemPrintViewTests(SheetBase):
@@ -1299,37 +1386,23 @@ class ItemPrintViewTests(SheetBase):
         self.page = f'/orders/{self.order.job_number}/'
         self.client.force_login(make_user('op', 'Operator'))
 
-    def post(self, **kw):
-        with mock.patch('orders.views.print_item', **kw) as m:
-            return self.client.post(self.url, follow=True), m
-
-    def test_print_redirects_to_the_item_card_with_a_success_message(self):
-        r, m = self.post(return_value='job-9')
-        m.assert_called_once_with(self.item_)
+    def test_print_queues_a_job_and_redirects_to_the_item_card(self):
+        r = self.client.post(self.url, follow=True)
         self.assertRedirects(r, f'{self.page}#item-{self.item_.pk}', fetch_redirect_response=False)
-        self.assertContains(r, 'sent to the printer')
-        self.assertContains(r, 'job-9')
+        self.assertContains(r, 'queued for printing')
+        job = PrintJob.objects.get()
+        self.assertEqual((job.item, job.source, job.status, job.assignment), (self.item_, 'BUTTON', 'PENDING', None))
 
     def test_get_is_405_and_prints_nothing(self):
-        with mock.patch('orders.views.print_item') as m:
-            self.assertEqual(self.client.get(self.url).status_code, 405)
-        m.assert_not_called()
+        self.assertEqual(self.client.get(self.url).status_code, 405)
+        self.assertFalse(PrintJob.objects.exists())
 
     def test_anonymous_and_non_operator(self):
         self.client.logout()
         self.assertEqual(self.client.post(self.url).status_code, 302)
         self.client.force_login(make_user('nobody'))
-        with mock.patch('orders.views.print_item') as m:
-            self.assertEqual(self.client.post(self.url).status_code, 403)
-        m.assert_not_called()
-
-    def test_printer_errors_become_messages_not_500s(self):
-        for exc in (RuntimeError('Printer is paused'), FileNotFoundError('gone')):
-            with self.assertLogs('orders.views', 'ERROR'):
-                r, _m = self.post(side_effect=exc)
-            self.assertEqual(r.status_code, 200)
-            self.assertContains(r, str(exc))
-            self.assertContains(r, self.item_.item_code)
+        self.assertEqual(self.client.post(self.url).status_code, 403)
+        self.assertFalse(PrintJob.objects.exists())
 
     def test_unknown_item_is_404(self):
         self.assertEqual(self.client.post('/items/9999/print/').status_code, 404)

@@ -23,7 +23,7 @@ from django.test import TransactionTestCase, override_settings
 from django.utils import timezone, translation
 
 from core.testing import TestCase, make_user
-from orders.models import Customer, Order, OrderItem, Process, RouteStep, Vendor
+from orders.models import Customer, Order, OrderItem, PrintJob, Process, RouteStep, Vendor
 
 from .forms import AssignTagForm
 from .matrix import matrix as build_matrix
@@ -1198,8 +1198,11 @@ class SetterApiTests(TestCase):
     def test_assign_links_tag(self):
         r = self.assign({'tag_uid': ' ab12 ', 'item': self.two.pk})
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.json(), {'ok': True, 'state': 'assigned', 'tag_uid': 'AB12', 'item': self.two.item_code, 'linked': 1, 'boxes': 2})
-        self.assertEqual(TagAssignment.objects.get(end_at__isnull=True).item, self.two)
+        self.assertEqual(r.json(), {'ok': True, 'state': 'assigned', 'tag_uid': 'AB12', 'item': self.two.item_code, 'linked': 1, 'boxes': 2, 'print': 'queued'})
+        a = TagAssignment.objects.get(end_at__isnull=True)
+        self.assertEqual(a.item, self.two)
+        job = PrintJob.objects.get()
+        self.assertEqual((job.item, job.assignment, job.source, job.status), (self.two, a, PrintJob.Source.ASSIGN, PrintJob.Status.PENDING))
         self.device.refresh_from_db()
         self.assertIsNotNone(self.device.last_seen)
 
@@ -1214,6 +1217,12 @@ class SetterApiTests(TestCase):
             r = self.assign(body)
             self.assertEqual((r.status_code, r.json()['error']), (409, 'refused'), body)
         self.assertEqual(TagAssignment.objects.count(), 1)
+        self.assertFalse(PrintJob.objects.exists())
+
+    def test_failed_print_queue_rolls_back_the_link(self):
+        with mock.patch('tracking.api.queue_print', side_effect=RuntimeError('db down')), self.assertRaises(RuntimeError):
+            self.assign({'tag_uid': 'AB12', 'item': self.two.pk})
+        self.assertFalse(TagAssignment.objects.exists())
 
     def test_assign_bad_requests(self):
         for body in ('{bad', {'item': self.one.pk}, {'tag_uid': ' ', 'item': self.one.pk}, {'tag_uid': 'AB'},

@@ -3,12 +3,14 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.http import JsonResponse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
-from orders.models import OrderItem, Process
+from orders.models import OrderItem, PrintJob, Process
+from orders.printing import queue_print
 
 from .models import Event, ScannerDevice, TagAssignment
 from .services import assign_tag, assignable_items, next_step, record_event, resolve_tag
@@ -80,14 +82,17 @@ def assign(request):
     except (ValueError, KeyError, TypeError, AttributeError, OrderItem.DoesNotExist) as e:
         return _error(400, 'invalid', f'{type(e).__name__}: {e}')
     try:
-        a = assign_tag(item, uid)
+        # Link and queue the sheet together: no print for a refused tag, no link without a print
+        with transaction.atomic():
+            a = assign_tag(item, uid)
+            queue_print(item, PrintJob.Source.ASSIGN, a)
     except ValidationError as e:
         # Tag in use or inactive, or all boxes already linked: nothing saved
         _touch(device, timezone.now())
         return _error(409, 'refused', ' '.join(e.messages))
     _touch(device, timezone.now())
     linked = TagAssignment.objects.filter(item=item, end_at__isnull=True).count()
-    return JsonResponse({'ok': True, 'state': 'assigned', 'tag_uid': a.tag.uid, 'item': item.item_code, 'linked': linked, 'boxes': item.box_count})
+    return JsonResponse({'ok': True, 'state': 'assigned', 'tag_uid': a.tag.uid, 'item': item.item_code, 'linked': linked, 'boxes': item.box_count, 'print': 'queued'})
 
 
 @csrf_exempt

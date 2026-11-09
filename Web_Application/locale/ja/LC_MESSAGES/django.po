@@ -3416,6 +3416,64 @@ msgstr "該当する完了済みの品目はありません。"
 #: .\orders\views.py:40
 msgid "Recently completed"
 msgstr "完了日（新しい順）"
+#: .\orders\admin.py
+msgid "Print the selected jobs again"
+msgstr "選択した印刷ジョブを再印刷する"
+
+#: .\orders\models.py
+msgid "Sent to printer"
+msgstr "プリンターに送信済み"
+
+#: .\orders\models.py
+msgid "Failed"
+msgstr "失敗"
+
+# CHECK: print job source = printed because a tag was linked
+#: .\orders\models.py
+msgid "Tag linked"
+msgstr "タグ紐付け時"
+
+#: .\orders\models.py
+msgid "Print button"
+msgstr "印刷ボタン"
+
+# CHECK: what started the print job (tag link or print button)
+#: .\orders\models.py
+msgid "source"
+msgstr "きっかけ"
+
+#: .\orders\models.py
+msgid "attempts"
+msgstr "試行回数"
+
+#: .\orders\models.py
+msgid "printer job"
+msgstr "プリンタージョブ番号"
+
+#: .\orders\models.py
+msgid "PDF file"
+msgstr "PDFファイル"
+
+#: .\orders\models.py
+msgid "error"
+msgstr "エラー"
+
+#: .\orders\models.py
+msgid "sent at"
+msgstr "送信日時"
+
+#: .\orders\models.py
+msgid "print job"
+msgstr "印刷ジョブ"
+
+#: .\orders\models.py
+msgid "print jobs"
+msgstr "印刷ジョブ"
+
+#: .\orders\views.py
+#, python-format
+msgid "Sheet of %(code)s queued for printing."
+msgstr "%(code)s の指示書を印刷待ちに追加しました。"
 
 #~ msgid "Back to Tags"
 #~ msgstr "タグ管理に戻る"
