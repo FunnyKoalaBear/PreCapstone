@@ -1,7 +1,7 @@
 idf_component_register(SRCS "main.cpp"
-                    
-                    INCLUDE_DIRS "." 
-                    
+
+                    INCLUDE_DIRS "."
+
                     REQUIRES led_strip
                     rfid
                     button
@@ -10,4 +10,6 @@ idf_component_register(SRCS "main.cpp"
                     wifi
                     server_client
                     button_panel
+                    keyboard
+                    setter_app
                     )

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Django (gunicorn behind Caddy on :8080) and FastAPI (uvicorn on :8000) as systemd services.
+# Django (gunicorn behind Caddy on :8080), its print worker and FastAPI (uvicorn on :8000) as systemd services.
 # Run:  sudo bash setup-services.sh
 set -euo pipefail
 
@@ -84,10 +84,11 @@ EOF
 
 systemctl daemon-reload
 systemctl enable --now dashboard.service factory-api.service
+bash "$(dirname "$0")/setup-print-worker.sh"
 systemctl enable caddy
 systemctl restart caddy
 
 sleep 3
-systemctl --no-pager --lines=0 status caddy dashboard factory-api | grep -E "●|Active:"
+systemctl --no-pager --lines=0 status caddy dashboard print-worker factory-api | grep -E "●|Active:"
 echo
 echo "Done."

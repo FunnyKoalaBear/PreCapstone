@@ -2,11 +2,19 @@ menu "Factory Server"
 
     config FACTORY_SERVER_URL
         string "Factory base URL (no trailing slash)"
-        default "http://192.168.8.155:8000"
+        default "http://192.168.8.155:8080"
 
     config FACTORY_SERVER_SCAN_PATH
         string "Path that receives scans"
-        default "/record_scan"
+        default "/api/scan/"
+
+    config FACTORY_SERVER_ITEMS_PATH
+        string "Path that lists items still needing a tag"
+        default "/api/assignable-items/"
+
+    config FACTORY_SERVER_ASSIGN_PATH
+        string "Path that links a tag to an item"
+        default "/api/assign/"
 
     config FACTORY_API_KEY
         string "API key sent in the X-API-Key header"

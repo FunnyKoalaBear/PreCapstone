@@ -1,10 +1,10 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-
+#include <strings.h>
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "freertos/queue.h"
 #include <esp_log.h>
 
 #include "rfid.hpp"
@@ -12,129 +12,62 @@
 #include "buzzer.hpp"
 #include "setter_display.hpp"
 #include "wifi.hpp"
-#include "server_client.hpp"
 #include "button_panel.hpp"
+#include "keyboard.hpp"
+#include "setter_app.hpp"
+#include "text_ui.hpp"
 
 
-struct scan_msg_t {
-    char uid[16]; 
-};
-
-struct button_task_args_t {
-    BUTTON *button;
-    BUZZER *buzzer;
-    RFID *rfid;
-    TaskHandle_t rfid_task;
-    QueueHandle_t scan_queue;
-
-};
-
-struct send_scan_task_args_t {
-    SERVER_CLIENT *server; 
-};
-
-struct rfid_task_args_t {
-    BUZZER *buzzer;
-    RFID *rfid;  
-};
-
-
-
-//test push
-static void button_task(void *argument)
+// Turns a typed line into a setter command: "3" picks row 3, "2611-001-01" picks by code, n/p/r/c
+static void keyboard_task(void *argument)
 {
-    auto *args = static_cast<button_task_args_t *>(argument);
-    bool was_pressed = false; 
+    auto *keyboard = static_cast<KEYBOARD *>(argument);
+    char line[32];
 
     while (true) {
-        
-        bool pressed = args->button->clicked(); 
+        keyboard->read_line(line, sizeof(line));
 
-        if (pressed && !was_pressed) {
-    
-            //notify rfid task 
-            xTaskNotifyGive(args->rfid_task);
-
-            args->buzzer->on();
-            vTaskDelay(pdMS_TO_TICKS(100));
-            args->buzzer->off();
-
-        } else if (!pressed) {
-            args->buzzer->off();
+        if (strcasecmp(line, "n") == 0) {
+            setter_next_page();
+        } else if (strcasecmp(line, "p") == 0) {
+            setter_prev_page();
+        } else if (strcasecmp(line, "r") == 0) {
+            setter_reload();
+        } else if (strcasecmp(line, "c") == 0) {
+            setter_cancel();
+        } else if (strchr(line, '-')) {
+            setter_pick_code(line);
+        } else {
+            char *end = nullptr;
+            long row = strtol(line, &end, 10);
+            if (*end == '\0' && row >= 1) {
+                setter_pick((int)row - 1);
+            } else {
+                printf("Unknown input \"%s\". Type a row number, an item code, n, p, r or c.\n", line);
+            }
         }
+    }
+}
 
+
+// The single push button cancels a card wait (or reloads the list)
+static void button_task(void *argument)
+{
+    auto *button = static_cast<BUTTON *>(argument);
+    bool was_pressed = false;
+
+    while (true) {
+        bool pressed = button->clicked();
         if (pressed && !was_pressed) {
-            scan_msg_t msg = {};
-
-            strlcpy(msg.uid, "Hi from task", sizeof(msg.uid));
-            xQueueSend(args->scan_queue, &msg, 0);
+            setter_cancel();
         }
-        
         was_pressed = pressed;
         vTaskDelay(pdMS_TO_TICKS(50));
     }
-    
-    vTaskDelete(NULL);
 }
 
 
-static void send_scan_task(void *argument) {
-
-    //auto *args = static_cast<send_scan_task_args_t *>(argument);
-    auto queue = static_cast<QueueHandle_t>(argument);
-    
-    SERVER_CLIENT server; 
-    scan_msg_t msg; 
-
-    while (true) {  
-        if (xQueueReceive(queue, &msg, portMAX_DELAY) == pdTRUE) { 
-            
-            server.send_scan(msg.uid);
-            static const char *TAG = "main";
-            ESP_LOGW(TAG, "Network task stack %u", (unsigned)uxTaskGetStackHighWaterMark(nullptr));
-        }
-    }
-
-    vTaskDelete(NULL);
-}
-
-
-static void rfid_task(void *argument)
-{
-    static const char *TAG = "main";
-    auto *args = static_cast<rfid_task_args_t *>(argument);
-	uint8_t uid[10];
-    uint8_t uid_length = 0; 
-
-    while (true) {
-    
-        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);     // sleeps here until the button gives a notification
-    
-        if (args->rfid->read_uid(uid, &uid_length)) {
-            
-            ESP_LOGW(TAG, "RFID Task recieved UID");
-            
-            //buzz twice now
-            args->buzzer->on();
-            vTaskDelay(pdMS_TO_TICKS(100));
-            args->buzzer->off();
-            vTaskDelay(pdMS_TO_TICKS(100));
-            args->buzzer->on();
-            vTaskDelay(pdMS_TO_TICKS(100));
-            args->buzzer->off();
-
-        } else {
-            // no card
-            ESP_LOGE(TAG, "Card not found");
-            return;
-        }
-    }
-
-    vTaskDelete(NULL);
-}
-
-
-// test: prints the number of each panel button when it is pressed
+// test: prints the number of each panel button when it is pressed (the UI wires them later)
 static void panel_task(void *argument)
 {
     auto *panel = static_cast<BUTTON_PANEL *>(argument);
@@ -146,60 +79,44 @@ static void panel_task(void *argument)
         }
         vTaskDelay(pdMS_TO_TICKS(50));
     }
-
-    vTaskDelete(NULL);
 }
 
 
 extern "C" void app_main()
 {
+    printf("APP MAIN (setter)\n");
 
-    //starting projecct
-    printf("APP MAIN\n");
-    WIFI wifi; 
-    RFID rfid;
-    BUTTON button;
-    BUZZER buzzer;
-    SETTER_DISPLAY display;
-    SERVER_CLIENT server;
-
-    //display first: rfid.init() retries forever if the PN532 isn't connected
-    if (display.init()) {
-        display.draw_text_centered("hello", 4, SETTER_DISPLAY::BLACK, SETTER_DISPLAY::WHITE);
-    }
-
-    // static so the task's pointer stays valid
+    // static: the tasks keep pointers to these after app_main returns
+    static WIFI wifi;
+    static RFID rfid;
+    static BUTTON button;
+    static BUZZER buzzer;
+    static SETTER_DISPLAY display;
     static BUTTON_PANEL panel;
+    static KEYBOARD keyboard;
+
+    // display first, so later steps can say what they are doing
+    bool has_display = display.init();
+    static TEXT_UI ui(has_display ? &display : nullptr);
+    ui.show_message("Starting...");
+
+    keyboard.init();
+    buzzer.init();
+    button.init();
     if (panel.init()) {
         xTaskCreate(panel_task, "Button Panel", 3072, &panel, 5, nullptr);
     }
 
-    //initializing classes
-    wifi.init(); 
-    button.init();
-    rfid.init();
-    buzzer.init();
-    // server.send_scan("hsi FROM ESP"); 
+    ui.show_message("Connecting WiFi...");
+    wifi.init();   // keeps retrying in the background if it isn't up yet
 
+    ui.show_message("Starting RFID reader...");
+    rfid.init();   // waits here until the PN532 answers: check its wiring if stuck
 
-    //creating queue
-    static QueueHandle_t scan_queue = xQueueCreate(8, sizeof(scan_msg_t));
-
-
-    //creating task      
-    static TaskHandle_t rfid_handle = nullptr;
-    static rfid_task_args_t rfid_args{&buzzer, &rfid};
-    xTaskCreate(rfid_task, "RFID Scan", 4096 , &rfid_args, 5, &rfid_handle); 
-
-    
-    static button_task_args_t button_args{&button, &buzzer, &rfid, rfid_handle, scan_queue };
-    xTaskCreate(button_task, "Button Click", 2048 , &button_args, 5, nullptr); 
-
-    xTaskCreate(send_scan_task, "POST request", 8192, scan_queue, 4, nullptr);
-
-    // keep app_main alive: the tasks above hold pointers to its local objects
-    while (true) {
-        //sleep until the button notifies 
-        vTaskDelay(portMAX_DELAY);
+    if (!setter_app_start(&ui, &rfid, &buzzer)) {
+        ui.show_error("Setter failed to start");
+        return;
     }
+    xTaskCreate(keyboard_task, "Keyboard", 3072, &keyboard, 5, nullptr);
+    xTaskCreate(button_task, "Button", 2048, &button, 5, nullptr);
 }

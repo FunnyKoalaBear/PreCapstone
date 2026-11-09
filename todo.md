@@ -1,5 +1,29 @@
 # TODO
 
+## Setter + printing prototype (branch `prototype`, demo 2026-11-11)
+Every box of an item gets a copy of the same item sheet (one print per tag link).
+
+Code (written on `prototype`, compile-checked / unit-tested, not yet tried on hardware)
+- [x] Setter `server_client`: GET + reply body, cJSON, `fetch_items()`, `assign()`, English `detail`
+- [x] Setter `setter_app`: command queue + task (list -> pick -> card -> assign -> result), `SETTER_UI` interface, `TEXT_UI` stand-in
+- [x] Setter `keyboard`: typed lines over the USB cable (row number, item code, n/p/r/c)
+- [x] Django: real `print_pdf` (CUPS), `PrintJob` queue, `api.assign` queues the sheet, `print_worker` command, admin retry, Print button queues too
+- [x] `setup-print-worker.sh` systemd service
+
+To do before the demo
+- [ ] Create a "Setter" device in Django (Tags -> Devices), put its key in the Setter's menuconfig
+- [ ] Flash the Setter, test: list, pick by number, pick by code, cancel, assigned, refused (tag in use), server off
+- [ ] Factory server: pull `prototype`, `migrate`, set `PRINTER_NAME`, run `setup-print-worker.sh`, restart `dashboard`
+- [ ] Print one sheet from the website button, then one from the setter
+- [ ] Wire the UI team's screens: implement `SETTER_UI`, buttons call `setter_*()` (see `setter_app.hpp`)
+- [ ] Rehearsal: release test tag links (Tags page) before the demo; phone video backup
+
+After the demo
+- [ ] Upload printed PDFs to S3 from `print_worker` (after printing; retry when offline)
+- [ ] Map the panel buttons; touchscreen picking
+- [ ] Print status + reprint on the item page
+- [ ] `NOTES.md` entry for the Setter once confirmed working
+
 ## Scanner firmware (next up)
 - [ ] Point `send_scan` at Django `POST /api/scan/` on the factory server (`tag_uid` + `X-API-Key` header, see `Web_Application/docs/scanner-api.md`)
 - [ ] Add `espressif/cjson` (and later `espressif/mdns`) via `idf_component.yml`

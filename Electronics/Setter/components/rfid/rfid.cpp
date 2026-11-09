@@ -200,3 +200,23 @@ bool RFID::read_uid(uint8_t *uid_out, uint8_t *uid_length_out)
 	return false;
 }
 
+
+
+//single short read, so the caller can check for a cancel between tries
+bool RFID::poll_uid(uint8_t *uid_out, uint8_t *uid_length_out)
+{
+	uint8_t uid[10] = {};
+	uint8_t uid_length = 0;
+
+	if (pn532_read_passive_target_id(&pn532_io, PN532_BRTY_ISO14443A_106KBPS, uid, &uid_length, 100) != ESP_OK) {
+		return false;
+	}
+
+	if (uid_length == 0 || uid_length > sizeof(uid)) {
+		return false;
+	}
+
+	memcpy(uid_out, uid, uid_length);
+	*uid_length_out = uid_length;
+	return true;
+}

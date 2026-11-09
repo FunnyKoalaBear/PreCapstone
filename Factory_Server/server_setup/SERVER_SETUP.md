@@ -130,7 +130,7 @@ sudo bash server_setup/setup-funnel.sh
 
 ## 9. Check
 ```bash
-systemctl is-active postgresql caddy dashboard factory-api tailscaled
+systemctl is-active postgresql caddy dashboard print-worker factory-api tailscaled
 curl -I http://factory-server.local:8080/            # 302 to /login/
 curl -X POST http://factory-server.local:8080/api/scan/ -H "Content-Type: application/json" -d '{"tag_uid":"X"}'   # 401 bad_key
 systemd-analyze                                       # boot should not wait 2 min
@@ -146,10 +146,11 @@ cd ~/PreCapstone && git pull
 cd Web_Application
 .venv/bin/pip install -r requirements.txt                  # only if requirements.txt changed
 .venv/bin/python manage.py migrate                         # applies new migrations, harmless if none
-sudo systemctl restart dashboard factory-api
-systemctl is-active dashboard factory-api                  # both should print "active"
+sudo systemctl restart dashboard print-worker factory-api
+systemctl is-active dashboard print-worker factory-api     # all should print "active"
 ```
 Static files need no extra step: Caddy serves `Web_Application/static/` straight from disk.
+The first time after pulling the print queue: `sudo bash Factory_Server/server_setup/setup-print-worker.sh` (adds the `print-worker` service), and set `PRINTER_NAME` in `Web_Application/.env`. See `Web_Application/docs/printing.md`.
 
 ### Services
 `dashboard` is short for `dashboard.service`, the unit file `/etc/systemd/system/dashboard.service` written by `setup-services.sh`.
