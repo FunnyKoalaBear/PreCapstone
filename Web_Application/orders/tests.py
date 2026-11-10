@@ -1286,6 +1286,16 @@ class PrintItemTests(SheetBase):
             printing.print_item(self.item_, 'x_7.pdf')
         m.assert_called_once_with(str(self.dir / 'x_7.pdf'))
 
+    def test_random_drawing_is_appended_to_the_printed_pdf(self):
+        drawings = self.dir / 'drawings'
+        drawings.mkdir()
+        (drawings / 'drawing.png').write_bytes(make_png())
+        with override_settings(PRINT_DIR=self.dir, PRINT_RANDOM_DRAWINGS_DIR=drawings), \
+                mock.patch('orders.printing.print_pdf', return_value='job-8'):
+            printing.print_item(self.item_)
+        reader = PdfReader(self.dir / f'{self.item_.item_code}.pdf')
+        self.assertEqual(len(reader.pages), 2)
+
 
 def cups(stdout='', returncode=0, stderr=''):
     return mock.Mock(stdout=stdout, returncode=returncode, stderr=stderr)
