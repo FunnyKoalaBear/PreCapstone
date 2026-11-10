@@ -255,6 +255,20 @@ bool SCANNER_DISPLAY::show_status(const char *title, const char *detail, uint16_
         && draw_text_at(detail, (WIDTH - text_width(detail, detail_scale)) / 2, top + title_h + GAP, detail_scale, fg, bg);
 }
 
+bool SCANNER_DISPLAY::draw_pixels(int x, int y, int w, int h, const uint16_t *pixels)
+{
+    ESP_RETURN_ON_FALSE(w * h <= WIDTH * MAX_PIXEL_ROWS, false, TAG, "pixel block too big");
+    TRY(esp_lcd_panel_draw_bitmap(panel_, x, y, x + w, y + h, pixels));
+    ESP_RETURN_ON_FALSE(xSemaphoreTake(color_done_, pdMS_TO_TICKS(1000)) == pdTRUE,
+                        false, TAG, "timed out waiting for SPI transfer");
+    return true;
+}
+
+const uint8_t *SCANNER_DISPLAY::glyph(char c)
+{
+    return glyph_for(c);
+}
+
 bool SCANNER_DISPLAY::blit(int x, int y, int w, int h)
 {
     TRY(esp_lcd_panel_draw_bitmap(panel_, x, y, x + w, y + h, band_));

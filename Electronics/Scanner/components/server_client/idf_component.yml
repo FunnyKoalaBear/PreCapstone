@@ -1,0 +1,3 @@
+dependencies:
+  # IDF 6.x core has no cJSON, so it comes from the component registry
+  espressif/cjson: "^1.7.19"

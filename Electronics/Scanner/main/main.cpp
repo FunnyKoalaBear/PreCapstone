@@ -1,212 +1,141 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-
+#include <time.h>
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "freertos/queue.h"
 #include <esp_log.h>
+#include "esp_netif_sntp.h"
 
 #include "rfid.hpp"
 #include "button.hpp"
 #include "buzzer.hpp"
 #include "scanner_display.hpp"
 #include "wifi.hpp"
-#include "server_client.hpp"
 #include "button_panel.hpp"
+#include "keyboard.hpp"
+#include "scanner_gui.hpp"
+#include "scanner_app.hpp"
 
 
-struct scan_msg_t {
-    char uid[24];   // up to 10 UID bytes as hex + NUL
-};
-
-struct button_task_args_t {
-    BUTTON *button;
-    BUZZER *buzzer;
-    RFID *rfid;
-    TaskHandle_t rfid_task;
-    QueueHandle_t scan_queue;
-
-};
-
-struct send_scan_task_args_t {
-    SERVER_CLIENT *server; 
-};
-
-struct rfid_task_args_t {
-    BUZZER *buzzer;
-    RFID *rfid;  
-    QueueHandle_t scan_queue;
+// Panel button N (wired as in configuration.hpp) runs PANEL_ACTIONS[N - 1]
+static void (*const PANEL_ACTIONS[])() = {
+    scanner_yes,       // 1: YES, confirm the station (sends the scan)
+    scanner_no,        // 2: NO, reject (nothing is sent)
+    scanner_enhance,   // 3: big blueprint view on/off
 };
 
 
-
-//test push
-static void button_task(void *argument)
+// Typed commands, the same keys as scanner_ui.ino: r = card, y, n, e, plus t = test tap without a card
+static void keyboard_task(void *argument)
 {
-    auto *args = static_cast<button_task_args_t *>(argument);
-    bool was_pressed = false; 
+    auto *keyboard = static_cast<KEYBOARD *>(argument);
+    char line[16];
 
     while (true) {
-        
-        bool pressed = args->button->clicked(); 
+        keyboard->read_line(line, sizeof(line));
 
-        if (pressed && !was_pressed) {
-    
-            //notify rfid task 
-            xTaskNotifyGive(args->rfid_task);
-
-            args->buzzer->on();
-            vTaskDelay(pdMS_TO_TICKS(100));
-            args->buzzer->off();
+        switch (strlen(line) == 1 ? (line[0] | 0x20) : 0) {   // | 0x20 makes letters lower case
+            case 'r': scanner_request_card(); break;
+            case 't': scanner_test_tap(); break;
+            case 'y': scanner_yes(); break;
+            case 'n': scanner_no(); break;
+            case 'e': scanner_enhance(); break;
+            default:
+                printf("Unknown input \"%s\". Type r (card), t (test tap), y, n or e.\n", line);
+                break;
         }
+    }
+}
 
-        // if (pressed && !was_pressed) {
-            // scan_msg_t msg = {};
 
-            // strlcpy(msg.uid, "Hi from task", sizeof(msg.uid));
-            // xQueueSend(args->scan_queue, &msg, 0);
-        // }
-        
+// The steel button on GPIO 4 opens the 5 s window to tap a card
+static void button_task(void *argument)
+{
+    auto *button = static_cast<BUTTON *>(argument);
+    bool was_pressed = false;
+
+    while (true) {
+        bool pressed = button->clicked();
+        if (pressed && !was_pressed) {
+            scanner_request_card();
+        }
         was_pressed = pressed;
         vTaskDelay(pdMS_TO_TICKS(50));
     }
-    
-    vTaskDelete(NULL);
 }
 
 
-static void send_scan_task(void *argument) {
-
-    //auto *args = static_cast<send_scan_task_args_t *>(argument);
-    auto queue = static_cast<QueueHandle_t>(argument);
-    
-    SERVER_CLIENT server; 
-    scan_msg_t msg; 
-
-    while (true) {  
-        if (xQueueReceive(queue, &msg, portMAX_DELAY) == pdTRUE) { 
-            
-            server.send_scan(msg.uid);
-            static const char *TAG = "main";
-            ESP_LOGW(TAG, "Network task stack %u", (unsigned)uxTaskGetStackHighWaterMark(nullptr));
-        }
-    }
-
-    vTaskDelete(NULL);
-}
-
-
-static void rfid_task(void *argument)
-{
-    static const char *TAG = "main";
-    auto *args = static_cast<rfid_task_args_t *>(argument);
-	uint8_t uid[10];
-    uint8_t uid_length = 0; 
-    scan_msg_t msg = {};
-
-    while (true) {
-    
-        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);     // sleeps here until the button gives a notification
-    
-        if (args->rfid->read_uid(uid, &uid_length)) {
-            
-            ESP_LOGW(TAG, "RFID Task recieved UID");
-            
-            //POST
-            for (uint8_t i = 0; i < uid_length; i++) {
-                    snprintf(msg.uid + 2 * i, sizeof(msg.uid) - 2 * i, "%02X", uid[i]);   // 0d 11 69 6b -> "0D11696B"
-                    ESP_LOGW(TAG, "UID Sent: %s ", msg.uid);
-            }
-            xQueueSend(args->scan_queue, &msg, 0);
-            
-            //buzz twice now
-            args->buzzer->on();
-            vTaskDelay(pdMS_TO_TICKS(100));
-            args->buzzer->off();
-            vTaskDelay(pdMS_TO_TICKS(100));
-            args->buzzer->on();
-            vTaskDelay(pdMS_TO_TICKS(100));
-            args->buzzer->off();
-
-        } else {
-            // no card
-            ESP_LOGE(TAG, "Card not found");
-            continue;
-        }
-    }
-
-    vTaskDelete(NULL);
-}
-
-
-
-// test: prints the number of each panel button when it is pressed
 static void panel_task(void *argument)
 {
     auto *panel = static_cast<BUTTON_PANEL *>(argument);
+    constexpr int ACTION_COUNT = sizeof(PANEL_ACTIONS) / sizeof(PANEL_ACTIONS[0]);
 
     while (true) {
         int number = panel->pressed();
-        if (number != 0) {
-            ESP_LOGI("main", "Button %d pressed", number);
+        if (number >= 1 && number <= ACTION_COUNT) {
+            PANEL_ACTIONS[number - 1]();
         }
         vTaskDelay(pdMS_TO_TICKS(50));
     }
+}
 
-    vTaskDelete(NULL);
+
+// Clock for the header: Japan time from an internet time server (shows --:-- until it answers)
+static void start_clock()
+{
+    setenv("TZ", "JST-9", 1);
+    tzset();
+
+    esp_sntp_config_t cfg = {};
+    cfg.start = true;
+    cfg.ip_event_to_renew = IP_EVENT_STA_GOT_IP;
+    cfg.num_of_servers = 1;
+    cfg.servers[0] = "pool.ntp.org";
+    if (esp_netif_sntp_init(&cfg) != ESP_OK) {
+        ESP_LOGW("main", "SNTP not started, the clock will show --:--");
+    }
 }
 
 
 extern "C" void app_main()
 {
+    printf("APP MAIN (scanner)\n");
 
-    //starting projecct
-    printf("APP MAIN\n");
-    WIFI wifi; 
-    RFID rfid;
-    BUTTON button;
-    BUZZER buzzer;
-    SCANNER_DISPLAY display;
-    SERVER_CLIENT server;
-
-    //display first: rfid.init() retries forever if the PN532 isn't connected
-    if (display.init()) {
-        display.draw_text_centered("hello", 4, SCANNER_DISPLAY::BLACK, SCANNER_DISPLAY::WHITE);
-    }
-
-    // static so the task's pointer stays valid
+    // static: the tasks keep pointers to these after app_main returns
+    static WIFI wifi;
+    static RFID rfid;
+    static BUTTON button;
+    static BUZZER buzzer;
+    static SCANNER_DISPLAY display;
     static BUTTON_PANEL panel;
+    static KEYBOARD keyboard;
+    static SCANNER_GUI gui(&display);
+
+    // display first, so later steps can say what they are doing; without it the serial monitor still works
+    if (!(display.init() && gui.init())) {
+        ESP_LOGW("main", "no display: use the serial monitor");
+    }
+    gui.show_banner("STARTING...", "CONNECTING WIFI", banner_t::INFO);
+
+    keyboard.init();
+    buzzer.init();
+    button.init();
     if (panel.init()) {
         xTaskCreate(panel_task, "Button Panel", 3072, &panel, 5, nullptr);
     }
 
-    //initializing classes
-    wifi.init(); 
-    button.init();
-    rfid.init();
-    buzzer.init();
-    // server.send_scan("hsi FROM ESP"); 
+    wifi.init();   // keeps retrying in the background if it isn't up yet
+    start_clock();
 
+    gui.show_banner("STARTING...", "RFID READER", banner_t::INFO);
+    rfid.init();   // waits here until the PN532 answers: check its wiring if stuck
 
-    //creating queue
-    static QueueHandle_t scan_queue = xQueueCreate(8, sizeof(scan_msg_t));
-
-
-    //creating task      
-    static TaskHandle_t rfid_handle = nullptr;
-    static rfid_task_args_t rfid_args{&buzzer, &rfid, scan_queue};
-    xTaskCreate(rfid_task, "RFID Scan", 4096 , &rfid_args, 5, &rfid_handle); 
-
-    
-    static button_task_args_t button_args{&button, &buzzer, &rfid, rfid_handle, scan_queue };
-    xTaskCreate(button_task, "Button Click", 2048 , &button_args, 5, nullptr); 
-
-    xTaskCreate(send_scan_task, "POST request", 8192, scan_queue, 4, nullptr);
-
-    // keep app_main alive: the tasks above hold pointers to its local objects
-    while (true) {
-        //sleep until the button notifies 
-        vTaskDelay(portMAX_DELAY);
+    if (!scanner_app_start(&gui, &rfid, &buzzer)) {
+        gui.show_banner("START FAILED", "RESTART THE SCANNER", banner_t::BAD);
+        return;
     }
+    xTaskCreate(keyboard_task, "Keyboard", 3072, &keyboard, 5, nullptr);
+    xTaskCreate(button_task, "Button", 2048, &button, 5, nullptr);
 }

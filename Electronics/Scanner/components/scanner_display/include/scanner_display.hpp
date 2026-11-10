@@ -35,6 +35,13 @@ public:
     // clears the screen to bg and draws a big title with a smaller detail line under it
     bool show_status(const char *title, const char *detail, uint16_t fg, uint16_t bg);
 
+    // sends a block of pixels: RGB565 already byte-swapped, DMA-capable memory, at most MAX_PIXEL_ROWS full rows
+    static constexpr int MAX_PIXEL_ROWS = 16;
+    bool draw_pixels(int x, int y, int w, int h, const uint16_t *pixels);
+
+    // 8x8 bitmap of an ASCII character (one byte per row, bit 0 = leftmost pixel); unknown characters give '?'
+    static const uint8_t *glyph(char c);
+
 
 private:
     bool blit(int x, int y, int w, int h);
