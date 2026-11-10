@@ -195,3 +195,35 @@ def scan(request):
     except ValidationError as e:
         return _error(400, 'invalid', ' '.join(e.messages))
     return _reply('recorded', assignment, event, process)
+
+
+@require_GET
+def scan_preview(request):
+    """What a tag-only scan would record now, saving nothing (the scanner asks the operator before it scans)."""
+    device = _device(request)
+    if device is None:
+        return _error(401, 'bad_key')
+    uid = request.GET.get('tag_uid', '').strip()
+    if not uid:
+        return _error(400, 'invalid', 'tag_uid is missing or empty')
+    now = timezone.now()
+    assignment = resolve_tag(uid, now)
+    _touch(device, now)
+    if assignment is None:
+        return _error(404, 'unassigned_tag')
+    box, todo = next_step(assignment)
+    item, order = assignment.item, assignment.item.order
+    steps = [r.step for r in box.rows]
+    body = {
+        'ok': True, 'state': 'finished' if todo is None else 'next', 'tag_uid': assignment.tag.uid,
+        'item': item.item_code, 'part': item.part_name, 'part_number': item.part_number,
+        'drawing_number': item.drawing_number, 'revision': item.revision, 'material': item.material,
+        'quantity': item.quantity, 'customer': order.customer.name, 'order_number': order.customer_order_number,
+        'ordered': timezone.localdate(order.created_at).isoformat(), 'due': order.due_date.isoformat(),
+        'status': str(item_status(item).label), 'step': len(steps), 'steps': len(steps),
+    }
+    if todo:
+        event_type, process = todo
+        body.update(step=steps.index(box.current_step) + 1, event_type=event_type,
+                    process_id=process.pk, process_name=process.name)
+    return JsonResponse(body)

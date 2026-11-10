@@ -1200,6 +1200,65 @@ class ScanApiTests(TestCase):
         self.assertEqual(self.auto(key='nope').status_code, 401)
 
 
+
+class ScanPreviewApiTests(TestCase):
+    def setUp(self):
+        self.device = ScannerDevice.objects.create(name='D')
+        self.mat = Process.objects.create(name='Mat', kind=K.MATERIAL)
+        self.mach = Process.objects.create(name='Mach', kind=K.MACHINING)
+        order = Order.objects.create(customer=Customer.objects.create(name='C'), customer_order_number='PO-7', due_date=date(2026, 12, 1))
+        self.item = OrderItem.objects.create(order=order, part_name='P', quantity=4, material='S45C', drawing_number='DW-1', revision='B')
+        RouteStep.objects.create(item=self.item, sequence=1, process=self.mat)
+        RouteStep.objects.create(item=self.item, sequence=2, process=self.mach)
+        TagAssignment.objects.create(tag=Tag.objects.create(uid='AB12'), item=self.item)
+        self.key = {'HTTP_X_API_KEY': self.device.api_key}
+
+    def preview(self, uid='ab12', **headers):
+        return self.client.get('/api/scan-preview/', {'tag_uid': uid}, **(headers or self.key))
+
+    def scan(self):
+        return self.client.post('/api/scan/', json.dumps({'tag_uid': 'AB12'}), content_type='application/json', **self.key)
+
+    def test_needs_key(self):
+        self.assertEqual(self.preview(HTTP_X_API_KEY='nope').status_code, 401)
+
+    def test_missing_tag(self):
+        r = self.client.get('/api/scan-preview/', **self.key)
+        self.assertEqual((r.status_code, r.json()['error']), (400, 'invalid'))
+
+    def test_unassigned_tag(self):
+        r = self.preview('ZZ')
+        self.assertEqual((r.status_code, r.json()), (404, {'ok': False, 'error': 'unassigned_tag'}))
+
+    def test_next_step_and_item_details(self):
+        j = self.preview().json()
+        self.assertEqual((j['state'], j['tag_uid'], j['item']), ('next', 'AB12', self.item.item_code))
+        self.assertEqual((j['step'], j['steps'], j['event_type'], j['process_id'], j['process_name']), (1, 2, 'ARRIVED', self.mat.pk, 'Mat'))
+        self.assertEqual((j['part'], j['material'], j['drawing_number'], j['revision'], j['quantity']), ('P', 'S45C', 'DW-1', 'B', 4))
+        self.assertEqual((j['customer'], j['order_number'], j['due']), ('C', 'PO-7', '2026-12-01'))
+        self.assertEqual(j['ordered'], timezone.localdate(self.item.order.created_at).isoformat())
+        self.device.refresh_from_db()
+        self.assertIsNotNone(self.device.last_seen)
+
+    def test_saves_nothing(self):
+        self.preview()
+        self.preview()
+        self.assertEqual(Event.objects.count(), 0)
+
+    @override_settings(SCAN_REPEAT_SECONDS=0)
+    def test_matches_what_the_scan_then_records(self):
+        for step, event_type, process in ((1, 'ARRIVED', self.mat), (2, 'STARTED', self.mach), (2, 'FINISHED', self.mach)):
+            j = self.preview().json()
+            self.assertEqual((j['state'], j['step'], j['event_type'], j['process_id']), ('next', step, event_type, process.pk))
+            r = self.scan().json()
+            self.assertEqual((r['state'], r['event_type'], r['process_id']), ('recorded', event_type, process.pk))
+        j = self.preview().json()
+        self.assertEqual((j['state'], j['step'], j['steps']), ('finished', 2, 2))
+        self.assertNotIn('event_type', j)
+
+    def test_post_not_allowed(self):
+        self.assertEqual(self.client.post('/api/scan-preview/', **self.key).status_code, 405)
+
 class SetterApiTests(TestCase):
     def setUp(self):
         self.device = ScannerDevice.objects.create(name='Setter')

@@ -6,6 +6,7 @@ from . import api, devices, settings_page, views
 urlpatterns = [
     path('api/scan/', api.scan, name='api_scan'),
     path('api/tag/<str:uid>/', api.tag_info, name='api_tag_info'),
+    path('api/scan-preview/', api.scan_preview, name='api_scan_preview'),
     path('api/assignable-items/', api.assignable_items_list, name='api_assignable_items'),
     path('api/assign/', api.assign, name='api_assign'),
     path('events/<int:pk>/correct/', views.correct_event, name='correct_event'),

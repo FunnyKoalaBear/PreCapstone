@@ -148,6 +148,43 @@ curl -i -X POST http://PI_ADDRESS:8000/api/scan/ \
 | 405 | Wrong method | "Request error" | No |
 | 5xx, timeout, no network | Server or network down | "Server error" | Yes, after a pause. A retry of a tag-only scan inside 5 s is ignored as `duplicate`; later it may save a second step |
 
+# Scan preview API (ask before recording)
+
+Checked against `tracking/api.py` (`scan_preview`). Same `X-API-Key` header and `401 bad_key` as the scan API. **Saves nothing.**
+
+The scanner shows the operator which order and step a scan would record, waits for YES, and only then posts `/api/scan/` (tag-only). NO sends nothing.
+
+## `GET /api/scan-preview/?tag_uid=04A1B2C3`
+
+The UID is trimmed and upper-cased like the scan API. Only GET; anything else gets `405`.
+
+### 200 `next` - a tag-only scan would record this step
+
+```json
+{"ok": true, "state": "next", "tag_uid": "04A1B2C3", "item": "2611-001-01",
+ "part": "Gear", "part_number": "", "drawing_number": "DW-1", "revision": "B", "material": "S45C",
+ "quantity": 10, "customer": "Mithun", "order_number": "HD-B0031",
+ "ordered": "2026-11-02", "due": "2026-12-01", "status": "In progress",
+ "step": 2, "steps": 5, "event_type": "STARTED", "process_id": 3, "process_name": "Cutting"}
+```
+
+- `step` of `steps`: position of that step in the box's route (1-based). Machining and outsourced steps come up twice at the same `step` (`STARTED` then `FINISHED`, `SENT_OUT` then `RETURNED`).
+- `event_type`, `process_id`, `process_name`: what the scan would save. Strings may be empty; `part` and `customer` may be Japanese.
+- `ordered` is the date the order was registered (JST), `due` the order's due date.
+
+### 200 `finished` - route complete, a scan would save nothing
+
+Same item fields, `"state": "finished"`, `step` = `steps`, and no `event_type`, `process_id` or `process_name`.
+
+### 404, 401, 400
+
+`404 {"ok": false, "error": "unassigned_tag"}` (tag not linked), `401 bad_key`, `400 invalid` (`tag_uid` missing or empty). `last_seen` is updated on 200 and 404.
+
+### Notes
+
+- Another scanner may record between the preview and the scan. The scan reply is what counts: show its `state`.
+- A YES within `SCAN_REPEAT_SECONDS` of the tag's last event gets `duplicate` (nothing saved).
+
 # Tag setter API (link a tag to an item)
 
 Checked against `tracking/api.py` (`assignable_items_list`, `assign`). Same `X-API-Key` header and same `401 bad_key` as the scan API. A setter is an ordinary scanner device (Tags -> Devices); any active key works on all three endpoints.
