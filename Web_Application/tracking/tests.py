@@ -1230,6 +1230,40 @@ class SetterApiTests(TestCase):
         self.assertEqual(TagAssignment.objects.count(), 1)
         self.assertFalse(PrintJob.objects.exists())
 
+    def test_refusals_say_why(self):
+        assign_tag(self.one, 'USED')
+        Tag.objects.create(uid='OFF', active=False)
+        cases = [
+            ({'tag_uid': 'USED', 'item': self.two.pk}, {'reason': 'tag_in_use', 'current_item': self.one.item_code}),
+            ({'tag_uid': 'OFF', 'item': self.two.pk}, {'reason': 'tag_inactive'}),
+            ({'tag_uid': 'NEW', 'item': self.one.pk}, {'reason': 'item_full'}),
+        ]
+        for body, want in cases:
+            j = self.assign(body).json()
+            self.assertEqual({k: j.get(k) for k in want}, want, body)
+
+    def test_replace_moves_the_tag_to_the_new_item(self):
+        old = assign_tag(self.one, 'USED')
+        r = self.assign({'tag_uid': 'USED', 'item': self.two.pk, 'replace': True})
+        self.assertEqual((r.status_code, r.json()['released'], r.json()['item']), (200, self.one.item_code, self.two.item_code))
+        old.refresh_from_db()
+        self.assertIsNotNone(old.end_at)
+        self.assertEqual(TagAssignment.objects.get(end_at__isnull=True).item, self.two)
+        self.assertEqual(PrintJob.objects.get().item, self.two)
+
+    def test_replace_is_undone_when_the_new_item_is_full(self):
+        assign_tag(self.one, 'A1')
+        old = assign_tag(self.two, 'USED')
+        r = self.assign({'tag_uid': 'USED', 'item': self.one.pk, 'replace': True})
+        self.assertEqual((r.status_code, r.json()['reason']), (409, 'item_full'))
+        old.refresh_from_db()
+        self.assertIsNone(old.end_at)
+
+    def test_replace_must_be_true_not_just_truthy(self):
+        assign_tag(self.one, 'USED')
+        r = self.assign({'tag_uid': 'USED', 'item': self.two.pk, 'replace': 'yes'})
+        self.assertEqual((r.status_code, r.json()['reason']), (409, 'tag_in_use'))
+
     def test_failed_print_queue_rolls_back_the_link(self):
         with mock.patch('tracking.api.queue_print', side_effect=RuntimeError('db down')), self.assertRaises(RuntimeError):
             self.assign({'tag_uid': 'AB12', 'item': self.two.pk})

@@ -13,18 +13,32 @@ from django.views.decorators.http import require_GET, require_POST
 from orders.models import OrderItem, PrintJob, Process, RouteStep
 from orders.printing import queue_print
 
-from .models import Event, ScannerDevice, TagAssignment
-from .services import assign_tag, assignable_items, next_step, record_event, resolve_tag
+from .models import Event, ScannerDevice, Tag, TagAssignment
+from .services import assign_tag, assignable_items, next_step, record_event, release_assignment, resolve_tag
 from .status import item_status
 
 ASSIGN_LIST_MAX = 50
 
 
-def _error(status, code, detail=None):
+def _error(status, code, detail=None, **extra):
     body = {'ok': False, 'error': code}
     if detail:
         body['detail'] = detail
+    body.update(extra)
     return JsonResponse(body, status=status)
+
+
+def _refusal(uid, item):
+    """Why assign_tag refused (checked in the same order): tag_inactive, item_full or tag_in_use (+ the item it is on)."""
+    tag = Tag.objects.filter(uid=uid.upper()).first()
+    if tag and not tag.active:
+        return {'reason': 'tag_inactive'}
+    if TagAssignment.objects.filter(item=item, end_at__isnull=True).count() >= item.box_count:
+        return {'reason': 'item_full'}
+    current = TagAssignment.objects.filter(tag=tag, end_at__isnull=True).select_related('item__order').first() if tag else None
+    if current:
+        return {'reason': 'tag_in_use', 'current_item': current.item.item_code}
+    return {'reason': 'other'}
 
 
 def _touch(device, now):
@@ -80,6 +94,7 @@ def assign(request):
     try:
         data = json.loads(request.body)
         uid, pk = str(data['tag_uid']).strip(), data['item']
+        replace = data.get('replace') is True
         if not uid:
             raise ValueError('tag_uid is empty')
         if not isinstance(pk, int) or isinstance(pk, bool):
@@ -87,18 +102,29 @@ def assign(request):
         item = OrderItem.objects.select_related('order').get(pk=pk)
     except (ValueError, KeyError, TypeError, AttributeError, OrderItem.DoesNotExist) as e:
         return _error(400, 'invalid', f'{type(e).__name__}: {e}')
+    released = None
     try:
-        # Link and queue the sheet together: no print for a refused tag, no link without a print
+        # Link and queue the sheet together: no print for a refused tag, no link without a print.
+        # replace: first end the tag's link to another item (the operator confirmed); a refusal undoes that too.
         with transaction.atomic():
+            if replace:
+                current = (TagAssignment.objects.select_for_update().select_related('item__order')
+                           .filter(tag__uid=uid.upper(), end_at__isnull=True).exclude(item=item).first())
+                if current:
+                    release_assignment(current)
+                    released = current.item.item_code
             a = assign_tag(item, uid)
             queue_print(item, PrintJob.Source.ASSIGN, a)
     except ValidationError as e:
         # Tag in use or inactive, or all boxes already linked: nothing saved
         _touch(device, timezone.now())
-        return _error(409, 'refused', ' '.join(e.messages))
+        return _error(409, 'refused', ' '.join(e.messages), **_refusal(uid, item))
     _touch(device, timezone.now())
     linked = TagAssignment.objects.filter(item=item, end_at__isnull=True).count()
-    return JsonResponse({'ok': True, 'state': 'assigned', 'tag_uid': a.tag.uid, 'item': item.item_code, 'linked': linked, 'boxes': item.box_count, 'print': 'queued'})
+    body = {'ok': True, 'state': 'assigned', 'tag_uid': a.tag.uid, 'item': item.item_code, 'linked': linked, 'boxes': item.box_count, 'print': 'queued'}
+    if released:
+        body['released'] = released
+    return JsonResponse(body)
 
 
 @csrf_exempt
