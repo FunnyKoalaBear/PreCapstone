@@ -477,7 +477,7 @@ void SETTER_GUI::draw_header(CANVAS &c)
     char status[48];
     strlcpy(status, tr("SETTER"), sizeof(status));
     if (screen_ == screen_t::LIST && list_.count > 0) {
-        snprintf(status, sizeof(status), tr("ITEM %d OF %d"), list_.selected + 1, list_.count);
+        snprintf(status, sizeof(status), tr("ITEM %d OF %d"), list_.selected + 1, std::max(list_.total, list_.count));   // total on the server, not just loaded
     }
     c.draw_text(status, 172, 27, 2, D::MIDDLE_LEFT, C_WHITE);
 

@@ -16,7 +16,7 @@ namespace {
 
     const char *language_cookie = "django_language=en";
 
-    // a 20-item page is about 5 KB; on the heap so it never overflows a task stack
+    // a 10-item page is about 3 KB (Japanese text arrives as \uXXXX); on the heap so it never overflows a task stack
     constexpr size_t LIST_REPLY_SIZE = 8192;
 
     int json_int(const cJSON *obj, const char *key)
@@ -51,14 +51,14 @@ bool SERVER_CLIENT::send_scan(const char *uid)
 }
 
 
-// GET /api/assignable-items/?offset=..&limit=.. and copy the rows into `items`
-bool SERVER_CLIENT::fetch_items(int offset, int limit, setter_item_t *items, int max_items, int *count, int *total)
+// GET /api/assignable-items/?offset=..&limit=..&sort=.. and copy the rows into `items`
+bool SERVER_CLIENT::fetch_items(int offset, int limit, const char *sort, setter_item_t *items, int max_items, int *count, int *total)
 {
     *count = 0;
     *total = 0;
 
-    char path[96];
-    snprintf(path, sizeof(path), "%s?offset=%d&limit=%d", CONFIG_FACTORY_SERVER_ITEMS_PATH, offset, limit);
+    char path[128];
+    snprintf(path, sizeof(path), "%s?offset=%d&limit=%d&sort=%s", CONFIG_FACTORY_SERVER_ITEMS_PATH, offset, limit, sort);
 
     char *reply = static_cast<char *>(malloc(LIST_REPLY_SIZE));
     if (!reply) {

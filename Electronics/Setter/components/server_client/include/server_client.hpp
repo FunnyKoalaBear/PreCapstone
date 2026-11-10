@@ -65,8 +65,9 @@ public:
     // Sends one scan to the factory server. True if the server answered 2xx.
     bool send_scan(const char *uid);
 
-    // Fetches one page of items that still need a tag. False on any network/HTTP/JSON error.
-    bool fetch_items(int offset, int limit, setter_item_t *items, int max_items, int *count, int *total);
+    // Fetches one page of items that still need a tag, in the server's `sort` order ("number", "start", "due", "part").
+    // False on any network/HTTP/JSON error.
+    bool fetch_items(int offset, int limit, const char *sort, setter_item_t *items, int max_items, int *count, int *total);
 
     // Links a tag UID to an item id and reports what the server decided.
     // replace = true moves a tag that is linked to another item (only after the operator confirmed).

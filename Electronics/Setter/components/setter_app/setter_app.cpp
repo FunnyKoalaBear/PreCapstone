@@ -17,9 +17,10 @@
 namespace {
     static const char *TAG = "setter_app";
 
-    constexpr int MAX_ITEMS = 100;            // items kept on the device (about 20 KB)
-    constexpr int FETCH_PAGE = 20;            // items per HTTP request
+    constexpr int MAX_ITEMS = 100;            // most items kept on the device (about 20 KB)
+    constexpr int FETCH_PAGE = 10;            // items per HTTP request: one page on a refresh, more only when needed
     constexpr int JUMP = 8;                   // n / p move this many items
+    constexpr int LOOKAHEAD = 8;              // items kept loaded from the selection on (one screen), so no screen is half empty
     constexpr int CARD_TIMEOUT_MS = 15000;    // how long to wait for a card after a pick
     constexpr int RESULT_SHOW_MS = 3000;      // how long the result stays before the list comes back
     constexpr int ERROR_SHOW_MS = 1500;
@@ -124,64 +125,107 @@ namespace {
     }
 
 
-    // Sorts by the current filter and keeps the same item selected
-    void sort_items()
+    // The server's name for the current sort (sent as &sort=)
+    const char *sort_param()
     {
-        const int keep_id = (count > 0) ? items[selected].id : -1;
-
-        std::sort(items, items + count, [](const setter_item_t &a, const setter_item_t &b) {
-            int c = 0;
-            switch (sort_by) {
-                case setter_sort_t::START: c = strcmp(a.ordered, b.ordered); break;
-                case setter_sort_t::DUE:   c = strcmp(a.due, b.due); break;
-                case setter_sort_t::PART:  c = strcmp(a.part, b.part); break;
-                default: break;
-            }
-            return c != 0 ? c < 0 : strcmp(a.code, b.code) < 0;
-        });
-
-        for (int i = 0; i < count; i++) {
-            if (items[i].id == keep_id) {
-                selected = i;
-            }
+        switch (sort_by) {
+            case setter_sort_t::START: return "start";
+            case setter_sort_t::DUE:   return "due";
+            case setter_sort_t::PART:  return "part";
+            default:                   return "number";
         }
-        version++;
     }
 
 
-    // Loads every item that needs a tag, FETCH_PAGE at a time (up to MAX_ITEMS)
-    bool load_all(SERVER_CLIENT &server)
+    bool more_on_server()
     {
-        const int keep_id = (count > 0) ? items[selected].id : -1;
-        const int keep_index = selected;
-        int loaded = 0;
-        int server_total = 0;
+        return count < total && count < MAX_ITEMS;
+    }
 
-        while (loaded < MAX_ITEMS) {
-            int got = 0;
-            int limit = std::min(FETCH_PAGE, MAX_ITEMS - loaded);
-            if (!server.fetch_items(loaded, limit, items + loaded, limit, &got, &server_total)) {
+
+    int find_id(int id)
+    {
+        for (int i = 0; i < count; i++) {
+            if (items[i].id == id) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+
+    // One GET of FETCH_PAGE items at `offset` into items[offset..]; count becomes offset + rows received
+    bool fetch_page(SERVER_CLIENT &server, int offset)
+    {
+        const int limit = std::min(FETCH_PAGE, MAX_ITEMS - offset);
+        int got = 0;
+        int server_total = 0;
+        if (limit <= 0 || !server.fetch_items(offset, limit, sort_param(), items + offset, limit, &got, &server_total)) {
+            return false;
+        }
+        count = offset + got;
+        total = server_total;
+        version++;
+        return true;
+    }
+
+
+    // Loads the next pages only while fewer than LOOKAHEAD items are loaded from `index` on
+    bool load_up_to(SERVER_CLIENT &server, int index)
+    {
+        while (count - index < LOOKAHEAD && more_on_server()) {
+            const int before = count;
+            if (!fetch_page(server, count)) {
                 return false;
             }
-            loaded += got;
-            if (got == 0 || loaded >= server_total) {
-                break;
+            if (count == before) {
+                break;   // the list got shorter on the server since the last page
             }
         }
+        return true;
+    }
 
-        count = loaded;
-        total = server_total;
-        selected = std::min(keep_index, std::max(count - 1, 0));   // same place if the item is gone
-        for (int i = 0; i < count; i++) {
-            if (items[i].id == keep_id) {
-                selected = i;
-            }
+
+    // Refresh: the first page again, then more pages only to get back to where the operator was
+    bool reload(SERVER_CLIENT &server, int keep_index)
+    {
+        const int keep_id = (count > 0) ? items[selected].id : -1;
+        if (!fetch_page(server, 0)) {
+            return false;
         }
-        sort_items();
+        load_up_to(server, keep_index);   // if this fails the first page is still shown
+
+        const int i = find_id(keep_id);
+        selected = (i >= 0) ? i : std::min(keep_index, std::max(count - 1, 0));   // same place if the item is gone
         if (modal != setter_modal_t::NONE && count == 0) {
             modal = setter_modal_t::NONE;
         }
         return true;
+    }
+
+
+    // Reloads and shows the list, or an error
+    void refresh(SERVER_CLIENT &server, int keep_index)
+    {
+        ui->show_message("Loading items...");
+        load_failed = !reload(server, keep_index);
+        if (load_failed) {
+            count = 0;
+            total = 0;
+            ui->show_error("Server error. Press back to retry");
+        } else {
+            show_screen(server);
+        }
+    }
+
+
+    // Loads ahead of a move; on failure says so briefly and keeps the list as it is
+    void load_for_move(SERVER_CLIENT &server, int index)
+    {
+        if (!load_up_to(server, index)) {
+            ui->show_error("Server error");
+            vTaskDelay(pdMS_TO_TICKS(ERROR_SHOW_MS));
+        }
     }
 
 
@@ -315,6 +359,24 @@ namespace {
     }
 
 
+    // A typed code that is not loaded: page through the list from the top until it turns up (it may be new)
+    int search_code(SERVER_CLIENT &server, const char *code)
+    {
+        if (!reload(server, 0)) {
+            return -1;
+        }
+        int i = find_code(code);
+        while (i < 0 && more_on_server()) {
+            const int before = count;
+            if (!fetch_page(server, count) || count == before) {
+                break;
+            }
+            i = find_code(code);
+        }
+        return i;
+    }
+
+
     void setter_task(void *argument)
     {
         SERVER_CLIENT server;
@@ -322,14 +384,7 @@ namespace {
 
         while (true) {
             if (need_load) {
-                ui->show_message("Loading items...");
-                load_failed = !load_all(server);
-                if (load_failed) {
-                    count = 0;
-                    ui->show_error("Server error. Press back to retry");
-                } else {
-                    show_screen(server);
-                }
+                refresh(server, selected);
                 need_load = false;
             }
 
@@ -365,19 +420,35 @@ namespace {
                     break;
 
                 case cmd_type_t::UP:
+                    if (browsing) {
+                        selected = (selected - 1 + count) % count;
+                        show_screen(server);
+                    }
+                    break;
+
                 case cmd_type_t::DOWN:
                     if (browsing) {
-                        int step = (cmd.type == cmd_type_t::UP) ? -1 : 1;
-                        selected = (selected + step + count) % count;
+                        load_for_move(server, selected + 1);
+                        if (selected + 1 < count) {
+                            selected++;
+                        } else if (!more_on_server()) {
+                            selected = 0;   // wrap only when everything is loaded
+                        }
                         show_screen(server);
                     }
                     break;
 
                 case cmd_type_t::PAGE_UP:
+                    if (browsing) {
+                        selected = std::max(selected - JUMP, 0);
+                        show_screen(server);
+                    }
+                    break;
+
                 case cmd_type_t::PAGE_DOWN:
                     if (browsing) {
-                        selected = (cmd.type == cmd_type_t::PAGE_UP) ? std::max(selected - JUMP, 0)
-                                                                     : std::min(selected + JUMP, count - 1);
+                        load_for_move(server, selected + JUMP);
+                        selected = std::min(selected + JUMP, count - 1);
                         show_screen(server);
                     }
                     break;
@@ -404,11 +475,9 @@ namespace {
                     break;
 
                 case cmd_type_t::SORT:
+                    // The server sorts, so the first page in the new order is fetched again
                     sort_by = static_cast<setter_sort_t>((static_cast<int>(sort_by) + 1) % 4);
-                    sort_items();
-                    if (count > 0) {
-                        show_screen(server);
-                    }
+                    refresh(server, 0);
                     break;
 
                 case cmd_type_t::LINK:
@@ -420,6 +489,9 @@ namespace {
                     break;
 
                 case cmd_type_t::PICK:
+                    if (cmd.row >= count) {
+                        load_up_to(server, cmd.row);   // a row number past the loaded items
+                    }
                     if (cmd.row >= 0 && cmd.row < count) {
                         selected = cmd.row;
                         modal = setter_modal_t::NONE;
@@ -433,8 +505,8 @@ namespace {
 
                 case cmd_type_t::PICK_CODE: {
                     int i = find_code(cmd.code);
-                    if (i < 0 && load_all(server)) {
-                        i = find_code(cmd.code);   // maybe new since the last load
+                    if (i < 0) {
+                        i = search_code(server, cmd.code);
                     }
                     if (i >= 0) {
                         selected = i;
