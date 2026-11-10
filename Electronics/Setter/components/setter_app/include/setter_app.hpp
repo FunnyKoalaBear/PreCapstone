@@ -22,3 +22,4 @@ void setter_next_sort();                    // number -> start date -> due date 
 void setter_pick(int row);                  // link the item at this 0-based position
 void setter_pick_code(const char *code);    // link the item with this code, e.g. "2611-001-01"
 void setter_reload();                       // load the list again from the server
+void setter_toggle_language();              // English <-> Japanese

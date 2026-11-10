@@ -45,6 +45,9 @@ public:
     // Links a tag UID to an item id and reports what the server decided.
     assign_result_t assign(const char *uid, int item_id);
 
+    // Language of the server's text replies (refusal reasons): English by default
+    static void set_language(bool japanese);
+
 private:
     // Sends one request; fills `reply` with the body (NUL-terminated). Returns HTTP status, or -1.
     int request(bool post, const char *path, const char *body, char *reply, size_t reply_size);

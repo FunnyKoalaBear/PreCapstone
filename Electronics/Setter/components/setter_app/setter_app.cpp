@@ -26,7 +26,7 @@ namespace {
     constexpr int TICK_MS = 1000;             // ui->tick() while idle (clock)
 
     enum class cmd_type_t {
-        RELOAD, UP, DOWN, PAGE_UP, PAGE_DOWN, LINK, BACK, DETAILS, DRAWING, VIEW, SORT, PICK, PICK_CODE,
+        RELOAD, UP, DOWN, PAGE_UP, PAGE_DOWN, LINK, BACK, DETAILS, DRAWING, VIEW, SORT, PICK, PICK_CODE, LANGUAGE,
     };
 
     struct cmd_t {
@@ -52,6 +52,8 @@ namespace {
     setter_sort_t sort_by = setter_sort_t::NUMBER;
     setter_modal_t modal = setter_modal_t::NONE;
     char banner[48] = "";
+    bool japanese = false;
+    bool load_failed = false;
 
 
     void send(cmd_type_t type, int row = 0, const char *code = nullptr)
@@ -158,16 +160,31 @@ namespace {
     }
 
 
-    // Waits for a card while still listening for cancel; writes the UID as hex, e.g. "0D11696B"
-    card_t wait_for_card(char *uid_hex, size_t size)
+    // Flips English / Japanese for the screens and for the server's refusal reasons
+    void toggle_language()
+    {
+        japanese = !japanese;
+        ui->set_language(japanese);
+        SERVER_CLIENT::set_language(japanese);
+    }
+
+
+    // Waits for a card while still listening for cancel and the language button; writes the UID as hex, e.g. "0D11696B"
+    card_t wait_for_card(const setter_item_t &item, char *uid_hex, size_t size)
     {
         const TickType_t start = xTaskGetTickCount();
 
         while ((xTaskGetTickCount() - start) < pdMS_TO_TICKS(CARD_TIMEOUT_MS)) {
             cmd_t cmd;
-            if (xQueueReceive(queue, &cmd, 0) == pdTRUE &&
-                (cmd.type == cmd_type_t::BACK || cmd.type == cmd_type_t::RELOAD)) {
-                return card_t::CANCELLED;
+            if (xQueueReceive(queue, &cmd, 0) == pdTRUE) {
+                if (cmd.type == cmd_type_t::BACK || cmd.type == cmd_type_t::RELOAD) {
+                    return card_t::CANCELLED;
+                }
+                if (cmd.type == cmd_type_t::LANGUAGE) {
+                    toggle_language();
+                    const int left = CARD_TIMEOUT_MS / 1000 - (xTaskGetTickCount() - start) * portTICK_PERIOD_MS / 1000;
+                    ui->show_waiting_for_card(item, left);
+                }
             }
 
             uint8_t uid[10];
@@ -192,7 +209,7 @@ namespace {
         beep(1, 60);
 
         char uid[24];
-        card_t card = wait_for_card(uid, sizeof(uid));
+        card_t card = wait_for_card(item, uid, sizeof(uid));
         if (card != card_t::READ) {
             ui->show_error(card == card_t::TIMEOUT ? "No card read" : "Cancelled");
             vTaskDelay(pdMS_TO_TICKS(ERROR_SHOW_MS));
@@ -208,7 +225,7 @@ namespace {
 
         if (result.state == assign_state_t::ASSIGNED) {
             beep(2, 100);
-            snprintf(banner, sizeof(banner), "%s LINKED", item.code);
+            strlcpy(banner, item.code, sizeof(banner));
         } else {
             beep(1, 600);
         }
@@ -236,11 +253,12 @@ namespace {
         while (true) {
             if (need_load) {
                 ui->show_message("Loading items...");
-                if (load_all(server)) {
-                    show_list();
-                } else {
+                load_failed = !load_all(server);
+                if (load_failed) {
                     count = 0;
                     ui->show_error("Server error. Press back to retry");
+                } else {
+                    show_list();
                 }
                 need_load = false;
             }
@@ -256,6 +274,15 @@ namespace {
             switch (cmd.type) {
                 case cmd_type_t::RELOAD:
                     need_load = true;
+                    break;
+
+                case cmd_type_t::LANGUAGE:
+                    toggle_language();
+                    if (load_failed) {
+                        ui->show_error("Server error. Press back to retry");
+                    } else {
+                        show_list();
+                    }
                     break;
 
                 case cmd_type_t::BACK:
@@ -386,3 +413,4 @@ void setter_next_sort()                 { send(cmd_type_t::SORT); }
 void setter_pick(int row)               { send(cmd_type_t::PICK, row); }
 void setter_pick_code(const char *code) { send(cmd_type_t::PICK_CODE, 0, code); }
 void setter_reload()                    { send(cmd_type_t::RELOAD); }
+void setter_toggle_language()           { send(cmd_type_t::LANGUAGE); }

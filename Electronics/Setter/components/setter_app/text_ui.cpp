@@ -64,7 +64,7 @@ void TEXT_UI::show_list(const setter_list_t &list)
             printf("(showing the first %d)\n", list.count);
         }
         printf("Enter a number or item code to link it.  w/s up/down  y link selected  r back  "
-               "q details  e drawing  v view  f sort  n/p jump 8\n");
+               "q details  e drawing  v view  f sort  n/p jump 8  j language\n");
     } else if (list.selected != printed_selected_ && list.count > 0) {
         print_row(list.selected, list.items[list.selected], true);
     }
@@ -77,7 +77,7 @@ void TEXT_UI::show_list(const setter_list_t &list)
     }
 
     if (list.banner) {
-        printf("\n*** %s ***\n", list.banner);
+        printf("\n*** %s LINKED ***\n", list.banner);
     }
 
     printed_version_ = list.version;

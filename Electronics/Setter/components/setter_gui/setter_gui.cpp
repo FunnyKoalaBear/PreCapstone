@@ -32,23 +32,119 @@ namespace {
 
     const char *const FILTER_LABELS[] = {"FILTER: NUMERICAL", "FILTER: START DATE", "FILTER: DUE DATE", "FILTER: SCHEMATIC"};
 
-    // Copies text as ASCII (each Japanese character becomes '?') and cuts it to max_w pixels with ".."
-    void fit(const char *s, int font, int max_w, char *out, size_t size)
+    bool japanese = false;   // set by SETTER_GUI::set_language, read by tr()
+
+    // English UI text -> Japanese. Keys are the exact English strings used below and sent by setter_app.
+    struct translation_t {
+        const char *en;
+        const char *ja;
+    };
+    const translation_t TRANSLATIONS[] = {
+        {"SETTER", "セッター"},
+        {"ITEM %d OF %d", "品目 %d / %d"},
+        {"FILTER: NUMERICAL", "並び順: 番号"},
+        {"FILTER: START DATE", "並び順: 開始日"},
+        {"FILTER: DUE DATE", "並び順: 納期"},
+        {"FILTER: SCHEMATIC", "並び順: 品名"},
+        {"START %s", "開始 %s"},
+        {"DUE %s", "納期 %s"},
+        {"ITEM", "品目"},
+        {"PART", "品名"},
+        {"START", "開始"},
+        {"DUE", "納期"},
+        {"BOX", "箱"},
+        {"NO ITEMS NEED A TAG", "タグ待ちの品目はありません"},
+        {"%s LINKED", "%s 紐付け完了"},
+        {"ORDER: %s", "品目: %s"},
+        {"CUSTOMER DETAILS:", "得意先情報:"},
+        {"CUSTOMER NAME: ", "得意先名: "},
+        {"CUSTOMER NAME: %s", "得意先名: %s"},
+        {"CUSTOMER ORDER NUMBER: ", "客先注文番号: "},
+        {"CUSTOMER ORDER NUMBER: %s", "客先注文番号: %s"},
+        {"ORDER DETAILS", "受注内容"},
+        {"%d PIECES", "%d 個"},
+        {"DUE: %s", "納期: %s"},
+        {"BOX %d OF %d", "箱 %d / %d"},
+        {"PROCESS", "工程"},
+        {"3 LINK   4 BACK", "3 紐付け   4 戻る"},
+        {"DRAWING", "図面"},
+        {"ON THE PRINTED", "印刷した"},
+        {"WORK SHEET", "作業指示書の裏"},
+        {"DRAWING NOT STORED ON THE SETTER", "図面はセッターに保存されていません"},
+        {"IT IS PRINTED ON THE BACK OF THE WORK SHEET", "作業指示書の裏面に印刷されます"},
+        {"TAP A CARD", "カードをかざしてください"},
+        {"WITHIN %d S   -   4 BACK TO CANCEL", "%d 秒以内   -   4 でキャンセル"},
+        {"LINKED", "紐付け完了"},
+        {"REFUSED", "紐付けできません"},
+        {"KEY ERROR", "キーエラー"},
+        {"REQUEST ERROR", "リクエストエラー"},
+        {"SERVER ERROR", "サーバーエラー"},
+        {"PRINTING SHEET...", "指示書を印刷中..."},
+        {"Starting...", "起動中..."},
+        {"Connecting WiFi...", "WiFi に接続中..."},
+        {"Starting RFID reader...", "RFID リーダーを起動中..."},
+        {"Loading items...", "品目を読み込み中..."},
+        {"Linking...", "紐付け中..."},
+        {"Server error. Press back to retry", "サーバーエラー。戻るボタンで再試行してください"},
+        {"No card read", "カードを読み取れませんでした"},
+        {"Cancelled", "キャンセルしました"},
+        {"No such row", "その番号の品目はありません"},
+        {"Item not found or already tagged", "品目が見つからないか、紐付け済みです"},
+        {"Setter failed to start", "セッターを起動できませんでした"},
+        {"Assigned, printing", "紐付け完了、印刷中"},
+        {"Device key error", "端末キーのエラー"},
+        {"Request error", "リクエストエラー"},
+        {"Server error", "サーバーエラー"},
+    };
+
+    // The text in the current language (unknown text is shown as it is, e.g. the server's reasons)
+    const char *tr(const char *en)
     {
-        size_t n = 0;
-        for (const unsigned char *p = (const unsigned char *)s; *p && n + 1 < size; p++) {
-            if (*p < 0x80) {
-                out[n++] = *p;
-            } else if (*p >= 0xC0) {
-                out[n++] = '?';
+        if (japanese) {
+            for (const translation_t &t : TRANSLATIONS) {
+                if (strcmp(t.en, en) == 0) {
+                    return t.ja;
+                }
             }
         }
-        out[n] = '\0';
+        return en;
+    }
+
+    // Moves p past one UTF-8 character
+    const char *next_utf8(const char *p)
+    {
+        if (*p) {
+            p++;
+        }
+        while ((static_cast<unsigned char>(*p) & 0xC0) == 0x80) {
+            p++;
+        }
+        return p;
+    }
+
+    // Copies text, cut to max_w pixels with ".." if it is too wide (never splits a UTF-8 character)
+    void fit(const char *s, int font, int max_w, char *out, size_t size)
+    {
+        strlcpy(out, s, size);
         if (CANVAS::text_width(out, font) <= max_w) {
             return;
         }
-        const int char_w = CANVAS::text_width("x", font);
-        int keep = std::max(0, max_w / char_w - 2);
+        const int dots = CANVAS::text_width("..", font);
+        size_t keep = 0;
+        for (const char *p = s; *p;) {
+            const char *q = next_utf8(p);
+            const size_t len = q - s;
+            if (len + 3 > size) {
+                break;
+            }
+            memcpy(out, s, len);
+            out[len] = '\0';
+            if (CANVAS::text_width(out, font) + dots > max_w) {
+                break;
+            }
+            keep = len;
+            p = q;
+        }
         out[keep] = '\0';
         strlcat(out, "..", size);
     }
@@ -79,32 +175,41 @@ namespace {
         }
     }
 
-    // Splits text into lines of at most max_chars, at spaces when possible; calls line(i, text)
+    // Splits text into lines at most max_w pixels wide, at spaces when possible (Japanese breaks anywhere)
     template <typename F>
-    int wrap(const char *s, int max_chars, int max_lines, F &&line)
+    int wrap(const char *s, int font, int max_w, int max_lines, F &&line)
     {
-        char ascii[200];
-        fit(s, 1, 100000, ascii, sizeof(ascii));
-        const char *p = ascii;
+        char buf[160];
         int row = 0;
+        const char *p = s;
         while (*p && row < max_lines) {
-            int len = strlen(p);
-            int take = len;
-            if (len > max_chars) {
-                take = max_chars;
-                while (take > 0 && p[take] != ' ') {
-                    take--;
+            const char *end = p;
+            const char *space = nullptr;
+            for (const char *q = p; *q;) {
+                const char *nq = next_utf8(q);
+                const size_t len = std::min<size_t>(nq - p, sizeof(buf) - 1);
+                memcpy(buf, p, len);
+                buf[len] = '\0';
+                if (CANVAS::text_width(buf, font) > max_w) {
+                    break;
                 }
-                if (take == 0) {
-                    take = max_chars;
+                if (*q == ' ') {
+                    space = q;
                 }
+                end = nq;
+                q = nq;
             }
-            char buf[64];
-            take = std::min(take, (int)sizeof(buf) - 1);
-            memcpy(buf, p, take);
-            buf[take] = '\0';
+            if (*end && space && space > p) {
+                end = space;   // the line is full: break at the last space
+            }
+            if (end == p) {
+                end = next_utf8(p);   // one character wider than the line
+            }
+            const size_t len = std::min<size_t>(end - p, sizeof(buf) - 1);
+            memcpy(buf, p, len);
+            buf[len] = '\0';
             line(row++, buf);
-            p += take;
+            p = end;
             while (*p == ' ') {
                 p++;
             }
@@ -277,15 +382,15 @@ namespace {
             g.draw_text(num, x + w / 2, y + h / 2, font, D::MIDDLE_CENTER, C_BLACK);
         } else if (crop == 1) {
             g.draw_rect(x + 2, y + h / 4, w - 4, h / 2, C_GREEN);
-            g.draw_text("DRAWING", x + w / 2, y + h / 2 - 30, 2, D::MIDDLE_CENTER, C_BLACK);
+            g.draw_text(tr("DRAWING"), x + w / 2, y + h / 2 - 30, 2, D::MIDDLE_CENTER, C_BLACK);
             g.draw_text(num, x + w / 2, y + h / 2, 4, D::MIDDLE_CENTER, C_BLACK);
-            g.draw_text("ON THE PRINTED", x + w / 2, y + h / 2 + 30, 1, D::MIDDLE_CENTER, C_GEAR_MID);
-            g.draw_text("WORK SHEET", x + w / 2, y + h / 2 + 42, 1, D::MIDDLE_CENTER, C_GEAR_MID);
+            g.draw_text(tr("ON THE PRINTED"), x + w / 2, y + h / 2 + 30, 1, D::MIDDLE_CENTER, C_GEAR_MID);
+            g.draw_text(tr("WORK SHEET"), x + w / 2, y + h / 2 + 42, 1, D::MIDDLE_CENTER, C_GEAR_MID);
         } else {
             g.draw_rect(x + 2, y + 2, w - 4, h - 4, C_NAVY);
             g.draw_text(it.code, x + w / 2, y + h / 2 - 30, 4, D::MIDDLE_CENTER, C_BLACK);
-            g.draw_text("DRAWING NOT STORED ON THE SETTER", x + w / 2, y + h / 2 + 10, 2, D::MIDDLE_CENTER, C_GEAR_DARK);
-            g.draw_text("IT IS PRINTED ON THE BACK OF THE WORK SHEET", x + w / 2, y + h / 2 + 35, 1, D::MIDDLE_CENTER, C_GEAR_MID);
+            g.draw_text(tr("DRAWING NOT STORED ON THE SETTER"), x + w / 2, y + h / 2 + 10, 2, D::MIDDLE_CENTER, C_GEAR_DARK);
+            g.draw_text(tr("IT IS PRINTED ON THE BACK OF THE WORK SHEET"), x + w / 2, y + h / 2 + 35, 1, D::MIDDLE_CENTER, C_GEAR_MID);
         }
     }
 
@@ -360,9 +465,10 @@ void SETTER_GUI::draw_header(CANVAS &c)
     c.fill_rect(156, 0, 324, 54, C_NAVY);
     draw_logo(c);
 
-    char status[32] = "SETTER";
+    char status[48];
+    strlcpy(status, tr("SETTER"), sizeof(status));
     if (screen_ == screen_t::LIST && list_.count > 0) {
-        snprintf(status, sizeof(status), "ITEM %d OF %d", list_.selected + 1, list_.count);
+        snprintf(status, sizeof(status), tr("ITEM %d OF %d"), list_.selected + 1, list_.count);
     }
     c.draw_text(status, 172, 27, 2, D::MIDDLE_LEFT, C_WHITE);
 
@@ -463,10 +569,10 @@ void SETTER_GUI::draw_sideways(CANVAS &c, int ox, int oy)
 
         char date[8], line[24];
         mmdd(it.ordered, date, sizeof(date));
-        snprintf(line, sizeof(line), "START %s", date);
+        snprintf(line, sizeof(line), tr("START %s"), date);
         c.draw_text(line, x + card_w / 2, y + 145, 2, D::MIDDLE_CENTER, C_BLACK);
         mmdd(it.due, date, sizeof(date));
-        snprintf(line, sizeof(line), "DUE %s", date);
+        snprintf(line, sizeof(line), tr("DUE %s"), date);
         c.draw_text(line, x + card_w / 2, y + 169, 2, D::MIDDLE_CENTER, C_BLACK);
         if (sel) {
             c.draw_round_rect(x + 1, y + 1, card_w - 2, card_h - 2, 12, C_CORAL);
@@ -483,7 +589,7 @@ void SETTER_GUI::draw_table(CANVAS &c, int ox, int oy)
     c.fill_rect(ox + 2, oy + 2, 426, 26, C_ROW_DARK);
     for (int col = 0; col < 5; col++) {
         c.draw_rect(col_x[col], oy + 2, col_x[col + 1] - col_x[col], 26, C_BG);
-        c.draw_text(headers[col], (col_x[col] + col_x[col + 1]) / 2, oy + 15, 1, D::MIDDLE_CENTER, C_WHITE);
+        c.draw_text(tr(headers[col]), (col_x[col] + col_x[col + 1]) / 2, oy + 15, 1, D::MIDDLE_CENTER, C_WHITE);
     }
 
     const int first = (list_.selected / TABLE_ROWS) * TABLE_ROWS;
@@ -522,12 +628,12 @@ void SETTER_GUI::draw_main(CANVAS &c)
     draw_header(c);
 
     c.fill_round_rect(8, 62, 178, 28, 14, C_NAVY);
-    c.draw_text(FILTER_LABELS[static_cast<int>(list_.sort)], 97, 76, 2, D::MIDDLE_CENTER, C_WHITE);
+    c.draw_text(tr(FILTER_LABELS[static_cast<int>(list_.sort)]), 97, 76, 2, D::MIDDLE_CENTER, C_WHITE);
     draw_view_selector(c);
 
     c.fill_rect(OX, OY, AREA_W, AREA_H, C_BG);
     if (list_.count == 0) {
-        c.draw_text("NO ITEMS NEED A TAG", 240, OY + AREA_H / 2, 4, D::MIDDLE_CENTER, C_WHITE);
+        c.draw_text(tr("NO ITEMS NEED A TAG"), 240, OY + AREA_H / 2, 4, D::MIDDLE_CENTER, C_WHITE);
     } else {
         switch (list_.view) {
             case setter_view_t::SIDEWAYS: draw_sideways(c, OX, OY); break;
@@ -539,7 +645,9 @@ void SETTER_GUI::draw_main(CANVAS &c)
     if (banner_[0]) {
         c.fill_round_rect(70, 276, 340, 32, 16, C_BLACK);
         c.fill_round_rect(72, 278, 336, 28, 14, C_GREEN);
-        c.draw_text(banner_, 240, 292, 2, D::MIDDLE_CENTER, C_WHITE);
+        char text[80];
+        snprintf(text, sizeof(text), tr("%s LINKED"), banner_);
+        c.draw_text(text, 240, 292, 2, D::MIDDLE_CENTER, C_WHITE);
     }
 }
 
@@ -554,47 +662,47 @@ void SETTER_GUI::draw_details(CANVAS &c, const setter_item_t &it)
     c.fill_rect(4, 4, 472, 312, C_WHITE);
 
     c.fill_rect(4, 4, 472, 46, C_NAVY);
-    snprintf(line, sizeof(line), "ORDER: %s", it.code);
+    snprintf(line, sizeof(line), tr("ORDER: %s"), it.code);
     c.draw_text(line, 16, 27, 4, D::MIDDLE_LEFT, C_WHITE);
 
     c.vline(190, 50, 266, C_BLACK);
     c.vline(191, 50, 266, C_BLACK);
 
     draw_image(c, it, 10, 60, 170, 240, 1);
-    c.draw_text("3 LINK   4 BACK", 95, 309, 1, D::MIDDLE_CENTER, C_GEAR_MID);
+    c.draw_text(tr("3 LINK   4 BACK"), 95, 309, 1, D::MIDDLE_CENTER, C_GEAR_MID);
 
     const int rx = 335, tx = 198;
     fit(it.part, 4, 270, value, sizeof(value));
     c.draw_text(value, rx, 70, 4, D::MIDDLE_CENTER, C_BLACK);
 
-    c.draw_text("CUSTOMER DETAILS:", tx, 100, 2, D::MIDDLE_LEFT, C_BLACK);
-    fit(it.customer, 2, 470 - tx - CANVAS::text_width("CUSTOMER NAME: ", 2), value, sizeof(value));
-    snprintf(line, sizeof(line), "CUSTOMER NAME: %s", value);
+    c.draw_text(tr("CUSTOMER DETAILS:"), tx, 100, 2, D::MIDDLE_LEFT, C_BLACK);
+    fit(it.customer, 2, 470 - tx - CANVAS::text_width(tr("CUSTOMER NAME: "), 2), value, sizeof(value));
+    snprintf(line, sizeof(line), tr("CUSTOMER NAME: %s"), value);
     c.draw_text(line, tx, 120, 2, D::MIDDLE_LEFT, C_BLACK);
-    fit(it.order_number[0] ? it.order_number : "-", 2, 470 - tx - CANVAS::text_width("CUSTOMER ORDER NUMBER: ", 2),
+    fit(it.order_number[0] ? it.order_number : "-", 2, 470 - tx - CANVAS::text_width(tr("CUSTOMER ORDER NUMBER: "), 2),
         value, sizeof(value));
-    snprintf(line, sizeof(line), "CUSTOMER ORDER NUMBER: %s", value);
+    snprintf(line, sizeof(line), tr("CUSTOMER ORDER NUMBER: %s"), value);
     c.draw_text(line, tx, 140, 2, D::MIDDLE_LEFT, C_BLACK);
 
-    c.draw_text("ORDER DETAILS", rx, 175, 2, D::MIDDLE_CENTER, C_BLACK);
+    c.draw_text(tr("ORDER DETAILS"), rx, 175, 2, D::MIDDLE_CENTER, C_BLACK);
     c.hline(290, 185, 90, C_BLACK);
 
     const int pill_y = 205;
     c.fill_round_rect(205, pill_y - 12, 110, 24, 12, C_GREEN);
-    snprintf(line, sizeof(line), "%d PIECES", it.quantity);
+    snprintf(line, sizeof(line), tr("%d PIECES"), it.quantity);
     c.draw_text(line, 260, pill_y, 2, D::MIDDLE_CENTER, C_BLACK);
 
     c.fill_round_rect(325, pill_y - 12, 110, 24, 12, C_CORAL);
     mmdd(it.due, date, sizeof(date));
-    snprintf(line, sizeof(line), "DUE: %s", date);
+    snprintf(line, sizeof(line), tr("DUE: %s"), date);
     c.draw_text(line, 380, pill_y, 2, D::MIDDLE_CENTER, C_BLACK);
 
     if (it.boxes > 1) {
-        snprintf(line, sizeof(line), "BOX %d OF %d", it.linked + 1, it.boxes);
+        snprintf(line, sizeof(line), tr("BOX %d OF %d"), it.linked + 1, it.boxes);
         c.draw_text(line, rx, 229, 1, D::MIDDLE_CENTER, C_BLACK);
     }
 
-    c.draw_text("PROCESS", rx, 245, 2, D::MIDDLE_CENTER, C_BLACK);
+    c.draw_text(tr("PROCESS"), rx, 245, 2, D::MIDDLE_CENTER, C_BLACK);
     c.hline(300, 255, 70, C_BLACK);
     draw_pie(c, rx, 285, 26, it.steps);
 }
@@ -618,16 +726,16 @@ void SETTER_GUI::draw_card_wait(CANVAS &c)
 
     c.fill_round_rect(40, 66, 400, 240, 16, C_NAVY);
     c.fill_round_rect(46, 104, 388, 196, 12, C_CARD_BG);
-    c.draw_text("TAP A CARD", 240, 86, 4, D::MIDDLE_CENTER, C_WHITE);
+    c.draw_text(tr("TAP A CARD"), 240, 86, 4, D::MIDDLE_CENTER, C_WHITE);
 
     c.draw_text(item_.code, 240, 140, 4, D::MIDDLE_CENTER, C_BLACK);
     fit(item_.part, 2, 370, line, sizeof(line));
     c.draw_text(line, 240, 178, 2, D::MIDDLE_CENTER, C_GEAR_DARK);
     if (item_.boxes > 1) {
-        snprintf(line, sizeof(line), "BOX %d OF %d", item_.linked + 1, item_.boxes);
+        snprintf(line, sizeof(line), tr("BOX %d OF %d"), item_.linked + 1, item_.boxes);
         c.draw_text(line, 240, 206, 2, D::MIDDLE_CENTER, C_BLACK);
     }
-    snprintf(line, sizeof(line), "WITHIN %d S   -   4 BACK TO CANCEL", seconds_);
+    snprintf(line, sizeof(line), tr("WITHIN %d S   -   4 BACK TO CANCEL"), seconds_);
     c.draw_text(line, 240, 272, 2, D::MIDDLE_CENTER, C_GEAR_MID);
 }
 
@@ -636,10 +744,10 @@ void SETTER_GUI::draw_result(CANVAS &c)
 {
     const bool ok = result_.state == assign_state_t::ASSIGNED;
     const uint16_t bg = ok ? C_GREEN : C_CORAL;
-    const char *title = ok ? "LINKED"
-                      : result_.state == assign_state_t::REFUSED ? "REFUSED"
-                      : result_.state == assign_state_t::BAD_KEY ? "KEY ERROR"
-                      : result_.state == assign_state_t::INVALID ? "REQUEST ERROR" : "SERVER ERROR";
+    const char *title = tr(ok ? "LINKED"
+                         : result_.state == assign_state_t::REFUSED ? "REFUSED"
+                         : result_.state == assign_state_t::BAD_KEY ? "KEY ERROR"
+                         : result_.state == assign_state_t::INVALID ? "REQUEST ERROR" : "SERVER ERROR");
 
     c.fill_screen(C_BG);
     draw_header(c);
@@ -652,12 +760,12 @@ void SETTER_GUI::draw_result(CANVAS &c)
     if (ok) {
         char line[32];
         if (result_.boxes > 1) {
-            snprintf(line, sizeof(line), "BOX %d OF %d", result_.linked, result_.boxes);
+            snprintf(line, sizeof(line), tr("BOX %d OF %d"), result_.linked, result_.boxes);
             c.draw_text(line, 240, 192, 2, D::MIDDLE_CENTER, C_WHITE);
         }
-        c.draw_text("PRINTING SHEET...", 240, 240, 2, D::MIDDLE_CENTER, C_WHITE);
+        c.draw_text(tr("PRINTING SHEET..."), 240, 240, 2, D::MIDDLE_CENTER, C_WHITE);
     } else {
-        wrap(result_.message, 46, 4, [&](int row, const char *s) {
+        wrap(tr(result_.message), 2, 370, 4, [&](int row, const char *s) {
             c.draw_text(s, 240, 190 + row * 22, 2, D::MIDDLE_CENTER, C_WHITE);
         });
     }
@@ -671,12 +779,12 @@ void SETTER_GUI::draw_pill_message(CANVAS &c, uint16_t color)
     draw_header(c);
 
     int lines = 0;
-    wrap(message_, 40, 3, [&](int, const char *) { lines++; });
+    wrap(tr(message_), 2, 340, 3, [&](int, const char *) { lines++; });
     const int h = 40 + lines * 22;
     const int y = 185 - h / 2;
     c.fill_round_rect(60, y, 360, h, std::min(h / 2, 24), color);
     const int first_line_y = y + h / 2 - (lines - 1) * 11;   // lines 22 px apart, centred in the pill
-    wrap(message_, 40, 3, [&](int row, const char *s) {
+    wrap(tr(message_), 2, 340, 3, [&](int row, const char *s) {
         c.draw_text(s, 240, first_line_y + row * 22, 2, D::MIDDLE_CENTER, C_WHITE);
     });
 }
@@ -735,6 +843,12 @@ void SETTER_GUI::show_result(const setter_item_t &item, const assign_result_t &r
     result_ = result;
     screen_ = screen_t::RESULT;
     redraw(0, CANVAS::HEIGHT);
+}
+
+
+void SETTER_GUI::set_language(bool ja)
+{
+    japanese = ja;
 }
 
 

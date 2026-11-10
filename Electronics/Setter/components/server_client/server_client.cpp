@@ -13,6 +13,8 @@
 namespace {
     static const char *TAG = "server_client";
 
+    const char *language_cookie = "django_language=en";
+
     // a 20-item page is about 5 KB; on the heap so it never overflows a task stack
     constexpr size_t LIST_REPLY_SIZE = 8192;
 
@@ -27,6 +29,12 @@ namespace {
         const char *s = cJSON_GetStringValue(cJSON_GetObjectItem(obj, key));
         strlcpy(out, s ? s : "", out_size);
     }
+}
+
+
+void SERVER_CLIENT::set_language(bool japanese)
+{
+    language_cookie = japanese ? "django_language=ja" : "django_language=en";
 }
 
 
@@ -168,7 +176,7 @@ int SERVER_CLIENT::request(bool post, const char *path, const char *body, char *
     }
 
     esp_http_client_set_header(client, "X-API-Key", CONFIG_FACTORY_API_KEY);
-    esp_http_client_set_header(client, "Cookie", "django_language=en");   // English "detail" text
+    esp_http_client_set_header(client, "Cookie", language_cookie);   // language of the "detail" text
     if (post) {
         esp_http_client_set_header(client, "Content-Type", "application/json");
     }

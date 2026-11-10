@@ -34,7 +34,7 @@ static void (*const PANEL_ACTIONS[])() = {
 };
 
 
-// Typed commands: the SetterUI keys (w s y r q e v f), n/p, a row number or an item code
+// Typed commands: the SetterUI keys (w s y r q e v f), n/p, j (language), a row number or an item code
 static void keyboard_task(void *argument)
 {
     auto *keyboard = static_cast<KEYBOARD *>(argument);
@@ -56,6 +56,7 @@ static void keyboard_task(void *argument)
                 case 'f': setter_next_sort(); continue;
                 case 'n': setter_next_page(); continue;
                 case 'p': setter_prev_page(); continue;
+                case 'j': setter_toggle_language(); continue;
                 default: break;
             }
         }
@@ -69,13 +70,13 @@ static void keyboard_task(void *argument)
         if (*end == '\0' && row >= 1) {
             setter_pick((int)row - 1);
         } else {
-            printf("Unknown input \"%s\". Type a number, an item code, or one of w s y r q e v f n p.\n", line);
+            printf("Unknown input \"%s\". Type a number, an item code, or one of w s y r q e v f n p j.\n", line);
         }
     }
 }
 
 
-// The steel push button works as "back" (cancels a card wait)
+// The button on GPIO 4 (config::BUTTON_PIN) switches the whole UI between English and Japanese
 static void button_task(void *argument)
 {
     auto *button = static_cast<BUTTON *>(argument);
@@ -84,7 +85,7 @@ static void button_task(void *argument)
     while (true) {
         bool pressed = button->clicked();
         if (pressed && !was_pressed) {
-            setter_back();
+            setter_toggle_language();
         }
         was_pressed = pressed;
         vTaskDelay(pdMS_TO_TICKS(50));

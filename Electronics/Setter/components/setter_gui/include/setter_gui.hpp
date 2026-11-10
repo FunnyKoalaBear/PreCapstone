@@ -22,6 +22,7 @@ public:
     void show_result(const setter_item_t &item, const assign_result_t &result) override;
     void show_error(const char *text) override;
     void tick() override;
+    void set_language(bool japanese) override;
 
 private:
     enum class screen_t { MESSAGE, ERROR, LIST, CARD, RESULT };

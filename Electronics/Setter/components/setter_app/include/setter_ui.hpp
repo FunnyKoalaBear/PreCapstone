@@ -21,7 +21,7 @@ struct setter_list_t {
     setter_view_t view;
     setter_sort_t sort;
     setter_modal_t modal;
-    const char *banner;           // short notice to show briefly, or nullptr
+    const char *banner;           // code of the item just linked (shown briefly as "<code> LINKED"), or nullptr
 };
 
 // Everything the setter shows. The setter task calls these, so they must draw and return quickly.
@@ -47,4 +47,7 @@ public:
 
     // called about once a second while idle (clock, hiding the banner)
     virtual void tick() {}
+
+    // switch every screen between English and Japanese; the next show_... call draws in the new language
+    virtual void set_language(bool japanese) {}
 };
