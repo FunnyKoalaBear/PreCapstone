@@ -8,6 +8,10 @@ menu "Factory Server"
         string "Path that receives scans"
         default "/record_scan"
 
+    config FACTORY_SERVER_TAG_PATH
+        string "Path that looks up a tag (the UID is added after it)"
+        default "/api/tag/"
+
     config FACTORY_API_KEY
         string "API key sent in the X-API-Key header"
         default ""

@@ -28,23 +28,41 @@ namespace {
 
     constexpr int HEADER_H = 48;
 
-    // Copies text as ASCII (other characters become '?') and cuts it to max_w pixels with ".."
+    // Moves p past one UTF-8 character
+    const char *next_utf8(const char *p)
+    {
+        if (*p) {
+            p++;
+        }
+        while ((static_cast<unsigned char>(*p) & 0xC0) == 0x80) {
+            p++;
+        }
+        return p;
+    }
+
+    // Copies text, cut to max_w pixels with ".." if it is too wide (never splits a UTF-8 character)
     void fit(const char *s, int font, int max_w, char *out, size_t size)
     {
-        size_t n = 0;
-        for (const unsigned char *p = (const unsigned char *)s; *p && n + 1 < size; p++) {
-            if (*p < 0x80) {
-                out[n++] = *p;
-            } else if (*p >= 0xC0) {
-                out[n++] = '?';
-            }
-        }
-        out[n] = '\0';
+        strlcpy(out, s, size);
         if (CANVAS::text_width(out, font) <= max_w) {
             return;
         }
-        const int char_w = CANVAS::text_width("x", font);
-        const size_t keep = std::min<size_t>(std::max(0, max_w / char_w - 2), n);
+        const int dots = CANVAS::text_width("..", font);
+        size_t keep = 0;
+        for (const char *p = s; *p;) {
+            const char *q = next_utf8(p);
+            const size_t len = q - s;
+            if (len + 3 > size) {
+                break;
+            }
+            memcpy(out, s, len);
+            out[len] = '\0';
+            if (CANVAS::text_width(out, font) + dots > max_w) {
+                break;
+            }
+            keep = len;
+            p = q;
+        }
         out[keep] = '\0';
         strlcat(out, "..", size);
     }
@@ -52,7 +70,7 @@ namespace {
     // draw_text that never runs past max_w
     void text_fit(CANVAS &c, const char *s, int x, int y, int font, CANVAS::datum_t datum, uint16_t fg, int max_w)
     {
-        char buf[64];
+        char buf[128];
         fit(s, font, max_w, buf, sizeof(buf));
         c.draw_text(buf, x, y, font, datum, fg);
     }
@@ -95,10 +113,10 @@ namespace {
                 return w + 3;
             case '1':
                 if (g) {
-                    g->fill_rect(x + w - t - 2, y, t, h, fg);
-                    g->fill_rect(x + w / 2 - 2, y, w / 2 - t, t, fg);   // short flag (the sketch's full bar reads as 7)
+                    g->fill_rect(x + w / 2, y, t, h, fg);
+                    g->fill_rect(x + w / 6, y, w / 2 - w / 6, t, fg);   // short flag (the sketch's full bar reads as 7)
                 }
-                return w + 3;
+                return w / 2 + t + 4;
             case '2': {
                 if (g) {
                     int bowl = (h * 52) / 100;
@@ -292,7 +310,7 @@ void SCANNER_GUI::draw_normal(CANVAS &c, const scanner_order_t &o)
     const int mx = 14, my = 60, mw = 452, mh = 244;
     const int mid = mx + mw / 2;
     const int box_w = mw / 2 - 20;
-    char line[64];
+    char line[128];
 
     c.fill_round_rect(mx, my, mw, mh, 10, C_BLACK);
     c.fill_round_rect(mx + 2, my + 2, mw - 4, mh - 4, 8, C_PANEL_BG);
@@ -302,8 +320,9 @@ void SCANNER_GUI::draw_normal(CANVAS &c, const scanner_order_t &o)
     c.fill_round_rect(mx + 2, my + 2, mid - mx - 2, 20, 6, C_STRIP);
     c.fill_rect(mx + 2, my + 12, mid - mx - 2, 10, C_STRIP);
     c.hline(mx + 2, my + 22, mid - mx - 2, C_GREY);
-    snprintf(line, sizeof(line), "DWG: %s", o.dwg);
-    text_fit(c, line, mx + 8, my + 12, 1, D::MIDDLE_LEFT, C_STRIP_TXT, 100);
+    // "DWG: " only when the number doesn't already say it
+    snprintf(line, sizeof(line), strncmp(o.dwg, "DWG", 3) == 0 ? "%s" : "DWG: %s", o.dwg[0] ? o.dwg : "-");
+    text_fit(c, line, mx + 8, my + 12, 1, D::MIDDLE_LEFT, C_STRIP_TXT, 108);
     c.draw_text("SCALE 1:1 MM", mid - 8, my + 12, 1, D::MIDDLE_RIGHT, C_STRIP_TXT);
 
     draw_schematic(c, (mx + 2 + mid) / 2, my + mh / 2 + 10, 1.0f);
@@ -311,8 +330,8 @@ void SCANNER_GUI::draw_normal(CANVAS &c, const scanner_order_t &o)
     c.fill_round_rect(mx + 2, my + mh - 22, mid - mx - 2, 20, 6, C_STRIP);
     c.fill_rect(mx + 2, my + mh - 22, mid - mx - 2, 10, C_STRIP);
     c.hline(mx + 2, my + mh - 22, mid - mx - 2, C_GREY);
-    text_fit(c, o.tol, mx + 8, my + mh - 12, 1, D::MIDDLE_LEFT, C_STRIP_TXT, 100);
-    text_fit(c, o.mat, mid - 8, my + mh - 12, 1, D::MIDDLE_RIGHT, C_STRIP_TXT, 100);
+    text_fit(c, o.part_no[0] ? o.part_no : "-", mx + 8, my + mh - 12, 1, D::MIDDLE_LEFT, C_STRIP_TXT, 100);
+    text_fit(c, o.mat[0] ? o.mat : "-", mid - 8, my + mh - 12, 1, D::MIDDLE_RIGHT, C_STRIP_TXT, 100);
 
     c.vline(mid, my, mh, C_BLACK);
     c.vline(mid + 1, my, mh, C_BLACK);
@@ -321,49 +340,64 @@ void SCANNER_GUI::draw_normal(CANVAS &c, const scanner_order_t &o)
     const int px = mid + 10;
     int py = my + 10;
 
-    // row 1: order id and line position
+    // row 1: ORDER: ... LINE POS [3/6], then the id across the whole column
     c.draw_text("ORDER:", px, py, 2, D::TOP_LEFT, C_TEXT);
-    const int id_room = (mx + mw - 45) - px - 6;
-    if (poppins_text(nullptr, o.id, 0, 0, 26, 4, 0, 0) <= id_room) {
-        poppins_text(&c, o.id, px, py + 18, 26, 4, C_CORAL, C_PANEL_BG);
+    c.fill_round_rect(mx + mw - 45, py - 2, 35, 20, 4, C_BLACK);
+    if (o.finished) {
+        snprintf(line, sizeof(line), "%d/%d", o.total, o.total);
     } else {
-        text_fit(c, o.id, px, py + 20, CANVAS::text_width(o.id, 4) <= id_room ? 4 : 2, D::TOP_LEFT, C_CORAL, id_room);
+        snprintf(line, sizeof(line), "%d/%d", o.pos, o.total);
+    }
+    c.draw_text(line, mx + mw - 27, py + 8, 2, D::MIDDLE_CENTER, C_HEADER);
+    c.draw_text("LINE POS", mx + mw - 50, py + 8, 1, D::MIDDLE_RIGHT, C_TEXT);
+
+    // the id in the big "Poppins" digits when it fits, else the normal font
+    if (poppins_text(nullptr, o.id, 0, 0, 26, 4, 0, 0) <= box_w) {
+        poppins_text(&c, o.id, px, py + 20, 26, 4, C_CORAL, C_PANEL_BG);
+    } else if (poppins_text(nullptr, o.id, 0, 0, 22, 4, 0, 0) <= box_w) {
+        poppins_text(&c, o.id, px, py + 22, 22, 4, C_CORAL, C_PANEL_BG);
+    } else {
+        text_fit(c, o.id, px, py + 22, 4, D::TOP_LEFT, C_CORAL, box_w);
     }
 
-    c.draw_text("LINE POS", mx + mw - 10, py, 1, D::TOP_RIGHT, C_TEXT);
-    c.fill_round_rect(mx + mw - 45, py + 15, 35, 20, 4, C_BLACK);
-    snprintf(line, sizeof(line), "%d/%d", o.pos, o.total);
-    c.draw_text(line, mx + mw - 27, py + 25, 2, D::MIDDLE_CENTER, C_HEADER);
+    c.hline(px, py + 49, box_w, C_GREY);
 
-    c.hline(px, py + 47, box_w, C_GREY);
-
-    // progress along the line: done, current, to come
+    // progress along the route: done, next, to come
     py += 55;
     const int steps = std::max(o.total, 1);
     const int gap = 4;
     const int bar_w = (box_w - (steps - 1) * gap) / steps;
     for (int i = 1; i <= o.total; i++) {
-        const uint16_t fill = (i < o.pos) ? C_GREEN : (i == o.pos ? C_CORAL : C_GREY);
-        const uint16_t edge = (i <= o.pos) ? C_BLACK : C_OUTLINE;
+        const bool done = o.finished || i < o.pos;
+        const uint16_t fill = done ? C_GREEN : (i == o.pos ? C_CORAL : C_GREY);
+        const uint16_t edge = (done || i == o.pos) ? C_BLACK : C_OUTLINE;
         const int x = px + (i - 1) * (bar_w + gap);
         c.fill_round_rect(x, py, bar_w, 6, 2, fill);
         c.draw_round_rect(x, py, bar_w, 6, 2, edge);
     }
 
-    // row 2: part name
+    // row 2: part name (and "Box k of n")
     py += 15;
     c.fill_round_rect(px, py, box_w, 36, 4, C_WHITE);
     c.draw_round_rect(px, py, box_w, 36, 4, C_GREY);
     c.draw_text("PART NAME", px + 6, py + 5, 1, D::TOP_LEFT, C_LABEL);
+    if (o.box[0]) {
+        text_fit(c, o.box, px + box_w - 6, py + 5, 1, D::TOP_RIGHT, C_LABEL, box_w - 90);
+    }
     text_fit(c, o.part, px + 6, py + 17, 2, D::TOP_LEFT, C_TEXT, box_w - 12);
 
-    // row 3: station to confirm
+    // row 3: what YES will record
     py += 45;
     c.fill_round_rect(px, py, box_w, 36, 4, C_MUSTARD_L);
     c.draw_round_rect(px, py, box_w, 36, 4, C_HEADER);
     c.draw_text("CONFIRM SCANNER STATION", px + 6, py + 5, 1, D::TOP_LEFT, C_DIM);
-    text_fit(c, o.station, px + 6, py + 17, 2, D::TOP_LEFT, C_TEXT, box_w - 26);
-    c.fill_circle(px + box_w - 10, py + 24, 4, C_GREEN);
+    if (o.finished) {
+        strlcpy(line, "ROUTE COMPLETE", sizeof(line));
+    } else {
+        snprintf(line, sizeof(line), "%s: %s", o.event, o.process);
+    }
+    text_fit(c, line, px + 6, py + 17, 2, D::TOP_LEFT, C_TEXT, box_w - 26);
+    c.fill_circle(px + box_w - 10, py + 24, 4, o.finished ? C_OUTLINE : C_GREEN);
 
     // row 4: dates
     py += 45;
@@ -373,22 +407,17 @@ void SCANNER_GUI::draw_normal(CANVAS &c, const scanner_order_t &o)
     c.draw_text("START DATE:", px + 6, py + 5, 1, D::TOP_LEFT, C_TEXT);
     c.draw_text(o.start, px + 6, py + 17, 2, D::TOP_LEFT, C_CORAL);
     c.vline(px + mw / 4 - 10, py + 4, 28, C_GREY);
-    c.draw_text("END DATE:", col2, py + 5, 1, D::TOP_LEFT, C_TEXT);
+    c.draw_text("DUE DATE:", col2, py + 5, 1, D::TOP_LEFT, C_TEXT);
     c.draw_text(o.end, col2, py + 17, 2, D::TOP_LEFT, C_CORAL);
 
-    // row 5: customer and engineer
+    // row 5: customer and customer order number
     py += 42;
-    c.draw_text("CUSTOMER:", px, py, 1, D::TOP_LEFT, C_LABEL);
-    text_fit(c, o.customer, px, py + 10, 1, D::TOP_LEFT, C_TEXT, mw / 4 - 14);
-    c.vline(px + mw / 4 - 10, py, 20, C_GREY);
-    c.draw_text("ENGINEER:", col2, py, 1, D::TOP_LEFT, C_LABEL);
-    // the label already says ENGINEER: drop a leading "ENG. " when the name is too long for the column
-    const int eng_room = px + box_w - col2;
-    const char *eng = o.engineer;
-    if (CANVAS::text_width(eng, 1) > eng_room && strncmp(eng, "ENG. ", 5) == 0) {
-        eng += 5;
-    }
-    text_fit(c, eng, col2, py + 10, 1, D::TOP_LEFT, C_TEXT, eng_room);
+    // values 14 px below their label: Japanese glyphs are 16 px tall around the 8 px line
+    c.draw_text("CUSTOMER:", px, py - 2, 1, D::TOP_LEFT, C_LABEL);
+    text_fit(c, o.customer, px, py + 12, 1, D::TOP_LEFT, C_TEXT, mw / 4 - 14);
+    c.vline(px + mw / 4 - 10, py - 2, 24, C_GREY);
+    c.draw_text("ORDER NO:", col2, py - 2, 1, D::TOP_LEFT, C_LABEL);
+    text_fit(c, o.order_number[0] ? o.order_number : "-", col2, py + 12, 1, D::TOP_LEFT, C_TEXT, px + box_w - col2);
 }
 
 
@@ -398,21 +427,18 @@ void SCANNER_GUI::draw_enhanced(CANVAS &c, const scanner_order_t &o)
     const int mx = 8, my = 52, mw = 464, mh = 258;
     const int col_w = 130;
     const int mid = mx + mw - col_w;
-    char line[64];
+    char line[128];
 
     c.fill_round_rect(mx, my, mw, mh, 10, C_BLACK);
     c.fill_round_rect(mx + 2, my + 2, mw - 4, mh - 4, 8, C_WHITE);
 
-    // top bar: id | part name ... position and station
+    // top bar: id | part name ... position and process
     c.fill_round_rect(mx + 2, my + 2, mw - 4, 28, 8, C_DARK);
     c.fill_rect(mx + 2, my + 16, mw - 4, 14, C_DARK);
 
-    char station[16];
-    strlcpy(station, o.station, sizeof(station));
-    if (char *colon = strchr(station, ':')) {
-        *colon = '\0';
-    }
-    snprintf(line, sizeof(line), "POS: %d/%d * %s", o.pos, o.total, station);
+    char process[40];
+    fit(o.finished ? "COMPLETE" : o.process, 1, 110, process, sizeof(process));
+    snprintf(line, sizeof(line), "POS: %d/%d * %s", o.finished ? o.total : o.pos, o.total, process);
     const int right_w = CANVAS::text_width(line, 1);
     c.draw_text(line, mx + mw - 10, my + 16, 1, D::MIDDLE_RIGHT, C_HEADER);
 
@@ -434,15 +460,15 @@ void SCANNER_GUI::draw_enhanced(CANVAS &c, const scanner_order_t &o)
     int py = my + 36;
     auto spec = [&](const char *label, const char *value, bool red) {
         c.draw_text(label, px, py, 1, D::TOP_LEFT, C_LABEL);
-        text_fit(c, value, px, py + 12, 1, D::TOP_LEFT, red ? C_CORAL : C_TEXT, col_w - 16);
+        text_fit(c, value[0] ? value : "-", px, py + 12, 1, D::TOP_LEFT, red ? C_CORAL : C_TEXT, col_w - 16);
         c.hline(px, py + 26, col_w - 18, C_GREY);
         py += 32;
     };
     spec("DRAWING NO.", o.dwg, false);
     spec("MATERIAL SPEC", o.mat, false);
-    spec("TOLERANCE", o.tol, true);
+    spec("PART NO.", o.part_no, true);
     spec("CUSTOMER", o.customer, false);
-    spec("LEAD ENGINEER", o.engineer, false);
+    spec("ORDER NO.", o.order_number, false);
 
     c.fill_round_rect(mid + 6, my + mh - 28, col_w - 12, 20, 4, C_DARK);
     c.draw_text("FULL BLUEPRINT", mid + 6 + (col_w - 12) / 2, my + mh - 18, 1, D::MIDDLE_CENTER, C_HEADER);

@@ -2,20 +2,23 @@
 
 #include "canvas.hpp"
 
-// Everything the order screen shows about one scanned box
+// Everything the order screen shows about one scanned box. Text is UTF-8 (Japanese is drawn too).
 struct scanner_order_t {
-    char id[16];         // "#2103" (short ids are drawn in the big clock-style font)
-    char part[40];       // part name
-    int pos;             // current step on the line, 1-based
-    int total;           // steps on the line
-    char station[40];    // "STN-03: CNC HOBBING"
-    char start[8];       // "06/30"
-    char end[8];         // "07/05"
-    char customer[32];
-    char engineer[32];
-    char dwg[24];        // drawing number, "#2103-A"
-    char tol[24];        // tolerance, "+/-0.02mm"
-    char mat[24];        // material, "4140 STEEL"
+    char id[24];             // item code "2611-001-01" (or a sample id like "#2103")
+    char part[96];           // part name
+    int pos;                 // the step the next scan records, 1-based
+    int total;               // steps on the route
+    bool finished;           // route complete: every step shows as done
+    char event[16];          // what YES records: ARRIVED, STARTED, FINISHED, SENT_OUT, RETURNED
+    char process[64];        // the next step's process ("Milling")
+    char start[8];           // "MM/DD" the order was registered
+    char end[8];             // "MM/DD" due date
+    char customer[96];
+    char order_number[48];   // customer order number
+    char dwg[64];            // drawing number / revision
+    char part_no[48];        // part number
+    char mat[64];            // material
+    char box[32];            // "Box 2 of 3", or empty
 };
 
 // Colour of the banner title

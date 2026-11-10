@@ -19,15 +19,14 @@ namespace {
     constexpr int BANNER_MS = 1500;   // how long a result stays before the screen goes back to idle
     constexpr int TICK_MS = 1000;     // gui->tick() while waiting (clock)
 
-    // SAMPLE DATA from scanner_ui.ino. The server has no "look up this tag" call yet, so the order card
-    // cycles through these instead of showing the tapped box. Only the result banner is real.
+    // Sample orders from scanner_ui.ino, only for the test tap (t): the screen without a card or server
     const scanner_order_t SAMPLE_ORDERS[] = {
-        {"#2103", "INVOLUTE SPUR GEAR 24T", 3, 6, "STN-03: CNC HOBBING", "06/30", "07/05",
-         "IXZOQ MFG", "ENG. J. ORBETA", "#2103-A", "+/-0.02mm", "4140 STEEL"},
-        {"#1940", "PLANETARY CARRIER SET", 2, 6, "STN-02: 5-AXIS MILL", "06/24", "06/28",
-         "AERO DYNAMICS", "ENG. K. TANAKA", "#1940-C", "+/-0.015mm", "7075-T6 AL"},
-        {"#1985", "FLANGED BEARING HOUSING", 4, 6, "STN-04: PRECISION BORE", "06/25", "06/29",
-         "KAWASAKI HEAVY", "ENG. M. SATO", "#1985-B", "H7 (+0.025)", "GG25 IRON"},
+        {"#2103", "INVOLUTE SPUR GEAR 24T", 3, 6, false, "STARTED", "CNC HOBBING", "06/30", "07/05",
+         "IXZOQ MFG", "HD-B0031", "#2103-A", "PN-2103", "4140 STEEL", ""},
+        {"#1940", "PLANETARY CARRIER SET", 2, 6, false, "FINISHED", "5-AXIS MILL", "06/24", "06/28",
+         "AERO DYNAMICS", "HD-B0042", "#1940-C", "PN-1940", "7075-T6 AL", "Box 1 of 2"},
+        {"#1985", "FLANGED BEARING HOUSING", 4, 6, false, "SENT_OUT", "PRECISION BORE", "06/25", "06/29",
+         "KAWASAKI HEAVY", "HD-B0053", "#1985-B", "PN-1985", "GG25 IRON", ""},
     };
     constexpr int SAMPLE_COUNT = sizeof(SAMPLE_ORDERS) / sizeof(SAMPLE_ORDERS[0]);
 
@@ -69,12 +68,47 @@ namespace {
     }
 
 
-    void show_order(const scanner_order_t &order, bool enhanced)
+    void show_order(const scanner_order_t &o, bool enhanced, bool sample)
     {
-        printf("\n=== ORDER %s  %s  (sample data) ===\n line pos %d/%d, %s, %s to %s, %s\n"
-               "y = YES (confirm)   n = NO (reject)   e = blueprint view\n",
-               order.id, order.part, order.pos, order.total, order.station, order.start, order.end, order.customer);
-        gui->show_order(order, enhanced);
+        printf("\n=== %s  %s%s ===\n step %d of %d: %s %s | %s to %s | %s %s\n"
+               "y = YES (record it)   n = NO (don't)   e = blueprint view\n",
+               o.id, o.part, sample ? "  (sample data)" : "", o.finished ? o.total : o.pos, o.total,
+               o.finished ? "route complete" : o.event, o.process, o.start, o.end, o.customer, o.box);
+        gui->show_order(o, enhanced);
+    }
+
+
+    // "2026-12-01" -> "12/01"
+    void mmdd(const char *iso, char *out, size_t size)
+    {
+        if (strlen(iso) >= 10) {
+            snprintf(out, size, "%.2s/%.2s", iso + 5, iso + 8);
+        } else {
+            strlcpy(out, "--/--", size);
+        }
+    }
+
+
+    // What the order card shows, from the server's answer
+    scanner_order_t to_order(const tag_info_t &t)
+    {
+        scanner_order_t o = {};
+        strlcpy(o.id, t.item, sizeof(o.id));
+        strlcpy(o.part, t.part, sizeof(o.part));
+        o.pos = t.step;
+        o.total = t.steps;
+        o.finished = (t.state == lookup_state_t::FINISHED);
+        strlcpy(o.event, t.event, sizeof(o.event));
+        strlcpy(o.process, t.process, sizeof(o.process));
+        mmdd(t.ordered, o.start, sizeof(o.start));
+        mmdd(t.due, o.end, sizeof(o.end));
+        strlcpy(o.customer, t.customer, sizeof(o.customer));
+        strlcpy(o.order_number, t.order_number, sizeof(o.order_number));
+        strlcpy(o.dwg, t.drawing, sizeof(o.dwg));
+        strlcpy(o.part_no, t.part_number, sizeof(o.part_no));
+        strlcpy(o.mat, t.material, sizeof(o.mat));
+        strlcpy(o.box, t.box, sizeof(o.box));
+        return o;
     }
 
 
@@ -96,6 +130,34 @@ namespace {
             snprintf(uid_hex + 2 * i, size - 2 * i, "%02X", uid[i]);   // 0d 11 69 6b -> "0D11696B"
         }
         return true;
+    }
+
+
+    // Card -> ask the server which box it is. True (and fills `order`) when there is an order to show.
+    bool look_up(SERVER_CLIENT &server, const char *uid, scanner_order_t &order)
+    {
+        banner("LOOKING UP...", uid, banner_t::INFO, 0);
+        const tag_info_t info = server.lookup(uid);
+
+        switch (info.state) {
+            case lookup_state_t::OPEN:
+            case lookup_state_t::FINISHED:
+                order = to_order(info);
+                beep(2, 100);
+                return true;
+            case lookup_state_t::UNASSIGNED:
+                beep(1, 600);
+                banner("TAG NOT ASSIGNED", "LINK IT ON THE SETTER FIRST", banner_t::BAD, BANNER_MS);
+                return false;
+            case lookup_state_t::BAD_KEY:
+                beep(1, 600);
+                banner("DEVICE KEY ERROR", "CHECK THIS SCANNER'S API KEY", banner_t::BAD, BANNER_MS);
+                return false;
+            default:
+                beep(1, 600);
+                banner("SERVER ERROR", "COULD NOT LOOK UP THE CARD", banner_t::BAD, BANNER_MS);
+                return false;
+        }
     }
 
 
@@ -145,10 +207,11 @@ namespace {
     void scanner_task(void *argument)
     {
         SERVER_CLIENT server;
-        int sample = -1;            // which sample order is on screen
+        int sample = -1;              // last sample order used by a test tap
         bool order_open = false;
         bool enhanced = false;
-        char uid[24] = "";          // card behind the open order; empty for a test tap
+        scanner_order_t order = {};   // what is on screen
+        char uid[24] = "";            // card behind the open order; empty for a test tap
 
         printf("\nScanner ready. Press the button (or type r) and tap a card. t = test tap without a card.\n");
         gui->show_idle();
@@ -162,26 +225,30 @@ namespace {
 
             if (!order_open) {
                 if (cmd == cmd_t::REQUEST_CARD) {
-                    if (read_card(uid, sizeof(uid))) {
+                    bool got = read_card(uid, sizeof(uid));
+                    if (got) {
                         ESP_LOGI(TAG, "card %s", uid);
-                        beep(2, 100);
+                        got = look_up(server, uid, order);
                     } else {
                         beep(1, 600);
                         banner("NO CARD READ", "PRESS THE BUTTON AND TRY AGAIN", banner_t::BAD, BANNER_MS);
+                    }
+                    if (!got) {
                         gui->show_idle();
                         xQueueReset(queue);
                         continue;
                     }
                 } else if (cmd == cmd_t::TEST_TAP) {
                     uid[0] = '\0';
+                    sample = (sample + 1) % SAMPLE_COUNT;
+                    order = SAMPLE_ORDERS[sample];
                 } else {
                     continue;   // YES / NO / ENHANCE mean nothing without an order on screen
                 }
 
-                sample = (sample + 1) % SAMPLE_COUNT;
                 enhanced = false;
                 order_open = true;
-                show_order(SAMPLE_ORDERS[sample], enhanced);
+                show_order(order, enhanced, uid[0] == '\0');
                 xQueueReset(queue);   // drop presses made during the card wait
                 continue;
             }
@@ -189,7 +256,7 @@ namespace {
             switch (cmd) {
                 case cmd_t::ENHANCE:
                     enhanced = !enhanced;
-                    gui->show_order(SAMPLE_ORDERS[sample], enhanced);
+                    gui->show_order(order, enhanced);
                     continue;
 
                 case cmd_t::YES:
@@ -201,8 +268,8 @@ namespace {
                     break;
 
                 case cmd_t::NO: {
-                    char line[48];
-                    snprintf(line, sizeof(line), "ORDER %s NOT LOGGED", SAMPLE_ORDERS[sample].id);
+                    char line[64];
+                    snprintf(line, sizeof(line), "%s NOT LOGGED", order.id);
                     beep(1, 300);
                     banner("SCAN REJECTED", line, banner_t::BAD, BANNER_MS);
                     break;
@@ -232,8 +299,8 @@ bool scanner_app_start(SCANNER_GUI *scanner_gui, RFID *scanner_rfid, BUZZER *sca
         return false;
     }
 
-    // 10 KB: HTTP client + cJSON
-    return xTaskCreate(scanner_task, "Scanner", 10240, nullptr, 5, nullptr) == pdPASS;
+    // 12 KB: HTTP client + cJSON + a 1.5 KB reply buffer and the tag info on the stack
+    return xTaskCreate(scanner_task, "Scanner", 12288, nullptr, 5, nullptr) == pdPASS;
 }
 
 
