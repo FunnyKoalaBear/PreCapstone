@@ -108,12 +108,12 @@ bool SERVER_CLIENT::fetch_items(int offset, int limit, setter_item_t *items, int
 
 
 // POST /api/assign/ and turn the HTTP status into an assign_state_t
-assign_result_t SERVER_CLIENT::assign(const char *uid, int item_id)
+assign_result_t SERVER_CLIENT::assign(const char *uid, int item_id, bool replace)
 {
     assign_result_t result = {};
 
-    char body[96];
-    snprintf(body, sizeof(body), "{\"tag_uid\":\"%s\",\"item\":%d}", uid, item_id);
+    char body[112];
+    snprintf(body, sizeof(body), "{\"tag_uid\":\"%s\",\"item\":%d%s}", uid, item_id, replace ? ",\"replace\":true" : "");
 
     char reply[512];
     int status = request(true, CONFIG_FACTORY_SERVER_ASSIGN_PATH, body, reply, sizeof(reply));
@@ -125,11 +125,17 @@ assign_result_t SERVER_CLIENT::assign(const char *uid, int item_id)
             result.linked = json_int(root, "linked");
             result.boxes = json_int(root, "boxes");
             strlcpy(result.message, "Assigned, printing", sizeof(result.message));
+            json_str(root, "released", result.released, sizeof(result.released));
             break;
-        case 409:
+        case 409: {
             result.state = assign_state_t::REFUSED;
             json_str(root, "detail", result.message, sizeof(result.message));
+            char reason[24];
+            json_str(root, "reason", reason, sizeof(reason));
+            result.tag_in_use = strcmp(reason, "tag_in_use") == 0;
+            json_str(root, "current_item", result.current_item, sizeof(result.current_item));
             break;
+        }
         case 401:
             result.state = assign_state_t::BAD_KEY;
             strlcpy(result.message, "Device key error", sizeof(result.message));

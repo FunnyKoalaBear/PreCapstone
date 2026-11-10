@@ -11,6 +11,7 @@ public:
     void show_list(const setter_list_t &list) override;
     void show_waiting_for_card(const setter_item_t &item, int seconds) override;
     void show_result(const setter_item_t &item, const assign_result_t &result) override;
+    void show_confirm_replace(const setter_item_t &item, const char *uid, const char *current_item) override;
     void show_error(const char *text) override;
 
 private:

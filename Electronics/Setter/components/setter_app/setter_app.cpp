@@ -23,6 +23,7 @@ namespace {
     constexpr int CARD_TIMEOUT_MS = 15000;    // how long to wait for a card after a pick
     constexpr int RESULT_SHOW_MS = 3000;      // how long the result stays before the list comes back
     constexpr int ERROR_SHOW_MS = 1500;
+    constexpr int CONFIRM_TIMEOUT_MS = 15000; // how long the "move this card?" question waits
     constexpr int TICK_MS = 1000;             // ui->tick() while idle (clock)
 
     enum class cmd_type_t {
@@ -202,7 +203,37 @@ namespace {
     }
 
 
-    // Pick -> card -> POST /api/assign/ -> show the answer
+    // The card is linked to another item: wait for yes (LINK: button 3 / y) or no (BACK: button 4 / r)
+    bool confirm_replace(const setter_item_t &item, const char *uid, const char *current_item)
+    {
+        ui->show_confirm_replace(item, uid, current_item);
+        beep(2, 60);
+
+        const TickType_t start = xTaskGetTickCount();
+        while ((xTaskGetTickCount() - start) < pdMS_TO_TICKS(CONFIRM_TIMEOUT_MS)) {
+            cmd_t cmd;
+            if (xQueueReceive(queue, &cmd, pdMS_TO_TICKS(100)) != pdTRUE) {
+                continue;
+            }
+            switch (cmd.type) {
+                case cmd_type_t::LINK:
+                    return true;
+                case cmd_type_t::BACK:
+                case cmd_type_t::RELOAD:
+                    return false;
+                case cmd_type_t::LANGUAGE:
+                    toggle_language();
+                    ui->show_confirm_replace(item, uid, current_item);
+                    break;
+                default:
+                    break;   // other buttons do nothing while the question is open
+            }
+        }
+        return false;   // no answer: leave the card where it is
+    }
+
+
+    // Pick -> card -> POST /api/assign/ (-> confirm and send again to move a used card) -> show the answer
     void link_item(SERVER_CLIENT &server, const setter_item_t &item)
     {
         ui->show_waiting_for_card(item, CARD_TIMEOUT_MS / 1000);
@@ -221,6 +252,21 @@ namespace {
         ui->show_message("Linking...");
 
         assign_result_t result = server.assign(uid, item.id);
+
+        // Card already linked to another item: ask, then release it there and link it here
+        if (result.state == assign_state_t::REFUSED && result.tag_in_use && result.current_item[0] &&
+            strcmp(result.current_item, item.code) != 0) {
+            if (!confirm_replace(item, uid, result.current_item)) {
+                ui->show_error("Cancelled");
+                vTaskDelay(pdMS_TO_TICKS(ERROR_SHOW_MS));
+                xQueueReset(queue);
+                return;
+            }
+            ESP_LOGI(TAG, "moving tag %s from %s to %s", uid, result.current_item, item.code);
+            ui->show_message("Linking...");
+            result = server.assign(uid, item.id, true);
+        }
+
         ui->show_result(item, result);
 
         if (result.state == assign_state_t::ASSIGNED) {

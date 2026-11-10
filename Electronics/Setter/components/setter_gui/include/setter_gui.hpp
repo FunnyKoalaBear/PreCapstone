@@ -20,12 +20,13 @@ public:
     void show_list(const setter_list_t &list) override;
     void show_waiting_for_card(const setter_item_t &item, int seconds) override;
     void show_result(const setter_item_t &item, const assign_result_t &result) override;
+    void show_confirm_replace(const setter_item_t &item, const char *uid, const char *current_item) override;
     void show_error(const char *text) override;
     void tick() override;
     void set_language(bool japanese) override;
 
 private:
-    enum class screen_t { MESSAGE, ERROR, LIST, CARD, RESULT };
+    enum class screen_t { MESSAGE, ERROR, LIST, CARD, RESULT, CONFIRM };
 
     void redraw(int y0, int y1);
     void draw(CANVAS &c);
@@ -40,6 +41,7 @@ private:
     void draw_drawing(CANVAS &c, const setter_item_t &it);
     void draw_card_wait(CANVAS &c);
     void draw_result(CANVAS &c);
+    void draw_confirm(CANVAS &c);
     void draw_pill_message(CANVAS &c, uint16_t color);
 
     bool update_clock();
@@ -53,6 +55,8 @@ private:
     setter_item_t item_ = {};
     assign_result_t result_ = {};
     int seconds_ = 0;
+    char confirm_uid_[24] = "";
+    char confirm_current_[24] = "";
     char message_[160] = "";
     char clock_[8] = "--:--";
     char banner_[48] = "";

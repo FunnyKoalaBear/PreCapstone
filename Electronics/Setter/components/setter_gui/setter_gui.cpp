@@ -80,6 +80,13 @@ namespace {
         {"REQUEST ERROR", "リクエストエラー"},
         {"SERVER ERROR", "サーバーエラー"},
         {"PRINTING SHEET...", "指示書を印刷中..."},
+        {"MOVED FROM %s", "%s から付け替えました"},
+        {"CARD ALREADY IN USE", "このカードは使用中です"},
+        {"TAG %s IS LINKED TO", "タグ %s の紐付け先"},
+        {"MOVE IT TO %s?", "%s に付け替えますか?"},
+        {"3 YES", "3 はい"},
+        {"4 NO", "4 いいえ"},
+        {"THE OLD LINK ENDS, ITS HISTORY IS KEPT", "元の紐付けは終了し、履歴は残ります"},
         {"Starting...", "起動中..."},
         {"Connecting WiFi...", "WiFi に接続中..."},
         {"Starting RFID reader...", "RFID リーダーを起動中..."},
@@ -444,6 +451,9 @@ void SETTER_GUI::draw(CANVAS &c)
         case screen_t::RESULT:
             draw_result(c);
             break;
+        case screen_t::CONFIRM:
+            draw_confirm(c);
+            break;
         case screen_t::ERROR:
             draw_pill_message(c, C_CORAL);
             break;
@@ -758,10 +768,14 @@ void SETTER_GUI::draw_result(CANVAS &c)
     c.draw_text(item_.code, 240, 146, 4, D::MIDDLE_CENTER, C_WHITE);
 
     if (ok) {
-        char line[32];
+        char line[96];
         if (result_.boxes > 1) {
             snprintf(line, sizeof(line), tr("BOX %d OF %d"), result_.linked, result_.boxes);
             c.draw_text(line, 240, 192, 2, D::MIDDLE_CENTER, C_WHITE);
+        }
+        if (result_.released[0]) {
+            snprintf(line, sizeof(line), tr("MOVED FROM %s"), result_.released);
+            c.draw_text(line, 240, 216, 2, D::MIDDLE_CENTER, C_WHITE);
         }
         c.draw_text(tr("PRINTING SHEET..."), 240, 240, 2, D::MIDDLE_CENTER, C_WHITE);
     } else {
@@ -769,6 +783,32 @@ void SETTER_GUI::draw_result(CANVAS &c)
             c.draw_text(s, 240, 190 + row * 22, 2, D::MIDDLE_CENTER, C_WHITE);
         });
     }
+}
+
+
+// "This card is linked to X. Move it to Y?" with the yes / no buttons
+void SETTER_GUI::draw_confirm(CANVAS &c)
+{
+    char line[96];
+    c.fill_screen(C_BG);
+    draw_header(c);
+
+    c.fill_round_rect(40, 66, 400, 240, 16, C_NAVY);
+    c.fill_round_rect(46, 104, 388, 196, 12, C_CARD_BG);
+    c.draw_text(tr("CARD ALREADY IN USE"), 240, 86, 4, D::MIDDLE_CENTER, C_WHITE);
+
+    snprintf(line, sizeof(line), tr("TAG %s IS LINKED TO"), confirm_uid_);
+    c.draw_text(line, 240, 126, 2, D::MIDDLE_CENTER, C_GEAR_DARK);
+    c.draw_text(confirm_current_, 240, 156, 4, D::MIDDLE_CENTER, C_CORAL);
+    snprintf(line, sizeof(line), tr("MOVE IT TO %s?"), item_.code);
+    c.draw_text(line, 240, 192, 2, D::MIDDLE_CENTER, C_BLACK);
+
+    c.fill_round_rect(90, 218, 135, 32, 16, C_GREEN);
+    c.draw_text(tr("3 YES"), 157, 234, 2, D::MIDDLE_CENTER, C_WHITE);
+    c.fill_round_rect(255, 218, 135, 32, 16, C_CORAL);
+    c.draw_text(tr("4 NO"), 322, 234, 2, D::MIDDLE_CENTER, C_WHITE);
+
+    c.draw_text(tr("THE OLD LINK ENDS, ITS HISTORY IS KEPT"), 240, 278, 1, D::MIDDLE_CENTER, C_GEAR_MID);
 }
 
 
@@ -832,6 +872,17 @@ void SETTER_GUI::show_waiting_for_card(const setter_item_t &item, int seconds)
     item_ = item;
     seconds_ = seconds;
     screen_ = screen_t::CARD;
+    redraw(0, CANVAS::HEIGHT);
+}
+
+
+void SETTER_GUI::show_confirm_replace(const setter_item_t &item, const char *uid, const char *current_item)
+{
+    serial_.show_confirm_replace(item, uid, current_item);
+    item_ = item;
+    strlcpy(confirm_uid_, uid, sizeof(confirm_uid_));
+    strlcpy(confirm_current_, current_item, sizeof(confirm_current_));
+    screen_ = screen_t::CONFIRM;
     redraw(0, CANVAS::HEIGHT);
 }
 

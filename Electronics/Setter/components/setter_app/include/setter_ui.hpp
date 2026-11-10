@@ -42,6 +42,9 @@ public:
     // what the server said about linking the card to `item`
     virtual void show_result(const setter_item_t &item, const assign_result_t &result) = 0;
 
+    // the card `uid` is linked to `current_item`: ask whether to move it to `item` (3 / y = yes, 4 / r = no)
+    virtual void show_confirm_replace(const setter_item_t &item, const char *uid, const char *current_item) = 0;
+
     // something went wrong (network, bad row number, no card)
     virtual void show_error(const char *text) = 0;
 

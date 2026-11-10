@@ -86,6 +86,12 @@ void TEXT_UI::show_list(const setter_list_t &list)
 }
 
 
+void TEXT_UI::show_confirm_replace(const setter_item_t &item, const char *uid, const char *current_item)
+{
+    printf("\n??? Tag %s is linked to %s. Move it to %s?  y = yes, r = no\n", uid, current_item, item.code);
+}
+
+
 void TEXT_UI::show_waiting_for_card(const setter_item_t &item, int seconds)
 {
     printf("\n>>> Tap a card for %s within %d s (r = cancel)\n", item.code, seconds);
@@ -96,6 +102,9 @@ void TEXT_UI::show_result(const setter_item_t &item, const assign_result_t &resu
 {
     if (result.state == assign_state_t::ASSIGNED) {
         printf("\n>>> LINKED %s (box %d of %d), printing the sheet\n", item.code, result.linked, result.boxes);
+        if (result.released[0]) {
+            printf("    (moved from %s)\n", result.released);
+        }
     } else {
         printf("\n>>> %s %s: %s\n", state_title(result.state), item.code, result.message);
     }

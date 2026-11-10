@@ -28,9 +28,12 @@ enum class assign_state_t {
 
 struct assign_result_t {
     assign_state_t state;
-    char message[128];   // server "detail" on REFUSED, otherwise a short English text
+    char message[192];   // server "detail" on REFUSED (English or Japanese), otherwise a short English text
     int linked;          // on ASSIGNED: boxes now linked
     int boxes;           // on ASSIGNED: boxes expected
+    bool tag_in_use;     // on REFUSED: the tag is linked to another item (current_item)
+    char current_item[24];   // on REFUSED + tag_in_use: item code the tag is linked to now
+    char released[24];   // on ASSIGNED with replace: item code the tag was moved away from
 };
 
 class SERVER_CLIENT
@@ -43,7 +46,8 @@ public:
     bool fetch_items(int offset, int limit, setter_item_t *items, int max_items, int *count, int *total);
 
     // Links a tag UID to an item id and reports what the server decided.
-    assign_result_t assign(const char *uid, int item_id);
+    // replace = true moves a tag that is linked to another item (only after the operator confirmed).
+    assign_result_t assign(const char *uid, int item_id, bool replace = false);
 
     // Language of the server's text replies (refusal reasons): English by default
     static void set_language(bool japanese);
