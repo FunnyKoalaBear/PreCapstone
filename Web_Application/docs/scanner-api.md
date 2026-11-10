@@ -198,3 +198,18 @@ curl -s "http://PI_ADDRESS:8080/api/assignable-items/?limit=5" -H "X-API-Key: YO
 curl -i -X POST http://PI_ADDRESS:8080/api/assign/ -H "X-API-Key: YOUR_KEY" \
   -H "Content-Type: application/json" -d '{"tag_uid": "04A1B2C3", "item": 914}'
 ```
+
+# Tag lookup (what the scanner shows before a scan)
+
+`GET /api/tag/<uid>/` with the same `X-API-Key`. Read only: it saves no event (only `last_seen`). Same `401 bad_key` and `404 unassigned_tag` as the scan API.
+
+```json
+{"ok": true, "state": "open", "tag_uid": "04A1B2C3", "item": "2611-001-01", "part": "Gear",
+ "part_number": "PN-7", "drawing": "DWG-1 / B", "material": "S45C", "quantity": 4,
+ "customer": "C", "order_number": "PO-9", "ordered": "2026-11-02", "due": "2026-12-01",
+ "step": 2, "steps": 5, "process": "Milling", "event_type": "STARTED", "status": "In progress", "box": ""}
+```
+
+- `process` + `event_type` are what `POST /api/scan/` with only the tag would record now. `step` is that step's position (1-based) of `steps`.
+- `state` `finished`: the route is done, `process` and `event_type` are empty and `step` = `steps`.
+- `status` is display text in the request language, `box` is "Box k of n" for items with several boxes, else empty.

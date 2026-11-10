@@ -1047,6 +1047,50 @@ class ReplaceTagTests(OverviewBase):
         self.assertFalse(Event.objects.exists())
 
 
+class TagInfoApiTests(TestCase):
+    def setUp(self):
+        self.device = ScannerDevice.objects.create(name='Scanner')
+        self.mat = Process.objects.create(name='Mat', kind=K.MATERIAL)
+        self.mach = Process.objects.create(name='Mill', kind=K.MACHINING)
+        order = Order.objects.create(customer=Customer.objects.create(name='C'), due_date=date(2026, 12, 1),
+                                     customer_order_number='PO-9')
+        self.item = OrderItem.objects.create(order=order, part_name='Gear', quantity=4, material='S45C',
+                                             drawing_number='DWG-1', revision='B', part_number='PN-7')
+        for n, p in enumerate((self.mat, self.mach), 1):
+            RouteStep.objects.create(item=self.item, sequence=n, process=p)
+        TagAssignment.objects.create(tag=Tag.objects.create(uid='AB12'), item=self.item)
+
+    def get(self, uid='ab12', key='default'):
+        headers = {'HTTP_X_API_KEY': self.device.api_key if key == 'default' else key}
+        return self.client.get(f'/api/tag/{uid}/', **headers)
+
+    def test_needs_key_and_known_tag(self):
+        self.assertEqual(self.get(key='nope').status_code, 401)
+        r = self.get('ZZ')
+        self.assertEqual((r.status_code, r.json()), (404, {'ok': False, 'error': 'unassigned_tag'}))
+
+    def test_shows_the_next_step_and_saves_nothing(self):
+        j = self.get().json()
+        self.assertEqual({k: j[k] for k in ('state', 'tag_uid', 'item', 'part', 'customer', 'order_number', 'drawing', 'material',
+                                            'part_number', 'due', 'step', 'steps', 'process', 'event_type')},
+                         {'state': 'open', 'tag_uid': 'AB12', 'item': self.item.item_code, 'part': 'Gear', 'customer': 'C',
+                          'order_number': 'PO-9', 'drawing': 'DWG-1 / B', 'material': 'S45C', 'part_number': 'PN-7',
+                          'due': '2026-12-01', 'step': 1, 'steps': 2, 'process': 'Mat', 'event_type': 'ARRIVED'})
+        self.assertFalse(Event.objects.exists())
+        self.device.refresh_from_db()
+        self.assertIsNotNone(self.device.last_seen)
+
+    def test_follows_the_route_to_the_end(self):
+        record_event(self.device, 'AB12', self.mat, E.ARRIVED)
+        j = self.get().json()
+        self.assertEqual((j['step'], j['process'], j['event_type']), (2, 'Mill', 'STARTED'))
+        record_event(self.device, 'AB12', self.mach, E.STARTED)
+        self.assertEqual(self.get().json()['event_type'], 'FINISHED')
+        record_event(self.device, 'AB12', self.mach, E.FINISHED)
+        j = self.get().json()
+        self.assertEqual((j['state'], j['step'], j['steps'], j['process'], j['event_type']), ('finished', 2, 2, '', ''))
+
+
 class ScanApiTests(TestCase):
     def setUp(self):
         self.device = ScannerDevice.objects.create(name='D')

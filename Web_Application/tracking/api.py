@@ -127,6 +127,33 @@ def assign(request):
     return JsonResponse(body)
 
 
+@require_GET
+def tag_info(request, uid):
+    """What a scanner shows after a card tap: the box's item and the step the next scan of it would record. Saves nothing."""
+    device = _device(request)
+    if device is None:
+        return _error(401, 'bad_key')
+    now = timezone.now()
+    _touch(device, now)
+    assignment = resolve_tag(uid, now)
+    if assignment is None:
+        return _error(404, 'unassigned_tag')
+    box, todo = next_step(assignment)
+    item, order = assignment.item, assignment.item.order
+    steps = len(box.rows)
+    current = next((n for n, r in enumerate(box.rows, 1) if box.current_step and r.step.pk == box.current_step.pk), steps)
+    drawing = ' / '.join(v for v in (item.drawing_number, item.revision) if v)
+    return JsonResponse({
+        'ok': True, 'state': 'finished' if todo is None else 'open', 'tag_uid': assignment.tag.uid,
+        'item': item.item_code, 'part': item.part_name, 'part_number': item.part_number, 'drawing': drawing,
+        'material': item.material, 'quantity': item.quantity, 'customer': order.customer.name,
+        'order_number': order.customer_order_number, 'ordered': timezone.localdate(order.created_at).isoformat(),
+        'due': order.due_date.isoformat(), 'step': current, 'steps': steps,
+        'process': todo[1].name if todo else '', 'event_type': todo[0] if todo else '',
+        'status': str(box.code_label), 'box': box.caption,
+    })
+
+
 @csrf_exempt
 @require_POST
 def scan(request):
