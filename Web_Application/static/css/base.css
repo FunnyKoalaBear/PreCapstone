@@ -304,6 +304,9 @@ h1 .button-secondary, h2 .button-secondary, h1 .button, h2 .button {
 .counter strong { display: block; font-size: var(--text-2xl); color: var(--color-text); }
 .counter-in_progress { border-top-color: var(--status-in-progress); }
 .counter-waiting { border-top-color: var(--status-waiting); }
+.counter-complete { border-top-color: var(--status-complete); }
+.counters .counter-complete a { display: block; color: inherit; text-decoration: none; }
+.counter-complete select { width: 100%; margin-top: 0.25rem; font-size: var(--text-sm); }
 .counter-at_vendor { border-top-color: var(--status-at-vendor); }
 .counter-not_started { border-top-color: var(--status-not-started); }
 .counter-overdue { border-top-color: var(--status-overdue); }

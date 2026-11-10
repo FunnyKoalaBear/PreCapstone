@@ -8,7 +8,7 @@ from .permissions import ADMIN, OPERATOR, PLANNER, ROLES, role_level
 # (group, [(label, url name, icon, minimum role or None, url names that count as this item)])
 NAV = [
     (_('Work'), [
-        (_('Home'), 'home', 'home', None, {'home', 'boxes', 'matrix'}),
+        (_('Home'), 'home', 'home', None, {'home', 'boxes', 'matrix', 'completed'}),
         (_('Orders'), 'order_list', 'orders', OPERATOR,
          {'order_list', 'order_create', 'order_import', 'order_edit', 'order_detail', 'order_sheet', 'order_export', 'order_events_export',
           'route_copy', 'code_list', 'item_drawing', 'item_action'}),

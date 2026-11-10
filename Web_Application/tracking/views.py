@@ -23,6 +23,7 @@ from .models import Event, Tag, TagAssignment
 from .overview import active_boxes
 from .analysis import DEFECT_ORDERS, PLAN_ORDERS, RECORD_CAP, RECORD_LIMIT, RESULT_ORDERS, Filters, cause_rows, defect_detail, defect_rate_rows, plan_rows, record_rows, result_events, result_rows, slowest, step_facts, vendor_rows
 from .priority import TIER_LABELS, TIERS, priority
+from .completed import completed_rows, parse_day, period_range
 from .shipping import shipping_overview
 from .services import assign_tag, can_correct, correct_event as correct_event_service, next_step, record_event, record_result, record_step_state, release_assignment, replace_tag, resolve_tag, cancel_item, ship_item
 from .status import box_captions, AT_VENDOR, CANCELLED, COMPLETE, IN_PROGRESS, LABELS, NOT_STARTED, PAUSED, WAITING, current_row, item_status, item_statuses
@@ -436,15 +437,31 @@ def _month(text):
 def shipping(request):
     g = request.GET
     num = lambda k: int(g[k]) if g.get(k, '').isdigit() else None
-    ready_p = {'r_customer': g.get('r_customer', ''), 'r_q': g.get('r_q', '').strip(), 'due_from': g.get('due_from', ''), 'due_to': g.get('due_to', '')}
+    ready_p = {'r_customer': g.get('r_customer', ''), 'r_q': g.get('r_q', '').strip(), 'due_from': g.get('due_from', ''), 'due_to': g.get('due_to', ''),
+               'done_from': g.get('done_from', ''), 'done_to': g.get('done_to', '')}
     month_p = {'m_customer': g.get('m_customer', ''), 'm_q': g.get('m_q', '').strip(), 'month_from': _month(g.get('month_from')), 'month_to': _month(g.get('month_to'))}
     ready, months = shipping_overview(
         ready_customer=num('r_customer'), ready_q=ready_p['r_q'], due_from=parse_date(ready_p['due_from']), due_to=parse_date(ready_p['due_to']),
+        done_from=parse_day(ready_p['done_from']), done_to=parse_day(ready_p['done_to']),
         month_customer=num('m_customer'), month_q=month_p['m_q'], month_from=month_p['month_from'], month_to=month_p['month_to'])
     hidden = lambda p: [(k, v) for k, v in p.items() if v]
     return render(request, 'tracking/shipping.html', {
         'ready': ready, 'months': months, 'customers': Customer.objects.order_by('name'), 'r': ready_p, 'm': month_p,
         'ready_hidden': hidden(ready_p), 'month_hidden': hidden(month_p),
+    })
+
+
+@role_required(OPERATOR)
+def completed(request):
+    g = request.GET
+    done_from, done_to = parse_day(g.get('done_from', '')), parse_day(g.get('done_to', ''))
+    if not (done_from or done_to):  # typed dates win; a period only pre-fills empty ones
+        done_from, done_to = period_range(g.get('period', '')) or (None, None)
+    customer = int(g['customer']) if g.get('customer', '').isdigit() else None
+    q = g.get('q', '').strip()
+    return render(request, 'tracking/completed.html', {
+        'rows': completed_rows(done_from, done_to, customer, q), 'customers': Customer.objects.order_by('name'),
+        'done_from': done_from or '', 'done_to': done_to or '', 'customer': customer, 'q': q,
     })
 
 

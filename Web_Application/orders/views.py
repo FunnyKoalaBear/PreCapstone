@@ -20,13 +20,13 @@ from tracking.forms import ResultForm
 from tracking.planning import step_plan
 from tracking.status import (
     CANCELLED, CLOSED, COMPLETE, IN_PROGRESS, LABELS, MANUAL_BUTTONS, NOT_STARTED, SHIPPED, STEP_LABELS, days_late, events_with_voids, gantt, item_statuses,
-    iter_statuses, manual_actions, order_summaries, order_summary, step_due_back, timeline,
+    iter_statuses, manual_actions, order_completed_at, order_summary, step_due_back, timeline,
 )
 
 from . import export, importer, pdf
-from .printing import print_item
+from .printing import queue_print
 from .forms import CustomerForm, ImportForm, OrderForm, OrderItemFormSet, VendorForm
-from .models import Customer, Order, OrderChange, OrderItem, Vendor
+from .models import Customer, Order, OrderChange, OrderItem, PrintJob, Vendor
 from .process_tab import _tab_processes
 from .runs import previous_runs
 
@@ -36,8 +36,10 @@ SORTS = {
     'due': ('due_date', 'job_number'),
     'newest': ('-job_number',),
     'customer': ('customer__name', 'due_date'),
+    'completed': ('-job_number',),  # re-sorted by completion date after the statuses are known
 }
-SORT_LABELS = [('due', gettext_lazy('Due date')), ('newest', gettext_lazy('Newest')), ('customer', gettext_lazy('Customer'))]
+SORT_LABELS = [('due', gettext_lazy('Due date')), ('newest', gettext_lazy('Newest')), ('customer', gettext_lazy('Customer')),
+               ('completed', gettext_lazy('Recently completed'))]
 STATUS_CODES = [NOT_STARTED, IN_PROGRESS, COMPLETE, SHIPPED, CANCELLED]
 
 
@@ -55,15 +57,25 @@ def customer_list(request):
     return render(request, 'orders/customer_list.html', {'form': form, 'customers': customers, 'q': q})
 
 
+def _completions(orders):
+    """({order id: (code, label)}, {order id: completion datetime or None}) from one derivation of the item statuses."""
+    statuses = item_statuses([i for o in orders for i in o.items.all()])
+    return {o.pk: order_summary(o, statuses) for o in orders}, {o.pk: order_completed_at(o, statuses) for o in orders}
+
+
+def _day(when):
+    return timezone.localdate(when) if when else None
+
+
 @role_required(PLANNER)
 def customer_detail(request, pk):
     customer = get_object_or_404(Customer, pk=pk)
     today, rows = timezone.localdate(), []
     orders = list(customer.order_set.prefetch_related('items').order_by('-job_number'))
-    summaries = order_summaries(orders)
+    summaries, done = _completions(orders)
     for o in orders:
         code, label = summaries[o.pk]
-        rows.append({'order': o, 'code': code, 'label': label, 'late': o.due_date < today and code not in CLOSED})
+        rows.append({'order': o, 'code': code, 'label': label, 'late': o.due_date < today and code not in CLOSED, 'completed': _day(done[o.pk])})
     return render(request, 'orders/customer_detail.html', {'customer': customer, 'rows': rows})
 
 
@@ -152,14 +164,16 @@ def _filtered_orders(params):
         ).distinct()
     today, rows = timezone.localdate(), []
     orders = list(orders)
-    summaries = order_summaries(orders)
+    summaries, done = _completions(orders)
     for o in orders:
         code, label = summaries[o.pk]
         is_late = o.due_date < today and code not in CLOSED
         if (status in STATUS_CODES and code != status) or (late and not is_late):
             continue
-        rows.append({'order': o, 'code': code, 'label': label, 'late': is_late, 'items': len(o.items.all()),
+        rows.append({'order': o, 'code': code, 'label': label, 'late': is_late, 'items': len(o.items.all()), 'completed': _day(done[o.pk]), 'completed_at': done[o.pk],
                      'boxes': sum(i.box_count for i in o.items.all()) if any(i.box_count > 1 for i in o.items.all()) else None})
+    if sort == 'completed':  # newest completion first, orders without one last (the sort is stable: job number order within ties)
+        rows = sorted((r for r in rows if r['completed_at']), key=lambda r: r['completed_at'], reverse=True) + [r for r in rows if not r['completed_at']]
     return rows, q, status, sort, late
 
 
@@ -327,13 +341,13 @@ def order_detail(request, job_number):
         boxes = [_box_entry(b, today) for b in st.boxes]
         linked = sum(b['open'] for b in boxes)
         items.append({
-            'item': item, 'status': st, 'boxes': boxes, 'runs': previous_runs(item),
+            'item': item, 'status': st, 'completed': _day(st.completed_at), 'boxes': boxes, 'runs': previous_runs(item),
             'single': item.box_count == 1 and len(boxes) == 1,
             'linked': linked, 'result_form': ResultForm(item) if linked else None, 'cancelled': st.cancel_event,
             'assignment': next((b['box'].assignment for b in boxes if b['open']), None),
         })
     return render(request, 'orders/order_detail.html', {
-        'order': order, 'code': code, 'label': label, 'items': items,
+        'order': order, 'code': code, 'label': label, 'items': items, 'completed': _day(order_completed_at(order, statuses)),
         'changes': order.changes.select_related('changed_by'),
         'late': order.due_date < timezone.localdate() and code not in CLOSED,
     })
@@ -401,10 +415,6 @@ def item_sheet(request, pk):
 @require_POST
 def item_print(request, pk):
     item = get_object_or_404(OrderItem.objects.select_related('order'), pk=pk)
-    try:
-        job = print_item(item)
-        messages.success(request, _('Sheet of %(code)s sent to the printer (job %(job)s).') % {'code': item.item_code, 'job': job})
-    except (RuntimeError, FileNotFoundError) as e:
-        logger.exception('Printing %s failed', item.item_code)
-        messages.error(request, _('Could not print the sheet of %(code)s: %(error)s') % {'code': item.item_code, 'error': e})
+    queue_print(item, PrintJob.Source.BUTTON)
+    messages.success(request, _('Sheet of %(code)s queued for printing.') % {'code': item.item_code})
     return redirect(reverse('order_detail', args=[item.order.job_number]) + f'#item-{item.pk}')

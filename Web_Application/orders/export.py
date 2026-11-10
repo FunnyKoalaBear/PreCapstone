@@ -11,7 +11,7 @@ from tracking.status import events_with_voids, item_statuses
 # Same names as the CSV import, then its optional columns, then what only the export knows
 ORDER_COLUMNS = [
     'customer', 'customer_order_number', 'due_date', 'part_name', 'quantity', 'material', 'notes', 'route',
-    'part_number', 'drawing_number', 'revision', 'job_number', 'item_code', 'status',
+    'part_number', 'drawing_number', 'revision', 'job_number', 'item_code', 'status', 'completed_date',
 ]
 EVENT_COLUMNS = ['time_jst', 'event_type', 'process', 'device', 'tag_uid', 'voided', 'item_code']
 FORMULA_STARTS = ('=', '+', '-', '@', '\t', '\r')
@@ -79,7 +79,7 @@ def _order_rows(orders, statuses, steps):
             yield [
                 order.customer.name, order.customer_order_number, f'{order.due_date:%Y-%m-%d}', item.part_name, item.quantity, item.material,
                 order.notes, _route_text(steps.get(item.pk, ())), item.part_number, item.drawing_number, item.revision, order.job_number, item.item_code,
-                str(statuses[item.pk].label),
+                str(statuses[item.pk].label), f'{timezone.localdate(done):%Y-%m-%d}' if (done := statuses[item.pk].completed_at) else '',
             ]
 
 

@@ -249,3 +249,37 @@ class OrderChange(models.Model):
 
     def delete(self, *args, **kwargs):
         raise ValidationError(_('The change history is append-only and cannot be deleted.'))
+
+
+class PrintJob(models.Model):
+    """One sheet waiting for or sent to the printer; the print_worker command works through PENDING jobs."""
+    class Status(models.TextChoices):
+        PENDING = 'PENDING', _('Waiting')
+        SENT = 'SENT', _('Sent to printer')
+        FAILED = 'FAILED', _('Failed')
+
+    class Source(models.TextChoices):
+        ASSIGN = 'ASSIGN', _('Tag linked')
+        BUTTON = 'BUTTON', _('Print button')
+
+    item = models.ForeignKey(OrderItem, on_delete=models.CASCADE, related_name='print_jobs', verbose_name=_('item'))
+    assignment = models.ForeignKey(
+        'tracking.TagAssignment', on_delete=models.SET_NULL, null=True, blank=True, related_name='print_jobs', verbose_name=_('tag assignment'),
+    )
+    source = models.CharField(_('source'), max_length=10, choices=Source.choices)
+    status = models.CharField(_('status'), max_length=10, choices=Status.choices, default=Status.PENDING)
+    attempts = models.PositiveIntegerField(_('attempts'), default=0)
+    printer_job = models.CharField(_('printer job'), max_length=100, blank=True)
+    pdf_name = models.CharField(_('PDF file'), max_length=200, blank=True)
+    error = models.TextField(_('error'), blank=True)
+    created_at = models.DateTimeField(_('created at'), default=timezone.now)
+    sent_at = models.DateTimeField(_('sent at'), null=True, blank=True)
+
+    class Meta:
+        verbose_name = _('print job')
+        verbose_name_plural = _('print jobs')
+        ordering = ['-created_at', '-pk']
+        indexes = [models.Index(fields=['status', 'id'], name='printjob_status_id')]
+
+    def __str__(self):
+        return f'{self.item.item_code} #{self.pk}'

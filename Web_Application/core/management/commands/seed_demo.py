@@ -11,7 +11,7 @@ from django.db.models import Case, ProtectedError, Q, Value, When
 from django.utils import timezone
 
 from core.models import SiteSetting
-from orders.models import Customer, Order, OrderItem, Process, RouteStep, Vendor
+from orders.models import Customer, Order, OrderChange, OrderItem, PrintJob, Process, RouteStep, Vendor
 from tracking.models import DefectCause, Event, Machine, ScannerDevice, Tag, TagAssignment, Worker
 from tracking.services import record_event
 from tracking.status import DONE, item_statuses
@@ -94,6 +94,7 @@ class Command(BaseCommand):
         ev.filter(corrects__isnull=False).delete()
         ev.delete()
         TagAssignment.objects.filter(Q(tag__uid__in=uids) | Q(item__order__in=orders)).delete()
+        OrderChange.objects.filter(order__in=orders).delete()  # edit history of demo orders would block the delete
         orders.delete()
         Tag.objects.filter(uid__in=uids).delete()
         User.objects.filter(username__startswith='demo_').delete()
@@ -244,11 +245,21 @@ class Command(BaseCommand):
         # The healthy order's assembly is only partly done
         self.manual(d1, '0781DD5E', procs['Assembly'], Event.Type.PARTIAL, ago(hours=1), 'Half of the pieces')
         self.add_results(created, d1)
+        self.add_print_jobs(created)
         bulk = seed_bulk(procs, {v.code: v for v in vendors.values()}, (d1, d2))
         self.stdout.write(self.style.SUCCESS(f'Created {len(created)} scenario orders and {bulk} history orders:'))
         statuses = item_statuses([item for _label, item in created])
         for label, item in created:
             self.stdout.write(f'  {item.order.job_number}  {label:<18} {statuses[item.pk].code}')
+
+    def add_print_jobs(self, created):
+        """Print history for the Print jobs admin: each tag link printed its sheet, one button reprint failed."""
+        for n, (_label, item) in enumerate(created, 1):
+            for a in item.tagassignment_set.all():
+                PrintJob.objects.create(item=item, assignment=a, source=PrintJob.Source.ASSIGN, status=PrintJob.Status.SENT,
+                                        attempts=1, printer_job=f'demo-{n}', created_at=a.start_at, sent_at=a.start_at)
+        PrintJob.objects.create(item=created[0][1], source=PrintJob.Source.BUTTON, status=PrintJob.Status.FAILED,
+                                attempts=5, error='RuntimeError: Printer is paused (disabled)')
 
     def add_results(self, created, device):
         """Quantity-done results for finished steps; about one in ten has 1-2 defects, work spread over the CSV workers and machines."""

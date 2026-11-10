@@ -3,7 +3,7 @@ from django.utils.translation import gettext_lazy as _
 
 from tracking.status import item_status, order_status
 
-from .models import Customer, Order, OrderChange, OrderItem, Process, RouteStep, Vendor
+from .models import Customer, Order, OrderChange, OrderItem, PrintJob, Process, RouteStep, Vendor
 
 
 class OrderItemInline(admin.TabularInline):
@@ -87,3 +87,15 @@ class OrderChangeAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+@admin.register(PrintJob)
+class PrintJobAdmin(admin.ModelAdmin):
+    list_display = ['__str__', 'source', 'status', 'attempts', 'printer_job', 'created_at', 'sent_at', 'error']
+    list_filter = ['status', 'source']
+    readonly_fields = ['item', 'assignment', 'source', 'printer_job', 'pdf_name', 'created_at', 'sent_at', 'error']
+    actions = ['retry']
+
+    @admin.action(description=_('Print the selected jobs again'))
+    def retry(self, request, queryset):
+        queryset.update(status=PrintJob.Status.PENDING, attempts=0, error='')

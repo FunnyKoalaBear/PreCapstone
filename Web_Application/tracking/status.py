@@ -62,6 +62,7 @@ class BoxStatus:
     last_event_at: datetime | None = None
     assignments: list = field(default_factory=list)
     caption: str = ''  # 'Box k of n' for an item with several boxes
+    completed_at: datetime | None = None  # when the last step finished, for a COMPLETE box
 
 
 @dataclass
@@ -75,6 +76,7 @@ class ItemStatus:
     boxes: list = field(default_factory=list)
     cancel_event: object = None
     ship_event: object = None
+    completed_at: datetime | None = None  # last box to finish, for a COMPLETE or SHIPPED item
 
 
 TYPE_LABELS = dict(Event.Type.choices)  # same text as get_event_type_display, without its per-call cost
@@ -225,8 +227,9 @@ def _replay(steps, assignments, events, number=None):
         code = {STEP_IN_PROGRESS: IN_PROGRESS, STEP_AT_VENDOR: AT_VENDOR}.get(current.state, WAITING)
     assignment = assignments[-1] if assignments else None
     last = events[-1].occurred_at if events else None
+    done = max((r.finished_at for r in rows if r.finished_at), default=None) if code == COMPLETE else None
     return BoxStatus(assignment, number, code, LABELS[code], current.step if current else None, rows,
-                     list(dict.fromkeys(map(str, warnings))), last, list(assignments))
+                     list(dict.fromkeys(map(str, warnings))), last, list(assignments), completed_at=done)
 
 
 def _steps(item):
@@ -319,6 +322,8 @@ def _chunk_statuses(items):
                 status.code, status.label, status.cancel_event = CANCELLED, LABELS[CANCELLED], cancel
             elif status.code == COMPLETE and (ship := latest.get((item.pk, Event.Type.SHIPPED))):
                 status.code, status.label, status.ship_event = SHIPPED, LABELS[SHIPPED], ship  # shipping counts only after COMPLETE
+            if status.code in (COMPLETE, SHIPPED):
+                status.completed_at = max((b.completed_at for b in boxes if b.completed_at), default=None)
         except Exception as e:
             raise ItemStatusError(f'Cannot derive the status of order item {item.pk}: {e!r}') from e
         out[item.pk] = status
@@ -378,6 +383,13 @@ def order_summary(order, statuses=None):
     if all(c == NOT_STARTED for c in codes):
         return NOT_STARTED, LABELS[NOT_STARTED]
     return IN_PROGRESS, format_lazy(_('In progress ({done}/{total} items complete)'), done=done, total=len(codes))
+
+
+def order_completed_at(order, statuses):
+    """When the order's last non-cancelled item completed; None unless the order is COMPLETE or SHIPPED."""
+    if order_summary(order, statuses)[0] not in (COMPLETE, SHIPPED):
+        return None
+    return max((st.completed_at for i in order.items.all() if (st := statuses[i.pk]).code != CANCELLED and st.completed_at), default=None)
 
 
 def order_summaries(orders):

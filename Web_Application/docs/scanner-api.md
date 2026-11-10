@@ -161,8 +161,11 @@ Items that still have a free box slot, oldest job number first (the same list as
 ```json
 {"ok": true, "total": 80, "offset": 0,
  "items": [{"id": 914, "item": "2611-001-01", "part": "Mit", "customer": "Mithun",
-            "due": "2026-12-01", "linked": 0, "boxes": 1}]}
+            "due": "2026-12-01", "linked": 0, "boxes": 1, "quantity": 10,
+            "order_number": "HD-B0031", "ordered": "2026-11-02", "steps": 5}]}
 ```
+
+- `quantity`, `order_number` (customer order number, may be empty), `ordered` (date the order was registered, JST) and `steps` (route steps) are for the setter's details screen.
 
 - `id` is what you send back in step 2. `item` (job number + "-NN") is what you show.
 - `linked` of `boxes` are already tagged. Show "box `linked+1` of `boxes`" only when `boxes` > 1.
@@ -178,7 +181,7 @@ Items that still have a free box slot, oldest job number first (the same list as
 
 | Reply | Meaning | Show | Retry? |
 |---|---|---|---|
-| 200 `{"ok": true, "state": "assigned", "tag_uid": "04A1B2C3", "item": "2611-001-01", "linked": 1, "boxes": 1}` | Linked from now on | OK; if `linked` < `boxes`, offer the next box | No |
+| 200 `{"ok": true, "state": "assigned", "tag_uid": "04A1B2C3", "item": "2611-001-01", "linked": 1, "boxes": 1, "print": "queued"}` | Linked from now on; the item's sheet is queued for printing (see `docs/printing.md`) | OK; if `linked` < `boxes`, offer the next box | No |
 | 409 `refused` | Tag already in use, tag inactive, or all boxes of the item already linked. `detail` says which (display text, do not parse) | `detail`, then reload the list | No |
 | 400 `invalid` | Bad JSON, missing or empty `tag_uid`, `item` not an integer or unknown | "Request error" | No |
 | 401 `bad_key` | Key wrong or device off | "Device key error" | No |

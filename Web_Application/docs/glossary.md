@@ -160,6 +160,9 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | Worker | 作業者 |
 | Actual qty / Defects | 実績数 / 不良数 |
 | Print sheet | 指示書を印刷 |
+| Print job | 印刷ジョブ |
+| Queued for printing | 印刷待ち |
+| Sent to printer | プリンターに送信済み |
 
 ## Terms added for results
 
@@ -410,3 +413,15 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | English | Japanese |
 |---|---|
 | required (read after a label) | 必須 |
+
+## Terms added for the Completed page
+
+| English | Japanese |
+|---|---|
+| Today / This week / This month | 今日 / 今週 / 今月 |
+| Completed (the date; page title; column) | 完了日 ? |
+| Recently completed (sort option) | 完了日（新しい順） |
+| Completed from / Completed to | 完了日（から） / 完了日（まで） |
+| Waiting (days since completion, Shipping column) | 経過日数 |
+| Late (completed after the due date) | 納期遅れ ? |
+| On time | 納期内 |

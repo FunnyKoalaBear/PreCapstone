@@ -3373,5 +3373,107 @@ msgstr "品目 %(item)s をキャンセルしました。"
 msgid "Item %(item)s marked as shipped."
 msgstr "品目 %(item)s を出荷済みにしました。"
 
+#: .\core\views.py:23
+msgid "Today"
+msgstr "今日"
+
+#: .\core\views.py:23
+msgid "This week"
+msgstr "今週"
+
+#: .\core\views.py:23
+msgid "This month"
+msgstr "今月"
+
+# CHECK: also the title of the Completed page and its column; 完了日 is the date, 完了 alone is the status
+#: .\templates\tracking\completed.html:4 .\templates\tracking\completed.html:7
+#: .\templates\tracking\completed.html:29 .\templates\tracking\shipping.html:30
+msgid "Completed"
+msgstr "完了日"
+
+#: .\templates\tracking\completed.html:20 .\templates\tracking\shipping.html:22
+msgid "Completed from"
+msgstr "完了日（から）"
+
+#: .\templates\tracking\completed.html:21 .\templates\tracking\shipping.html:23
+msgid "Completed to"
+msgstr "完了日（まで）"
+
+# CHECK: same word as Overdue; here it compares the completion date with the due date
+#: .\templates\tracking\completed.html:41
+msgid "Late"
+msgstr "納期遅れ"
+
+#: .\templates\tracking\shipping.html:31
+msgctxt "days since completion"
+msgid "Waiting"
+msgstr "経過日数"
+
+#: .\templates\tracking\completed.html:52
+msgid "No completed items match."
+msgstr "該当する完了済みの品目はありません。"
+
+#: .\orders\views.py:40
+msgid "Recently completed"
+msgstr "完了日（新しい順）"
+#: .\orders\admin.py
+msgid "Print the selected jobs again"
+msgstr "選択した印刷ジョブを再印刷する"
+
+#: .\orders\models.py
+msgid "Sent to printer"
+msgstr "プリンターに送信済み"
+
+#: .\orders\models.py
+msgid "Failed"
+msgstr "失敗"
+
+# CHECK: print job source = printed because a tag was linked
+#: .\orders\models.py
+msgid "Tag linked"
+msgstr "タグ紐付け時"
+
+#: .\orders\models.py
+msgid "Print button"
+msgstr "印刷ボタン"
+
+# CHECK: what started the print job (tag link or print button)
+#: .\orders\models.py
+msgid "source"
+msgstr "きっかけ"
+
+#: .\orders\models.py
+msgid "attempts"
+msgstr "試行回数"
+
+#: .\orders\models.py
+msgid "printer job"
+msgstr "プリンタージョブ番号"
+
+#: .\orders\models.py
+msgid "PDF file"
+msgstr "PDFファイル"
+
+#: .\orders\models.py
+msgid "error"
+msgstr "エラー"
+
+#: .\orders\models.py
+msgid "sent at"
+msgstr "送信日時"
+
+#: .\orders\models.py
+msgid "print job"
+msgstr "印刷ジョブ"
+
+#: .\orders\models.py
+msgid "print jobs"
+msgstr "印刷ジョブ"
+
+#: .\orders\views.py
+#, python-format
+msgid "Sheet of %(code)s queued for printing."
+msgstr "%(code)s の指示書を印刷待ちに追加しました。"
+
 #~ msgid "Back to Tags"
 #~ msgstr "タグ管理に戻る"
