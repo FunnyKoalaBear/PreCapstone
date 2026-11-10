@@ -1,6 +1,9 @@
 #pragma once
 
 #include <stddef.h>
+#include <stdint.h>
+
+#include "esp_http_client.h"
 
 // One row of GET /api/assignable-items/
 struct setter_item_t {
@@ -36,6 +39,26 @@ struct assign_result_t {
     char released[24];   // on ASSIGNED with replace: item code the tag was moved away from
 };
 
+// Where fetch_drawing() puts the picture. It fills `buffer` with `buffer_rows` full rows of `width` pixels
+// (RGB565, high byte first, ready for the panel) and calls draw_rows() each time; the last call may have fewer rows.
+struct picture_sink_t {
+    int width;
+    int height;
+    uint16_t *buffer;      // DMA-capable, at least width * buffer_rows pixels
+    int buffer_rows;
+    bool (*draw_rows)(void *ctx, int y, int rows, const uint16_t *pixels);   // false = stop
+    void *ctx;
+};
+
+// What happened to GET /api/items/<id>/drawing-pixels/
+enum class drawing_state_t {
+    SHOWN,        // 200: every row arrived and was drawn
+    NO_DRAWING,   // 404: the item has no drawing file
+    UNREADABLE,   // 422: the server could not open the file
+    BAD_KEY,      // 401: wrong key or device inactive
+    FAILED,       // no WiFi, timeout, 5xx, picture cut short, or the screen failed
+};
+
 class SERVER_CLIENT
 {
 public:
@@ -49,10 +72,21 @@ public:
     // replace = true moves a tag that is linked to another item (only after the operator confirmed).
     assign_result_t assign(const char *uid, int item_id, bool replace = false);
 
+    // Streams the item's drawing, sized sink.width x sink.height by the server, into the sink band by band.
+    drawing_state_t fetch_drawing(int item_id, const picture_sink_t &sink);
+
     // Language of the server's text replies (refusal reasons): English by default
     static void set_language(bool japanese);
 
 private:
     // Sends one request; fills `reply` with the body (NUL-terminated). Returns HTTP status, or -1.
     int request(bool post, const char *path, const char *body, char *reply, size_t reply_size);
+
+    // Sends a request and reads the reply headers. *status = HTTP status or -1.
+    // Returns the client to read the body from (always pass it to finish()), or nullptr if nothing was sent.
+    esp_http_client_handle_t open(bool post, const char *path, const char *body, int *status);
+    void finish(esp_http_client_handle_t client);
+
+    // Reads the 200 body of fetch_drawing() into the sink
+    drawing_state_t read_picture(esp_http_client_handle_t client, const picture_sink_t &sink);
 };

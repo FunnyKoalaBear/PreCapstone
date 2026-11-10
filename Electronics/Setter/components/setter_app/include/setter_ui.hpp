@@ -53,4 +53,11 @@ public:
 
     // switch every screen between English and Japanese; the next show_... call draws in the new language
     virtual void set_language(bool japanese) {}
+
+    // the drawing screen's picture area: fills `sink` so fetch_drawing() can stream pixels straight onto it.
+    // False if the drawing screen isn't showing or this UI has no screen (serial monitor only).
+    virtual bool picture_sink(picture_sink_t &sink) { return false; }
+
+    // how loading the drawing went (a note in the picture area when it couldn't be shown)
+    virtual void show_picture_state(const setter_item_t &item, drawing_state_t state) {}
 };

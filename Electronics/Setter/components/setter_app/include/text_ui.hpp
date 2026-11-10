@@ -13,6 +13,7 @@ public:
     void show_result(const setter_item_t &item, const assign_result_t &result) override;
     void show_confirm_replace(const setter_item_t &item, const char *uid, const char *current_item) override;
     void show_error(const char *text) override;
+    void show_picture_state(const setter_item_t &item, drawing_state_t state) override;
 
 private:
     int printed_version_ = -1;   // the full list is printed again only when it changes

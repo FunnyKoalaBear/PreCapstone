@@ -110,3 +110,15 @@ void TEXT_UI::show_result(const setter_item_t &item, const assign_result_t &resu
     }
     printed_version_ = -1;
 }
+
+
+void TEXT_UI::show_picture_state(const setter_item_t &item, drawing_state_t state)
+{
+    switch (state) {
+        case drawing_state_t::SHOWN:      printf("\n--- drawing of %s shown on the screen ---\n", item.code); break;
+        case drawing_state_t::NO_DRAWING: printf("\n--- %s has no drawing ---\n", item.code); break;
+        case drawing_state_t::UNREADABLE: printf("\n!!! the server could not read the drawing of %s\n", item.code); break;
+        case drawing_state_t::BAD_KEY:    printf("\n!!! device key error (drawing)\n"); break;
+        default:                          printf("\n!!! could not load the drawing of %s\n", item.code); break;
+    }
+}

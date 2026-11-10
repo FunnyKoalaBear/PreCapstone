@@ -24,6 +24,8 @@ public:
     void show_error(const char *text) override;
     void tick() override;
     void set_language(bool japanese) override;
+    bool picture_sink(picture_sink_t &sink) override;
+    void show_picture_state(const setter_item_t &item, drawing_state_t state) override;
 
 private:
     enum class screen_t { MESSAGE, ERROR, LIST, CARD, RESULT, CONFIRM };
@@ -61,4 +63,5 @@ private:
     char clock_[8] = "--:--";
     char banner_[48] = "";
     TickType_t banner_until_ = 0;
+    const char *picture_note_ = nullptr;   // shown in the drawing area instead of "loading" (English key for tr())
 };

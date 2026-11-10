@@ -16,6 +16,10 @@ menu "Factory Server"
         string "Path that links a tag to an item"
         default "/api/assign/"
 
+    config FACTORY_SERVER_DRAWING_PATH
+        string "Path of an item's drawing as screen pixels (%d = item id)"
+        default "/api/items/%d/drawing-pixels/"
+
     config FACTORY_API_KEY
         string "API key sent in the X-API-Key header"
         default ""

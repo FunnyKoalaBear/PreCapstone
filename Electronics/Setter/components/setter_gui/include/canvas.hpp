@@ -57,6 +57,9 @@ public:
     static int text_width(const char *s, int font);
     void draw_text(const char *s, int x, int y, int font, datum_t datum, uint16_t fg);
 
+    // the band buffer (WIDTH x BAND pixels, DMA-capable); free to reuse between render() calls
+    uint16_t *buffer() const { return buf_; }
+
     // true if rows y..y+h-1 touch the band being drawn (lets callers skip work)
     bool in_band(int y, int h) const { return y < band_y_ + band_h_ && y + h > band_y_; }
 

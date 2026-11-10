@@ -29,6 +29,8 @@ namespace {
     constexpr int SQUARES_PER_PAGE = 8;
     constexpr int TABLE_ROWS = 6;
     constexpr TickType_t BANNER_TICKS = pdMS_TO_TICKS(1600);
+    constexpr int PIC_Y = 32;                                            // drawing screen: title bar, then the picture
+    constexpr int PIC_W = CANVAS::WIDTH, PIC_H = CANVAS::HEIGHT - PIC_Y;   // 480 x 288, the size asked from the server
 
     const char *const FILTER_LABELS[] = {"FILTER: NUMERICAL", "FILTER: START DATE", "FILTER: DUE DATE", "FILTER: SCHEMATIC"};
 
@@ -68,10 +70,13 @@ namespace {
         {"PROCESS", "工程"},
         {"3 LINK   4 BACK", "3 紐付け   4 戻る"},
         {"DRAWING", "図面"},
-        {"ON THE PRINTED", "印刷した"},
-        {"WORK SHEET", "作業指示書の裏"},
-        {"DRAWING NOT STORED ON THE SETTER", "図面はセッターに保存されていません"},
-        {"IT IS PRINTED ON THE BACK OF THE WORK SHEET", "作業指示書の裏面に印刷されます"},
+        {"PRESS 6 TO VIEW", "6 を押すと表示"},
+        {"DRAWING  %s", "図面  %s"},
+        {"3 LINK  6 DETAILS  4 BACK", "3 紐付け  6 詳細  4 戻る"},
+        {"LOADING DRAWING...", "図面を読み込み中..."},
+        {"NO DRAWING FOR THIS ITEM", "この品目には図面がありません"},
+        {"THE SERVER COULD NOT READ THE DRAWING", "サーバーが図面を読み込めませんでした"},
+        {"COULD NOT LOAD THE DRAWING", "図面を取得できませんでした"},
         {"TAP A CARD", "カードをかざしてください"},
         {"WITHIN %d S   -   4 BACK TO CANCEL", "%d 秒以内   -   4 でキャンセル"},
         {"LINKED", "紐付け完了"},
@@ -372,8 +377,8 @@ namespace {
 
     // ---------------------------------------------------------------- picture placeholders
 
-    // The sketch's drawImageCrop(): no drawing images on the device yet, so a framed placeholder
-    // crop 0 = small square (shows the item number), 1 = details pane, 2 = full screen
+    // The sketch's drawImageCrop() as a framed placeholder (the real drawing is on the drawing screen)
+    // crop 0 = small square (shows the item number), 1 = details pane
     void draw_image(CANVAS &g, const setter_item_t &it, int x, int y, int w, int h, int crop)
     {
         if (!g.in_band(y, h)) {
@@ -391,13 +396,7 @@ namespace {
             g.draw_rect(x + 2, y + h / 4, w - 4, h / 2, C_GREEN);
             g.draw_text(tr("DRAWING"), x + w / 2, y + h / 2 - 30, 2, D::MIDDLE_CENTER, C_BLACK);
             g.draw_text(num, x + w / 2, y + h / 2, 4, D::MIDDLE_CENTER, C_BLACK);
-            g.draw_text(tr("ON THE PRINTED"), x + w / 2, y + h / 2 + 30, 1, D::MIDDLE_CENTER, C_GEAR_MID);
-            g.draw_text(tr("WORK SHEET"), x + w / 2, y + h / 2 + 42, 1, D::MIDDLE_CENTER, C_GEAR_MID);
-        } else {
-            g.draw_rect(x + 2, y + 2, w - 4, h - 4, C_NAVY);
-            g.draw_text(it.code, x + w / 2, y + h / 2 - 30, 4, D::MIDDLE_CENTER, C_BLACK);
-            g.draw_text(tr("DRAWING NOT STORED ON THE SETTER"), x + w / 2, y + h / 2 + 10, 2, D::MIDDLE_CENTER, C_GEAR_DARK);
-            g.draw_text(tr("IT IS PRINTED ON THE BACK OF THE WORK SHEET"), x + w / 2, y + h / 2 + 35, 1, D::MIDDLE_CENTER, C_GEAR_MID);
+            g.draw_text(tr("PRESS 6 TO VIEW"), x + w / 2, y + h / 2 + 34, 1, D::MIDDLE_CENTER, C_GEAR_MID);
         }
     }
 
@@ -718,11 +717,18 @@ void SETTER_GUI::draw_details(CANVAS &c, const setter_item_t &it)
 }
 
 
+// Title bar and an empty picture area; setter_app then streams the real drawing over the area (picture_sink)
 void SETTER_GUI::draw_drawing(CANVAS &c, const setter_item_t &it)
 {
-    c.fill_screen(C_WHITE);
-    draw_image(c, it, 10, 10, 460, 300, 2);
-    c.draw_rect(4, 4, 472, 312, C_GEAR_DARK);
+    char line[64];
+    c.fill_rect(0, 0, CANVAS::WIDTH, PIC_Y, C_NAVY);
+    snprintf(line, sizeof(line), tr("DRAWING  %s"), it.code);
+    c.draw_text(line, 12, PIC_Y / 2, 2, D::MIDDLE_LEFT, C_WHITE);
+    c.draw_text(tr("3 LINK  6 DETAILS  4 BACK"), CANVAS::WIDTH - 12, PIC_Y / 2, 1, D::MIDDLE_RIGHT, C_WHITE);
+
+    c.fill_rect(0, PIC_Y, PIC_W, PIC_H, C_WHITE);
+    c.draw_text(tr(picture_note_ ? picture_note_ : "LOADING DRAWING..."), PIC_W / 2, PIC_Y + PIC_H / 2, 2,
+                D::MIDDLE_CENTER, C_GEAR_MID);
 }
 
 
@@ -856,6 +862,7 @@ void SETTER_GUI::show_list(const setter_list_t &list)
 {
     serial_.show_list(list);
     list_ = list;
+    picture_note_ = nullptr;
     if (list.banner) {
         strlcpy(banner_, list.banner, sizeof(banner_));
         banner_until_ = xTaskGetTickCount() + BANNER_TICKS;
@@ -900,6 +907,41 @@ void SETTER_GUI::show_result(const setter_item_t &item, const assign_result_t &r
 void SETTER_GUI::set_language(bool ja)
 {
     japanese = ja;
+}
+
+
+// The picture goes straight from the socket into the canvas band buffer and on to the panel, 16 rows at a time
+bool SETTER_GUI::picture_sink(picture_sink_t &sink)
+{
+    if (screen_ != screen_t::LIST || list_.count == 0 || list_.modal != setter_modal_t::DRAWING) {
+        return false;
+    }
+    sink.width = PIC_W;
+    sink.height = PIC_H;
+    sink.buffer = canvas_.buffer();
+    sink.buffer_rows = CANVAS::WIDTH * CANVAS::BAND / PIC_W;
+    sink.ctx = this;
+    sink.draw_rows = [](void *ctx, int y, int rows, const uint16_t *pixels) {
+        return static_cast<SETTER_GUI *>(ctx)->display_->draw_pixels(0, PIC_Y + y, PIC_W, rows, pixels);
+    };
+    return true;
+}
+
+
+// The drawing could not be shown: replace whatever arrived with a note
+void SETTER_GUI::show_picture_state(const setter_item_t &item, drawing_state_t state)
+{
+    serial_.show_picture_state(item, state);
+    if (state == drawing_state_t::SHOWN || screen_ != screen_t::LIST || list_.modal != setter_modal_t::DRAWING) {
+        return;
+    }
+    switch (state) {
+        case drawing_state_t::NO_DRAWING: picture_note_ = "NO DRAWING FOR THIS ITEM"; break;
+        case drawing_state_t::UNREADABLE: picture_note_ = "THE SERVER COULD NOT READ THE DRAWING"; break;
+        case drawing_state_t::BAD_KEY:    picture_note_ = "Device key error"; break;
+        default:                          picture_note_ = "COULD NOT LOAD THE DRAWING"; break;
+    }
+    redraw(PIC_Y, CANVAS::HEIGHT);
 }
 
 

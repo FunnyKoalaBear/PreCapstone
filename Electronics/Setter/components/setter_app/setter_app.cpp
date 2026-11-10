@@ -100,6 +100,30 @@ namespace {
     }
 
 
+    // The drawing is never stored here: it streams from the server onto the screen each time its screen is drawn
+    void show_drawing(SERVER_CLIENT &server)
+    {
+        picture_sink_t sink = {};
+        if (!ui->picture_sink(sink)) {
+            return;   // no screen to draw it on (serial monitor only)
+        }
+        const setter_item_t &item = items[selected];
+        const drawing_state_t state = server.fetch_drawing(item.id, sink);
+        ESP_LOGI(TAG, "drawing of %s: state %d", item.code, static_cast<int>(state));
+        ui->show_picture_state(item, state);
+    }
+
+
+    // show_list(), plus the picture when the drawing screen is open
+    void show_screen(SERVER_CLIENT &server)
+    {
+        show_list();
+        if (modal == setter_modal_t::DRAWING && count > 0) {
+            show_drawing(server);
+        }
+    }
+
+
     // Sorts by the current filter and keeps the same item selected
     void sort_items()
     {
@@ -304,7 +328,7 @@ namespace {
                     count = 0;
                     ui->show_error("Server error. Press back to retry");
                 } else {
-                    show_list();
+                    show_screen(server);
                 }
                 need_load = false;
             }
@@ -327,14 +351,14 @@ namespace {
                     if (load_failed) {
                         ui->show_error("Server error. Press back to retry");
                     } else {
-                        show_list();
+                        show_screen(server);
                     }
                     break;
 
                 case cmd_type_t::BACK:
                     if (modal != setter_modal_t::NONE) {
                         modal = setter_modal_t::NONE;
-                        show_list();
+                        show_screen(server);
                     } else {
                         need_load = true;
                     }
@@ -345,7 +369,7 @@ namespace {
                     if (browsing) {
                         int step = (cmd.type == cmd_type_t::UP) ? -1 : 1;
                         selected = (selected + step + count) % count;
-                        show_list();
+                        show_screen(server);
                     }
                     break;
 
@@ -354,28 +378,28 @@ namespace {
                     if (browsing) {
                         selected = (cmd.type == cmd_type_t::PAGE_UP) ? std::max(selected - JUMP, 0)
                                                                      : std::min(selected + JUMP, count - 1);
-                        show_list();
+                        show_screen(server);
                     }
                     break;
 
                 case cmd_type_t::DETAILS:
                     if (count > 0) {
                         modal = (modal == setter_modal_t::NONE) ? setter_modal_t::DETAILS : setter_modal_t::NONE;
-                        show_list();
+                        show_screen(server);
                     }
                     break;
 
                 case cmd_type_t::DRAWING:
                     if (count > 0) {
                         modal = (modal == setter_modal_t::DRAWING) ? setter_modal_t::DETAILS : setter_modal_t::DRAWING;
-                        show_list();
+                        show_screen(server);
                     }
                     break;
 
                 case cmd_type_t::VIEW:
                     view = static_cast<setter_view_t>((static_cast<int>(view) + 1) % 3);
                     if (count > 0) {
-                        show_list();
+                        show_screen(server);
                     }
                     break;
 
@@ -383,7 +407,7 @@ namespace {
                     sort_by = static_cast<setter_sort_t>((static_cast<int>(sort_by) + 1) % 4);
                     sort_items();
                     if (count > 0) {
-                        show_list();
+                        show_screen(server);
                     }
                     break;
 

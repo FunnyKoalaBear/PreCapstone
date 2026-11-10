@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <algorithm>
 
 #include <esp_log.h>
 #include "esp_http_client.h"
@@ -159,10 +160,87 @@ int SERVER_CLIENT::request(bool post, const char *path, const char *body, char *
 {
     reply[0] = '\0';
 
+    int status = -1;
+    esp_http_client_handle_t client = open(post, path, body, &status);
+
+    if (status > 0) {
+        int n = esp_http_client_read_response(client, reply, reply_size - 1);
+        reply[n > 0 ? n : 0] = '\0';
+        if (n >= (int)reply_size - 1) {
+            ESP_LOGW(TAG, "reply cut at %u bytes", (unsigned)reply_size - 1);
+        }
+    }
+
+    finish(client);
+    return status;
+}
+
+
+// GET /api/items/<id>/drawing-pixels/?w=..&h=.. and hand the pixels to the sink as they arrive
+drawing_state_t SERVER_CLIENT::fetch_drawing(int item_id, const picture_sink_t &sink)
+{
+    char path[96];
+    snprintf(path, sizeof(path), CONFIG_FACTORY_SERVER_DRAWING_PATH "?w=%d&h=%d", item_id, sink.width, sink.height);
+
+    int status = -1;
+    esp_http_client_handle_t client = open(false, path, nullptr, &status);
+
+    drawing_state_t state = drawing_state_t::FAILED;
+    switch (status) {
+        case 200: state = read_picture(client, sink); break;
+        case 404: state = drawing_state_t::NO_DRAWING; break;
+        case 422: state = drawing_state_t::UNREADABLE; break;
+        case 401: state = drawing_state_t::BAD_KEY; break;
+        default: break;
+    }
+
+    finish(client);
+    return state;
+}
+
+
+// Fills the sink's buffer with whole rows straight from the socket, then draws them: never more than one band in RAM
+drawing_state_t SERVER_CLIENT::read_picture(esp_http_client_handle_t client, const picture_sink_t &sink)
+{
+    const int row_bytes = sink.width * 2;
+    const int64_t expected = (int64_t)row_bytes * sink.height;
+    const int64_t length = esp_http_client_get_content_length(client);
+    if (length > 0 && length != expected) {
+        ESP_LOGW(TAG, "drawing is %lld bytes, expected %lld", (long long)length, (long long)expected);
+        return drawing_state_t::FAILED;
+    }
+
+    char *buffer = reinterpret_cast<char *>(sink.buffer);
+    int y = 0;
+    while (y < sink.height) {
+        const int rows = std::min(sink.buffer_rows, sink.height - y);
+        const int want = rows * row_bytes;
+        int got = 0;
+        while (got < want) {
+            int n = esp_http_client_read(client, buffer + got, want - got);
+            if (n <= 0) {
+                ESP_LOGW(TAG, "drawing cut short at row %d", y);
+                return drawing_state_t::FAILED;
+            }
+            got += n;
+        }
+        if (!sink.draw_rows(sink.ctx, y, rows, sink.buffer)) {
+            return drawing_state_t::FAILED;
+        }
+        y += rows;
+    }
+    return drawing_state_t::SHOWN;
+}
+
+
+esp_http_client_handle_t SERVER_CLIENT::open(bool post, const char *path, const char *body, int *status)
+{
+    *status = -1;
+
     WIFI wifi;
     if (!wifi.connected()) {
         ESP_LOGW(TAG, "WiFi not connected, request not sent");
-        return -1;
+        return nullptr;
     }
 
     //Building server url: base + path
@@ -178,18 +256,18 @@ int SERVER_CLIENT::request(bool post, const char *path, const char *body, char *
     esp_http_client_handle_t client = esp_http_client_init(&config);
     if (!client) {
         ESP_LOGE(TAG, "esp_http_client_init failed");
-        return -1;
+        return nullptr;
     }
 
     esp_http_client_set_header(client, "X-API-Key", CONFIG_FACTORY_API_KEY);
     esp_http_client_set_header(client, "Cookie", language_cookie);   // language of the "detail" text
+    esp_http_client_set_header(client, "Accept-Encoding", "identity");   // never gzip: the pixels go straight to the panel
     if (post) {
         esp_http_client_set_header(client, "Content-Type", "application/json");
     }
 
-    // open -> write body -> read headers -> read body (perform() can't hand the body back to us)
+    // open -> write body -> read headers; the caller reads the body (perform() can't hand it back to us)
     int body_len = post ? strlen(body) : 0;
-    int status = -1;
     esp_err_t err = esp_http_client_open(client, body_len);
 
     if (err == ESP_OK && body_len > 0 && esp_http_client_write(client, body, body_len) != body_len) {
@@ -197,20 +275,21 @@ int SERVER_CLIENT::request(bool post, const char *path, const char *body, char *
     }
 
     if (err == ESP_OK && esp_http_client_fetch_headers(client) >= 0) {
-        status = esp_http_client_get_status_code(client);
-        int n = esp_http_client_read_response(client, reply, reply_size - 1);
-        reply[n > 0 ? n : 0] = '\0';
-        if (n >= (int)reply_size - 1) {
-            ESP_LOGW(TAG, "reply cut at %u bytes", (unsigned)reply_size - 1);
-        }
+        *status = esp_http_client_get_status_code(client);
     } else {
         ESP_LOGW(TAG, "request failed: %s", err == ESP_OK ? "no reply" : esp_err_to_name(err));
     }
 
-    //cleaning memory
-    esp_http_client_close(client);
-    esp_http_client_cleanup(client);
+    ESP_LOGI(TAG, "%s %s -> %d", post ? "POST" : "GET", url, *status);
+    return client;
+}
 
-    ESP_LOGI(TAG, "%s %s -> %d", post ? "POST" : "GET", url, status);
-    return status;
+
+//cleaning memory
+void SERVER_CLIENT::finish(esp_http_client_handle_t client)
+{
+    if (client) {
+        esp_http_client_close(client);
+        esp_http_client_cleanup(client);
+    }
 }
