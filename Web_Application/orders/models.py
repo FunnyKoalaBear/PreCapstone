@@ -17,7 +17,7 @@ class Customer(models.Model):
 
     class Meta:
         verbose_name = _('customer')
-        verbose_name_plural = _('customers')
+        verbose_name_plural = _('customers') 
 
     def __str__(self):
         return self.name
