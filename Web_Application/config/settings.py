@@ -13,7 +13,7 @@ https://docs.djangoproject.com/en/6.1/ref/settings/
 import os
 from pathlib import Path
 
-from dotenv import load_dotenv
+from dotenv import dotenv_values, load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -175,8 +175,16 @@ MAILERS = {
 
 # Printed sheets are kept in PRINT_DIR; PRINTER_NAME is the CUPS queue; dry run skips the printer
 PRINT_DIR = Path(os.environ.get('PRINT_DIR', BASE_DIR / 'print'))
-PRINT_DRY_RUN = os.environ.get('PRINT_DRY_RUN', 'False').lower() in ('1', 'true', 'yes')
-PRINTER_NAME = os.environ.get('PRINTER_NAME', '')
+FACTORY_ENV = BASE_DIR.parent / 'Factory_Server' / '.env'
+FACTORY_PRINT_SETTINGS = dotenv_values(FACTORY_ENV) if FACTORY_ENV.exists() else {}
+PRINT_DRY_RUN = os.environ.get(
+    'PRINT_DRY_RUN',
+    FACTORY_PRINT_SETTINGS.get('PRINT_DRY_RUN') or 'False',
+).lower() in ('1', 'true', 'yes')
+PRINTER_NAME = os.environ.get(
+    'PRINTER_NAME',
+    FACTORY_PRINT_SETTINGS.get('PRINTER_NAME') or '',
+)
 PRINT_RANDOM_DRAWINGS_DIR = Path(os.environ.get(
     'PRINT_RANDOM_DRAWINGS_DIR', BASE_DIR / 'static' / 'print_drawings',
 ))

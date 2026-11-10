@@ -22,9 +22,10 @@ and the printer code runs on the factory server even if the website later moves 
 | `PRINT_DIR` | Folder that keeps every printed PDF (default `Web_Application/print`) |
 | `PRINT_DRY_RUN` | `True` on a laptop without the printer: jobs are marked `SENT` with job id `dry-run` |
 
-The factory server must have `PRINTER_NAME` set in `Web_Application/.env` and the
+The factory server must have `PRINTER_NAME` set in `Web_Application/.env` (or in
+`Factory_Server/.env` when using this repository layout) and the
 `print-worker.service` systemd service running. The setter API only queues the
-job; the worker creates and submits the PDF.
+job; the worker creates and submits both PDFs.
 
 ## Commands
 
