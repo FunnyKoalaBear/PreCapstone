@@ -35,7 +35,7 @@ public:
     uint16_t text_bg_color() const { return bg_; }
     datum_t text_datum() const { return datum_; }
 
-    // drawString at the datum; returns the width. UTF-8 (Japanese) characters show as '?'.
+    // drawString at the datum; returns the width. Japanese (UTF-8) uses the embedded 16 / 24 px fonts.
     int draw_string(const char *s, int x, int y, int font);
 
     // drawChar with its top-left at (x, y); returns the advance in pixels
@@ -47,6 +47,7 @@ public:
     bool in_band(int y, int h) const { return c_.in_band(y, h); }
 
 private:
+    int draw_jp_char(const uint8_t *bits, int x, int y, int font);
     void draw_circle_helper(int x0, int y0, int rr, uint8_t corner, uint16_t color);
     void fill_circle_helper(int x0, int y0, int r, uint8_t corner, int delta, uint16_t color);
 

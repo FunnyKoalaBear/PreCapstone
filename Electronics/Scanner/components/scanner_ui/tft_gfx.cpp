@@ -21,17 +21,84 @@ namespace {
     constexpr int F2_HEIGHT = 16;   // chr_hgt_f16
     constexpr int F4_HEIGHT = 26;   // chr_hgt_f32
 
-    // Reads one character from UTF-8 text: ASCII as is, any multi-byte character as '?'
-    char next_char(const char *&p)
+    // Reads one character from UTF-8 text and returns its code point ('?' for broken or 4-byte sequences)
+    uint32_t next_char(const char *&p)
     {
-        unsigned char c = static_cast<unsigned char>(*p++);
+        const unsigned char c = static_cast<unsigned char>(*p++);
         if (c < 0x80) {
-            return static_cast<char>(c);
+            return c;
+        }
+        int extra = (c >= 0xE0 && c < 0xF0) ? 2 : (c >= 0xC0 && c < 0xE0) ? 1 : -1;
+        uint32_t cp = (extra == 2) ? (c & 0x0F) : (c & 0x1F);
+        for (int i = 0; i < extra; i++) {
+            const unsigned char cc = static_cast<unsigned char>(*p);
+            if ((cc & 0xC0) != 0x80) {
+                return '?';
+            }
+            cp = (cp << 6) | (cc & 0x3F);
+            p++;
         }
         while ((static_cast<unsigned char>(*p) & 0xC0) == 0x80) {
-            p++;   // skip the continuation bytes
+            p++;   // skip whatever is left of a sequence we can't use
         }
-        return '?';
+        return extra < 0 ? '?' : cp;
+    }
+
+    // Japanese bitmap fonts (the Setter's, made by Electronics/Setter/tools/make_jp_font.py), built in with EMBED_FILES
+    extern const uint8_t jp16_start[] asm("_binary_jp16_bin_start");
+    extern const uint8_t jp24_start[] asm("_binary_jp24_bin_start");
+
+    struct jp_font_t {
+        uint32_t count = 0;
+        int size = 0;
+        int row_bytes = 0;
+        const uint8_t *codes = nullptr;     // count x uint16, sorted
+        const uint8_t *bitmaps = nullptr;   // count x (size * row_bytes), most significant bit = left pixel
+
+        explicit jp_font_t(const uint8_t *data)
+        {
+            uint32_t s = 0;
+            memcpy(&count, data, 4);
+            memcpy(&s, data + 4, 4);
+            size = static_cast<int>(s);
+            row_bytes = (size + 7) / 8;
+            codes = data + 8;
+            bitmaps = codes + 2 * count;
+        }
+
+        // Binary search for the code point; nullptr if the font doesn't have it
+        const uint8_t *find(uint32_t cp) const
+        {
+            uint32_t lo = 0, hi = count;
+            while (lo < hi) {
+                const uint32_t mid = (lo + hi) / 2;
+                const uint32_t c = codes[2 * mid] | (codes[2 * mid + 1] << 8);
+                if (c == cp) {
+                    return bitmaps + mid * size * row_bytes;
+                }
+                if (c < cp) {
+                    lo = mid + 1;
+                } else {
+                    hi = mid;
+                }
+            }
+            return nullptr;
+        }
+    };
+
+    // Top of a Japanese glyph for text whose cell starts at y: centred on fonts 2 and 4; on the 8 px font 1
+    // it hangs down from just above the line, so it doesn't run into a label above it
+    int jp_top(int y, int font, int height, int size)
+    {
+        return font == 1 ? y - 3 : y + (height - size) / 2;
+    }
+
+    // 24 px glyphs next to font 4 (26 px), 16 px next to fonts 1 and 2
+    const jp_font_t &jp_font(int font)
+    {
+        static const jp_font_t small(jp16_start);
+        static const jp_font_t large(jp24_start);
+        return font == 4 ? large : small;
     }
 
     int char_width(char ch, int font)
@@ -244,11 +311,48 @@ int TFT_GFX::font_height(int font)
 
 int TFT_GFX::text_width(const char *s, int font)
 {
+    const jp_font_t &jp = jp_font(font);
     int w = 0;
     for (const char *p = s; *p;) {
-        w += char_width(next_char(p), font);
+        const uint32_t cp = next_char(p);
+        if (cp < 0x80) {
+            w += char_width(static_cast<char>(cp), font);
+        } else {
+            w += jp.find(cp) ? jp.size : char_width('?', font);
+        }
     }
     return w;
+}
+
+
+// One Japanese glyph with its cell's top-left at (x, y), centred on the font's line; returns the advance
+int TFT_GFX::draw_jp_char(const uint8_t *bits, int x, int y, int font)
+{
+    const jp_font_t &jp = jp_font(font);
+    const int height = font_height(font);
+    const int gy = jp_top(y, font, height, jp.size);
+    if (bg_ != fg_ && in_band(y, height)) {
+        fill_rect(x, y, jp.size, height, bg_);   // opaque text paints its whole cell
+    }
+    for (int row = 0; row < jp.size; row++) {
+        if (!in_band(gy + row, 1)) {
+            continue;
+        }
+        const uint8_t *line = bits + row * jp.row_bytes;
+        for (int col = 0; col < jp.size;) {
+            if (!(line[col / 8] & (0x80 >> (col % 8)))) {
+                col++;
+                continue;
+            }
+            int end = col;
+            while (end < jp.size && (line[end / 8] & (0x80 >> (end % 8)))) {
+                end++;
+            }
+            draw_fast_hline(x + col, gy + row, end - col, fg_);
+            col = end;
+        }
+    }
+    return jp.size;
 }
 
 
@@ -337,11 +441,19 @@ int TFT_GFX::draw_string(const char *s, int x, int y, int font)
         case MR_DATUM: x -= w; y -= h / 2; break;
         default: break;
     }
-    if (!in_band(y, h)) {
+    const int jp_size = jp_font(font).size;
+    const int top = std::min(y, jp_top(y, font, h, jp_size));
+    if (!in_band(top, std::max(y + h, top + jp_size) - top)) {
         return w;
     }
     for (const char *p = s; *p;) {
-        x += draw_char(next_char(p), x, y, font);
+        const uint32_t cp = next_char(p);
+        const uint8_t *jp = (cp >= 0x80) ? jp_font(font).find(cp) : nullptr;
+        if (jp) {
+            x += draw_jp_char(jp, x, y, font);
+        } else {
+            x += draw_char(cp < 0x80 ? static_cast<char>(cp) : '?', x, y, font);
+        }
     }
     return w;
 }

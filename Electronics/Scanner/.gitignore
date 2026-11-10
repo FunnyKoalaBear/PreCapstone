@@ -78,4 +78,4 @@ Desktop.ini
 *.sln.docstates # Visual Studio
 
 # Japanese fonts for the UI (copied from the Setter, made by its tools/make_jp_font.py)
-!components/scanner_gui/fonts/*.bin
+!components/scanner_ui/fonts/*.bin

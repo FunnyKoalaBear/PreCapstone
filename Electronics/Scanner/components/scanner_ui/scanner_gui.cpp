@@ -26,27 +26,52 @@ namespace {
 
     // ---------------------------------------------------------------- text from the server
 
-    // Copies text as ASCII (each Japanese character becomes '?'), upper-cased if asked,
-    // and cuts it to max_w pixels with ".."
+    // Moves p past one UTF-8 character
+    const char *next_utf8(const char *p)
+    {
+        if (*p) {
+            p++;
+        }
+        while ((static_cast<unsigned char>(*p) & 0xC0) == 0x80) {
+            p++;
+        }
+        return p;
+    }
+
+    // Copies text (Japanese kept, ASCII upper-cased if asked) and cuts it to max_w pixels with "..",
+    // never splitting a UTF-8 character
     void fit(const char *s, int font, int max_w, char *out, size_t size, bool upper = false)
     {
-        size_t n = 0;
-        for (const unsigned char *p = (const unsigned char *)s; *p && n + 1 < size; p++) {
-            if (*p < 0x80) {
-                out[n++] = upper ? toupper(*p) : *p;
-            } else if (*p >= 0xC0) {
-                out[n++] = '?';
+        strlcpy(out, s, size);
+        if (upper) {
+            for (char *p = out; *p; p++) {
+                if (static_cast<unsigned char>(*p) < 0x80) {
+                    *p = toupper(*p);
+                }
             }
         }
-        out[n] = '\0';
         if (G::text_width(out, font) <= max_w) {
             return;
         }
-        n = std::min(n, size - 3);   // room for ".."
-        out[n] = '\0';
-        while (n > 0 && G::text_width(out, font) + G::text_width("..", font) > max_w) {
-            out[--n] = '\0';
+        const int dots = G::text_width("..", font);
+        size_t keep = 0;
+        for (const char *p = out; *p;) {
+            const char *q = next_utf8(p);
+            const size_t len = q - out;
+            if (len + 3 > size) {
+                break;
+            }
+            const char saved = out[len];
+            out[len] = '\0';
+            const int w = G::text_width(out, font);
+            out[len] = saved;
+            if (w + dots > max_w) {
+                break;
+            }
+            keep = len;
+            p = q;
         }
+        out[keep] = '\0';
         strlcat(out, "..", size);
     }
 
@@ -191,11 +216,12 @@ namespace {
                 }
                 return w + 3;
             case '1':
+                // the sketch's full-width top bar made "1" read as "7": a centred stem with a short flag
                 if (gfx) {
-                    gfx->fill_rect(x + w - t - 2, y, t, h, fg);
-                    gfx->fill_rect(x + 2, y, w - 4, t, fg);
+                    gfx->fill_rect(x + w / 2, y, t, h, fg);
+                    gfx->fill_rect(x + w / 6, y, w / 2 - w / 6, t, fg);
                 }
-                return w + 3;
+                return w / 2 + t + 4;
             case '2': {
                 if (gfx) {
                     int bowlH = (h * 52) / 100;
@@ -307,14 +333,15 @@ namespace {
 
     // ---------------------------------------------------------------- schematic (hardcoded, as in the sketch)
 
-    void draw_flanged_bearing_schematic(G &gfx, int ox, int oy, float scale)
+    // pane_h > 0 centres the drawing (with its dimension label) in a pane that tall; the sketch's 1.4x view ran off the screen
+    void draw_flanged_bearing_schematic(G &gfx, int ox, int oy, float scale, int pane_h = 0)
     {
         int w = 226 * scale;
         int h = 244 * scale;
 
         // Draw base shape (simplified)
         int cx = ox + w/2;
-        int cy = oy + h/2;
+        int cy = pane_h > 0 ? oy + pane_h / 2 + static_cast<int>(10 * scale) : oy + h/2;
 
         gfx.draw_rect(cx - 50*scale, cy - 60*scale, 100*scale, 120*scale, C_BLACK);
         gfx.fill_rect(cx - 50*scale + 1, cy - 60*scale + 1, 100*scale - 2, 120*scale - 2, C_WHITE);
@@ -430,10 +457,11 @@ void SCANNER_GUI::draw_normal_modal(G &gfx, const scan_preview_t &ord)
 
     // item code in Poppins, 26 px tall like "#2103", smaller only if it would run into the pill
     int ph = 26;
-    while (ph > 14 && draw_poppins_text(nullptr, ord.item, 0, 0, ph, 0, 0, 0) > pill_x - 6 - px) {
+    auto stroke = [](int h) { return std::max(2, (h * 4 + 13) / 26); };
+    while (ph > 14 && draw_poppins_text(nullptr, ord.item, 0, 0, ph, stroke(ph), 0, 0) > pill_x - 6 - px) {
         ph--;
     }
-    draw_poppins_text(&gfx, ord.item, px, py + 20, ph, std::max(2, (ph * 4 + 13) / 26), C_CORAL, C_PANEL_BG);
+    draw_poppins_text(&gfx, ord.item, px, py + 20, ph, stroke(ph), C_CORAL, C_PANEL_BG);
 
     gfx.set_text_datum(G::TR_DATUM);
     gfx.draw_string("LINE POS", mx + mw - 10, py, 1);
@@ -444,9 +472,9 @@ void SCANNER_GUI::draw_normal_modal(G &gfx, const scan_preview_t &ord)
 
     gfx.draw_fast_hline(px, py + 45, mw/2 - 20, C_GREY);
 
-    // Line Progress Bar (32 px segments as in the sketch; narrower for routes over 6 steps)
+    // Line Progress Bar: segments share the box width (the sketch's 32 px ones overflowed it at 6 steps)
     py += 55;
-    int barW = ord.steps <= 6 ? 32 : std::max(3, 216 / std::max(ord.steps, 1) - 4);
+    int barW = std::max(3, (mw/2 - 20 + 4) / std::max(ord.steps, 1) - 4);
     for(int i=1; i<=ord.steps; i++) {
         uint16_t bColor = (i < ord.step) ? C_GREEN : (i == ord.step ? C_CORAL : C_GREY);
         uint16_t outline = (i <= ord.step) ? C_BLACK : G::color565(160,160,160);
@@ -552,7 +580,7 @@ void SCANNER_GUI::draw_enhanced_modal(G &gfx, const scan_preview_t &ord)
     gfx.draw_fast_vline(midX+1, my + 30, mh - 30, C_BLACK);
 
     // Large Schematic
-    draw_flanged_bearing_schematic(gfx, mx + 2, my + 30, 1.4);
+    draw_flanged_bearing_schematic(gfx, mx + 2, my + 30, 1.4, mh - 32);
 
     // Right Info Column
     int px = midX + 6;
