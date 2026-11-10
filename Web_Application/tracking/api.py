@@ -5,11 +5,12 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Count
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
+from orders.drawing_screen import MAX_SIDE, DrawingUnreadable, drawing_rgb565
 from orders.models import OrderItem, PrintJob, Process, RouteStep
 from orders.printing import queue_print
 
@@ -83,6 +84,33 @@ def assignable_items_list(request):
     } for i in page]
     _touch(device, timezone.now())
     return JsonResponse({'ok': True, 'total': qs.count(), 'offset': offset, 'items': items})
+
+
+@require_GET
+def item_drawing_pixels(request, pk):
+    """The item's drawing fitted into w x h as raw RGB565 (2 bytes per pixel, high byte first), for the setter screen."""
+    device = _device(request)
+    if device is None:
+        return _error(401, 'bad_key')
+    try:
+        width, height = int(request.GET.get('w', 480)), int(request.GET.get('h', 320))
+        if not (1 <= width <= MAX_SIDE and 1 <= height <= MAX_SIDE):
+            raise ValueError(f'1 <= w, h <= {MAX_SIDE}')
+    except ValueError as e:
+        return _error(400, 'invalid', f'{type(e).__name__}: {e}')
+    _touch(device, timezone.now())
+    item = OrderItem.objects.select_related('order').filter(pk=pk).first()
+    if item is None:
+        return _error(404, 'no_item')
+    if not item.drawing_file:
+        return _error(404, 'no_drawing')
+    try:
+        data = drawing_rgb565(item, width, height)
+    except DrawingUnreadable as e:
+        return _error(422, 'unreadable', str(e))
+    response = HttpResponse(data, content_type='application/octet-stream')
+    response['Content-Length'] = str(len(data))  # the ESP32 checks it before drawing
+    return response
 
 
 @csrf_exempt

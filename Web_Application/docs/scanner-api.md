@@ -187,7 +187,7 @@ Same item fields, `"state": "finished"`, `step` = `steps`, and no `event_type`, 
 
 # Tag setter API (link a tag to an item)
 
-Checked against `tracking/api.py` (`assignable_items_list`, `assign`). Same `X-API-Key` header and same `401 bad_key` as the scan API. A setter is an ordinary scanner device (Tags -> Devices); any active key works on all three endpoints.
+Checked against `tracking/api.py` (`assignable_items_list`, `assign`, `item_drawing_pixels`). Same `X-API-Key` header and same `401 bad_key` as the scan API. A setter is an ordinary scanner device (Tags -> Devices); any active key works on all of these endpoints.
 
 Flow: the setter lists the items that still need a tag, the operator picks one, taps a card, and the setter posts the UID with the item id. The server checks everything again (the list may be out of date).
 
@@ -228,12 +228,34 @@ Optional `"replace": true` (exactly `true`): if the tag is linked to another ite
 
 `last_seen` is updated on 200 and 409 (and on step 1), not on 400 or 401. Fixing a wrong link (release, replace a lost tag) stays on the Tags page.
 
+## 3. `GET /api/items/<id>/drawing-pixels/?w=480&h=288`
+
+The item's drawing as raw pixels for the setter's screen (`orders/drawing_screen.py`). `<id>` is the `id` from step 1. Same key and `401 bad_key`.
+
+- `w`, `h`: picture size in pixels, 1-800 each (default 480 x 320). Anything else gives `400 invalid`.
+- PDF: the first page is rendered (needs `pypdfium2`). PNG/JPG: EXIF rotation applied, transparency becomes white.
+- The drawing is scaled to fit inside `w` x `h` (aspect ratio kept, small images are enlarged) and centred on white.
+- Body: exactly `w * h * 2` bytes, `Content-Type: application/octet-stream`, `Content-Length` set. Pixels row by row from the top left, each pixel RGB565 with the **high byte first** (`RRRRRGGG GGGBBBBB`), the order the ST7796 panel wants. The ESP32 copies the bytes straight into its DMA buffer, so it needs no image decoder and no full-screen buffer.
+
+| Reply | Meaning | Show |
+|---|---|---|
+| 200 | The pixels | The picture |
+| 404 `no_drawing` | The item has no drawing file | "No drawing" |
+| 404 `no_item` | No item with that id | "No drawing" |
+| 422 `unreadable` | File broken, not an image/PDF, or `pypdfium2` missing; `detail` says which (free text) | "Server could not read the drawing" |
+| 400 `invalid` | Bad `w`/`h` | "Request error" |
+| 401 `bad_key` | Key wrong or device off | "Device key error" |
+
+`last_seen` is updated on 200, 404 and 422. Rendering happens on every request (a PDF takes well under a second).
+
 Linux example:
 
 ```bash
 curl -s "http://PI_ADDRESS:8080/api/assignable-items/?limit=5" -H "X-API-Key: YOUR_KEY"
 curl -i -X POST http://PI_ADDRESS:8080/api/assign/ -H "X-API-Key: YOUR_KEY" \
   -H "Content-Type: application/json" -d '{"tag_uid": "04A1B2C3", "item": 914}'
+# saves 480 x 288 x 2 = 276480 bytes
+curl -s -o drawing.rgb565 "http://PI_ADDRESS:8080/api/items/914/drawing-pixels/?w=480&h=288" -H "X-API-Key: YOUR_KEY"
 ```
 
 # Tag lookup (what the scanner shows before a scan)

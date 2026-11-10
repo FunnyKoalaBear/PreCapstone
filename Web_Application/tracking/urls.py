@@ -9,6 +9,7 @@ urlpatterns = [
     path('api/scan-preview/', api.scan_preview, name='api_scan_preview'),
     path('api/assignable-items/', api.assignable_items_list, name='api_assignable_items'),
     path('api/assign/', api.assign, name='api_assign'),
+    path('api/items/<int:pk>/drawing-pixels/', api.item_drawing_pixels, name='api_item_drawing_pixels'),
     path('events/<int:pk>/correct/', views.correct_event, name='correct_event'),
     path('simulate/', views.simulate, name='simulate'),
     path('priorities/', views.priorities, name='priorities'),

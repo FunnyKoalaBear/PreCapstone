@@ -8,3 +8,5 @@ reportlab==5.0.1
 pypdf==6.21.1
 # Defect photos are checked and resized with Pillow directly (ReportLab also needs it).
 pillow==13.0.0
+# Renders PDF drawings to pixels for the setter's screen (bundles its own PDFium, wheels for x86-64, ARM64 and Windows).
+pypdfium2==5.14.0

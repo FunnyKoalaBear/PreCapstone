@@ -167,7 +167,7 @@ class Command(BaseCommand):
         full = ['Milling', 'Lathe', 'Assembly', 'Inspection']
         # 1 Healthy: material arrived, two steps done with a 4h wait, third running
         healthy = make('Healthy', c1, 'ブラケット', ['Material'] + full, 10, '0781DD5E', 'TY-2610-014', ids=('BRK-100', 'DWG-1001', 'A'))
-        healthy.drawing_file.name = demo_drawing('1001')  # the other demo items have no drawing
+        healthy.drawing_file.name = demo_drawing('1001')  # only this one and the split item have a drawing
         healthy.save(update_fields=['drawing_file'])
         scan('0781DD5E', 'Material', 'ARRIVED', ago(hours=34))
         for name, s, f in (('Milling', 30, 26), ('Lathe', 22, 18)):
@@ -225,6 +225,8 @@ class Command(BaseCommand):
         # 10 Split item: 3 boxes expected; one finished, one at step 2, one not linked yet
         route = ['Milling', 'Lathe', 'Assembly']
         split = make('Split item', c1, 'フレーム', route, 8, 'C36F67C6', 'TY-2610-018', box_count=3)
+        split.drawing_file.name = demo_drawing('1018')  # it still needs a tag, so the setter can show this drawing
+        split.save(update_fields=['drawing_file'])
         link(split, 'D795A680')
         for name, s, f in (('Milling', 40, 36), ('Lathe', 34, 30), ('Assembly', 28, 24)):
             scan('C36F67C6', name, 'STARTED', ago(hours=s))
