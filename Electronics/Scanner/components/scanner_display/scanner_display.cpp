@@ -23,7 +23,7 @@ namespace {
 
     constexpr spi_host_device_t TFT_SPI_HOST = SPI2_HOST;
     constexpr int SPI_CLOCK_HZ = 20 * 1000 * 1000;   // start at 20MHz on the new panel; raise to 40MHz once it works
-    constexpr int BAND_LINES = 16;                   // pixel rows sent per SPI transfer
+    constexpr int BAND_LINES = SCANNER_DISPLAY::MAX_PIXEL_ROWS;   // pixel rows sent per SPI transfer
     constexpr int GLYPH_SIZE = 8;
 
     // The ST7796S is natively 320x480 portrait; SWAP_XY makes it 480x320 landscape.

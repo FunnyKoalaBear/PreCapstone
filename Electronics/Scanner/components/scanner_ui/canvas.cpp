@@ -1,6 +1,5 @@
 #include <math.h>
 #include <string.h>
-#include <stdint.h>
 
 #include <esp_log.h>
 #include "esp_heap_caps.h"
@@ -17,77 +16,17 @@ namespace {
         return static_cast<uint16_t>((v >> 8) | (v << 8));
     }
 
-    // Reads one character from UTF-8 text and returns its code point ('?' for broken or 4-byte sequences)
-    uint32_t next_char(const char *&p)
+    // Reads one character from UTF-8 text: ASCII as is, any multi-byte character as '?'
+    char next_char(const char *&p)
     {
-        const unsigned char c = static_cast<unsigned char>(*p++);
+        unsigned char c = static_cast<unsigned char>(*p++);
         if (c < 0x80) {
-            return c;
-        }
-        int extra = (c >= 0xE0 && c < 0xF0) ? 2 : (c >= 0xC0 && c < 0xE0) ? 1 : -1;
-        uint32_t cp = (extra == 2) ? (c & 0x0F) : (c & 0x1F);
-        for (int i = 0; i < extra; i++) {
-            const unsigned char cc = static_cast<unsigned char>(*p);
-            if ((cc & 0xC0) != 0x80) {
-                return '?';
-            }
-            cp = (cp << 6) | (cc & 0x3F);
-            p++;
+            return static_cast<char>(c);
         }
         while ((static_cast<unsigned char>(*p) & 0xC0) == 0x80) {
-            p++;   // skip whatever is left of a sequence we can't use
+            p++;   // skip the continuation bytes
         }
-        return extra < 0 ? '?' : cp;
-    }
-
-    // Japanese bitmap fonts made by tools/make_jp_font.py, built into the app (EMBED_FILES in CMakeLists.txt)
-    extern const uint8_t jp16_start[] asm("_binary_jp16_bin_start");
-    extern const uint8_t jp24_start[] asm("_binary_jp24_bin_start");
-
-    struct jp_font_t {
-        const uint8_t *data;
-        uint32_t count = 0;
-        int size = 0;
-        int row_bytes = 0;
-        const uint8_t *codes = nullptr;     // count x uint16, sorted
-        const uint8_t *bitmaps = nullptr;   // count x (size * row_bytes)
-
-        explicit jp_font_t(const uint8_t *d) : data(d)
-        {
-            memcpy(&count, data, 4);
-            uint32_t s = 0;
-            memcpy(&s, data + 4, 4);
-            size = static_cast<int>(s);
-            row_bytes = (size + 7) / 8;
-            codes = data + 8;
-            bitmaps = codes + 2 * count;
-        }
-
-        // Binary search for the code point; nullptr if the font doesn't have it
-        const uint8_t *find(uint32_t cp) const
-        {
-            uint32_t lo = 0, hi = count;
-            while (lo < hi) {
-                const uint32_t mid = (lo + hi) / 2;
-                const uint16_t c = static_cast<uint16_t>(codes[2 * mid] | (codes[2 * mid + 1] << 8));
-                if (c == cp) {
-                    return bitmaps + mid * size * row_bytes;
-                }
-                if (c < cp) {
-                    lo = mid + 1;
-                } else {
-                    hi = mid;
-                }
-            }
-            return nullptr;
-        }
-    };
-
-    const jp_font_t &jp_font(int font)
-    {
-        static const jp_font_t small(jp16_start);
-        static const jp_font_t large(jp24_start);
-        return (font == 4) ? large : small;
+        return '?';
     }
 
     void font_scale(int font, int &sx, int &sy)
@@ -260,13 +199,12 @@ int CANVAS::text_width(const char *s, int font)
 {
     int sx, sy;
     font_scale(font, sx, sy);
-    const jp_font_t &jp = jp_font(font);
-    int w = 0;
+    int n = 0;
     for (const char *p = s; *p;) {
-        const uint32_t cp = next_char(p);
-        w += (cp >= 0x80 && jp.find(cp)) ? jp.size : 8 * sx;
+        next_char(p);
+        n++;
     }
-    return w;
+    return n * 8 * sx;
 }
 
 
@@ -274,52 +212,22 @@ void CANVAS::draw_text(const char *s, int x, int y, int font, datum_t datum, uin
 {
     int sx, sy;
     font_scale(font, sx, sy);
-    const jp_font_t &jp = jp_font(font);
-    const int h = 8 * sy;   // the line height used for the datum; Japanese is centred on the same line
+    const int h = 8 * sy;
 
-    if (datum != TOP_LEFT && datum != TOP_RIGHT) {
+    if (datum != TOP_LEFT) {
         y -= h / 2;
     }
     if (datum == MIDDLE_CENTER) {
         x -= text_width(s, font) / 2;
-    } else if (datum == MIDDLE_RIGHT || datum == TOP_RIGHT) {
+    } else if (datum == MIDDLE_RIGHT) {
         x -= text_width(s, font);
     }
-    const int jp_y = y + (h - jp.size) / 2;
-    if (!in_band(std::min(y, jp_y), std::max(h, jp.size))) {
+    if (!in_band(y, h)) {
         return;
     }
 
-    for (const char *p = s; *p;) {
-        const uint32_t cp = next_char(p);
-        const uint8_t *big = (cp >= 0x80) ? jp.find(cp) : nullptr;
-
-        if (big) {
-            // Japanese glyph: one bit per pixel, most significant bit on the left
-            for (int row = 0; row < jp.size; row++) {
-                const int py = jp_y + row;
-                if (!in_band(py, 1)) {
-                    continue;
-                }
-                const uint8_t *bits = big + row * jp.row_bytes;
-                for (int col = 0; col < jp.size;) {
-                    if (!(bits[col / 8] & (0x80 >> (col % 8)))) {
-                        col++;
-                        continue;
-                    }
-                    int end = col;
-                    while (end < jp.size && (bits[end / 8] & (0x80 >> (end % 8)))) {
-                        end++;
-                    }
-                    span(py, x + col, x + end, fg);
-                    col = end;
-                }
-            }
-            x += jp.size;
-            continue;
-        }
-
-        const uint8_t *g = SCANNER_DISPLAY::glyph(cp < 0x80 ? static_cast<char>(cp) : '?');
+    for (const char *p = s; *p; x += 8 * sx) {
+        const uint8_t *g = SCANNER_DISPLAY::glyph(next_char(p));
         for (int row = 0; row < 8; row++) {
             const int py = y + row * sy;
             if (!in_band(py, sy)) {
@@ -341,6 +249,5 @@ void CANVAS::draw_text(const char *s, int x, int y, int font, datum_t datum, uin
                 col = end;
             }
         }
-        x += 8 * sx;
     }
 }

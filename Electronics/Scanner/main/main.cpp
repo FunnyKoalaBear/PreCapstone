@@ -1,7 +1,9 @@
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -15,55 +17,100 @@
 #include "wifi.hpp"
 #include "button_panel.hpp"
 #include "keyboard.hpp"
-#include "scanner_gui.hpp"
-#include "scanner_app.hpp"
+#include "scanner_ui.hpp"
 
 
-// Panel button N (wired as in configuration.hpp) runs PANEL_ACTIONS[N - 1]
+// Panel button N runs PANEL_ACTIONS[N - 1]: the sketch's Y / N / E keys
 static void (*const PANEL_ACTIONS[])() = {
-    scanner_yes,       // 1: YES, confirm the station (sends the scan)
-    scanner_no,        // 2: NO, reject (nothing is sent)
-    scanner_enhance,   // 3: big blueprint view on/off
+    scanner_ui_yes,       // 1: YES, log the scan
+    scanner_ui_no,        // 2: NO, reject it
+    scanner_ui_enhance,   // 3: blueprint view on / off
+};
+
+struct button_task_args_t {
+    BUTTON *button;
+    BUZZER *buzzer;
+    TaskHandle_t rfid_task;
+};
+
+struct rfid_task_args_t {
+    BUZZER *buzzer;
+    RFID *rfid;
+};
+
+struct keyboard_task_args_t {
+    KEYBOARD *keyboard;
+    TaskHandle_t rfid_task;
 };
 
 
-// Typed commands, the same keys as scanner_ui.ino: r = card, y, n, e, plus t = test tap without a card
-static void keyboard_task(void *argument)
-{
-    auto *keyboard = static_cast<KEYBOARD *>(argument);
-    char line[16];
 
-    while (true) {
-        keyboard->read_line(line, sizeof(line));
-
-        switch (strlen(line) == 1 ? (line[0] | 0x20) : 0) {   // | 0x20 makes letters lower case
-            case 'r': scanner_request_card(); break;
-            case 't': scanner_test_tap(); break;
-            case 'y': scanner_yes(); break;
-            case 'n': scanner_no(); break;
-            case 'e': scanner_enhance(); break;
-            default:
-                printf("Unknown input \"%s\". Type r (card), t (test tap), y, n or e.\n", line);
-                break;
-        }
-    }
-}
-
-
-// The steel button on GPIO 4 opens the 5 s window to tap a card
+// The steel button starts a card read (5 s window) and beeps
 static void button_task(void *argument)
 {
-    auto *button = static_cast<BUTTON *>(argument);
-    bool was_pressed = false;
+    auto *args = static_cast<button_task_args_t *>(argument);
+    bool was_pressed = false; 
 
     while (true) {
-        bool pressed = button->clicked();
+        
+        bool pressed = args->button->clicked(); 
+
         if (pressed && !was_pressed) {
-            scanner_request_card();
+    
+            //notify rfid task 
+            xTaskNotifyGive(args->rfid_task);
+
+            args->buzzer->on();
+            vTaskDelay(pdMS_TO_TICKS(100));
+            args->buzzer->off();
         }
+        
         was_pressed = pressed;
         vTaskDelay(pdMS_TO_TICKS(50));
     }
+    
+    vTaskDelete(NULL);
+}
+
+
+static void rfid_task(void *argument)
+{
+    static const char *TAG = "main";
+    auto *args = static_cast<rfid_task_args_t *>(argument);
+	uint8_t uid[10];
+    uint8_t uid_length = 0; 
+    char uid_hex[24];   // up to 10 UID bytes as hex + NUL
+
+    while (true) {
+    
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);     // sleeps here until the button gives a notification
+    
+        if (args->rfid->read_uid(uid, &uid_length)) {
+            
+            for (uint8_t i = 0; i < uid_length; i++) {
+                    snprintf(uid_hex + 2 * i, sizeof(uid_hex) - 2 * i, "%02X", uid[i]);   // 0d 11 69 6b -> "0D11696B"
+            }
+            ESP_LOGW(TAG, "RFID Task recieved UID %s", uid_hex);
+            scanner_ui_card(uid_hex);   // the scanner task asks the server and shows the order
+            
+            //buzz twice now
+            args->buzzer->on();
+            vTaskDelay(pdMS_TO_TICKS(100));
+            args->buzzer->off();
+            vTaskDelay(pdMS_TO_TICKS(100));
+            args->buzzer->on();
+            vTaskDelay(pdMS_TO_TICKS(100));
+            args->buzzer->off();
+
+        } else {
+            // no card
+            ESP_LOGE(TAG, "Card not found");
+            scanner_ui_no_card();
+            continue;
+        }
+    }
+
+    vTaskDelete(NULL);
 }
 
 
@@ -78,6 +125,26 @@ static void panel_task(void *argument)
             PANEL_ACTIONS[number - 1]();
         }
         vTaskDelay(pdMS_TO_TICKS(50));
+    }
+
+    vTaskDelete(NULL);
+}
+
+
+// The sketch's serial controls: SPACE / R = card read (like the steel button), Y, N, E
+static void keyboard_task(void *argument)
+{
+    auto *args = static_cast<keyboard_task_args_t *>(argument);
+
+    while (true) {
+        switch (tolower(args->keyboard->read_key())) {
+            case 'r':
+            case ' ': xTaskNotifyGive(args->rfid_task); break;
+            case 'y': scanner_ui_yes(); break;
+            case 'n': scanner_ui_no(); break;
+            case 'e': scanner_ui_enhance(); break;
+            default: break;
+        }
     }
 }
 
@@ -101,41 +168,52 @@ static void start_clock()
 
 extern "C" void app_main()
 {
-    printf("APP MAIN (scanner)\n");
+
+    //starting projecct
+    printf("APP MAIN\n");
 
     // static: the tasks keep pointers to these after app_main returns
-    static WIFI wifi;
+    static WIFI wifi; 
     static RFID rfid;
     static BUTTON button;
     static BUZZER buzzer;
     static SCANNER_DISPLAY display;
     static BUTTON_PANEL panel;
     static KEYBOARD keyboard;
-    static SCANNER_GUI gui(&display);
 
-    // display first, so later steps can say what they are doing; without it the serial monitor still works
-    if (!(display.init() && gui.init())) {
-        ESP_LOGW("main", "no display: use the serial monitor");
-    }
-    gui.show_banner("STARTING...", "CONNECTING WIFI", banner_t::INFO);
+    //display first: rfid.init() retries forever if the PN532 isn't connected
+    scanner_ui_start(display.init() ? &display : nullptr);
 
-    keyboard.init();
-    buzzer.init();
-    button.init();
     if (panel.init()) {
         xTaskCreate(panel_task, "Button Panel", 3072, &panel, 5, nullptr);
     }
+    keyboard.init();
 
-    wifi.init();   // keeps retrying in the background if it isn't up yet
+    //initializing classes
+    wifi.init(); 
     start_clock();
-
-    gui.show_banner("STARTING...", "RFID READER", banner_t::INFO);
+    button.init();
     rfid.init();   // waits here until the PN532 answers: check its wiring if stuck
+    buzzer.init();
 
-    if (!scanner_app_start(&gui, &rfid, &buzzer)) {
-        gui.show_banner("START FAILED", "RESTART THE SCANNER", banner_t::BAD);
-        return;
-    }
-    xTaskCreate(keyboard_task, "Keyboard", 3072, &keyboard, 5, nullptr);
-    xTaskCreate(button_task, "Button", 2048, &button, 5, nullptr);
+
+    //creating tasks
+    static TaskHandle_t rfid_handle = nullptr;
+    static rfid_task_args_t rfid_args{&buzzer, &rfid};
+    xTaskCreate(rfid_task, "RFID Scan", 4096 , &rfid_args, 5, &rfid_handle); 
+
+    static button_task_args_t button_args{&button, &buzzer, rfid_handle};
+    xTaskCreate(button_task, "Button Click", 2048 , &button_args, 5, nullptr); 
+
+    static keyboard_task_args_t keyboard_args{&keyboard, rfid_handle};
+    xTaskCreate(keyboard_task, "Keyboard", 3072, &keyboard_args, 5, nullptr);
+
+    printf("=====================================================\n");
+    printf(" SCANNER UI READY - Serial Keyboard Controls:\n");
+    printf("  [SPACE / R] = Read a card (same as the steel button)\n");
+    printf("  [Y] = YES (Confirm)   panel button 1\n");
+    printf("  [N] = NO (Reject)     panel button 2\n");
+    printf("  [E] = Enhance Blueprint  panel button 3\n");
+    printf("=====================================================\n");
+    // app_main may return now: everything the tasks use is static
 }

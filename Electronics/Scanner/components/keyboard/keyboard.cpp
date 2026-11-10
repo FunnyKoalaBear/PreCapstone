@@ -65,3 +65,12 @@ int KEYBOARD::read_line(char *line, size_t size)
         }
     }
 }
+
+
+char KEYBOARD::read_key()
+{
+    char c = 0;
+    while (uart_read_bytes(PORT, &c, 1, portMAX_DELAY) != 1) {
+    }
+    return c;
+}

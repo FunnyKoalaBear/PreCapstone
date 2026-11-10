@@ -11,4 +11,7 @@ public:
 
     // Waits for Enter; echoes what is typed, handles Backspace. Returns the line length.
     int read_line(char *line, size_t size);
+
+    // Waits for one key, no Enter needed (like Serial.read() in the sketches)
+    char read_key();
 };

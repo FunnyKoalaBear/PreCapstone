@@ -16,7 +16,7 @@ public:
     static constexpr int BAND = SCANNER_DISPLAY::MAX_PIXEL_ROWS;
 
     // where (x, y) sits on the text, like TFT_eSPI's datums
-    enum datum_t { TOP_LEFT, TOP_RIGHT, MIDDLE_LEFT, MIDDLE_CENTER, MIDDLE_RIGHT };
+    enum datum_t { TOP_LEFT, MIDDLE_LEFT, MIDDLE_CENTER, MIDDLE_RIGHT };
 
     bool init();
 
@@ -52,8 +52,7 @@ public:
     void thick_line(float x0, float y0, float x1, float y1, int thickness, uint16_t c);
 
     // Fonts are the 8x8 font scaled like TFT_eSPI's numbers: 1 = 8x8, 2 = 8x16, 4 = 16x24.
-    // Japanese (UTF-8) uses the embedded Noto Sans JP bitmaps: 16 px for fonts 1 and 2, 24 px for font 4.
-    // Characters missing from both fonts are drawn as '?'.
+    // UTF-8 (Japanese) characters are drawn as one '?' each.
     static int text_width(const char *s, int font);
     void draw_text(const char *s, int x, int y, int font, datum_t datum, uint16_t fg);
 
