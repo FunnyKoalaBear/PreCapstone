@@ -179,10 +179,12 @@ Items that still have a free box slot, oldest job number first (the same list as
 
 `item` must be a JSON integer. The UID is trimmed and upper-cased like the scan API.
 
+Optional `"replace": true` (exactly `true`): if the tag is linked to another item, that link is ended first and the tag is linked to this item instead, in one transaction (the reply then has `"released": "<old item code>"`). The setter sends it only after the operator confirmed. If the new link is refused anyway (item full, tag inactive), the old link stays.
+
 | Reply | Meaning | Show | Retry? |
 |---|---|---|---|
 | 200 `{"ok": true, "state": "assigned", "tag_uid": "04A1B2C3", "item": "2611-001-01", "linked": 1, "boxes": 1, "print": "queued"}` | Linked from now on; the item's sheet is queued for printing (see `docs/printing.md`) | OK; if `linked` < `boxes`, offer the next box | No |
-| 409 `refused` | Tag already in use, tag inactive, or all boxes of the item already linked. `detail` says which (display text, do not parse) | `detail`, then reload the list | No |
+| 409 `refused` | Tag already in use, tag inactive, or all boxes of the item already linked. `reason` says which: `tag_in_use` (+ `current_item`, the item code it is on), `tag_inactive` or `item_full`. `detail` is display text, do not parse it | `detail`, then reload the list. On `tag_in_use`: ask whether to move the tag, and if yes send again with `"replace": true` | Only with `replace` after confirming |
 | 400 `invalid` | Bad JSON, missing or empty `tag_uid`, `item` not an integer or unknown | "Request error" | No |
 | 401 `bad_key` | Key wrong or device off | "Device key error" | No |
 | 5xx, timeout | Server or network down | "Server error" | Yes. A retry after a success gives `409` (tag in use): check `detail` or the Tags page |
