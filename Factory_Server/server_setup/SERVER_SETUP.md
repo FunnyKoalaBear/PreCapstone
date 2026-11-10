@@ -130,7 +130,7 @@ sudo bash server_setup/setup-funnel.sh
 
 ## 9. Check
 ```bash
-systemctl is-active postgresql caddy dashboard factory-api tailscaled
+systemctl is-active postgresql caddy dashboard print-worker factory-api tailscaled
 curl -I http://factory-server.local:8080/            # 302 to /login/
 curl -X POST http://factory-server.local:8080/api/scan/ -H "Content-Type: application/json" -d '{"tag_uid":"X"}'   # 401 bad_key
 systemd-analyze                                       # boot should not wait 2 min

@@ -64,6 +64,24 @@ RestartSec=3
 WantedBy=multi-user.target
 EOF
 
+echo "== print-worker.service (Django print queue) =="
+cat > /etc/systemd/system/print-worker.service <<EOF
+[Unit]
+Description=Django queued PDF printer
+After=network.target postgresql.service cups.service dashboard.service
+Requires=postgresql.service
+
+[Service]
+User=$APP_USER
+WorkingDirectory=$WEB
+ExecStart=$WEB/.venv/bin/python manage.py print_worker
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
 echo "== factory-api.service (uvicorn) =="
 cat > /etc/systemd/system/factory-api.service <<EOF
 [Unit]
@@ -83,11 +101,11 @@ WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
-systemctl enable --now dashboard.service factory-api.service
+systemctl enable --now dashboard.service print-worker.service factory-api.service
 systemctl enable caddy
 systemctl restart caddy
 
 sleep 3
-systemctl --no-pager --lines=0 status caddy dashboard factory-api | grep -E "●|Active:"
+systemctl --no-pager --lines=0 status caddy dashboard print-worker factory-api | grep -E "●|Active:"
 echo
 echo "Done."

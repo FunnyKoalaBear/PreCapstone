@@ -162,3 +162,9 @@ def item_pdf(item, extra_image=None):
     """The work instruction sheet, optional item drawing, and optional extra image as PDF bytes."""
     _register_font()
     return _write(_item_pages(item, extra_image))
+
+
+def image_pdf(image):
+    """Create a one-page PDF from an image."""
+    _register_font()
+    return _write(_image_page(image))

@@ -6,7 +6,8 @@
    - `POST /api/assign/` (setter links a tag): saved in the same transaction as the `TagAssignment`, so a refused tag never prints and a link never misses its sheet. Every box of an item gets its own copy of the same item sheet.
    - The **Print sheet** button on the order page.
 2. The `print_worker` command (a systemd service on the factory server) takes the oldest `PENDING` job:
-   builds the sheet with `item_pdf`, saves it as `PRINT_DIR/<item_code>_<job id>.pdf`, sends it with `lp`, and marks it `SENT` with the CUPS job id.
+   builds the order sheet and a separate random-drawing PDF, submits both files
+   together to CUPS, and marks it `SENT` with the CUPS job id.
 3. If printing fails (printer off, paused, no CUPS) the job stays `PENDING` and is retried every 15 s; after 5 tries it becomes `FAILED`.
    Admin -> Orders -> Print jobs -> "Print the selected jobs again" puts it back in the queue.
 
@@ -20,6 +21,10 @@ and the printer code runs on the factory server even if the website later moves 
 | `PRINTER_NAME` | CUPS queue, e.g. `Brother_HL_L2460DW_direct` (see `Factory_Server/server_setup/SERVER_SETUP.md`) |
 | `PRINT_DIR` | Folder that keeps every printed PDF (default `Web_Application/print`) |
 | `PRINT_DRY_RUN` | `True` on a laptop without the printer: jobs are marked `SENT` with job id `dry-run` |
+
+The factory server must have `PRINTER_NAME` set in `Web_Application/.env` and the
+`print-worker.service` systemd service running. The setter API only queues the
+job; the worker creates and submits the PDF.
 
 ## Commands
 
