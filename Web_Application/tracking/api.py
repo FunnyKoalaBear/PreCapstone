@@ -16,9 +16,16 @@ from orders.printing import queue_print
 
 from .models import Event, ScannerDevice, Tag, TagAssignment
 from .services import assign_tag, assignable_items, next_step, record_event, release_assignment, resolve_tag
-from .status import item_status
+from .status import CLOSED, item_status, item_statuses
 
 ASSIGN_LIST_MAX = 50
+# Setter list orders (its filter button); job number + item number break ties so pages never overlap
+ASSIGN_SORTS = {
+    'number': ('order__job_number', 'item_no'),
+    'start': ('order__created_at', 'order__job_number', 'item_no'),
+    'due': ('order__due_date', 'order__job_number', 'item_no'),
+    'part': ('part_name', 'order__job_number', 'item_no'),
+}
 
 
 def _error(status, code, detail=None, **extra):
@@ -67,13 +74,19 @@ def assignable_items_list(request):
     if device is None:
         return _error(401, 'bad_key')
     try:
-        offset, limit = int(request.GET.get('offset', 0)), int(request.GET.get('limit', 20))
+        offset, limit = int(request.GET.get('offset', 0)), int(request.GET.get('limit', 10))
+        sort = request.GET.get('sort', 'number')
         if offset < 0 or not 1 <= limit <= ASSIGN_LIST_MAX:
             raise ValueError(f'offset >= 0 and 1 <= limit <= {ASSIGN_LIST_MAX}')
+        if sort not in ASSIGN_SORTS:
+            raise ValueError(f'sort must be one of: {", ".join(ASSIGN_SORTS)}')
     except ValueError as e:
         return _error(400, 'invalid', f'{type(e).__name__}: {e}')
-    qs = assignable_items()
-    page = list(qs[offset:offset + limit])
+    # Only items still being worked on (not started or started): complete, shipped and cancelled items need no tag
+    candidates = list(assignable_items().order_by(*ASSIGN_SORTS[sort]))
+    statuses = item_statuses(candidates)
+    open_items = [i for i in candidates if statuses[i.pk].code not in CLOSED]
+    page = open_items[offset:offset + limit]
     # Route step count per item in one query (the setter shows it on its details screen)
     steps = dict(RouteStep.objects.filter(item__in=page).values_list('item').annotate(n=Count('pk')))
     items = [{
@@ -83,7 +96,7 @@ def assignable_items_list(request):
         'ordered': timezone.localdate(i.order.created_at).isoformat(), 'steps': steps.get(i.pk, 0),
     } for i in page]
     _touch(device, timezone.now())
-    return JsonResponse({'ok': True, 'total': qs.count(), 'offset': offset, 'items': items})
+    return JsonResponse({'ok': True, 'total': len(open_items), 'offset': offset, 'items': items})
 
 
 @require_GET
