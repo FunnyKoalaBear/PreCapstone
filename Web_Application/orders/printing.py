@@ -26,15 +26,9 @@ def _run(cmd):
 
 def print_pdf(path, printer=None):
     """Send one PDF to the CUPS queue and return the job id."""
-    return print_pdfs([path], printer)
-
-
-def print_pdfs(paths, printer=None):
-    """Send all PDFs as one CUPS job and return the job id."""
-    paths = [Path(path) for path in paths]
-    missing = [str(path) for path in paths if not path.exists()]
-    if missing:
-        raise FileNotFoundError(f'File not found: {missing[0]}')
+    path = Path(path)
+    if not path.exists():
+        raise FileNotFoundError(f'File not found: {path}')
     if settings.PRINT_DRY_RUN:
         return 'dry-run'
     printer = printer or settings.PRINTER_NAME
@@ -45,7 +39,7 @@ def print_pdfs(paths, printer=None):
         raise RuntimeError(f'Printer not found: {printer} {status.stderr.strip()}')
     if 'disabled' in status.stdout:
         raise RuntimeError('Printer is paused (disabled)')
-    result = _run(['lp', '-d', printer, *map(str, paths)])
+    result = _run(['lp', '-d', printer, str(path)])
     if result.returncode != 0 or 'request id is' not in result.stdout:
         raise RuntimeError(f'Print failed: {result.stderr.strip()}')
     return result.stdout.split()[3]  # "request id is <job> (1 file(s))"
@@ -77,7 +71,9 @@ def print_item(item, name=None):
         tmp = path.with_name(path.name + '.tmp')
         tmp.write_bytes(data)
         os.replace(tmp, path)  # the printer never sees a half-written file
-    return print_pdfs([str(order_path), str(random_path)])
+    order_job = print_pdf(str(order_path))
+    random_job = print_pdf(str(random_path))
+    return f'{order_job}, {random_job}'
 
 
 def queue_print(item, source, assignment=None):

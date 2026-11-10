@@ -6,8 +6,8 @@
    - `POST /api/assign/` (setter links a tag): saved in the same transaction as the `TagAssignment`, so a refused tag never prints and a link never misses its sheet. Every box of an item gets its own copy of the same item sheet.
    - The **Print sheet** button on the order page.
 2. The `print_worker` command (a systemd service on the factory server) takes the oldest `PENDING` job:
-   builds the order sheet and a separate random-drawing PDF, submits both files
-   together to CUPS, and marks it `SENT` with the CUPS job id.
+   builds the order sheet and a separate random-drawing PDF, submits each file
+   as its own CUPS print request, and marks it `SENT` with both CUPS job ids.
 3. If printing fails (printer off, paused, no CUPS) the job stays `PENDING` and is retried every 15 s; after 5 tries it becomes `FAILED`.
    Admin -> Orders -> Print jobs -> "Print the selected jobs again" puts it back in the queue.
 

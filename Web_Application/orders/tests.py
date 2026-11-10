@@ -1259,16 +1259,16 @@ class PrintItemTests(SheetBase):
         self.item_ = self.items[0]
 
     def run_print(self, **kw):
-        with override_settings(PRINT_DIR=self.dir), mock.patch('orders.printing.print_pdfs', **kw) as m:
+        with override_settings(PRINT_DIR=self.dir), mock.patch('orders.printing.print_pdf', **kw) as m:
             return printing.print_item(self.item_), m
 
     def test_saves_the_sheet_prints_it_and_returns_the_job_id(self):
         job, m = self.run_print(return_value='job-7')
         path = self.dir / f'{self.item_.item_code}.pdf'
         self.assertEqual(job, 'job-7')
-        m.assert_called_once_with([
-            str(path),
-            str(self.dir / f'{self.item_.item_code}_random.pdf'),
+        self.assertEqual(m.call_args_list, [
+            mock.call(str(path)),
+            mock.call(str(self.dir / f'{self.item_.item_code}_random.pdf')),
         ])
         self.assertTrue(path.read_bytes().startswith(b'%PDF'))
 
@@ -1278,18 +1278,18 @@ class PrintItemTests(SheetBase):
         path.write_bytes(b'old')
         self.run_print(return_value='b')
         self.assertTrue(path.read_bytes().startswith(b'%PDF'))
-        self.assertEqual(len(list(self.dir.iterdir())), 1)
+        self.assertEqual(len(list(self.dir.iterdir())), 2)
 
     def test_printer_error_propagates(self):
         with self.assertRaisesMessage(RuntimeError, 'paused'):
             self.run_print(side_effect=RuntimeError('paused'))
 
     def test_custom_name(self):
-        with override_settings(PRINT_DIR=self.dir), mock.patch('orders.printing.print_pdfs') as m:
+        with override_settings(PRINT_DIR=self.dir), mock.patch('orders.printing.print_pdf') as m:
             printing.print_item(self.item_, 'x_7.pdf')
-        m.assert_called_once_with([
-            str(self.dir / 'x_7.pdf'),
-            str(self.dir / 'x_7_random.pdf'),
+        self.assertEqual(m.call_args_list, [
+            mock.call(str(self.dir / 'x_7.pdf')),
+            mock.call(str(self.dir / 'x_7_random.pdf')),
         ])
 
     def test_random_drawing_is_saved_as_a_separate_pdf(self):
@@ -1297,7 +1297,7 @@ class PrintItemTests(SheetBase):
         drawings.mkdir()
         (drawings / 'drawing.png').write_bytes(make_png())
         with override_settings(PRINT_DIR=self.dir, PRINT_RANDOM_DRAWINGS_DIR=drawings), \
-                mock.patch('orders.printing.print_pdfs', return_value='job-8'):
+                mock.patch('orders.printing.print_pdf', side_effect=['job-8', 'job-9']):
             printing.print_item(self.item_)
         order_reader = PdfReader(self.dir / f'{self.item_.item_code}.pdf')
         random_reader = PdfReader(self.dir / f'{self.item_.item_code}_random.pdf')
@@ -1332,17 +1332,6 @@ class PrintPdfTests(TestCase):
         self.assertEqual(m.call_args_list[1].args[0], ['lp', '-d', 'Q', str(self.f)])
         self.assertEqual(m.call_args.kwargs['env']['LC_ALL'], 'C')
 
-    def test_prints_multiple_pdfs_in_one_cups_job(self):
-        second = self.f.with_name('random.pdf')
-        second.write_bytes(b'%PDF')
-        with mock.patch('orders.printing.subprocess.run', side_effect=[
-            cups('printer Q is idle.  enabled since today\n'),
-            cups('request id is Q-13 (2 files)\n'),
-        ]) as m:
-            job = printing.print_pdfs([self.f, second])
-        self.assertEqual(job, 'Q-13')
-        self.assertEqual(m.call_args_list[1].args[0], ['lp', '-d', 'Q', str(self.f), str(second)])
-
     def test_printer_problems_raise(self):
         cases = [
             ([cups(returncode=1, stderr='unknown')], 'Printer not found'),
@@ -1364,7 +1353,7 @@ class PrintQueueTests(SheetBase):
         self.dir = Path(tempfile.mkdtemp())
 
     def run_job(self, **kw):
-        with override_settings(PRINT_DIR=self.dir), mock.patch('orders.printing.print_pdfs', **kw) as m:
+        with override_settings(PRINT_DIR=self.dir), mock.patch('orders.printing.print_pdf', **kw) as m:
             return printing.run_next_job(), m
 
     def test_empty_queue(self):
@@ -1375,11 +1364,11 @@ class PrintQueueTests(SheetBase):
         printing.queue_print(self.items[1], PrintJob.Source.BUTTON)
         job, m = self.run_job(return_value='Q-3')
         name = f'{self.item_.item_code}_{first.pk}.pdf'
-        self.assertEqual((job.pk, job.status, job.printer_job, job.pdf_name, job.attempts), (first.pk, 'SENT', 'Q-3', name, 1))
+        self.assertEqual((job.pk, job.status, job.printer_job, job.pdf_name, job.attempts), (first.pk, 'SENT', 'Q-3, Q-3', name, 1))
         self.assertIsNotNone(job.sent_at)
-        m.assert_called_once_with([
-            str(self.dir / name),
-            str(self.dir / f'{self.item_.item_code}_{first.pk}_random.pdf'),
+        self.assertEqual(m.call_args_list, [
+            mock.call(str(self.dir / name)),
+            mock.call(str(self.dir / f'{self.item_.item_code}_{first.pk}_random.pdf')),
         ])
         self.assertTrue((self.dir / name).read_bytes().startswith(b'%PDF'))
         self.assertEqual(PrintJob.objects.filter(status='PENDING').count(), 1)
