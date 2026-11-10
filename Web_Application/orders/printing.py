@@ -1,5 +1,6 @@
 import logging
 import os
+import random
 import subprocess
 from pathlib import Path
 
@@ -43,13 +44,25 @@ def print_pdf(path, printer=None):
     return result.stdout.split()[3]  # "request id is <job> (1 file(s))"
 
 
+def _random_print_drawing():
+    drawings = sorted(
+        path for path in Path(settings.PRINT_RANDOM_DRAWINGS_DIR).iterdir()
+        if path.is_file() and path.suffix.lower() in {'.jpg', '.jpeg', '.png'}
+    )
+    if not drawings:
+        raise FileNotFoundError(
+            f'No printable drawings found in {settings.PRINT_RANDOM_DRAWINGS_DIR}'
+        )
+    return random.choice(drawings)
+
+
 def print_item(item, name=None):
-    """Save the item's sheet as name (default <item_code>.pdf) in PRINT_DIR, print it and return the job id."""
+    """Save the item's sheet with a random extra drawing, print it, and return the job id."""
     folder = Path(settings.PRINT_DIR)
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / (name or f'{item.item_code}.pdf')
     tmp = path.with_name(path.name + '.tmp')
-    tmp.write_bytes(item_pdf(item))
+    tmp.write_bytes(item_pdf(item, extra_image=_random_print_drawing()))
     os.replace(tmp, path)  # the printer never sees a half-written file
     return print_pdf(str(path))
 

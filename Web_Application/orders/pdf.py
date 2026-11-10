@@ -129,7 +129,7 @@ def _drawing_pages(item):
         return list(_message_page(_('The drawing could not be read.')))
 
 
-def _item_pages(item):
+def _item_pages(item, extra_image=None):
     """Pages of one item: its sheet, then (if it has a drawing) the drawing on the back, padded to an even count."""
     pages = list(PdfReader(io.BytesIO(_sheet(item))).pages)
     if item.drawing_file:
@@ -138,6 +138,8 @@ def _item_pages(item):
         pages += _drawing_pages(item)
         if len(pages) % 2:
             pages += _blank()
+    if extra_image is not None:
+        pages += _image_page(extra_image)
     return pages
 
 
@@ -156,7 +158,7 @@ def order_pdf(order):
     return _write([p for item in order.items.select_related('order__customer') for p in _item_pages(item)])
 
 
-def item_pdf(item):
-    """The work instruction sheet of one item (with its drawing on the back) as PDF bytes."""
+def item_pdf(item, extra_image=None):
+    """The work instruction sheet, optional item drawing, and optional extra image as PDF bytes."""
     _register_font()
-    return _write(_item_pages(item))
+    return _write(_item_pages(item, extra_image))
