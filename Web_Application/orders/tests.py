@@ -1258,51 +1258,72 @@ class PrintItemTests(SheetBase):
         self.dir = Path(tempfile.mkdtemp()) / 'print'  # does not exist yet
         self.item_ = self.items[0]
 
-    def run_print(self, **kw):
-        with override_settings(PRINT_DIR=self.dir), mock.patch('orders.printing.print_pdf', **kw) as m:
-            return printing.print_item(self.item_), m
+    def run_print(self, item=None, name=None, **settings_kw):
+        kw = {'return_value': 'job-7'}
+        with override_settings(PRINT_DIR=self.dir, **settings_kw), mock.patch('orders.printing.print_pdf', **kw) as m:
+            return printing.print_item(item or self.item_, name), m
 
-    def test_saves_the_sheet_prints_it_and_returns_the_job_id(self):
-        job, m = self.run_print(return_value='job-7')
-        path = self.dir / f'{self.item_.item_code}.pdf'
-        self.assertEqual(job, 'job-7, job-7')  # sheet job id, random drawing job id
-        self.assertEqual(m.call_args_list, [
-            mock.call(str(path)),
-            mock.call(str(self.dir / f'{self.item_.item_code}_random.pdf')),
-        ])
-        self.assertTrue(path.read_bytes().startswith(b'%PDF'))
+    def pdf(self, name=None):
+        return PdfReader(self.dir / (name or f'{self.item_.item_code}.pdf'))
 
-    def test_second_call_overwrites_and_leaves_no_temp_file(self):
-        self.run_print(return_value='a')
+    def placeholders(self):
+        folder = self.dir.parent / 'drawings'
+        folder.mkdir(exist_ok=True)
+        (folder / 'a.png').write_bytes(make_png())
+        return {'PRINT_PLACEHOLDER_DRAWING': True, 'PRINT_RANDOM_DRAWINGS_DIR': folder}
+
+    def test_one_pdf_one_print_call_and_one_job_id(self):
+        job, m = self.run_print()
         path = self.dir / f'{self.item_.item_code}.pdf'
-        path.write_bytes(b'old')
-        self.run_print(return_value='b')
+        self.assertEqual(job, 'job-7')
+        self.assertEqual(m.call_args_list, [mock.call(str(path))])
         self.assertTrue(path.read_bytes().startswith(b'%PDF'))
-        self.assertEqual(len(list(self.dir.iterdir())), 2)
+        self.assertEqual([p.name for p in self.dir.iterdir()], [path.name])  # no _random.pdf, no temp file
+
+    def test_custom_name_and_overwrite(self):
+        _job, m = self.run_print(name='x_7.pdf')
+        self.assertEqual(m.call_args_list, [mock.call(str(self.dir / 'x_7.pdf'))])
+        (self.dir / 'x_7.pdf').write_bytes(b'old')
+        self.run_print(name='x_7.pdf')
+        self.assertTrue((self.dir / 'x_7.pdf').read_bytes().startswith(b'%PDF'))
+        self.assertEqual(len(list(self.dir.iterdir())), 1)
 
     def test_printer_error_propagates(self):
-        with self.assertRaisesMessage(RuntimeError, 'paused'):
-            self.run_print(side_effect=RuntimeError('paused'))
-
-    def test_custom_name(self):
-        with override_settings(PRINT_DIR=self.dir), mock.patch('orders.printing.print_pdf') as m:
-            printing.print_item(self.item_, 'x_7.pdf')
-        self.assertEqual(m.call_args_list, [
-            mock.call(str(self.dir / 'x_7.pdf')),
-            mock.call(str(self.dir / 'x_7_random.pdf')),
-        ])
-
-    def test_random_drawing_is_saved_as_a_separate_pdf(self):
-        drawings = self.dir / 'drawings'
-        drawings.mkdir(parents=True)
-        (drawings / 'drawing.png').write_bytes(make_png())
-        with override_settings(PRINT_DIR=self.dir, PRINT_RANDOM_DRAWINGS_DIR=drawings), \
-                mock.patch('orders.printing.print_pdf', side_effect=['job-8', 'job-9']):
+        with override_settings(PRINT_DIR=self.dir), mock.patch('orders.printing.print_pdf', side_effect=RuntimeError('paused')),                 self.assertRaisesMessage(RuntimeError, 'paused'):
             printing.print_item(self.item_)
-        order_reader = PdfReader(self.dir / f'{self.item_.item_code}.pdf')
-        random_reader = PdfReader(self.dir / f'{self.item_.item_code}_random.pdf')
-        self.assertEqual(len(order_reader.pages), 1)
-        self.assertEqual(len(random_reader.pages), 1)
+
+    @override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+    def test_drawing_is_page_two(self):
+        self.attach(self.item_, 'a.pdf', make_pdf(1))
+        self.run_print()
+        r = self.pdf()
+        self.assertEqual(len(r.pages), 2)
+        self.assertIn('DRAWING-PAGE-0', r.pages[1].extract_text())
+
+    @override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+    def test_two_page_sheet_gives_sheet_blank_drawing(self):
+        self.attach(self.item_, 'a.pdf', make_pdf(1))
+        with mock.patch('orders.pdf._sheet', return_value=make_pdf(2)):
+            self.run_print()
+        r = self.pdf()
+        self.assertEqual(len(r.pages), 4)
+        self.assertEqual(r.pages[2].extract_text().strip(), '')
+        self.assertIn('DRAWING-PAGE-0', r.pages[3].extract_text())
+
+    def test_no_drawing_is_the_sheet_only_unless_the_placeholder_is_on(self):
+        self.run_print()
+        self.assertEqual(len(self.pdf().pages), 1)
+        self.run_print(**self.placeholders())
+        self.assertEqual(len(self.pdf().pages), 2)
+
+    @override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+    def test_real_drawing_never_gets_a_placeholder(self):
+        self.attach(self.item_, 'a.pdf', make_pdf(1))
+        with mock.patch('orders.printing._random_print_drawing') as rnd:
+            self.run_print(**self.placeholders())
+        rnd.assert_not_called()
+        self.assertEqual(len(self.pdf().pages), 2)
+        self.assertIn('DRAWING-PAGE-0', self.pdf().pages[1].extract_text())
 
 
 def cups(stdout='', returncode=0, stderr=''):
@@ -1329,8 +1350,17 @@ class PrintPdfTests(TestCase):
     def test_prints_and_returns_the_cups_job_id(self):
         job, m = self.run_cups(cups('printer Q is idle.  enabled since today\n'), cups('request id is Q-12 (1 file(s))\n'))
         self.assertEqual(job, 'Q-12')
-        self.assertEqual(m.call_args_list[1].args[0], ['lp', '-d', 'Q', str(self.f)])
+        self.assertEqual(m.call_args_list[1].args[0], ['lp', '-d', 'Q', '-o', 'sides=two-sided-long-edge', str(self.f)])
         self.assertEqual(m.call_args.kwargs['env']['LC_ALL'], 'C')
+
+    def test_sides_setting_and_invalid_fallback(self):
+        ok = [cups('printer Q is idle.\n'), cups('request id is Q-1 (1 file(s))\n')]
+        with override_settings(PRINT_SIDES='one-sided'):
+            _job, m = self.run_cups(*ok)
+        self.assertIn('sides=one-sided', m.call_args_list[1].args[0])
+        with override_settings(PRINT_SIDES='bogus'), self.assertLogs('orders.printing', 'WARNING'):
+            _job, m = self.run_cups(*ok)
+        self.assertIn('sides=two-sided-long-edge', m.call_args_list[1].args[0])
 
     def test_printer_problems_raise(self):
         cases = [
@@ -1364,12 +1394,9 @@ class PrintQueueTests(SheetBase):
         printing.queue_print(self.items[1], PrintJob.Source.BUTTON)
         job, m = self.run_job(return_value='Q-3')
         name = f'{self.item_.item_code}_{first.pk}.pdf'
-        self.assertEqual((job.pk, job.status, job.printer_job, job.pdf_name, job.attempts), (first.pk, 'SENT', 'Q-3, Q-3', name, 1))
+        self.assertEqual((job.pk, job.status, job.printer_job, job.pdf_name, job.attempts), (first.pk, 'SENT', 'Q-3', name, 1))
         self.assertIsNotNone(job.sent_at)
-        self.assertEqual(m.call_args_list, [
-            mock.call(str(self.dir / name)),
-            mock.call(str(self.dir / f'{self.item_.item_code}_{first.pk}_random.pdf')),
-        ])
+        self.assertEqual(m.call_args_list, [mock.call(str(self.dir / name))])
         self.assertTrue((self.dir / name).read_bytes().startswith(b'%PDF'))
         self.assertEqual(PrintJob.objects.filter(status='PENDING').count(), 1)
 

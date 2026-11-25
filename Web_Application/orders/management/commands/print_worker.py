@@ -19,7 +19,8 @@ class Command(BaseCommand):
     def handle(self, *args, once=False, interval=2, retry_wait=15, **options):
         # the service can see other settings than a terminal: show what this process will use
         self.stdout.write(f'print_worker started: printer {settings.PRINTER_NAME or "(not set)"}, '
-                          f'dry run {settings.PRINT_DRY_RUN}, drawings {settings.PRINT_RANDOM_DRAWINGS_DIR}, '
+                          f'dry run {settings.PRINT_DRY_RUN}, sides {settings.PRINT_SIDES}, '
+                          f'placeholder drawing {settings.PRINT_PLACEHOLDER_DRAWING}, drawings {settings.PRINT_RANDOM_DRAWINGS_DIR}, '
                           f'PDFs {settings.PRINT_DIR}')
         tried = set()
         while True:

@@ -185,6 +185,13 @@ PRINTER_NAME = os.environ.get(
     'PRINTER_NAME',
     FACTORY_PRINT_SETTINGS.get('PRINTER_NAME') or '',
 )
+# True: an item without a drawing gets a random stand-in drawing on the back (for use while real drawings are missing)
+PRINT_PLACEHOLDER_DRAWING = os.environ.get(
+    'PRINT_PLACEHOLDER_DRAWING',
+    FACTORY_PRINT_SETTINGS.get('PRINT_PLACEHOLDER_DRAWING') or 'False',
+).lower() in ('1', 'true', 'yes')
+# CUPS "sides" option: one-sided, two-sided-long-edge or two-sided-short-edge
+PRINT_SIDES = os.environ.get('PRINT_SIDES', FACTORY_PRINT_SETTINGS.get('PRINT_SIDES') or 'two-sided-long-edge')
 PRINT_RANDOM_DRAWINGS_DIR = Path(os.environ.get(
     'PRINT_RANDOM_DRAWINGS_DIR', BASE_DIR / 'static' / 'print_drawings',
 ))

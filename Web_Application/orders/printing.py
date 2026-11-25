@@ -9,11 +9,13 @@ from django.db import transaction
 from django.utils import timezone
 
 from .models import PrintJob
-from .pdf import image_pdf, item_pdf
+from .pdf import item_pdf
 
 logger = logging.getLogger(__name__)
 
 MAX_ATTEMPTS = 5
+SIDES = ('one-sided', 'two-sided-long-edge', 'two-sided-short-edge')
+DEFAULT_SIDES = 'two-sided-long-edge'
 
 
 def _run(cmd):
@@ -22,6 +24,14 @@ def _run(cmd):
         return subprocess.run(cmd, capture_output=True, text=True, timeout=30, env={**os.environ, 'LC_ALL': 'C'})
     except FileNotFoundError:
         raise RuntimeError(f'{cmd[0]} not found: CUPS is not installed on this computer') from None
+
+
+def print_sides():
+    """PRINT_SIDES if valid, else the default (with a warning)."""
+    if settings.PRINT_SIDES in SIDES:
+        return settings.PRINT_SIDES
+    logger.warning('Invalid PRINT_SIDES %r (use one of %s); using %s', settings.PRINT_SIDES, ', '.join(SIDES), DEFAULT_SIDES)
+    return DEFAULT_SIDES
 
 
 def print_pdf(path, printer=None):
@@ -39,7 +49,7 @@ def print_pdf(path, printer=None):
         raise RuntimeError(f'Printer not found: {printer} {status.stderr.strip()}')
     if 'disabled' in status.stdout:
         raise RuntimeError('Printer is paused (disabled)')
-    result = _run(['lp', '-d', printer, str(path)])
+    result = _run(['lp', '-d', printer, '-o', f'sides={print_sides()}', str(path)])
     if result.returncode != 0 or 'request id is' not in result.stdout:
         raise RuntimeError(f'Print failed: {result.stderr.strip()}')
     return result.stdout.split()[3]  # "request id is <job> (1 file(s))"
@@ -58,22 +68,15 @@ def _random_print_drawing():
 
 
 def print_item(item, name=None):
-    """Save the item's sheet and a random drawing, then queue both with CUPS."""
+    """Save the item's sheet (with its drawing on the back) as one PDF and queue it with CUPS."""
     folder = Path(settings.PRINT_DIR)
     folder.mkdir(parents=True, exist_ok=True)
-    order_path = folder / (name or f'{item.item_code}.pdf')
-    random_path = order_path.with_name(f'{order_path.stem}_random.pdf')
-    random_drawing = _random_print_drawing()
-    for path, data in (
-        (order_path, item_pdf(item)),
-        (random_path, image_pdf(random_drawing)),
-    ):
-        tmp = path.with_name(path.name + '.tmp')
-        tmp.write_bytes(data)
-        os.replace(tmp, path)  # the printer never sees a half-written file
-    order_job = print_pdf(str(order_path))
-    random_job = print_pdf(str(random_path))
-    return f'{order_job}, {random_job}'
+    path = folder / (name or f'{item.item_code}.pdf')
+    extra = _random_print_drawing() if settings.PRINT_PLACEHOLDER_DRAWING and not item.drawing_file else None
+    tmp = path.with_name(path.name + '.tmp')
+    tmp.write_bytes(item_pdf(item, extra_image=extra))
+    os.replace(tmp, path)  # the printer never sees a half-written file
+    return print_pdf(str(path))
 
 
 def queue_print(item, source, assignment=None):

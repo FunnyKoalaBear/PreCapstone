@@ -7,8 +7,8 @@
 nd a link never misses its sheet. Every box of an item gets its own copy of the same item sheet.
    - The **Print sheet** button on the order page.
 2. The `print_worker` command (a systemd service on the factory server) takes the oldest `PENDING` job:
-   builds the order sheet and a separate random-drawing PDF, submits each file
-   as its own CUPS print request, and marks it `SENT` with both CUPS job ids.
+   builds one PDF per item (the sheet, then the item's drawing on the back) and submits it as one CUPS print request
+   with `-o sides=...` (duplex), then marks it `SENT` with the CUPS job id.
 3. If printing fails (printer off, paused, no CUPS) the job stays `PENDING` and is retried every 15 s; after 5 tries it becomes `FAILED`.
 
 Why a queue: the HTTP reply to the setter stays fast (it has a 5 s timeout), nothing is lost while the printer is off,
@@ -21,11 +21,16 @@ and the printer code runs on the factory server even if the website later moves 
 | `PRINTER_NAME` | CUPS queue, e.g. `Brother_HL_L2460DW_direct` (see `Factory_Server/server_setup/SERVER_SETUP.md`) |
 | `PRINT_DIR` | Folder that keeps every printed PDF (default `Web_Application/print`) |
 | `PRINT_DRY_RUN` | `True` on a laptop without the printer: jobs are marked `SENT` with job id `dry-run` |
+| `PRINT_SIDES` | `one-sided`, `two-sided-long-edge` (default, portrait sheets) or `two-sided-short-edge`; an invalid value logs a warning and uses the default |
+| `PRINT_PLACEHOLDER_DRAWING` | `False` (default). `True`: an item without a drawing gets a random image from `PRINT_RANDOM_DRAWINGS_DIR` on the back; an item with a drawing never does |
 
 The factory server must have `PRINTER_NAME` set in `Web_Application/.env` (or in
 `Factory_Server/.env` when using this repository layout) and the
 `print-worker.service` systemd service running. The setter API only queues the
-job; the worker creates and submits both PDFs.
+job; the worker creates and submits the PDF.
+
+The sheet is always followed by a blank page if needed, so the drawing starts on a back page; the printer must be set to
+duplex (`PRINT_SIDES`) for it to land on the back of the sheet.
 
 ## Commands
 
