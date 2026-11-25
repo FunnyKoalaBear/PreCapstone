@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% load i18n panels %}
+{% load static i18n panels %}
 
 {% block title %}{% trans "Tags" %} - {% trans "Factory Tracker" %}{% endblock %}
 
 {% block content %}
-  <h1>{% trans "Tags" %}</h1>
+  <h1>{% trans "Tags" %} {% include "includes/live_dot.html" %}</h1>
   {% include "includes/tag_tabs.html" with tab="tags" %}
 
   <form method="post" class="card">
@@ -76,3 +76,5 @@
     <p>{% trans "No tags in use match this search." %}</p>
   {% endif %}
 {% endblock %}
+
+{% block scripts %}<script src="{% static 'js/live.js' %}" defer></script>{% endblock %}

@@ -1,5 +1,9 @@
 from core.testing import TestCase, make_user
-from orders.models import Customer, Order, OrderItem, Process, RouteStep
+from pathlib import Path
+
+from django.conf import settings
+
+from orders.models import Customer, Order, OrderChange, OrderItem, Process, RouteStep
 
 from .models import ScannerDevice, Tag, TagAssignment
 from .services import record_event
@@ -27,7 +31,7 @@ class LastChangeTests(TestCase):
         self.assertIn('/login/', r['Location'])
 
     def test_empty_database_gives_zeros(self):
-        self.assertEqual(self.sig(), '0-0-0')
+        self.assertEqual(self.sig(), '0-0-0-0')
 
     def test_sig_changes_after_event_and_order_item(self):
         before = self.sig()
@@ -48,9 +52,34 @@ class LastChangeTests(TestCase):
     def test_post_is_not_allowed(self):
         self.assertEqual(self.client.post('/api/last-change/').status_code, 405)
 
-    def test_live_attribute_only_on_the_five_pages(self):
-        for url in LIVE_PAGES:
-            self.assertContains(self.client.get(url), 'data-live="/api/last-change/"', msg_prefix=url)
+    def make_order(self):
+        order = Order.objects.create(customer=Customer.objects.create(name='C'), due_date='2026-12-01')
+        OrderItem.objects.create(order=order, part_name='P', quantity=1)
+        return order
+
+    def test_sig_changes_after_order_change(self):
+        order = self.make_order()
+        before = self.sig()
+        OrderChange.objects.create(order=order, field='due_date', old_value='a', new_value='b')
+        self.assertNotEqual(before, self.sig())
+
+    def test_live_attribute_and_script_on_live_pages(self):
         self.client.force_login(make_user('ad', 'Admin'))
-        for url in ['/analysis/', '/simulate/']:
-            self.assertNotContains(self.client.get(url), 'data-live', msg_prefix=url)
+        order = self.make_order()
+        for url in LIVE_PAGES + ['/orders/', f'/orders/{order.job_number}/', '/priorities/', '/tags/history/', '/tags/', '/simulate/']:
+            r = self.client.get(url)
+            self.assertContains(r, 'data-live="/api/last-change/"', msg_prefix=url)
+            self.assertContains(r, 'js/live.js', msg_prefix=url)
+
+    def test_not_live_pages(self):
+        self.client.force_login(make_user('ad', 'Admin'))
+        for url in ['/analysis/', '/plan-vs-actual/', '/orders/?tab=new', '/orders/?tab=import', '/orders/?tab=codes',
+                    '/orders/?tab=processes', '/settings/']:
+            r = self.client.get(url, follow=True)
+            self.assertNotContains(r, 'data-live', msg_prefix=url)
+            self.assertNotContains(r, 'js/live.js', msg_prefix=url)
+
+    def test_live_js_replaces_instead_of_reloading(self):
+        js = (Path(settings.BASE_DIR) / 'static/js/live.js').read_text(encoding='utf-8')
+        self.assertIn('location.replace', js)
+        self.assertNotIn('location.reload', js)

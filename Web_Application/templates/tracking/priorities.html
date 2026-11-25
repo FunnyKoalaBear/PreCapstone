@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% load i18n duration panels %}
+{% load static i18n duration panels %}
 
 {% block title %}{% trans "Priorities" %} - {% trans "Factory Tracker" %}{% endblock %}
 
 {% block content %}
-  <h1>{% trans "Priorities" %}</h1>
+  <h1>{% trans "Priorities" %} {% include "includes/live_dot.html" %}</h1>
 
   <nav class="tier-filters">
     <a href="{% url 'priorities' %}?sort={{ sort }}"{% if not tier %} class="active"{% endif %}>{% trans "All" %} ({{ total }})</a>
@@ -65,3 +65,5 @@
     <p>{% trans "Nothing needs attention." %}</p>
   {% endif %}
 {% endblock %}
+
+{% block scripts %}<script src="{% static 'js/live.js' %}" defer></script>{% endblock %}

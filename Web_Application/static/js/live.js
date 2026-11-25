@@ -23,18 +23,28 @@
     }
   } catch (e) {}
 
+  // <details> that were open at load do not block
+  const openAtLoad = new Set(document.querySelectorAll('details[open]'));
+  const dirty = (f) => {
+    if (f.matches('input[type="checkbox"], input[type="radio"]')) return f.checked !== f.defaultChecked;
+    if (f.matches('input[type="hidden"], input[type="submit"], input[type="button"], input[type="reset"], input[type="file"], button')) return false;
+    if (f.matches('select')) return [...f.options].some((o) => o.selected !== o.defaultSelected);
+    return f.value !== f.defaultValue;
+  };
+
   // Unsafe to reload while the user is working
   const busy = () => {
     const a = document.activeElement;
-    if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return true;
+    if (a && (/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) || a.isContentEditable)) return true;
     if (document.querySelector('dialog[open], [aria-modal="true"], .modal')) return true;
-    if (document.querySelector('input[type="checkbox"]:checked')) return true;
+    if ([...document.querySelectorAll('details[open]')].some((d) => !openAtLoad.has(d))) return true;
+    if ([...document.querySelectorAll('input, textarea, select')].some(dirty)) return true;
     return !!(window.getSelection && String(window.getSelection()).length);
   };
 
   const reload = () => {
     try { sessionStorage.setItem(SCROLL, String(window.scrollY)); sessionStorage.setItem(FLAG, '1'); } catch (e) {}
-    location.reload();
+    location.replace(location.href); // a GET, so a page that came from a POST is not re-sent
   };
 
   const schedule = (ms) => { clearTimeout(timer); if (!stopped) timer = setTimeout(check, ms); };

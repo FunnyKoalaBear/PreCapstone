@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% load i18n duration panels %}
+{% load static i18n duration panels %}
 
 {% block title %}{{ order.job_number }} - {% trans "Factory Tracker" %}{% endblock %}
 
 {% block content %}
   <p><a href="{% url 'order_list' %}">&larr; {% trans "Back to Orders" %}</a></p>
-  <h1>{{ order.job_number }} <span class="badge badge-{{ code|lower }}">{{ label }}</span>
+  <h1>{{ order.job_number }} <span class="badge badge-{{ code|lower }}">{{ label }}</span> {% include "includes/live_dot.html" %}
     {% if completed %}<small class="tnum">{% trans "Completed" %}: {{ completed|date:"Y-m-d" }}</small>{% endif %}
     {% if can.planner %}<a class="button-secondary" href="{% url 'order_edit' order.job_number %}">{% trans "Edit" %}</a>{% endif %}
     {% if can.operator %}<a class="button-secondary" href="{% url 'order_sheet' order.job_number %}" target="_blank" rel="noopener">{% trans "Preview all sheets" %}</a>{% endif %}
@@ -196,3 +196,5 @@
     </table>
   {% endscroll_panel %}
 {% endblock %}
+
+{% block scripts %}<script src="{% static 'js/live.js' %}" defer></script>{% endblock %}

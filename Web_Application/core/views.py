@@ -14,7 +14,7 @@ from django.utils.translation import gettext_lazy
 
 from core.rules import silent_after, void_window
 from core.permissions import OPERATOR, PLANNER, ROLES, role_level, role_required
-from orders.models import Customer, OrderItem
+from orders.models import Customer, OrderChange, OrderItem
 from tracking.matrix import matrix
 from tracking.models import Event, ScannerDevice, TagAssignment
 from tracking.completed import PERIODS, completed_on, period_range
@@ -44,7 +44,7 @@ def done_period(request):
 @require_GET
 def last_change(request):
     """Signature of the newest event, order item and tag assignment; pages poll it to know when to reload."""
-    ids = [m.objects.aggregate(n=Max('id'))['n'] or 0 for m in (Event, OrderItem, TagAssignment)]
+    ids = [m.objects.aggregate(n=Max('id'))['n'] or 0 for m in (Event, OrderItem, TagAssignment, OrderChange)]
     response = JsonResponse({'sig': '-'.join(map(str, ids))})
     response['Cache-Control'] = 'no-store'
     return response

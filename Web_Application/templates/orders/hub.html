@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load static i18n %}
 
 {% block title %}{% trans "Orders" %} - {% trans "Factory Tracker" %}{% endblock %}
 
 {% block content %}
-  <h1>{% trans "Orders" %}</h1>
+  <h1>{% trans "Orders" %}{% if tab == 'orders' %} {% include "includes/live_dot.html" %}{% endif %}</h1>
   {% trans "Orders sections" as tabs_label %}
   {% include "includes/tab_bar.html" with label=tabs_label %}
   {% if tab == 'new' %}{% include "orders/tabs/new.html" %}
@@ -13,3 +13,5 @@
   {% elif tab == 'processes' %}{% include "orders/tabs/processes.html" %}
   {% else %}{% include "orders/tabs/orders.html" %}{% endif %}
 {% endblock %}
+
+{% block scripts %}{% if tab == 'orders' %}<script src="{% static 'js/live.js' %}" defer></script>{% endif %}{% endblock %}
