@@ -13,9 +13,17 @@ def _item_event(item, event_type):
 def reference_item_status(item):
     steps = _steps(item)
     assignments = item.tagassignment_set.select_related('tag').order_by('start_at', 'pk')
-    boxes = [_replay(steps, g, list(events_for_box(g)), n) for n, g in enumerate(box_chains(assignments).values(), 1)]  # a box keeps its status across replaced tags
+    boxes, released = [], []
+    for g in box_chains(assignments).values():  # a box keeps its status across replaced tags
+        box = _replay(steps, g, list(events_for_box(g)), len(boxes) + 1)
+        if g[-1].end_at is not None and box.code != COMPLETE:  # released and unfinished: history only
+            box.number = None
+            released.append(box)
+        else:
+            boxes.append(box)
     boxes += [_replay(steps, [], []) for _ in range(max(item.box_count - len(boxes), 0 if boxes else 1))]
     status = _roll_up(boxes)
+    status.released = released
     if cancel := _item_event(item, Event.Type.CANCELLED):
         status.code, status.label, status.cancel_event = CANCELLED, LABELS[CANCELLED], cancel
     elif status.code == COMPLETE and (ship := _item_event(item, Event.Type.SHIPPED)):
@@ -40,7 +48,7 @@ def plain(st):
     return {
         'code': st.code, 'label': str(st.label), 'current_step': st.current_step and st.current_step.pk, 'rows': [_row(r) for r in st.rows],
         'warnings': list(st.warnings), 'last_event_at': st.last_event_at, 'cancel_event': st.cancel_event and st.cancel_event.pk,
-        'ship_event': st.ship_event and st.ship_event.pk, 'boxes': [_box(b) for b in st.boxes],
+        'ship_event': st.ship_event and st.ship_event.pk, 'boxes': [_box(b) for b in st.boxes], 'released': [_box(b) for b in st.released],
     }
 
 
@@ -48,7 +56,7 @@ def status_diff(a, b):
     """The name of the first field where two ItemStatus differ (with both values), or None when equal."""
     pa, pb = plain(a), plain(b)
     for key in pa:
-        if key == 'boxes':
+        if key in ('boxes', 'released'):
             if len(pa[key]) != len(pb[key]):
                 return f'boxes: {len(pa[key])} != {len(pb[key])} boxes'
             for i, (x, y) in enumerate(zip(pa[key], pb[key])):

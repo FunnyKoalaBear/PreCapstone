@@ -25,7 +25,7 @@ from .analysis import DEFECT_ORDERS, PLAN_ORDERS, RECORD_CAP, RECORD_LIMIT, RESU
 from .priority import TIER_LABELS, TIERS, priority
 from .completed import completed_rows, parse_day, period_range
 from .shipping import shipping_overview
-from .services import assign_tag, can_correct, correct_event as correct_event_service, next_step, record_event, record_result, record_step_state, release_assignment, replace_tag, resolve_tag, cancel_item, ship_item
+from .services import assign_tag, can_correct, closed_open_assignments, correct_event as correct_event_service, next_step, record_event, record_result, record_step_state, release_assignment, replace_tag, resolve_tag, cancel_item, ship_item
 from .status import box_captions, AT_VENDOR, CANCELLED, COMPLETE, IN_PROGRESS, LABELS, NOT_STARTED, PAUSED, WAITING, current_row, item_status, item_statuses
 
 
@@ -107,6 +107,14 @@ def tag_manage(request):
             a = release_assignment(get_object_or_404(TagAssignment.objects.select_related('tag', 'item'), pk=pk, end_at__isnull=True))
             messages.success(request, _('Tag %(tag)s released from item %(item)s.') % {'tag': a.tag, 'item': a.item.item_code})
             return redirect(_tags_url(request))
+        if request.POST.get('action') == 'release_closed':
+            rows = closed_open_assignments()
+            now = timezone.now()
+            for a in rows:
+                a.end_at = now
+                a.save(update_fields=['end_at'])
+            messages.success(request, _('Tags released from closed items: %(n)s.') % {'n': len(rows)})
+            return redirect(_tags_url(request))
         if request.POST.get('action') == 'replace':
             pk = request.POST.get('assignment', '')
             if not pk.isdigit():
@@ -141,7 +149,7 @@ def tag_manage(request):
         a.caption = captions[a.pk]
     return render(request, 'tracking/tag_manage.html', {
         'form': form,
-        'open': open_ if q else [], 'q': q, 'in_use': in_use,
+        'open': open_ if q else [], 'q': q, 'in_use': in_use, 'closed_count': len(closed_open_assignments()),
         'tag_uids': Tag.objects.filter(active=True).values_list('uid', flat=True),
     })
 

@@ -338,7 +338,7 @@ def order_detail(request, job_number):
     today, items = timezone.localdate(), []
     for item in order_items:
         st = statuses[item.pk]
-        boxes = [_box_entry(b, today) for b in st.boxes]
+        boxes = [_box_entry(b, today) for b in st.boxes + st.released]
         linked = sum(b['open'] for b in boxes)
         items.append({
             'item': item, 'status': st, 'completed': _day(st.completed_at), 'boxes': boxes, 'runs': previous_runs(item),

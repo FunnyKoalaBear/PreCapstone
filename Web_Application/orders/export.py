@@ -89,7 +89,7 @@ def event_rows(order):
     statuses = item_statuses(items)
     for item in items:
         codes = {s.process_id: s.effective_vendor.code for s in item.steps.select_related('vendor', 'process__default_vendor') if s.effective_vendor}
-        events = [e for b in statuses[item.pk].boxes if b.assignment for e in events_with_voids(b.assignments)]
+        events = [e for b in statuses[item.pk].boxes + statuses[item.pk].released if b.assignment for e in events_with_voids(b.assignments)]
         item_events = list(Event.objects.filter(item=item).select_related('created_by'))
         voids = {c.corrects_id: c for c in Event.objects.filter(event_type=Event.Type.CORRECTION, corrects__in=item_events)}
         for e in item_events:

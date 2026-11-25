@@ -3497,5 +3497,25 @@ msgstr "一時停止: 画面を再読み込みしてください"
 msgid "Updated: new activity"
 msgstr "更新しました: 新しい動きがあります"
 
+# CHECK: "closed" = cancelled or shipped; wording shared by the button and the confirm text
+#: .\templates\tracking\tag_manage.html:1
+msgid "Release tags of closed items"
+msgstr "出荷・キャンセル済みの品目のタグを解除"
+
+#: .\templates\tracking\tag_manage.html:1
+#, python-format
+msgid "Release %(n)s tags of cancelled or shipped items?"
+msgstr "出荷またはキャンセル済みの品目のタグ %(n)s 件を解除しますか？"
+
+#: .\tracking\views.py:1
+#, python-format
+msgid "Tags released from closed items: %(n)s."
+msgstr "出荷・キャンセル済みの品目から解除したタグ: %(n)s 件"
+
+#: .\tracking\services.py:1
+#, python-format
+msgid "Item %(item)s is %(status)s, so no tag can be linked to it."
+msgstr "品目 %(item)s は「%(status)s」のため、タグを紐付けられません。"
+
 #~ msgid "Back to Tags"
 #~ msgstr "タグ管理に戻る"

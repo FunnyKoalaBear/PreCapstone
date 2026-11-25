@@ -429,3 +429,6 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | Offline: retrying | オフライン: 再接続しています |
 | Paused: reload the page | 一時停止: 画面を再読み込みしてください |
 | Updated: new activity (toast) | 更新しました: 新しい動きがあります |
+| Release tags of closed items (Tags page button) | 出荷・キャンセル済みの品目のタグを解除 ? |
+| Closed item (cancelled or shipped) | 出荷・キャンセル済みの品目 ? |
+| Released (box card on the order page) | 解除済み |

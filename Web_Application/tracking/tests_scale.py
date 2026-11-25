@@ -270,8 +270,9 @@ class EdgeCaseTests(TestCase):
         self.w.ev('A', 0, E.ARRIVED, 10)  # start is inside
         self.w.ev('A', 1, E.STARTED, 20)  # end is outside
         status = self.same([item])[item.pk]
-        self.assertEqual(status.code, WAITING)
-        self.assertEqual(status.last_event_at, self.w.at(10))
+        self.assertEqual(status.code, NOT_STARTED)  # the box was released unfinished: history only
+        self.assertEqual(status.released[0].last_event_at, self.w.at(10))
+        self.assertEqual(status.released[0].code, WAITING)
 
     def test_two_events_at_the_same_time_keep_pk_order(self):
         item = self.w.item()

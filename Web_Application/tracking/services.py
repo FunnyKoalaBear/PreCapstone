@@ -8,7 +8,7 @@ from core.permissions import PLANNER, has_role
 from orders.models import OrderItem
 
 from .models import Event, Tag, TagAssignment
-from .status import CANCELLED, COMPLETE, SHIPPED, item_status, manual_actions, next_action
+from .status import CANCELLED, CLOSED, COMPLETE, SHIPPED, item_status, item_statuses, manual_actions, next_action
 
 
 def resolve_tag(uid, moment):
@@ -55,6 +55,8 @@ def assign_tag(item, tag_uid):
     if not uid:
         raise ValidationError(_('Tag UID is required.'))
     with transaction.atomic():
+        if (status := item_status(item)).code in CLOSED:
+            raise ValidationError(_('Item %(item)s is %(status)s, so no tag can be linked to it.') % {'item': item.item_code, 'status': status.label})
         tag = Tag.objects.get_or_create(uid=uid)[0]
         if not tag.active:
             raise ValidationError(_('Tag %(tag)s is inactive.') % {'tag': tag})
@@ -133,7 +135,22 @@ def correct_event(event, user, reason, replacement=None):
         correction.save()
         if new:
             new.save()
+        if original.event_type in (Event.Type.CANCELLED, Event.Type.SHIPPED) and original.item_id:
+            _relink(original)
     return correction, new
+
+
+def _release_open(item, moment):
+    """End the item's open assignments at moment (cancel and ship free the tags)."""
+    TagAssignment.objects.filter(item=item, end_at__isnull=True, start_at__lt=moment).update(end_at=moment)
+
+
+def _relink(original):
+    """Undo of a cancel or ship: re-open the assignments it ended, unless the tag is inactive or in use again."""
+    for a in TagAssignment.objects.filter(item_id=original.item_id, end_at=original.occurred_at).select_related('tag'):
+        if a.tag.active and not TagAssignment.objects.filter(tag=a.tag, end_at__isnull=True).exists():
+            a.end_at = None
+            a.save(update_fields=['end_at'])
 
 
 def record_result(user, assignment, process, quantity, defects=0, worker=None, machine=None, defect_cause=None, note='', photo=None):
@@ -172,9 +189,11 @@ def cancel_item(user, item, reason):
         raise ValidationError(_('This item is already cancelled.'))
     if code in (COMPLETE, SHIPPED):
         raise ValidationError(_('A finished item cannot be cancelled.'))
-    event = Event(event_type=Event.Type.CANCELLED, item=item, reason=reason.strip(), created_by=user)
+    event = Event(event_type=Event.Type.CANCELLED, item=item, reason=reason.strip(), created_by=user, occurred_at=timezone.now())
     event.full_clean()
-    event.save()
+    with transaction.atomic():
+        event.save()
+        _release_open(item, event.occurred_at)
     return event
 
 
@@ -184,7 +203,16 @@ def ship_item(user, item):
         raise PermissionDenied
     if item_status(item).code != COMPLETE:
         raise ValidationError(_('Only a complete item can be marked as shipped.'))
-    event = Event(event_type=Event.Type.SHIPPED, item=item, created_by=user)
+    event = Event(event_type=Event.Type.SHIPPED, item=item, created_by=user, occurred_at=timezone.now())
     event.full_clean()
-    event.save()
+    with transaction.atomic():
+        event.save()
+        _release_open(item, event.occurred_at)
     return event
+
+
+def closed_open_assignments():
+    """Open assignments of cancelled or shipped items (old data from before cancel and ship freed their tags)."""
+    open_ = list(TagAssignment.objects.filter(end_at__isnull=True).select_related('item'))
+    statuses = item_statuses({a.item for a in open_})
+    return [a for a in open_ if statuses[a.item_id].code in (CANCELLED, SHIPPED)]

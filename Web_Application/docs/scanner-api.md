@@ -69,6 +69,10 @@ Box out at a vendor: there is no special reply. Scanning it again records `RETUR
 
 Same keys as `finished`, with `"state": "duplicate"`. Happens in tag-only mode when this tag already has an event in the last `SCAN_REPEAT_SECONDS` seconds (default 5, 0 = off). The explicit form has no such guard.
 
+### 200 `cancelled` / `shipped` - the tag's item is closed, nothing saved
+
+Same keys as `finished`, with `"state": "cancelled"` or `"shipped"` (both scan modes, and `GET /api/scan-preview/`). Cancelling or shipping an item frees its tags, so a normal scan of such a tag is `404 unassigned_tag`; these states only appear for old links not yet freed. Show "Item cancelled" / "Item shipped"; do not retry.
+
 ### 404 - tag not assigned, nothing saved
 
 ```json
@@ -142,6 +146,7 @@ curl -i -X POST http://PI_ADDRESS:8000/api/scan/ \
 | 200 `recorded` | Saved | OK, with `process_name` + `event_type` | No |
 | 200 `finished` | Route already done | "Already finished" | No |
 | 200 `duplicate` | Scanned twice | Ignore or "Already scanned" | No |
+| 200 `cancelled` / `shipped` | The item is closed | "Item cancelled" / "Item shipped" | No |
 | 404 `unassigned_tag` | Tag not linked to an item | "Tag not assigned" | No. Fix in the web app (Tags page) |
 | 401 `bad_key` | Key wrong or device off | "Device key error" | No. Check key and active flag |
 | 400 `invalid` | Firmware bug or bad data | "Request error" | No |
@@ -221,7 +226,7 @@ Optional `"replace": true` (exactly `true`): if the tag is linked to another ite
 | Reply | Meaning | Show | Retry? |
 |---|---|---|---|
 | 200 `{"ok": true, "state": "assigned", "tag_uid": "04A1B2C3", "item": "2611-001-01", "linked": 1, "boxes": 1, "print": "queued"}` | Linked from now on; the item's sheet is queued for printing (see `docs/printing.md`) | OK; if `linked` < `boxes`, offer the next box | No |
-| 409 `refused` | Tag already in use, tag inactive, or all boxes of the item already linked. `reason` says which: `tag_in_use` (+ `current_item`, the item code it is on), `tag_inactive` or `item_full`. `detail` is display text, do not parse it | `detail`, then reload the list. On `tag_in_use`: ask whether to move the tag, and if yes send again with `"replace": true` | Only with `replace` after confirming |
+| 409 `refused` | Tag already in use, tag inactive, all boxes of the item already linked, or the item is closed. `reason` says which: `tag_in_use` (+ `current_item`, the item code it is on), `tag_inactive`, `item_full` or `item_closed` (the item is complete, shipped or cancelled). `detail` is display text, do not parse it | `detail`, then reload the list. On `tag_in_use`: ask whether to move the tag, and if yes send again with `"replace": true` | Only with `replace` after confirming |
 | 400 `invalid` | Bad JSON, missing or empty `tag_uid`, `item` not an integer or unknown | "Request error" | No |
 | 401 `bad_key` | Key wrong or device off | "Device key error" | No |
 | 5xx, timeout | Server or network down | "Server error" | Yes. A retry after a success gives `409` (tag in use): check `detail` or the Tags page |

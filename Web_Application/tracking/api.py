@@ -16,7 +16,7 @@ from orders.printing import queue_print
 
 from .models import Event, ScannerDevice, Tag, TagAssignment
 from .services import assign_tag, assignable_items, next_step, record_event, release_assignment, resolve_tag
-from .status import CLOSED, item_status, item_statuses
+from .status import CANCELLED, CLOSED, SHIPPED, item_status, item_statuses
 
 ASSIGN_LIST_MAX = 50
 # Setter list orders (its filter button); job number + item number break ties so pages never overlap
@@ -37,8 +37,10 @@ def _error(status, code, detail=None, **extra):
 
 
 def _refusal(uid, item):
-    """Why assign_tag refused (checked in the same order): tag_inactive, item_full or tag_in_use (+ the item it is on)."""
+    """Why assign_tag refused (checked in the same order): item_closed, tag_inactive, item_full or tag_in_use (+ the item it is on)."""
     tag = Tag.objects.filter(uid=uid.upper()).first()
+    if item_status(item).code in CLOSED:
+        return {'reason': 'item_closed'}
     if tag and not tag.active:
         return {'reason': 'tag_inactive'}
     if TagAssignment.objects.filter(item=item, end_at__isnull=True).count() >= item.box_count:
@@ -62,6 +64,12 @@ def _reply(state, assignment, event=None, process=None):
     if event:
         body.update(event_id=event.pk, tag_uid=event.tag_uid, event_type=event.event_type, process_id=process.pk, process_name=process.name)
     return JsonResponse(body)
+
+
+def _closed_state(assignment):
+    """'cancelled' or 'shipped' when the tag's item is closed (nothing is recorded for it), else None."""
+    code = item_status(assignment.item).code
+    return {CANCELLED: 'cancelled', SHIPPED: 'shipped'}.get(code)
 
 
 def _device(request):
@@ -194,6 +202,9 @@ def scan(request):
     if assignment is None:
         _touch(device, now)
         return _error(404, 'unassigned_tag')
+    if state := _closed_state(assignment):
+        _touch(device, now)
+        return _reply(state, assignment)
     if process is None:
         # Auto mode: the server picks the next step
         _, todo = next_step(assignment)
@@ -226,6 +237,8 @@ def scan_preview(request):
     _touch(device, now)
     if assignment is None:
         return _error(404, 'unassigned_tag')
+    if state := _closed_state(assignment):
+        return _reply(state, assignment)
     box, todo = next_step(assignment)
     item, order = assignment.item, assignment.item.order
     steps = [r.step for r in box.rows]

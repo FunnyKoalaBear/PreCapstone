@@ -73,7 +73,8 @@ class ItemStatus:
     rows: list = field(default_factory=list)
     warnings: list = field(default_factory=list)
     last_event_at: datetime | None = None
-    boxes: list = field(default_factory=list)
+    boxes: list = field(default_factory=list)  # boxes that count (counters, roll-up, 'Box k of n')
+    released: list = field(default_factory=list)  # unfinished boxes whose tag was released: history only
     cancel_event: object = None
     ship_event: object = None
     completed_at: datetime | None = None  # last box to finish, for a COMPLETE or SHIPPED item
@@ -110,14 +111,11 @@ def box_caption(number, total):
 
 
 def box_captions(assignments):
-    """{assignment pk: caption} for assignments whose .item is loaded; one query, none for single-box items."""
-    totals = {a.item_id: a.item.box_count for a in assignments if a.item.box_count > 1}
-    by_item, out = defaultdict(list), {}
-    for a in TagAssignment.objects.filter(item_id__in=totals).order_by('start_at', 'pk'):
-        by_item[a.item_id].append(a)
-    for item_id, rows in by_item.items():
-        for n, chain in enumerate(box_chains(rows).values(), 1):
-            out.update({a.pk: box_caption(n, totals[item_id]) for a in chain})
+    """{assignment pk: caption} for assignments whose .item is loaded; released unfinished boxes have none."""
+    items = {a.item_id: a.item for a in assignments if a.item.box_count > 1}
+    out = {}
+    for st in item_statuses(items.values()).values():
+        out.update({a.pk: b.caption for b in st.boxes for a in b.assignments})
     return {a.pk: out.get(a.pk, '') for a in assignments}
 
 
@@ -238,9 +236,8 @@ def _steps(item):
 
 def box_status(assignment):
     """Status of the (item, box) pair the assignment belongs to."""
-    chains = list(box_chains(assignment.item.tagassignment_set.select_related('tag').order_by('start_at', 'pk')).values())
-    number, group = next((i, g) for i, g in enumerate(chains, 1) if any(a.pk == assignment.pk for a in g))
-    return _replay(_steps(assignment.item), group, list(events_for_box(group)), number)
+    st = item_status(assignment.item)
+    return next(b for b in st.boxes + st.released if any(a.pk == assignment.pk for a in b.assignments))
 
 
 def _roll_up(boxes):
@@ -310,14 +307,20 @@ def _chunk_statuses(items):
     out = {}
     for item in items:
         try:
-            boxes = []
-            for n, g in enumerate(box_chains(groups[item.pk]).values(), 1):
+            boxes, released = [], []
+            for g in box_chains(groups[item.pk]).values():
                 merged = {e.pk: e for a in g for e in _in_window(by_uid, a)}  # one event per pk even if windows overlap
-                boxes.append(_replay(steps[item.pk], g, sorted(merged.values(), key=lambda e: (e.occurred_at, e.pk)), n))
+                box = _replay(steps[item.pk], g, sorted(merged.values(), key=lambda e: (e.occurred_at, e.pk)), len(boxes) + 1)
+                if g[-1].end_at is not None and box.code != COMPLETE:  # tag released and unfinished: history only
+                    box.number = None
+                    released.append(box)
+                else:
+                    boxes.append(box)
             boxes += [_replay(steps[item.pk], [], []) for _ in range(max(item.box_count - len(boxes), 0 if boxes else 1))]
             for b in boxes:
                 b.caption = box_caption(b.number, item.box_count)
             status = _roll_up(boxes)
+            status.released = released
             if cancel := latest.get((item.pk, Event.Type.CANCELLED)):
                 status.code, status.label, status.cancel_event = CANCELLED, LABELS[CANCELLED], cancel
             elif status.code == COMPLETE and (ship := latest.get((item.pk, Event.Type.SHIPPED))):

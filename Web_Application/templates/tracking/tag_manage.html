@@ -26,6 +26,14 @@
     <button type="submit" class="button-secondary">{% trans "Search" %}</button>
   </form>
   <p>{% blocktrans count n=in_use %}{{ n }} tag in use.{% plural %}{{ n }} tags in use.{% endblocktrans %}</p>
+  {% if closed_count %}
+    {% blocktrans with n=closed_count asvar confirm_closed %}Release {{ n }} tags of cancelled or shipped items?{% endblocktrans %}
+    <form method="post" data-confirm="{{ confirm_closed|force_escape }}" data-confirm-danger data-confirm-button="{% trans 'Release' %}">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="release_closed">
+      <button type="submit" class="button-secondary">{% trans "Release tags of closed items" %} ({{ closed_count }})</button>
+    </form>
+  {% endif %}
 
   {% if q and open %}
     {% scroll_panel %}
