@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% load i18n duration panels %}
+{% load static i18n duration panels %}
 
 {% block title %}{{ title }} - {% trans "Factory Tracker" %}{% endblock %}
 
 {% block content %}
   <p><a href="{% url 'home' %}">&larr; {% trans "Back to Home" %}</a></p>
-  <h1>{{ title }}</h1>
+  <h1>{{ title }} {% include "includes/live_dot.html" %}</h1>
 
   <form method="get" class="filters">
     {% for k, v in keep.items %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
@@ -61,3 +61,5 @@
     <p>{% trans "Nothing matches this filter." %}</p>
   {% endif %}
 {% endblock %}
+
+{% block scripts %}<script src="{% static 'js/live.js' %}" defer></script>{% endblock %}

@@ -1,0 +1,3 @@
+{% load i18n %}<span class="live-dot" data-live="{% url 'last_change' %}" data-state="live" data-toast="{% trans 'Updated: new activity' %}"
+  data-title-live="{% trans 'Live: this page updates by itself' %}" data-title-offline="{% trans 'Offline: retrying' %}" data-title-paused="{% trans 'Paused: reload the page' %}"
+  role="status" title="{% trans 'Live: this page updates by itself' %}" aria-label="{% trans 'Live: this page updates by itself' %}"><span class="live-dot-mark" aria-hidden="true"></span><span class="live-dot-text" aria-hidden="true">{% trans "Live" %}</span></span>

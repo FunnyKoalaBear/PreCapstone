@@ -3475,5 +3475,27 @@ msgstr "印刷ジョブ"
 msgid "Sheet of %(code)s queued for printing."
 msgstr "%(code)s の指示書を印刷待ちに追加しました。"
 
+# CHECK: "ライブ" as the word next to the dot; the manual calls it the Live dot
+#: .\templates\includes\live_dot.html:1
+msgid "Live"
+msgstr "ライブ"
+
+#: .\templates\includes\live_dot.html:1
+msgid "Live: this page updates by itself"
+msgstr "ライブ: この画面は自動で更新されます"
+
+#: .\templates\includes\live_dot.html:1
+msgid "Offline: retrying"
+msgstr "オフライン: 再接続しています"
+
+#: .\templates\includes\live_dot.html:1
+msgid "Paused: reload the page"
+msgstr "一時停止: 画面を再読み込みしてください"
+
+# CHECK: short toast shown after the page reloaded itself
+#: .\templates\includes\live_dot.html:1
+msgid "Updated: new activity"
+msgstr "更新しました: 新しい動きがあります"
+
 #~ msgid "Back to Tags"
 #~ msgstr "タグ管理に戻る"

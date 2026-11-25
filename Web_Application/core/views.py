@@ -4,7 +4,10 @@ from urllib.parse import urlencode
 
 from django.contrib.auth.models import User
 from django.db.models import Q
+from django.db.models import Max
+from django.http import JsonResponse
 from django.shortcuts import render
+from django.views.decorators.http import require_GET
 from django.utils.dateparse import parse_date
 from django.utils import timezone
 from django.utils.translation import gettext_lazy
@@ -13,7 +16,7 @@ from core.rules import silent_after, void_window
 from core.permissions import OPERATOR, PLANNER, ROLES, role_level, role_required
 from orders.models import Customer, OrderItem
 from tracking.matrix import matrix
-from tracking.models import Event, ScannerDevice
+from tracking.models import Event, ScannerDevice, TagAssignment
 from tracking.completed import PERIODS, completed_on, period_range
 from tracking.overview import active_boxes, open_items
 from tracking.status import (
@@ -35,6 +38,16 @@ def done_period(request):
         return value if value in PERIODS else 'today'
     saved = request.session.get('done')
     return saved if saved in PERIODS else 'today'
+
+
+@role_required(OPERATOR)
+@require_GET
+def last_change(request):
+    """Signature of the newest event, order item and tag assignment; pages poll it to know when to reload."""
+    ids = [m.objects.aggregate(n=Max('id'))['n'] or 0 for m in (Event, OrderItem, TagAssignment)]
+    response = JsonResponse({'sig': '-'.join(map(str, ids))})
+    response['Cache-Control'] = 'no-store'
+    return response
 
 
 @role_required(OPERATOR)

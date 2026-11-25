@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% load i18n panels %}
+{% load static i18n panels %}
 
 {% block title %}{% trans "Shipping" %} - {% trans "Factory Tracker" %}{% endblock %}
 
 {% block content %}
-  <h1>{% trans "Shipping" %}</h1>
+  <h1>{% trans "Shipping" %} {% include "includes/live_dot.html" %}</h1>
 
   <h2>{% trans "Ready to ship" %}</h2>
   <form method="get" class="filters">
@@ -93,3 +93,5 @@
     </table>
   {% endscroll_panel %}
 {% endblock %}
+
+{% block scripts %}<script src="{% static 'js/live.js' %}" defer></script>{% endblock %}

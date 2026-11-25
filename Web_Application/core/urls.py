@@ -5,6 +5,7 @@ from . import feedback, styleguide, user_views, views
 
 urlpatterns = [
     path('', views.home, name='home'),
+    path('api/last-change/', views.last_change, name='last_change'),
     path('dashboard/', views.dashboard, name='dashboard'),
     path('users/', user_views.user_list, name='user_list'),
     path('users/add/', user_views.user_add, name='user_add'),

@@ -460,3 +460,9 @@ h1 .button-secondary, h2 .button-secondary, h1 .button, h2 .button {
 .result-photo { display: block; max-width: min(100%, 480px); height: auto; }
 
 .temp-password { font-size: var(--text-2xl); letter-spacing: 0.1em; overflow-wrap: anywhere; }
+
+/* Live dot next to the page title (live.js sets data-state) */
+.live-dot { display: inline-flex; align-items: center; gap: 0.35rem; margin-left: 0.75rem; vertical-align: middle; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--color-muted); }
+.live-dot-mark { width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--color-muted); }
+.live-dot[data-state="live"] .live-dot-mark { background: var(--status-complete); animation: live-pulse 2s ease-out 1; }
+@keyframes live-pulse { from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--status-complete) 60%, transparent); } to { box-shadow: 0 0 0 0.5rem transparent; } }

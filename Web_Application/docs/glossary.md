@@ -425,3 +425,7 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | Waiting (days since completion, Shipping column) | 経過日数 |
 | Late (completed after the due date) | 納期遅れ ? |
 | On time | 納期内 |
+| Live (dot next to the page title) | ライブ ? |
+| Offline: retrying | オフライン: 再接続しています |
+| Paused: reload the page | 一時停止: 画面を再読み込みしてください |
+| Updated: new activity (toast) | 更新しました: 新しい動きがあります |

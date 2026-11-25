@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load static i18n %}
 
 {% block title %}{% trans "Home" %} - {% trans "Factory Tracker" %}{% endblock %}
 
 {% block content %}
-  <h1>{% trans "Home" %}</h1>
+  <h1>{% trans "Home" %} {% include "includes/live_dot.html" %}</h1>
 
   <div class="counters counters-compact">
     <div class="card counter counter-complete">
@@ -53,3 +53,5 @@
   {% include "tracking/_matrix.html" %}
   {% if matrix.more %}<p><a class="button-secondary" href="{{ more_url }}">{% trans "Show more" %}</a></p>{% endif %}
 {% endblock %}
+
+{% block scripts %}<script src="{% static 'js/live.js' %}" defer></script>{% endblock %}

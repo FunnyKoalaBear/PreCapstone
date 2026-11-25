@@ -177,3 +177,7 @@
   .site-header, #sidebar, .sidebar-backdrop, .site-footer, .no-print, .toasts, .confirm-dialog { display: none; }
   html .app.has-sidebar .app-main { margin-left: 0; }
 }
+
+/* Live dot (rules in base.css) */
+@media (prefers-reduced-motion: reduce) { .live-dot-mark { animation: none !important; } }
+@media (max-width: 40rem) { .live-dot-text { display: none; } }

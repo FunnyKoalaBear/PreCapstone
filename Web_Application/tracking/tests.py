@@ -788,7 +788,7 @@ class BoxesPageTests(OverviewBase):
                              ('?status=at_vendor&vendor_late=1', 'Vendor overdue'), ('', 'Active boxes')):
             r = self.client.get('/boxes/' + query)
             self.assertEqual(r.context['title'], title)
-            self.assertContains(r, f'<h1>{title}</h1>')
+            self.assertContains(r, f'<h1>{title} <span class="live-dot"')
             self.assertContains(r, f'<title>{title} - Factory Tracker</title>')
         self.assertNotContains(self.client.get('/boxes/?status=waiting&stagnant=1'), '<h1>Boxes')
 
