@@ -25,20 +25,28 @@
 
   // <details> that were open at load do not block
   const openAtLoad = new Set(document.querySelectorAll('details[open]'));
-  const dirty = (f) => {
-    if (f.matches('input[type="checkbox"], input[type="radio"]')) return f.checked !== f.defaultChecked;
-    if (f.matches('input[type="hidden"], input[type="submit"], input[type="button"], input[type="reset"], input[type="file"], button')) return false;
-    if (f.matches('select')) return [...f.options].some((o) => o.selected !== o.defaultSelected);
-    return f.value !== f.defaultValue;
+  // Only fields the user touched can hold unsent changes: remember each one's value before its first edit
+  const FIELD = 'input, textarea, select', IDLE = 15000;
+  const first = new Map();
+  let lastTouch = 0;
+  const val = (f) => (/^(checkbox|radio)$/.test(f.type) ? f.checked : f.value);
+  const dirty = (f) => first.has(f) && f.isConnected && val(f) !== first.get(f);
+  const touch = (e) => {
+    const f = e.target;
+    if (!f.matches || !f.matches(FIELD) || f.matches('[type="hidden"], [type="submit"], [type="button"], [type="file"]')) return;
+    if (!first.has(f)) first.set(f, e.type === 'input' || e.type === 'change' ? (f.matches('select') ? val(f) : /^(checkbox|radio)$/.test(f.type) ? f.defaultChecked : f.defaultValue) : val(f));
+    lastTouch = Date.now();
   };
+  ['focusin', 'pointerdown', 'keydown', 'input', 'change'].forEach((t) => document.addEventListener(t, touch, true));
 
   // Unsafe to reload while the user is working
   const busy = () => {
     const a = document.activeElement;
-    if (a && (/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) || a.isContentEditable)) return true;
+    if (a && a.isContentEditable) return true;
+    if (a && a.matches && a.matches(FIELD) && Date.now() - lastTouch < IDLE) return true; // a field they just used
     if (document.querySelector('dialog[open], [aria-modal="true"], .modal')) return true;
     if ([...document.querySelectorAll('details[open]')].some((d) => !openAtLoad.has(d))) return true;
-    if ([...document.querySelectorAll('input, textarea, select')].some(dirty)) return true;
+    if ([...first.keys()].some(dirty)) return true;
     return !!(window.getSelection && String(window.getSelection()).length);
   };
 
