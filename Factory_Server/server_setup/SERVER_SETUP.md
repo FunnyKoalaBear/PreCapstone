@@ -113,7 +113,7 @@ cd ~/PreCapstone/Web_Application && .venv/bin/python manage.py migrate
 sudo bash ~/PreCapstone/Factory_Server/server_setup/setup-services.sh
 ```
 - `make-env-files.sh` asks for the `factory_app` password, checks it against Postgres, generates a Django `SECRET_KEY`, sets `DEBUG=False` and `ALLOWED_HOSTS`, and writes both `.env` files (600). Edit `ALLOWED_HOSTS` in the script if the server's IPs differ.
-- `setup-services.sh` installs Caddy and creates `dashboard.service` (gunicorn) and `factory-api.service` (uvicorn). All restart on failure and start at boot. Caddy joins the `precap` group so it can read static files in the 750 home folder.
+- `setup-services.sh` installs Caddy and creates `dashboard.service` (gunicorn), `print-worker.service` (prints the queued work sheets) and `factory-api.service` (uvicorn). Run it again after pulling a version that adds a service. All restart on failure and start at boot. Caddy joins the `precap` group so it can read static files in the 750 home folder.
 
 Why gunicorn + Caddy instead of `runserver`: runserver is single-threaded and only serves CSS with `DEBUG=True` (which shows source code on errors). gunicorn runs several workers; Caddy serves files and can add HTTPS.
 
@@ -140,14 +140,14 @@ Reboot once and check again that everything comes back on its own.
 ## Everyday
 
 ### After every `git pull`
-gunicorn and uvicorn load the Python code once at start, but Django reads templates from disk. Without a restart, new templates meet old code and pages fail with error 500 (e.g. `NoReverseMatch` for a new URL name).
+gunicorn, uvicorn and the print worker load the Python code once at start, but Django reads templates from disk. Without a restart, new templates meet old code and pages fail with error 500 (e.g. `NoReverseMatch` for a new URL name).
 ```bash
 cd ~/PreCapstone && git pull
 cd Web_Application
 .venv/bin/pip install -r requirements.txt                  # only if requirements.txt changed
 .venv/bin/python manage.py migrate                         # applies new migrations, harmless if none
-sudo systemctl restart dashboard factory-api
-systemctl is-active dashboard factory-api                  # both should print "active"
+sudo systemctl restart dashboard print-worker factory-api
+systemctl is-active dashboard print-worker factory-api     # all should print "active"
 ```
 Static files need no extra step: Caddy serves `Web_Application/static/` straight from disk.
 

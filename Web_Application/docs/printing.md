@@ -3,13 +3,13 @@
 ## Flow
 
 1. Something asks for a sheet and a `PrintJob` row is saved with status `PENDING`:
-   - `POST /api/assign/` (setter links a tag): saved in the same transaction as the `TagAssignment`, so a refused tag never prints and a link never misses its sheet. Every box of an item gets its own copy of the same item sheet.
+   - `POST /api/assign/` (setter links a tag): saved in the same transaction as the `TagAssignment`, so a refused tag never prints a   Admin -> Orders -> Print jobs -> "Print the selected jobs again" puts it back in the queue.
+nd a link never misses its sheet. Every box of an item gets its own copy of the same item sheet.
    - The **Print sheet** button on the order page.
 2. The `print_worker` command (a systemd service on the factory server) takes the oldest `PENDING` job:
    builds the order sheet and a separate random-drawing PDF, submits each file
    as its own CUPS print request, and marks it `SENT` with both CUPS job ids.
 3. If printing fails (printer off, paused, no CUPS) the job stays `PENDING` and is retried every 15 s; after 5 tries it becomes `FAILED`.
-   Admin -> Orders -> Print jobs -> "Print the selected jobs again" puts it back in the queue.
 
 Why a queue: the HTTP reply to the setter stays fast (it has a 5 s timeout), nothing is lost while the printer is off,
 and the printer code runs on the factory server even if the website later moves to AWS.

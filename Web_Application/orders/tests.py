@@ -1265,7 +1265,7 @@ class PrintItemTests(SheetBase):
     def test_saves_the_sheet_prints_it_and_returns_the_job_id(self):
         job, m = self.run_print(return_value='job-7')
         path = self.dir / f'{self.item_.item_code}.pdf'
-        self.assertEqual(job, 'job-7')
+        self.assertEqual(job, 'job-7, job-7')  # sheet job id, random drawing job id
         self.assertEqual(m.call_args_list, [
             mock.call(str(path)),
             mock.call(str(self.dir / f'{self.item_.item_code}_random.pdf')),
@@ -1294,7 +1294,7 @@ class PrintItemTests(SheetBase):
 
     def test_random_drawing_is_saved_as_a_separate_pdf(self):
         drawings = self.dir / 'drawings'
-        drawings.mkdir()
+        drawings.mkdir(parents=True)
         (drawings / 'drawing.png').write_bytes(make_png())
         with override_settings(PRINT_DIR=self.dir, PRINT_RANDOM_DRAWINGS_DIR=drawings), \
                 mock.patch('orders.printing.print_pdf', side_effect=['job-8', 'job-9']):
@@ -1386,7 +1386,9 @@ class PrintQueueTests(SheetBase):
         for item in self.items:
             printing.queue_print(item, PrintJob.Source.BUTTON)
         out = io.StringIO()
-        with override_settings(PRINT_DIR=self.dir, PRINT_DRY_RUN=True):
+        # close_old_connections() would close the test's own connection (it runs inside a transaction)
+        with override_settings(PRINT_DIR=self.dir, PRINT_DRY_RUN=True), \
+                mock.patch('orders.management.commands.print_worker.close_old_connections'):
             call_command('print_worker', '--once', stdout=out)
         self.assertEqual(set(PrintJob.objects.values_list('status', flat=True)), {'SENT'})
         self.assertIn('dry-run', out.getvalue())
