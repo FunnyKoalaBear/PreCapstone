@@ -14,6 +14,7 @@ from django.utils import timezone
 from django.utils.translation import gettext as _
 from django.utils.translation import get_language, gettext_lazy
 
+from core.navigation import back_target, order_redirect
 from core.permissions import ADMIN, OPERATOR, PLANNER, has_role, role_required
 from core.rules import min_rate_quantity
 from orders.models import Customer, OrderItem, Process, Vendor
@@ -24,9 +25,9 @@ from .overview import active_boxes
 from .analysis import DEFECT_ORDERS, PLAN_ORDERS, RECORD_CAP, RECORD_LIMIT, RESULT_ORDERS, Filters, cause_rows, defect_detail, defect_rate_rows, plan_rows, record_rows, result_events, result_rows, slowest, step_facts, vendor_rows
 from .priority import TIER_LABELS, TIERS, priority
 from .completed import completed_rows, parse_day, period_range
-from .shipping import shipping_overview
-from .services import assign_tag, can_correct, closed_open_assignments, correct_event as correct_event_service, next_step, record_event, record_result, record_step_state, release_assignment, replace_tag, resolve_tag, cancel_item, ship_item
-from .status import box_captions, AT_VENDOR, CANCELLED, COMPLETE, IN_PROGRESS, LABELS, NOT_STARTED, PAUSED, WAITING, current_row, item_status, item_statuses
+from .shipping import shipping_data
+from .services import assign_tag, can_correct, correct_event as correct_event_service, next_step, record_event, record_result, record_step_state, release_assignment, replace_tag, resolve_tag, cancel_item, ship_item
+from .status import box_captions, AT_VENDOR, CANCELLED, CLOSED, COMPLETE, SHIPPED, IN_PROGRESS, LABELS, NOT_STARTED, PAUSED, WAITING, current_row, item_status, item_statuses
 
 
 def _next_step(uid):
@@ -92,8 +93,17 @@ def simulate(request):
 
 def _tags_url(request):
     """The Tags page URL, keeping the search a release/replace form was posted from."""
-    q = request.POST.get('q', '').strip()
-    return reverse('tag_manage') + (f'?{urlencode({"q": q})}' if q else '')
+    keep = {k: request.POST.get(k, '').strip() for k in ('q', 'show')}
+    keep = {k: v for k, v in keep.items() if v}
+    return reverse('tag_manage') + (f'?{urlencode(keep)}' if keep else '')
+
+
+# Quick filters of the Tags page: key -> (label, item status codes shown; None = all)
+TAG_FILTERS = {
+    'all': (gettext_lazy('All linked tags'), None),
+    'closed': (gettext_lazy('Closed items (cancelled or shipped)'), (CANCELLED, SHIPPED)),
+    'complete': (gettext_lazy('Complete, not shipped'), (COMPLETE,)),
+}
 
 
 @role_required(PLANNER)
@@ -107,13 +117,14 @@ def tag_manage(request):
             a = release_assignment(get_object_or_404(TagAssignment.objects.select_related('tag', 'item'), pk=pk, end_at__isnull=True))
             messages.success(request, _('Tag %(tag)s released from item %(item)s.') % {'tag': a.tag, 'item': a.item.item_code})
             return redirect(_tags_url(request))
-        if request.POST.get('action') == 'release_closed':
-            rows = closed_open_assignments()
+        if request.POST.get('action') == 'release_selected':
+            ids = {int(v) for v in request.POST.getlist('assignment') if v.isdigit()}
             now = timezone.now()
-            for a in rows:
-                a.end_at = now
-                a.save(update_fields=['end_at'])
-            messages.success(request, _('Tags released from closed items: %(n)s.') % {'n': len(rows)})
+            done = TagAssignment.objects.filter(pk__in=ids, end_at__isnull=True, start_at__lt=now).update(end_at=now)
+            if done < len(ids):
+                messages.success(request, _('Released %(n)s tags; %(k)s skipped (already released or not found).') % {'n': done, 'k': len(ids) - done})
+            else:
+                messages.success(request, _('Released %(n)s tags.') % {'n': done})
             return redirect(_tags_url(request))
         if request.POST.get('action') == 'replace':
             pk = request.POST.get('assignment', '')
@@ -141,15 +152,25 @@ def tag_manage(request):
     assignments = TagAssignment.objects.select_related('tag', 'item__order__customer')
     open_ = list(assignments.filter(end_at__isnull=True).order_by('item__order__job_number', 'item__item_no', 'start_at'))
     q, in_use = request.GET.get('q', '').strip().lower(), len(open_)
+    show = request.GET.get('show') if request.GET.get('show') in TAG_FILTERS else ''
     if q:
         hay = lambda a: [a.item.item_code, a.item.order.job_number, a.item.part_name, a.item.order.customer.name, a.tag.uid]
         open_ = [a for a in open_ if any(q in h.lower() for h in hay(a))]
+    if q or show:
+        statuses = item_statuses({a.item for a in open_})
+        for a in open_:
+            a.status = statuses[a.item_id]
+            a.working = a.status.code not in CLOSED
+        if show:
+            open_ = [a for a in open_ if TAG_FILTERS[show][1] is None or a.status.code in TAG_FILTERS[show][1]]
+    if not (q or show):
+        open_ = []
     captions = box_captions(open_)
     for a in open_:
         a.caption = captions[a.pk]
     return render(request, 'tracking/tag_manage.html', {
         'form': form,
-        'open': open_ if q else [], 'q': q, 'in_use': in_use, 'closed_count': len(closed_open_assignments()),
+        'open': open_, 'q': q, 'show': show, 'filters': [(k, v[0]) for k, v in TAG_FILTERS.items()], 'in_use': in_use,
         'tag_uids': Tag.objects.filter(active=True).values_list('uid', flat=True),
     })
 
@@ -260,25 +281,33 @@ BOX_SORT_CHOICES = [
 ]
 
 
+def boxes_title(params):
+    """The boxes page title for its filters (status, vendor_late, stagnant)."""
+    parts = []
+    if params.get('vendor_late') == '1':
+        parts.append(_('Vendor overdue'))
+    elif params.get('status') in BOX_STATUSES:
+        parts.append(BOX_STATUSES[params['status']][1])
+    if params.get('stagnant') == '1':
+        parts.append(_('Stagnant'))
+    return ', '.join(map(str, parts)) or _('Active boxes')
+
+
 @role_required(OPERATOR)
 def boxes(request):
     status, stagnant, vendor_late = request.GET.get('status'), request.GET.get('stagnant') == '1', request.GET.get('vendor_late') == '1'
     sort = request.GET.get('sort') if request.GET.get('sort') in BOX_SORTS else 'due'
-    rows, parts = active_boxes(), []
+    rows = active_boxes()
     if status in BOX_STATUSES:
         rows = [r for r in rows if r['code'] == BOX_STATUSES[status][0]]
     if vendor_late:
         rows = [r for r in rows if r['late_days']]
-        parts.append(_('Vendor overdue'))
-    elif status in BOX_STATUSES:
-        parts.append(BOX_STATUSES[status][1])
     if stagnant:
         rows = [r for r in rows if r['stagnant']]
-        parts.append(_('Stagnant'))
     rows.sort(key=BOX_SORTS[sort])
     keep = {k: v for k, v in (('status', status), ('stagnant', '1' if stagnant else ''), ('vendor_late', '1' if vendor_late else '')) if v}
     return render(request, 'tracking/boxes.html', {
-        'rows': rows, 'title': ', '.join(map(str, parts)) or _('Active boxes'), 'sort': sort,
+        'rows': rows, 'title': boxes_title(request.GET), 'sort': sort,
         'sort_choices': BOX_SORT_CHOICES, 'keep': keep,
     })
 
@@ -286,7 +315,7 @@ def boxes(request):
 @role_required(OPERATOR)
 def record_result_view(request, pk):
     item = get_object_or_404(OrderItem.objects.select_related('order'), pk=pk)
-    back = redirect('order_detail', job_number=item.order.job_number)
+    back = order_redirect(item.order.job_number, request.POST.get('from', ''))
     if request.method != 'POST':
         return back
     form = ResultForm(item, request.POST, request.FILES)
@@ -445,17 +474,30 @@ def _month(text):
 def shipping(request):
     g = request.GET
     num = lambda k: int(g[k]) if g.get(k, '').isdigit() else None
+    today = timezone.localdate()
+    year = num('s_year') if num('s_year') and 2000 <= num('s_year') <= 2100 else today.year
+    month = num('s_month') if num('s_month') is not None and num('s_month') <= 12 else today.month  # 0 = all months
     ready_p = {'r_customer': g.get('r_customer', ''), 'r_q': g.get('r_q', '').strip(), 'due_from': g.get('due_from', ''), 'due_to': g.get('due_to', ''),
                'done_from': g.get('done_from', ''), 'done_to': g.get('done_to', '')}
     month_p = {'m_customer': g.get('m_customer', ''), 'm_q': g.get('m_q', '').strip(), 'month_from': _month(g.get('month_from')), 'month_to': _month(g.get('month_to'))}
-    ready, months = shipping_overview(
+    ship_p = {'s_year': g.get('s_year', ''), 's_month': g.get('s_month', '')}
+    data = shipping_data(
         ready_customer=num('r_customer'), ready_q=ready_p['r_q'], due_from=parse_date(ready_p['due_from']), due_to=parse_date(ready_p['due_to']),
         done_from=parse_day(ready_p['done_from']), done_to=parse_day(ready_p['done_to']),
-        month_customer=num('m_customer'), month_q=month_p['m_q'], month_from=month_p['month_from'], month_to=month_p['month_to'])
-    hidden = lambda p: [(k, v) for k, v in p.items() if v]
+        month_customer=num('m_customer'), month_q=month_p['m_q'], month_from=month_p['month_from'], month_to=month_p['month_to'],
+        ship_year=year, ship_month=month)
+    hidden = lambda *ps: [(k, v) for p in ps for k, v in p.items() if v]
+    keep = {k: v for k, v in {**ready_p, **month_p}.items() if v}
+    for row in data['months']:  # a month row selects that month in the shipped list
+        y, m = row['month'].split('-')
+        row['url'] = '?' + urlencode({**keep, 's_year': y, 's_month': int(m)}) + '#shipped-items'
+    shipped = data['shipped']
+    on_time = sum(r['on_time'] for r in shipped)
     return render(request, 'tracking/shipping.html', {
-        'ready': ready, 'months': months, 'customers': Customer.objects.order_by('name'), 'r': ready_p, 'm': month_p,
-        'ready_hidden': hidden(ready_p), 'month_hidden': hidden(month_p),
+        'ready': data['ready'], 'months': data['months'], 'customers': Customer.objects.order_by('name'), 'r': ready_p, 'm': month_p,
+        'ready_hidden': hidden(ready_p, ship_p), 'month_hidden': hidden(month_p, ship_p), 'shipped_hidden': hidden(ready_p, month_p),
+        'shipped': shipped, 'years': data['years'], 'months_list': range(1, 13), 's_year': year, 's_month': month,
+        'ship_count': len(shipped), 'ship_on_time': on_time, 'ship_pct': round(100 * on_time / len(shipped)) if shipped else 0,
     })
 
 
@@ -484,9 +526,11 @@ STEP_ACTIONS = {
 def item_action(request, pk):
     """Planner buttons on the order page: pause, resume, mark partial (per box) or cancel the item."""
     item = get_object_or_404(OrderItem.objects.select_related('order'), pk=pk)
-    back = redirect('order_detail', job_number=item.order.job_number)
+    marker = request.POST.get('from', '')
+    nxt = back_target(request.POST.get('next', ''))
+    back = redirect(nxt[0]) if nxt else order_redirect(item.order.job_number, marker)
     if request.method != 'POST':
-        return back
+        return order_redirect(item.order.job_number)
     action, reason = request.POST.get('action', ''), request.POST.get('reason', '')
     try:
         if action == 'cancel':

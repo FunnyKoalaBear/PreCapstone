@@ -94,17 +94,6 @@ class CloseFreesTagsTests(ReleaseBase):
         self.assignment.refresh_from_db()
         self.assertIsNotNone(self.assignment.end_at)
 
-    def test_release_closed_button_ends_only_closed_items(self):
-        other, _uids = self.make()
-        cancel_item(self.planner, self.item, 'x')
-        TagAssignment.objects.filter(pk=self.assignment.pk).update(end_at=None)  # as old data: still linked
-        self.client.force_login(self.planner)
-        self.assertContains(self.client.get('/tags/'), 'Release tags of closed items')
-        r = self.client.post('/tags/', {'action': 'release_closed'}, follow=True)
-        self.assertContains(r, 'Tags released from closed items: 1.')
-        self.assertIsNotNone(TagAssignment.objects.get(pk=self.assignment.pk).end_at)
-        self.assertIsNone(TagAssignment.objects.get(item=other).end_at)
-
 
 class ClosedItemScanTests(ReleaseBase):
     def setUp(self):

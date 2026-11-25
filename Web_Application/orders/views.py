@@ -15,6 +15,7 @@ from django.utils.translation import gettext_lazy
 from django.views.decorators.http import require_POST
 from urllib.parse import urlencode
 
+from core.navigation import back_target, order_redirect, safe_marker
 from core.permissions import OPERATOR, PLANNER, has_role, role_required
 from tracking.forms import ResultForm
 from tracking.planning import step_plan
@@ -145,8 +146,8 @@ def order_edit(request, job_number):
             formset.save()
             _log_changes(order, request.user, old_order, old_items)
         messages.success(request, _('Order %(job)s updated.') % {'job': order.job_number})
-        return redirect('order_detail', job_number=order.job_number)
-    return render(request, 'orders/order_form.html', {'form': form, 'formset': formset, 'order': order})
+        return order_redirect(order.job_number, request.GET.get('from', ''))
+    return render(request, 'orders/order_form.html', {'form': form, 'formset': formset, 'order': order, 'from_marker': safe_marker(request.GET.get('from', ''))})
 
 
 def _filtered_orders(params):
@@ -346,7 +347,9 @@ def order_detail(request, job_number):
             'linked': linked, 'result_form': ResultForm(item) if linked else None, 'cancelled': st.cancel_event,
             'assignment': next((b['box'].assignment for b in boxes if b['open']), None),
         })
+    marker = back_target(request.GET.get('from', ''))
     return render(request, 'orders/order_detail.html', {
+        'from_marker': marker[0] if marker else '', 'back': marker or (reverse('order_list'), _('Orders')),
         'order': order, 'code': code, 'label': label, 'items': items, 'completed': _day(order_completed_at(order, statuses)),
         'changes': order.changes.select_related('changed_by'),
         'late': order.due_date < timezone.localdate() and code not in CLOSED,

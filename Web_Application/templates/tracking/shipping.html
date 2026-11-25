@@ -33,20 +33,81 @@
           <th class="tnum">{% trans "Completed" %}</th>
           <th class="num">{% trans "Waiting" context "days since completion" %}</th>
           <th class="tnum">{% trans "Due date" %}</th>
+          <th>{% trans "Action" %}</th>
         </tr>
       </thead>
       <tbody>
         {% for row in ready %}
           <tr>
-            <td class="tnum" data-label="{% trans 'Item' %}"><a href="{% url 'order_detail' row.order.job_number %}">{{ row.item.item_code }}</a></td>
+            <td class="tnum" data-label="{% trans 'Item' %}"><a href="{% order_link row.order.job_number %}">{{ row.item.item_code }}</a></td>
             <td data-label="{% trans 'Part name' %}">{{ row.item.part_name }}</td>
             <td data-label="{% trans 'Customer' %}">{{ row.order.customer }}</td>
             <td class="tnum" data-label="{% trans 'Completed' %}">{{ row.completed|date:"Y-m-d" }}</td>
             <td class="num" data-label="{% trans 'Waiting' context 'days since completion' %}">{{ row.waiting }}</td>
             <td class="tnum" data-label="{% trans 'Due date' %}"><span>{{ row.order.due_date|date:"Y-m-d" }}{% if row.late %} <span class="badge badge-overdue">{% trans "Overdue" %}</span>{% endif %}</span></td>
+            <td data-label="{% trans 'Action' %}">
+              {% if can.planner %}
+                {% blocktrans with item=row.item.item_code asvar confirm_ship %}Mark item {{ item }} as shipped?{% endblocktrans %}
+                <form method="post" action="{% url 'item_action' row.item.pk %}" data-confirm="{{ confirm_ship|force_escape }}" data-confirm-button="{% trans 'Mark as shipped' %}">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="ship">
+                  <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                  <button type="submit" class="button-secondary">{% trans "Mark as shipped" %}</button>
+                </form>
+              {% endif %}
+            </td>
           </tr>
         {% empty %}
-          <tr><td colspan="6">{% trans "Nothing is waiting to be shipped." %}</td></tr>
+          <tr><td colspan="7">{% trans "Nothing is waiting to be shipped." %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endscroll_panel %}
+
+  <h2 id="shipped-items">{% trans "Shipped items" %}</h2>
+  <form method="get" action="#shipped-items" class="filters">
+    {% for name, value in shipped_hidden %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+    <div>
+      <label for="s_year">{% trans "Year" %}</label>
+      <select id="s_year" name="s_year" onchange="this.form.submit()">
+        {% for y in years %}<option value="{{ y }}"{% if y == s_year %} selected{% endif %}>{{ y }}</option>{% endfor %}
+        {% if s_year not in years %}<option value="{{ s_year }}" selected>{{ s_year }}</option>{% endif %}
+      </select>
+    </div>
+    <div>
+      <label for="s_month">{% trans "Month" %}</label>
+      <select id="s_month" name="s_month" onchange="this.form.submit()">
+        <option value="0"{% if s_month == 0 %} selected{% endif %}>{% trans "All months" %}</option>
+        {% for n in months_list %}<option value="{{ n }}"{% if n == s_month %} selected{% endif %}>{% blocktrans with n=n context "month number in a dropdown" %}{{ n }}{% endblocktrans %}</option>{% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="button-secondary">{% trans "Apply" %}</button>
+  </form>
+  <p>{% blocktrans with n=ship_count k=ship_on_time p=ship_pct %}{{ n }} items shipped, {{ k }} on time ({{ p }}%){% endblocktrans %}</p>
+  {% scroll_panel label=_("Shipped items") %}
+    <table class="table table-cards">
+      <thead>
+        <tr>
+          <th class="tnum">{% trans "Item" %}</th>
+          <th>{% trans "Part name" %}</th>
+          <th>{% trans "Customer" %}</th>
+          <th class="tnum">{% trans "Shipped" %}</th>
+          <th class="tnum">{% trans "Due date" %}</th>
+          <th>{% trans "Delivery" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in shipped %}
+          <tr>
+            <td class="tnum" data-label="{% trans 'Item' %}"><a href="{% order_link row.order.job_number %}">{{ row.item.item_code }}</a></td>
+            <td data-label="{% trans 'Part name' %}">{{ row.item.part_name }}</td>
+            <td data-label="{% trans 'Customer' %}">{{ row.order.customer }}</td>
+            <td class="tnum" data-label="{% trans 'Shipped' %}">{{ row.shipped_on|date:"Y-m-d" }}</td>
+            <td class="tnum" data-label="{% trans 'Due date' %}">{{ row.order.due_date|date:"Y-m-d" }}</td>
+            <td data-label="{% trans 'Delivery' %}">{% if row.on_time %}<span class="badge badge-complete">{% trans "On time" %}</span>{% else %}<span class="badge badge-overdue">{% blocktrans count counter=row.late_days %}Late by {{ counter }} day{% plural %}Late by {{ counter }} days{% endblocktrans %}</span>{% endif %}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6">{% trans "Nothing was shipped in this period." %}</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -81,7 +142,7 @@
       <tbody>
         {% for row in months %}
           <tr>
-            <td class="tnum" data-label="{% trans 'Month' %}">{{ row.month }}</td>
+            <td class="tnum" data-label="{% trans 'Month' %}"><a href="{{ row.url }}">{{ row.month }}</a></td>
             <td class="num" data-label="{% trans 'Shipped' %}">{{ row.shipped }}</td>
             <td class="num" data-label="{% trans 'On time' %}">{{ row.on_time }}</td>
             <td class="num" data-label="{% trans 'On-time rate' %}">{{ row.rate }}%</td>

@@ -207,7 +207,7 @@ class TagSearchAndHistoryTests(TestCase):
         uids, r = self.history()
         self.assertEqual(uids, ['NEW1', 'OLD1'])
         self.assertContains(r, 'In use')
-        self.assertContains(r, f'href="/orders/{self.item.order.job_number}/"')
+        self.assertContains(r, f'href="/orders/{self.item.order.job_number}/?from=')
 
     def test_history_custom_range_and_fallbacks(self):
         self.link('D10', 20, 10)
@@ -1491,7 +1491,7 @@ class ProgressMatrixTests(TestCase):
         page = self.client.get('/')
         self.assertContains(page, 'colspan="2"')
         self.assertContains(page, 'Demo Plating')
-        self.assertContains(page, f'data-href="/orders/{item.order.job_number}/"')
+        self.assertContains(page, f'data-href="/orders/{item.order.job_number}/?from=%2F"')
 
     def test_short_routes_are_padded_to_the_widest(self):
         self.make(days=1, route=[self.mat])
@@ -2160,7 +2160,7 @@ class ShippedTests(TestCase):
         self.ship_at(late, timezone.make_aware(datetime(2031, 3, 11, 10, 0), tz))
         r = self.client.get('/shipping/')
         self.assertEqual([x['item'] for x in r.context['ready']], [ready])
-        self.assertEqual(r.context['months'], [{'month': '2031-03', 'shipped': 2, 'on_time': 1, 'rate': 50}])
+        self.assertEqual([{k: v for k, v in m.items() if k != 'url'} for m in r.context['months']], [{'month': '2031-03', 'shipped': 2, 'on_time': 1, 'rate': 50}])
         self.assertContains(r, '50%')
         self.assertContains(r, ready.item_code)
 
@@ -2560,7 +2560,7 @@ class ShippingFilterTests(TestCase):
 
     def test_page_has_two_scroll_panels_and_both_filter_forms(self):
         html = self.client.get('/shipping/').content.decode()
-        self.assertEqual(html.count('class="scroll-panel"'), 2)
+        self.assertEqual(html.count('class="scroll-panel"'), 3)
         for name in ('r_q', 'r_customer', 'due_from', 'due_to', 'm_q', 'm_customer', 'month_from', 'month_to'):
             self.assertIn(f'name="{name}"', html)
 

@@ -1,6 +1,8 @@
 from django import template
 from django.utils.html import format_html
 
+from core.navigation import order_url
+
 register = template.Library()
 
 
@@ -14,3 +16,9 @@ def scroll_panel(content, max_height='', first_col=False, label=''):
         format_html(' role="region" aria-label="{}"', label) if label else '',
         content,
     )
+
+
+@register.simple_tag(takes_context=True)
+def order_link(context, job_number):
+    """The order page URL with a ?from= marker so its back link returns to the current page."""
+    return order_url(job_number, context['request'].get_full_path())

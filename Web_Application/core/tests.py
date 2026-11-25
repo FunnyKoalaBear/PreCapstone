@@ -610,7 +610,7 @@ class ResponsiveLayoutTests(TestCase):
         item = OrderItem.objects.create(order=order, part_name='P', quantity=1)
         TagAssignment.objects.create(tag=Tag.objects.create(uid='CARD1'), item=item)
         Vendor.objects.create(code='00001', name='V', kind=Vendor.Kind.INTERNAL)
-        pages = {'/orders/': 1, '/orders/?tab=codes': 1, '/analysis/?tab=results': 4, '/shipping/': 2, '/tags/?q=CARD1': 1}
+        pages = {'/orders/': 1, '/orders/?tab=codes': 1, '/analysis/?tab=results': 4, '/shipping/': 3, '/tags/?q=CARD1': 1}
         for url, tables in pages.items():
             html = self.client.get(url).content.decode()
             self.assertEqual(html.count('class="table table-cards"'), tables, url)

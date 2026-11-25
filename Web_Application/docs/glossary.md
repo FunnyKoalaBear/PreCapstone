@@ -429,6 +429,13 @@ Use these terms for every translation in `locale/ja`. Terms marked `?` are the l
 | Offline: retrying | オフライン: 再接続しています |
 | Paused: reload the page | 一時停止: 画面を再読み込みしてください |
 | Updated: new activity (toast) | 更新しました: 新しい動きがあります |
-| Release tags of closed items (Tags page button) | 出荷・キャンセル済みの品目のタグを解除 ? |
 | Closed item (cancelled or shipped) | 出荷・キャンセル済みの品目 ? |
 | Released (box card on the order page) | 解除済み |
+| Back to <page> | <page>に戻る |
+| Shipped items (list on the Shipping page) | 出荷済み品目 |
+| Year / All months / 1月-12月 | 年 / すべての月 / 1月〜12月 |
+| Delivery (on time or late) | 納期状況 ? |
+| Release selected | 選択したタグを解除 |
+| Select all | すべて選択 |
+| Quick filters (Tags page) | 絞り込み |
+| Complete, not shipped | 完了（未出荷） |

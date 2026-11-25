@@ -209,10 +209,3 @@ def ship_item(user, item):
         event.save()
         _release_open(item, event.occurred_at)
     return event
-
-
-def closed_open_assignments():
-    """Open assignments of cancelled or shipped items (old data from before cancel and ship freed their tags)."""
-    open_ = list(TagAssignment.objects.filter(end_at__isnull=True).select_related('item'))
-    statuses = item_statuses({a.item for a in open_})
-    return [a for a in open_ if statuses[a.item_id].code in (CANCELLED, SHIPPED)]

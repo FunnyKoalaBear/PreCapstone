@@ -4,10 +4,10 @@
 {% block title %}{{ order.job_number }} - {% trans "Factory Tracker" %}{% endblock %}
 
 {% block content %}
-  <p><a href="{% url 'order_list' %}">&larr; {% trans "Back to Orders" %}</a></p>
+  <p><a href="{{ back.0 }}">&larr; {% blocktrans with page=back.1 %}Back to {{ page }}{% endblocktrans %}</a></p>
   <h1>{{ order.job_number }} <span class="badge badge-{{ code|lower }}">{{ label }}</span> {% include "includes/live_dot.html" %}
     {% if completed %}<small class="tnum">{% trans "Completed" %}: {{ completed|date:"Y-m-d" }}</small>{% endif %}
-    {% if can.planner %}<a class="button-secondary" href="{% url 'order_edit' order.job_number %}">{% trans "Edit" %}</a>{% endif %}
+    {% if can.planner %}<a class="button-secondary" href="{% url 'order_edit' order.job_number %}{% if from_marker %}?from={{ from_marker|urlencode:'' }}{% endif %}">{% trans "Edit" %}</a>{% endif %}
     {% if can.operator %}<a class="button-secondary" href="{% url 'order_sheet' order.job_number %}" target="_blank" rel="noopener">{% trans "Preview all sheets" %}</a>{% endif %}
     {% if can.planner %}<a class="button-secondary" href="{% url 'order_events_export' order.job_number %}">{% trans "Export events (CSV)" %}</a>{% endif %}</h1>
 
@@ -107,7 +107,7 @@
       {% elif can.planner and entry.status.code == "COMPLETE" %}
         {% blocktrans with item=entry.item.item_code asvar confirm_ship %}Mark item {{ item }} as shipped?{% endblocktrans %}
         <form method="post" action="{% url 'item_action' entry.item.pk %}" data-confirm="{{ confirm_ship|force_escape }}" data-confirm-button="{% trans 'Mark as shipped' %}">
-          {% csrf_token %}
+          {% csrf_token %}{% include "includes/from_field.html" %}
           <input type="hidden" name="action" value="ship">
           <button type="submit" class="button-secondary">{% trans "Mark as shipped" %}</button>
         </form>
@@ -123,7 +123,7 @@
           <summary>{% trans "Cancel item" %}</summary>
           {% blocktrans with item=entry.item.item_code asvar confirm_cancel %}Cancel item {{ item }}?{% endblocktrans %}
           <form method="post" action="{% url 'item_action' entry.item.pk %}" class="cancel-form" data-confirm="{{ confirm_cancel|force_escape }}" data-confirm-danger data-confirm-button="{% trans 'Cancel item' %}">
-            {% csrf_token %}
+            {% csrf_token %}{% include "includes/from_field.html" %}
             <input type="hidden" name="action" value="cancel">
             <label for="reason-{{ entry.item.pk }}">{% trans "Reason" %}</label>
             <textarea id="reason-{{ entry.item.pk }}" name="reason" rows="2" required></textarea>
@@ -136,7 +136,7 @@
         <summary>{% trans "Record result" %}</summary>
         {% if entry.result_form %}
           <form method="post" action="{% url 'record_result' entry.item.pk %}" class="result-form" enctype="multipart/form-data">
-            {% csrf_token %}
+            {% csrf_token %}{% include "includes/from_field.html" %}
             {% include "includes/form_fields.html" with form=entry.result_form %}
             <button type="submit" class="button">{% trans "Record result" %}</button>
           </form>

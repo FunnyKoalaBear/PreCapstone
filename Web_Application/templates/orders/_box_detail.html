@@ -1,7 +1,7 @@
 {% load i18n duration panels %}
       {% if can.planner and b.actions %}
         <form method="post" action="{% url 'item_action' b.box.assignment.item_id %}" class="step-actions">
-          {% csrf_token %}
+          {% csrf_token %}{% include "includes/from_field.html" %}
           <input type="hidden" name="box" value="{{ b.box.assignment.pk }}">
           {% for value, label in b.actions %}<button type="submit" name="action" value="{{ value }}" class="button-secondary">{{ label }}</button>{% endfor %}
         </form>

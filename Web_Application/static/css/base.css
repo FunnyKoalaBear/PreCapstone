@@ -148,7 +148,7 @@ td.num, th.num { text-align: right; }
 /* Confirm dialog (confirm.js) */
 .confirm-dialog { max-width: 28rem; padding: 1rem 1.25rem; background: var(--color-surface-2); color: var(--color-text); border: 1px solid var(--color-border); border-radius: 8px; }
 .confirm-dialog::backdrop { background: var(--color-overlay); }
-.confirm-dialog p { margin: 0 0 1rem; }
+.confirm-dialog p { margin: 0 0 1rem; white-space: pre-line; }
 .confirm-dialog form { margin: 0; }
 
 .card {

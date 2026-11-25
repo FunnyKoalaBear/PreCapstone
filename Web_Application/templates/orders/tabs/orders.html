@@ -43,7 +43,7 @@
       <tbody>
         {% for row in rows %}
           <tr>
-            <td class="tnum" data-label="{% trans 'Job number' %}"><a href="{% url 'order_detail' row.order.job_number %}">{{ row.order.job_number }}</a></td>
+            <td class="tnum" data-label="{% trans 'Job number' %}"><a href="{% order_link row.order.job_number %}">{{ row.order.job_number }}</a></td>
             <td data-label="{% trans 'Customer' %}">{{ row.order.customer }}</td>
             <td data-label="{% trans 'Customer order number' %}">{{ row.order.customer_order_number }}</td>
             <td class="tnum" data-label="{% trans 'Due date' %}"><span>

@@ -33,7 +33,7 @@
       <tbody>
         {% for row in rows %}
           <tr>
-            <td class="tnum" data-label="{% trans 'Item' %}"><a href="{% url 'order_detail' row.order.job_number %}">{{ row.item.item_code }}</a></td>
+            <td class="tnum" data-label="{% trans 'Item' %}"><a href="{% order_link row.order.job_number %}">{{ row.item.item_code }}</a></td>
             <td data-label="{% trans 'Part name' %}">{{ row.item.part_name }}</td>
             <td data-label="{% trans 'Customer' %}">{{ row.order.customer }}</td>
             <td class="tnum" data-label="{% trans 'Completed' %}">{{ row.completed|date:"Y-m-d" }}</td>

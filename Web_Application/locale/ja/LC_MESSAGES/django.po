@@ -3497,25 +3497,93 @@ msgstr "一時停止: 画面を再読み込みしてください"
 msgid "Updated: new activity"
 msgstr "更新しました: 新しい動きがあります"
 
-# CHECK: "closed" = cancelled or shipped; wording shared by the button and the confirm text
-#: .\templates\tracking\tag_manage.html:1
-msgid "Release tags of closed items"
-msgstr "出荷・キャンセル済みの品目のタグを解除"
-
-#: .\templates\tracking\tag_manage.html:1
-#, python-format
-msgid "Release %(n)s tags of cancelled or shipped items?"
-msgstr "出荷またはキャンセル済みの品目のタグ %(n)s 件を解除しますか？"
-
-#: .\tracking\views.py:1
-#, python-format
-msgid "Tags released from closed items: %(n)s."
-msgstr "出荷・キャンセル済みの品目から解除したタグ: %(n)s 件"
-
 #: .\tracking\services.py:1
 #, python-format
 msgid "Item %(item)s is %(status)s, so no tag can be linked to it."
 msgstr "品目 %(item)s は「%(status)s」のため、タグを紐付けられません。"
+
+#: .\templates\orders\order_detail.html:1
+#, python-format
+msgid "Back to %(page)s"
+msgstr "%(page)sに戻る"
+
+#: .\templates\tracking\shipping.html:1
+msgid "Shipped items"
+msgstr "出荷済み品目"
+
+#: .\templates\tracking\shipping.html:1
+msgid "Year"
+msgstr "年"
+
+#: .\templates\tracking\shipping.html:1
+msgid "All months"
+msgstr "すべての月"
+
+#: .\templates\tracking\shipping.html:1
+#, python-format
+msgctxt "month number in a dropdown"
+msgid "%(n)s"
+msgstr "%(n)s月"
+
+# CHECK: summary line above the shipped items list
+#: .\templates\tracking\shipping.html:1
+#, python-format
+msgid "%(n)s items shipped, %(k)s on time (%(p)s%%)"
+msgstr "%(n)s 件出荷、うち納期内 %(k)s 件（%(p)s%%）"
+
+# CHECK: column header: on time or late
+#: .\templates\tracking\shipping.html:1
+msgid "Delivery"
+msgstr "納期状況"
+
+#: .\templates\tracking\shipping.html:1
+msgid "Nothing was shipped in this period."
+msgstr "この期間に出荷した品目はありません。"
+
+#: .\templates\tracking\tag_manage.html:1
+msgid "Quick filters"
+msgstr "絞り込み"
+
+#: .\tracking\views.py:1
+msgid "All linked tags"
+msgstr "紐付け中のタグすべて"
+
+# CHECK: closed = cancelled or shipped; same wording as the glossary
+#: .\tracking\views.py:1
+msgid "Closed items (cancelled or shipped)"
+msgstr "出荷・キャンセル済みの品目"
+
+#: .\tracking\views.py:1
+msgid "Complete, not shipped"
+msgstr "完了（未出荷）"
+
+#: .\templates\tracking\tag_manage.html:1
+msgid "Select all"
+msgstr "すべて選択"
+
+#: .\templates\tracking\tag_manage.html:1
+msgid "Release selected"
+msgstr "選択したタグを解除"
+
+# CHECK: {n} is replaced by script; keep it
+#: .\templates\tracking\tag_manage.html:1
+msgid "Release {n} selected tags?"
+msgstr "選択した {n} 件のタグを解除しますか？"
+
+# CHECK: {k} is replaced by script; keep it
+#: .\templates\tracking\tag_manage.html:1
+msgid "{k} of them are still being worked on."
+msgstr "そのうち {k} 件は作業中の品目です。"
+
+#: .\tracking\views.py:1
+#, python-format
+msgid "Released %(n)s tags."
+msgstr "%(n)s 件のタグを解除しました。"
+
+#: .\tracking\views.py:1
+#, python-format
+msgid "Released %(n)s tags; %(k)s skipped (already released or not found)."
+msgstr "%(n)s 件のタグを解除しました（%(k)s 件は解除済みまたは見つからないためスキップ）。"
 
 #~ msgid "Back to Tags"
 #~ msgstr "タグ管理に戻る"

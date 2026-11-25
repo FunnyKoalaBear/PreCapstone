@@ -26,22 +26,27 @@
     <button type="submit" class="button-secondary">{% trans "Search" %}</button>
   </form>
   <p>{% blocktrans count n=in_use %}{{ n }} tag in use.{% plural %}{{ n }} tags in use.{% endblocktrans %}</p>
-  {% if closed_count %}
-    {% blocktrans with n=closed_count asvar confirm_closed %}Release {{ n }} tags of cancelled or shipped items?{% endblocktrans %}
-    <form method="post" data-confirm="{{ confirm_closed|force_escape }}" data-confirm-danger data-confirm-button="{% trans 'Release' %}">
-      {% csrf_token %}
-      <input type="hidden" name="action" value="release_closed">
-      <button type="submit" class="button-secondary">{% trans "Release tags of closed items" %} ({{ closed_count }})</button>
-    </form>
-  {% endif %}
+  <nav class="filters" aria-label="{% trans 'Quick filters' %}">
+    {% for key, label in filters %}<a class="button-secondary" href="?show={{ key }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}"{% if key == show %} aria-current="true"{% endif %}>{{ label }}</a>{% endfor %}
+  </nav>
 
-  {% if q and open %}
+  {% if open %}
+    <form method="post" id="bulk-release" class="filters" data-bulk-release
+          data-one="{% trans 'Release {n} selected tags?' %}" data-working="{% trans '{k} of them are still being worked on.' %}">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="release_selected">
+      <input type="hidden" name="q" value="{{ q }}">
+      <input type="hidden" name="show" value="{{ show }}">
+      <button type="submit" class="remove-step" data-confirm-danger data-confirm-button="{% trans 'Release' %}" disabled>{% trans "Release selected" %} (<span data-count>0</span>)</button>
+    </form>
     {% scroll_panel %}
       <table class="table table-cards">
         <thead>
           <tr>
+            <th><input type="checkbox" data-select-all aria-label="{% trans 'Select all' %}"></th>
             <th>{% trans "Tag" %}</th>
             <th>{% trans "Item" %}</th>
+            <th>{% trans "Status" %}</th>
             <th class="tnum">{% trans "Since (JST)" %}</th>
             <th></th>
           </tr>
@@ -49,8 +54,10 @@
         <tbody>
           {% for a in open %}
             <tr>
+              <td data-label="{% trans 'Select' %}"><input type="checkbox" name="assignment" value="{{ a.pk }}" form="bulk-release"{% if a.working %} data-working{% endif %} aria-label="{% trans 'Select' %} {{ a.tag }}"></td>
               <td data-label="{% trans 'Tag' %}">{{ a.tag }}{% if a.caption %} <small>{{ a.caption }}</small>{% endif %}</td>
-              <td data-label="{% trans 'Item' %}"><span><a href="{% url 'order_detail' a.item.order.job_number %}">{{ a.item.item_code }}</a> {{ a.item.part_name }}</span></td>
+              <td data-label="{% trans 'Item' %}"><span><a href="{% order_link a.item.order.job_number %}">{{ a.item.item_code }}</a> {{ a.item.part_name }}</span></td>
+              <td data-label="{% trans 'Status' %}"><span class="badge badge-{{ a.status.code|lower }}">{{ a.status.label }}</span></td>
               <td class="tnum" data-label="{% trans 'Since (JST)' %}">{{ a.start_at|date:"Y-m-d H:i" }}</td>
               <td>
                 {% blocktrans with tag=a.tag item=a.item.item_code asvar confirm_release %}Release tag {{ tag }} from item {{ item }}?{% endblocktrans %}
@@ -58,7 +65,7 @@
                   {% csrf_token %}
                   <input type="hidden" name="action" value="release">
                   <input type="hidden" name="assignment" value="{{ a.pk }}">
-                  <input type="hidden" name="q" value="{{ q }}">
+                  <input type="hidden" name="q" value="{{ q }}"><input type="hidden" name="show" value="{{ show }}">
                   <button type="submit" class="remove-step">{% trans "Release" %}</button>
                 </form>
                 <details class="replace-tag">
@@ -80,9 +87,9 @@
         </tbody>
       </table>
     {% endscroll_panel %}
-  {% elif q %}
+  {% elif q or show %}
     <p>{% trans "No tags in use match this search." %}</p>
   {% endif %}
 {% endblock %}
 
-{% block scripts %}<script src="{% static 'js/live.js' %}" defer></script>{% endblock %}
+{% block scripts %}<script src="{% static 'js/tag_select.js' %}" defer></script><script src="{% static 'js/live.js' %}" defer></script>{% endblock %}

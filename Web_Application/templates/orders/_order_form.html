@@ -15,7 +15,7 @@
 
     <div class="form-actions form-actions-sticky">
       <button type="submit" class="button">{% if order %}{% trans "Save changes" %}{% else %}{% trans "Create order" %}{% endif %}</button>
-      <a class="button-secondary" href="{% if order %}{% url 'order_detail' order.job_number %}{% else %}{% url 'order_list' %}{% endif %}">{% trans "Cancel" %}</a>
+      <a class="button-secondary" href="{% if order %}{% url 'order_detail' order.job_number %}{% if from_marker %}?from={{ from_marker|urlencode:'' }}{% endif %}{% else %}{% url 'order_list' %}{% endif %}">{% trans "Cancel" %}</a>
       <button type="button" id="add-item" class="button-secondary">{% trans "Add another item" %}</button>
     </div>
   </form>
